@@ -1,6 +1,7 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Query, Request, State},
     http::StatusCode,
+    middleware::{self, Next},
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -17,6 +18,7 @@ pub struct AppState {
     pub cache: DeviceCache,
     pub storage: Storage,
     pub started_at: std::time::Instant,
+    pub api_key: Option<String>,
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -25,13 +27,41 @@ pub fn create_router(state: AppState) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    let api_key = state.api_key.clone();
+
     Router::new()
-        .route("/api/live", get(get_live))
         .route("/api/health", get(get_health))
-        .route("/api/history", get(get_history))
-        .route("/api/system", get(get_system))
+        .nest(
+            "/api",
+            Router::new()
+                .route("/live", get(get_live))
+                .route("/history", get(get_history))
+                .route("/system", get(get_system))
+                .layer(middleware::from_fn(move |req, next| {
+                    let key = api_key.clone();
+                    async move { api_key_auth(req, next, key).await }
+                }))
+                .with_state(state.clone()),
+        )
         .with_state(state)
         .layer(cors)
+}
+
+async fn api_key_auth(
+    req: Request,
+    next: Next,
+    expected_key: Option<String>,
+) -> impl IntoResponse + use<> {
+    let Some(key) = expected_key else { return next.run(req).await };
+    let auth = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "));
+    match auth {
+        Some(token) if token == key => next.run(req).await,
+        _ => (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response(),
+    }
 }
 
 async fn get_live(State(state): State<AppState>) -> Json<LiveResponse> {
@@ -167,7 +197,7 @@ mod tests {
     fn test_app() -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let state = AppState { cache, storage, started_at: std::time::Instant::now() };
+        let state = AppState { cache, storage, started_at: std::time::Instant::now(), api_key: None };
         create_router(state)
     }
 
@@ -203,7 +233,7 @@ mod tests {
     async fn test_live_with_data() {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let state = AppState { cache: cache.clone(), storage, started_at: std::time::Instant::now() };
+        let state = AppState { cache: cache.clone(), storage, started_at: std::time::Instant::now(), api_key: None };
         let app = create_router(state);
 
         seed_cache(&cache).await;
@@ -233,7 +263,7 @@ mod tests {
     async fn test_health() {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let state = AppState { cache: cache.clone(), storage, started_at: std::time::Instant::now() };
+        let state = AppState { cache: cache.clone(), storage, started_at: std::time::Instant::now(), api_key: None };
         let app = create_router(state);
 
         seed_cache(&cache).await;
@@ -269,7 +299,7 @@ mod tests {
             .await
             .unwrap();
 
-        let state = AppState { cache, storage, started_at: std::time::Instant::now() };
+        let state = AppState { cache, storage, started_at: std::time::Instant::now(), api_key: None };
         let app = create_router(state);
 
         let resp = app
@@ -315,5 +345,66 @@ mod tests {
         assert!(json["memory_total_mb"].is_number());
         assert!(json["process"]["pid"].is_number());
         assert!(json["process"]["memory_mb"].is_number());
+    }
+
+    #[tokio::test]
+    async fn test_api_key_rejects_without_token() {
+        let cache = DeviceCache::new();
+        let storage = Storage::new_in_memory().unwrap();
+        let state = AppState { cache, storage, started_at: std::time::Instant::now(), api_key: Some("secret123".into()) };
+        let app = create_router(state);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/system")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_allows_with_valid_token() {
+        let cache = DeviceCache::new();
+        let storage = Storage::new_in_memory().unwrap();
+        let state = AppState { cache, storage, started_at: std::time::Instant::now(), api_key: Some("secret123".into()) };
+        let app = create_router(state);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/system")
+                    .header("authorization", "Bearer secret123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_health_open_without_api_key() {
+        let cache = DeviceCache::new();
+        let storage = Storage::new_in_memory().unwrap();
+        let state = AppState { cache, storage, started_at: std::time::Instant::now(), api_key: Some("secret123".into()) };
+        let app = create_router(state);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 }
