@@ -12,6 +12,8 @@ pub struct AppConfig {
     pub db_path: String,
     #[serde(default = "default_persist_interval")]
     pub persist_interval_secs: u64,
+    #[serde(default)]
+    pub api_key: Option<String>,
 }
 
 fn default_server_port() -> u16 {

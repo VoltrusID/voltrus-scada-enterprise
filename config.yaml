@@ -1,6 +1,7 @@
 server_port: 3000
 db_path: "data.db"
 persist_interval_secs: 5
+# api_key: "change-me-to-a-strong-random-string"
 
 devices:
   - id: "plts_1"
