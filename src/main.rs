@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
         cache,
         storage,
         started_at: std::time::Instant::now(),
-        api_key: app_config.api_key.clone(),
+        auth_secret: app_config.auth_secret.clone().unwrap_or_else(|| "voltrus-lite-dev-secret".to_string()),
     };
     let app = api::create_router(state);
 

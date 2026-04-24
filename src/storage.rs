@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Context, Result};
 use rusqlite::Connection;
 
-use crate::models::DataPoint;
+use crate::models::{
+    DataPoint, Device, ScreenLayoutRow, Sensor, Setting, TwinLayout, User, UserShortcut,
+};
 
 #[derive(Clone)]
 pub struct Storage {
@@ -92,6 +94,688 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
+
+    // ── Users ──
+
+    pub async fn get_user_by_username(&self, username: &str) -> Result<Option<User>> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, username, password_hash, salt FROM users WHERE username = ?1")
+                .context("Prepare failed")?;
+            let mut rows = stmt
+                .query_map(rusqlite::params![username], |row| {
+                    Ok(User {
+                        id: row.get(0)?,
+                        username: row.get(1)?,
+                        password_hash: row.get(2)?,
+                        salt: row.get(3)?,
+                    })
+                })
+                .context("Query failed")?;
+            match rows.next() {
+                Some(Ok(user)) => Ok(Some(user)),
+                Some(Err(e)) => Err(e).context("Row mapping failed"),
+                None => Ok(None),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_user(&self, username: &str, password_hash: &str, salt: &str) -> Result<i64> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        let password_hash = password_hash.to_string();
+        let salt = salt.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO users (username, password_hash, salt) VALUES (?1, ?2, ?3)",
+                rusqlite::params![username, password_hash, salt],
+            )
+            .context("Insert user failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Devices ──
+
+    pub async fn list_devices(&self) -> Result<Vec<Device>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, type, sort_order FROM devices ORDER BY sort_order")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(Device {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        device_type: row.get(2)?,
+                        sort_order: row.get(3)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_device(&self, id: &str, name: &str, sort_order: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        let name = name.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO devices (id, name, sort_order) VALUES (?1, ?2, ?3)",
+                rusqlite::params![id, name, sort_order],
+            )
+            .context("Insert device failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_device(&self, id: &str, name: Option<&str>, sort_order: Option<i64>) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        let name = name.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(ref name) = name {
+                conn.execute(
+                    "UPDATE devices SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update device name failed")?;
+            }
+            if let Some(sort_order) = sort_order {
+                conn.execute(
+                    "UPDATE devices SET sort_order = ?1 WHERE id = ?2",
+                    rusqlite::params![sort_order, id],
+                )
+                .context("Update device sort_order failed")?;
+            }
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_device(&self, id: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM devices WHERE id = ?1", rusqlite::params![id])
+                .context("Delete device failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Sensors ──
+
+    pub async fn list_sensors(&self, screen_id: Option<&str>) -> Result<Vec<Sensor>> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match &screen_id {
+                Some(sid) => (
+                    "SELECT s.id, s.key, s.name, s.unit, s.color, s.min_val, s.max_val,
+                            s.warn_val, s.crit_val, s.base_val, s.sort_order, s.decimals,
+                            s.source_type, s.source_config, s.device_id, s.equipment_id
+                     FROM sensors s
+                     JOIN screen_sensors ss ON s.id = ss.sensor_id
+                     WHERE ss.screen_id = ?1
+                     ORDER BY ss.sort_order",
+                    vec![Box::new(sid.clone())],
+                ),
+                None => (
+                    "SELECT id, key, name, unit, color, min_val, max_val,
+                            warn_val, crit_val, base_val, sort_order, decimals,
+                            source_type, source_config, device_id, equipment_id
+                     FROM sensors
+                     ORDER BY sort_order",
+                    vec![],
+                ),
+            };
+            let mut stmt = conn.prepare(sql).context("Prepare failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok(Sensor {
+                        id: row.get(0)?,
+                        key: row.get(1)?,
+                        name: row.get(2)?,
+                        unit: row.get(3)?,
+                        color: row.get(4)?,
+                        min_val: row.get(5)?,
+                        max_val: row.get(6)?,
+                        warn_val: row.get(7)?,
+                        crit_val: row.get(8)?,
+                        base_val: row.get(9)?,
+                        sort_order: row.get(10)?,
+                        decimals: row.get(11)?,
+                        source_type: row.get(12)?,
+                        source_config: row.get(13)?,
+                        device_id: row.get(14)?,
+                        equipment_id: row.get(15)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_sensor(
+        &self,
+        key: &str,
+        name: &str,
+        unit: &str,
+        color: &str,
+        min_val: f64,
+        max_val: f64,
+        warn_val: f64,
+        crit_val: f64,
+        base_val: f64,
+        sort_order: i64,
+        decimals: i64,
+        source_type: &str,
+        source_config: &str,
+        device_id: &str,
+        equipment_id: Option<&str>,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let key = key.to_string();
+        let name = name.to_string();
+        let unit = unit.to_string();
+        let color = color.to_string();
+        let source_type = source_type.to_string();
+        let source_config = source_config.to_string();
+        let device_id = device_id.to_string();
+        let equipment_id = equipment_id.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO sensors (key, name, unit, color, min_val, max_val, warn_val, crit_val,
+                 base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                rusqlite::params![key, name, unit, color, min_val, max_val, warn_val, crit_val,
+                                  base_val, sort_order, decimals, source_type, source_config,
+                                  device_id, equipment_id],
+            )
+            .context("Insert sensor failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_sensor(&self, id: i64, fields: &serde_json::Value) -> Result<()> {
+        let conn = self.conn.clone();
+        let fields = fields.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let obj = fields
+                .as_object()
+                .context("fields must be a JSON object")?;
+            let allowed = [
+                "key", "name", "unit", "color", "min_val", "max_val",
+                "warn_val", "crit_val", "base_val", "sort_order", "decimals",
+                "source_type", "source_config", "device_id", "equipment_id",
+            ];
+            let mut parts = Vec::new();
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            for &col in &allowed {
+                if let Some(val) = obj.get(col) {
+                    parts.push(format!("{col} = ?"));
+                    params.push(Box::new(val.to_string()));
+                }
+            }
+            if parts.is_empty() {
+                return Ok(());
+            }
+            params.push(Box::new(id));
+            let sql = format!("UPDATE sensors SET {} WHERE id = ?", parts.join(", "));
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            conn.execute(&sql, param_refs.as_slice())
+                .context("Update sensor failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_sensor(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM sensors WHERE id = ?1", rusqlite::params![id])
+                .context("Delete sensor failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn reorder_sensors(&self, order: &[i64]) -> Result<()> {
+        let conn = self.conn.clone();
+        let order = order.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            for (i, &id) in order.iter().enumerate() {
+                conn.execute(
+                    "UPDATE sensors SET sort_order = ?1 WHERE id = ?2",
+                    rusqlite::params![i as i64, id],
+                )
+                .context("Reorder sensor failed")?;
+            }
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Screen Sensors ──
+
+    pub async fn add_screen_sensor(
+        &self,
+        screen_id: &str,
+        sensor_id: i64,
+        sort_order: i64,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO screen_sensors (screen_id, sensor_id, sort_order) VALUES (?1, ?2, ?3)",
+                rusqlite::params![screen_id, sensor_id, sort_order],
+            )
+            .context("Add screen sensor failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_screen_sensor_sort(
+        &self,
+        screen_id: &str,
+        sensor_id: i64,
+        sort_order: i64,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE screen_sensors SET sort_order = ?1 WHERE screen_id = ?2 AND sensor_id = ?3",
+                rusqlite::params![sort_order, screen_id, sensor_id],
+            )
+            .context("Update screen sensor sort failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn remove_screen_sensor(&self, screen_id: &str, sensor_id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM screen_sensors WHERE screen_id = ?1 AND sensor_id = ?2",
+                rusqlite::params![screen_id, sensor_id],
+            )
+            .context("Remove screen sensor failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_screen_sensors_by_screen(&self, screen_id: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM screen_sensors WHERE screen_id = ?1",
+                rusqlite::params![screen_id],
+            )
+            .context("Delete screen sensors by screen failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Screen Layouts ──
+
+    pub async fn get_layouts(&self, screen_id: &str) -> Result<Vec<ScreenLayoutRow>> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT screen_id, breakpoint, layout FROM screen_layouts WHERE screen_id = ?1")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![screen_id], |row| {
+                    Ok(ScreenLayoutRow {
+                        screen_id: row.get(0)?,
+                        breakpoint: row.get(1)?,
+                        layout: row.get(2)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn save_layouts(
+        &self,
+        screen_id: &str,
+        layouts: &serde_json::Value,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        let layouts = layouts.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            tx.execute(
+                "DELETE FROM screen_layouts WHERE screen_id = ?1",
+                rusqlite::params![screen_id],
+            )
+            .context("Delete layouts failed")?;
+            if let Some(arr) = layouts.as_array() {
+                for item in arr {
+                    let bp = item.get("breakpoint")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("lg");
+                    let layout = item.get("layout")
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "[]".to_string());
+                    tx.execute(
+                        "INSERT INTO screen_layouts (screen_id, breakpoint, layout) VALUES (?1, ?2, ?3)",
+                        rusqlite::params![screen_id, bp, layout],
+                    )
+                    .context("Insert layout failed")?;
+                }
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Twin Layouts ──
+
+    pub async fn get_twin_layouts(&self, screen_id: &str) -> Result<Vec<TwinLayout>> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT screen_id, equipment_id, equipment_type, position_x, position_z, rotation_y FROM twin_layouts WHERE screen_id = ?1")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![screen_id], |row| {
+                    Ok(TwinLayout {
+                        screen_id: row.get(0)?,
+                        equipment_id: row.get(1)?,
+                        equipment_type: row.get(2)?,
+                        position_x: row.get(3)?,
+                        position_z: row.get(4)?,
+                        rotation_y: row.get(5)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn save_twin_layouts(&self, screen_id: &str, layouts: &[TwinLayout]) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        let layouts = layouts.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            tx.execute(
+                "DELETE FROM twin_layouts WHERE screen_id = ?1",
+                rusqlite::params![screen_id],
+            )
+            .context("Delete twin layouts failed")?;
+            for l in &layouts {
+                tx.execute(
+                    "INSERT INTO twin_layouts (screen_id, equipment_id, equipment_type, position_x, position_z, rotation_y)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    rusqlite::params![l.screen_id, l.equipment_id, l.equipment_type,
+                                      l.position_x, l.position_z, l.rotation_y],
+                )
+                .context("Insert twin layout failed")?;
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Settings ──
+
+    pub async fn get_settings(&self, keys: &[&str]) -> Result<Vec<Setting>> {
+        let conn = self.conn.clone();
+        let keys: Vec<String> = keys.iter().map(|s| s.to_string()).collect();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let placeholders: Vec<String> = keys.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
+            let sql = format!(
+                "SELECT key, value FROM settings WHERE key IN ({})",
+                placeholders.join(", ")
+            );
+            let mut stmt = conn.prepare(&sql).context("Prepare failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                keys.iter().map(|k| k as &dyn rusqlite::types::ToSql).collect();
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok(Setting {
+                        key: row.get(0)?,
+                        value: row.get(1)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn upsert_setting(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let key = key.to_string();
+        let value = value.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                rusqlite::params![key, value],
+            )
+            .context("Upsert setting failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Shortcuts ──
+
+    pub async fn get_user_shortcuts(&self, user_id: i64) -> Result<Vec<UserShortcut>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT user_id, sensor_id, shortcut FROM user_shortcuts WHERE user_id = ?1")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![user_id], |row| {
+                    Ok(UserShortcut {
+                        user_id: row.get(0)?,
+                        sensor_id: row.get(1)?,
+                        shortcut: row.get(2)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn save_user_shortcuts(
+        &self,
+        user_id: i64,
+        entries: &[(i64, Option<&str>)],
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let entries: Vec<(i64, Option<String>)> = entries
+            .iter()
+            .map(|(sid, sc)| (*sid, sc.map(|s| s.to_string())))
+            .collect();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            tx.execute(
+                "DELETE FROM user_shortcuts WHERE user_id = ?1",
+                rusqlite::params![user_id],
+            )
+            .context("Delete shortcuts failed")?;
+            for (sensor_id, shortcut) in &entries {
+                let sc = shortcut.as_deref().unwrap_or("");
+                tx.execute(
+                    "INSERT INTO user_shortcuts (user_id, sensor_id, shortcut) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![user_id, sensor_id, sc],
+                )
+                .context("Insert shortcut failed")?;
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Seed ──
+
+    pub async fn seed_database(&self) -> Result<()> {
+        let existing = self.get_user_by_username("admin").await?;
+        if existing.is_none() {
+            use rand::Rng;
+            let salt: [u8; 16] = rand::rng().random();
+            let salt_hex = hex::encode(salt);
+            let password = "admin";
+            let password_hash = hash_password(password, &salt_hex);
+
+            self.create_user("admin", &password_hash, &salt_hex).await?;
+
+            tracing::info!("Seeded admin user");
+        }
+
+        // Seed PLTS sensors if none exist
+        let all_sensors = self.list_sensors(None).await?;
+        if all_sensors.is_empty() {
+            self.seed_plts_sensors().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn seed_plts_sensors(&self) -> Result<()> {
+        // Seed devices
+        self.create_device("plts_1", "PLTS 1", 0).await?;
+        self.create_device("plts_2", "PLTS 2", 1).await?;
+
+        // Common PLTS sensor definitions: (key, name, unit, color, min, max, warn, crit, base, sort, decimals, source_type, source_config)
+        let sensor_defs: &[(&str, &str, &str, &str, f64, f64, f64, f64, f64, i64, i64, &str, &str)] = &[
+            ("pv_voltage", "PV Voltage", "V", "#f97316", 0.0, 600.0, 20.0, 10.0, 380.0, 0, 1, "random_walk", "{}"),
+            ("pv_current", "PV Current", "A", "#f97316", 0.0, 50.0, 8.0, 10.0, 5.2, 1, 2, "random_walk", "{}"),
+            ("pv_power", "PV Power", "W", "#eab308", 0.0, 30000.0, 200.0, 50.0, 1976.0, 2, 0, "random_walk", "{}"),
+            ("battery_soc", "Battery SOC", "%", "#22c55e", 0.0, 100.0, 20.0, 10.0, 78.0, 3, 1, "random_walk", "{}"),
+            ("battery_voltage", "Battery Voltage", "V", "#22c55e", 0.0, 60.0, 44.0, 42.0, 48.5, 4, 1, "random_walk", "{}"),
+            ("battery_current", "Battery Current", "A", "#22c55e", -50.0, 50.0, -30.0, -40.0, 3.5, 5, 2, "random_walk", "{}"),
+            ("battery_power", "Battery Power", "W", "#22c55e", -3000.0, 3000.0, -2000.0, -2500.0, 170.0, 6, 0, "random_walk", "{}"),
+            ("load_power", "Load Power", "W", "#ef4444", 0.0, 5000.0, 4000.0, 4500.0, 1805.0, 7, 0, "random_walk", "{}"),
+            ("grid_power", "Grid Power", "W", "#3b82f6", -5000.0, 5000.0, 3000.0, 4000.0, 0.0, 8, 0, "random_walk", "{}"),
+            ("grid_frequency", "Grid Frequency", "Hz", "#3b82f6", 45.0, 55.0, 49.0, 48.0, 50.0, 9, 2, "random_walk", "{}"),
+            ("energy_today", "Energy Today", "kWh", "#a855f7", 0.0, 100.0, 5.0, 1.0, 12.4, 10, 1, "random_walk", "{}"),
+            ("temperature", "Temperature", "°C", "#f97316", -10.0, 80.0, 60.0, 70.0, 32.5, 11, 1, "random_walk", "{}"),
+        ];
+
+        let mut plts1_sensor_ids: Vec<i64> = Vec::new();
+        let mut plts2_sensor_ids: Vec<i64> = Vec::new();
+
+        for def in sensor_defs {
+            let plts1_id = self.create_sensor(
+                def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
+                def.8, def.9, def.10, def.11, def.12, "plts_1", None,
+            ).await?;
+            plts1_sensor_ids.push(plts1_id);
+
+            let plts2_key = format!("{}_2", def.0);
+            let plts2_id = self.create_sensor(
+                &plts2_key, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
+                def.8, def.9 + 12, def.10, def.11, def.12, "plts_2", None,
+            ).await?;
+            plts2_sensor_ids.push(plts2_id);
+        }
+
+        // Assign sensors to screen "plts_1"
+        for (i, &sid) in plts1_sensor_ids.iter().enumerate() {
+            self.add_screen_sensor("plts_1", sid, i as i64).await?;
+        }
+
+        // Assign sensors to screen "plts_2"
+        for (i, &sid) in plts2_sensor_ids.iter().enumerate() {
+            self.add_screen_sensor("plts_2", sid, i as i64).await?;
+        }
+
+        tracing::info!("Seeded PLTS sensors for plts_1 and plts_2");
+        Ok(())
+    }
+}
+
+fn hash_password(password: &str, salt: &str) -> String {
+    use sha2::{Sha256, Digest};
+    let input = format!("{salt}{password}");
+    hex::encode(Sha256::digest(input.as_bytes()))
 }
 
 fn init_schema(conn: &Connection) -> Result<()> {
@@ -104,7 +788,68 @@ fn init_schema(conn: &Connection) -> Result<()> {
             value REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_device_time_metric
-            ON telemetry(device_id, metric, timestamp);",
+            ON telemetry(device_id, metric, timestamp);
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS devices (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'screen',
+            sort_order INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS sensors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            unit TEXT NOT NULL DEFAULT '',
+            color TEXT NOT NULL DEFAULT '#f97316',
+            min_val REAL NOT NULL,
+            max_val REAL NOT NULL,
+            warn_val REAL NOT NULL,
+            crit_val REAL NOT NULL,
+            base_val REAL NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            decimals INTEGER NOT NULL DEFAULT 1,
+            source_type TEXT NOT NULL DEFAULT 'random_walk',
+            source_config TEXT NOT NULL DEFAULT '{}',
+            device_id TEXT NOT NULL DEFAULT 'default',
+            equipment_id TEXT
+        );
+        CREATE TABLE IF NOT EXISTS screen_sensors (
+            screen_id TEXT NOT NULL,
+            sensor_id INTEGER NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (screen_id, sensor_id)
+        );
+        CREATE TABLE IF NOT EXISTS screen_layouts (
+            screen_id TEXT NOT NULL,
+            breakpoint TEXT NOT NULL,
+            layout TEXT NOT NULL DEFAULT '[]',
+            PRIMARY KEY (screen_id, breakpoint)
+        );
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS user_shortcuts (
+            user_id INTEGER NOT NULL,
+            sensor_id INTEGER NOT NULL,
+            shortcut TEXT NOT NULL,
+            PRIMARY KEY (user_id, sensor_id)
+        );
+        CREATE TABLE IF NOT EXISTS twin_layouts (
+            screen_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            equipment_type TEXT NOT NULL,
+            position_x REAL NOT NULL DEFAULT 0,
+            position_z REAL NOT NULL DEFAULT 0,
+            rotation_y REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY (screen_id, equipment_id)
+        );",
     )
     .context("Failed to create schema")
 }

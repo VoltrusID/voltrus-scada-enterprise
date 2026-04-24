@@ -14,6 +14,8 @@ pub struct AppConfig {
     pub persist_interval_secs: u64,
     #[serde(default)]
     pub api_key: Option<String>,
+    #[serde(default)]
+    pub auth_secret: Option<String>,
 }
 
 fn default_server_port() -> u16 {
@@ -174,6 +176,153 @@ pub struct ProcessInfo {
     pub cpu_percent: f32,
     pub uptime_secs: u64,
     pub binary_size_mb: f64,
+}
+
+// ── Application entities ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct User {
+    pub id: i64,
+    pub username: String,
+    #[serde(skip_serializing)]
+    pub password_hash: String,
+    #[serde(skip_serializing)]
+    pub salt: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Device {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub device_type: String,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Sensor {
+    pub id: i64,
+    pub key: String,
+    pub name: String,
+    pub unit: String,
+    pub color: String,
+    pub min_val: f64,
+    pub max_val: f64,
+    pub warn_val: f64,
+    pub crit_val: f64,
+    pub base_val: f64,
+    pub sort_order: i64,
+    pub decimals: i64,
+    pub source_type: String,
+    pub source_config: String,
+    pub device_id: String,
+    pub equipment_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ScreenSensor {
+    pub screen_id: String,
+    pub sensor_id: i64,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ScreenLayoutRow {
+    pub screen_id: String,
+    pub breakpoint: String,
+    pub layout: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TwinLayout {
+    pub screen_id: String,
+    pub equipment_id: String,
+    pub equipment_type: String,
+    pub position_x: f64,
+    pub position_z: f64,
+    pub rotation_y: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserShortcut {
+    pub user_id: i64,
+    pub sensor_id: i64,
+    pub shortcut: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Setting {
+    pub key: String,
+    pub value: String,
+}
+
+// ── Request/Response types ──
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct LoginResponse {
+    pub ok: bool,
+    pub username: String,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct TokenClaims {
+    pub username: String,
+    pub exp: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BrandingSettings {
+    pub title: String,
+    pub subtitle: String,
+    pub logo: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SensorData {
+    pub id: i64,
+    pub key: String,
+    pub value: f64,
+    pub warn: f64,
+    pub crit: f64,
+    pub source_type: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct HistoryResponse {
+    pub sensors: Vec<SensorSummary>,
+    pub data: serde_json::Value,
+    pub range: String,
+    pub interval: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SensorSummary {
+    pub id: i64,
+    pub key: String,
+    pub name: String,
+    pub unit: String,
+    pub color: String,
+    pub warn_val: f64,
+    pub crit_val: f64,
+    pub decimals: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DataQuery {
+    pub screen: Option<String>,
+    pub device: Option<String>,
+    pub range: Option<String>,
+    pub sensor: Option<String>,
+    pub device_id: Option<String>,
+    pub metric: Option<String>,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
 }
 
 // ── Tests ──
