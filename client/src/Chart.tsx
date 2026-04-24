@@ -1,6 +1,8 @@
 import { useRef, useEffect } from 'react';
 
-export function Chart({ data, color: rawColor, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
+// ── Sparkline ──
+
+function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
   const color = rawColor.replace(/"/g, '');
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -33,4 +35,179 @@ export function Chart({ data, color: rawColor, warn, crit }: { data: number[]; c
     ctx.fillStyle = color; ctx.font = 'bold 11px JetBrains Mono,monospace'; ctx.textAlign = 'right'; ctx.fillText(lv.toFixed(1), W - pR - 2, cy - 8);
   });
   return <canvas ref={ref} style={{ display: 'block', width: '100%', height: '100%' }} />;
+}
+
+// ── Big Number ──
+
+function BigNumberChart({ value, unit, color: rawColor, warn, crit, decimals }: {
+  value: number; unit: string; color: string; warn: number; crit: number; decimals: number;
+}) {
+  const color = rawColor.replace(/"/g, '');
+  const st = value >= crit ? 'critical' : value >= warn ? 'warning' : 'normal';
+  const stCol = st === 'critical' ? 'var(--crit)' : st === 'warning' ? 'var(--warn)' : color;
+  const pct = warn > 0 ? Math.min((value / (crit || warn)) * 100, 100) : 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '10px 16px' }}>
+      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 48, fontWeight: 800, color: stCol, lineHeight: 1.1 }}>
+        {value.toFixed(decimals)}
+      </div>
+      {unit && <div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '.06em' }}>{unit}</div>}
+      <div style={{ width: '80%', height: 4, borderRadius: 2, background: 'var(--border)', marginTop: 12 }}>
+        <div style={{ height: '100%', borderRadius: 2, background: stCol, width: `${pct}%`, transition: 'width 0.3s' }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Gauge ──
+
+function GaugeChart({ value, min, max, warn, crit, color: rawColor, decimals, unit }: {
+  value: number; min: number; max: number; warn: number; crit: number; color: string; decimals: number; unit: string;
+}) {
+  const color = rawColor.replace(/"/g, '');
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const cv = ref.current; if (!cv) return;
+    const ctx = cv.getContext('2d')!, dpr = devicePixelRatio || 1, rect = cv.getBoundingClientRect();
+    cv.width = rect.width * dpr; cv.height = rect.height * dpr; ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+    const cx = W / 2, cy = H * 0.78;
+    const r = Math.min(W, H) * 0.38;
+    ctx.clearRect(0, 0, W, H);
+
+    const startAngle = Math.PI;
+    const endAngle = 2 * Math.PI;
+    const range = max - min || 1;
+    const pct = Math.max(0, Math.min(1, (value - min) / range));
+    const valueAngle = startAngle + pct * Math.PI;
+
+    // Background arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, endAngle);
+    ctx.strokeStyle = '#1a1a1e';
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Colored arc segments
+    const warnPct = Math.max(0, Math.min(1, (warn - min) / range));
+    const critPct = Math.max(0, Math.min(1, (crit - min) / range));
+
+    // Green arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, startAngle + warnPct * Math.PI);
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 12;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Yellow arc
+    if (warnPct < critPct) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startAngle + warnPct * Math.PI, startAngle + critPct * Math.PI);
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 12;
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+    }
+
+    // Red arc
+    if (critPct < 1) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startAngle + critPct * Math.PI, endAngle);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 12;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    // Needle
+    const needleLen = r * 0.7;
+    const nx = cx + Math.cos(valueAngle) * needleLen;
+    const ny = cy + Math.sin(valueAngle) * needleLen;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(nx, ny);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Value text
+    ctx.fillStyle = color;
+    ctx.font = 'bold 20px JetBrains Mono,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(value.toFixed(decimals), cx, cy + 24);
+
+    // Unit text
+    if (unit) {
+      ctx.fillStyle = '#71717a';
+      ctx.font = '11px Inter,sans-serif';
+      ctx.fillText(unit, cx, cy + 40);
+    }
+
+    // Min/max labels
+    ctx.fillStyle = '#52525b';
+    ctx.font = '10px JetBrains Mono,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(min.toFixed(0), cx - r - 4, cy + 14);
+    ctx.fillText(max.toFixed(0), cx + r + 4, cy + 14);
+  });
+
+  return <canvas ref={ref} style={{ display: 'block', width: '100%', height: '100%' }} />;
+}
+
+// ── Image Card ──
+
+function ImageCard({ imageUrl }: { imageUrl: string }) {
+  if (!imageUrl) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', fontSize: 12 }}>
+        No image configured
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 8, overflow: 'hidden' }}>
+      <img src={imageUrl} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }} />
+    </div>
+  );
+}
+
+// ── Dispatcher ──
+
+export interface ChartProps {
+  chartType: string;
+  data: number[];
+  color: string;
+  warn: number;
+  crit: number;
+  min: number;
+  max: number;
+  decimals: number;
+  unit: string;
+  imageUrl?: string;
+}
+
+export function Chart({ chartType, data, color, warn, crit, min, max, decimals, unit, imageUrl }: ChartProps) {
+  const value = data.length > 0 ? data[data.length - 1] : 0;
+
+  switch (chartType) {
+    case 'bignumber':
+      return <BigNumberChart value={value} unit={unit} color={color} warn={warn} crit={crit} decimals={decimals} />;
+    case 'gauge':
+      return <GaugeChart value={value} min={min} max={max} warn={warn} crit={crit} color={color} decimals={decimals} unit={unit} />;
+    case 'image':
+      return <ImageCard imageUrl={imageUrl || ''} />;
+    default:
+      return <SparklineChart data={data} color={color} warn={warn} crit={crit} />;
+  }
 }

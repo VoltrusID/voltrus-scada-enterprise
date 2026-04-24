@@ -5,6 +5,7 @@ export interface SensorConfig {
   source_type: string; source_config: string;
   device_id: string;
   equipment_id: string | null;
+  chart_type: string;
 }
 
 export interface SensorData {
@@ -22,6 +23,8 @@ export type ScreenLayouts = { lg: LayoutItem[]; md: LayoutItem[]; sm: LayoutItem
 export const MAX_PTS = 300;
 export const NORM_PTS = 60;
 export const SOURCE_TYPES = ['random_walk', 'sine', 'step', 'sawtooth', 'constant', 'noise', 'api'] as const;
+
+export const CHART_TYPES = ['sparkline', 'bignumber', 'gauge', 'image'] as const;
 
 export type EquipmentType = 'solar_panel' | 'inverter' | 'gateway'
 

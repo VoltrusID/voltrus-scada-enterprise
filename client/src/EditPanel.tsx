@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SensorConfig } from './types';
-import { SOURCE_TYPES } from './types';
+import { SOURCE_TYPES, CHART_TYPES } from './types';
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, tabStyle, parseConfig, normalizeKeyEvent } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
 
@@ -10,6 +10,8 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
   const [srcConfig, setSrcConfig] = useState<Record<string, any>>(parseConfig(sensor.source_config));
   const [recording, setRecording] = useState(false);
   const [capturedShortcut, setCapturedShortcut] = useState<string | null>(shortcuts[sensor.id] ?? null);
+  const [imageTab, setImageTab] = useState<'url' | 'upload'>('upload');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!recording) return;
@@ -47,6 +49,42 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
             {(['name', 'key', 'unit'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f}</span><input value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })} style={inputStyle} /></label>))}
             {(['min_val', 'max_val', 'warn_val', 'crit_val', 'base_val', 'decimals'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f.replace('_', ' ')}</span><input type="number" step="any" value={form[f]} onChange={e => setForm({ ...form, [f]: parseFloat(e.target.value) || 0 })} style={monoInputStyle} /></label>))}
             <label style={labelStyle}><span style={labelTextStyle}>color</span><input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} style={{ height: 32, padding: 2, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6 }} /></label>
+            <label style={labelStyle}><span style={labelTextStyle}>chart type</span><select value={form.chart_type || 'sparkline'} onChange={e => setForm({ ...form, chart_type: e.target.value })} style={inputStyle}>{CHART_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+            {(form.chart_type || 'sparkline') === 'image' && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <span style={labelTextStyle}>Image</span>
+                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 8, marginTop: 4 }}>
+                  {(['url', 'upload'] as const).map(tab => (
+                    <button key={tab} onClick={() => setImageTab(tab)} style={{
+                      padding: '4px 12px', fontSize: 10, fontWeight: 600, cursor: 'pointer', border: 'none',
+                      borderBottom: imageTab === tab ? '2px solid var(--cyan)' : '2px solid transparent',
+                      color: imageTab === tab ? 'var(--cyan)' : 'var(--muted)', background: 'transparent',
+                      textTransform: 'uppercase' as const, letterSpacing: '.04em',
+                    }}>{tab === 'url' ? 'URL' : 'Upload'}</button>
+                  ))}
+                </div>
+                {imageTab === 'url' ? (
+                  <input value={(srcConfig.image_url && !srcConfig.image_url.startsWith('data:')) ? srcConfig.image_url : ''} onChange={e => setSrcConfig({ ...srcConfig, image_url: e.target.value })} placeholder="https://example.com/image.png" style={inputStyle} />
+                ) : (
+                  <div>
+                    <input ref={fileRef} type="file" accept="image/*" onChange={e => {
+                      const file = e.target.files?.[0]; if (!file) return;
+                      if (file.size > 200_000) return;
+                      const reader = new FileReader();
+                      reader.onload = () => { if (typeof reader.result === 'string') setSrcConfig({ ...srcConfig, image_url: reader.result }); };
+                      reader.readAsDataURL(file);
+                    }} style={{ display: 'none' }} />
+                    <button onClick={() => fileRef.current?.click()} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', cursor: 'pointer', fontSize: 12 }}>Choose File</button>
+                  </div>
+                )}
+                {srcConfig.image_url && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <img src={srcConfig.image_url} alt="" style={{ width: 40, height: 40, borderRadius: 4, objectFit: 'contain', border: '1px solid var(--border)' }} />
+                    <button onClick={() => setSrcConfig({ ...srcConfig, image_url: '' })} style={{ fontSize: 10, color: 'var(--crit)', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <span style={{ ...labelTextStyle, minWidth: 55 }}>Shortcut</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>

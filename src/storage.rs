@@ -236,7 +236,7 @@ impl Storage {
                 Some(sid) => (
                     "SELECT s.id, s.key, s.name, s.unit, s.color, s.min_val, s.max_val,
                             s.warn_val, s.crit_val, s.base_val, s.sort_order, s.decimals,
-                            s.source_type, s.source_config, s.device_id, s.equipment_id
+                            s.source_type, s.source_config, s.device_id, s.equipment_id, s.chart_type
                      FROM sensors s
                      JOIN screen_sensors ss ON s.id = ss.sensor_id
                      WHERE ss.screen_id = ?1
@@ -246,7 +246,7 @@ impl Storage {
                 None => (
                     "SELECT id, key, name, unit, color, min_val, max_val,
                             warn_val, crit_val, base_val, sort_order, decimals,
-                            source_type, source_config, device_id, equipment_id
+                            source_type, source_config, device_id, equipment_id, chart_type
                      FROM sensors
                      ORDER BY sort_order",
                     vec![],
@@ -273,6 +273,7 @@ impl Storage {
                         source_config: row.get(13)?,
                         device_id: row.get(14)?,
                         equipment_id: row.get(15)?,
+                        chart_type: row.get(16)?,
                     })
                 })
                 .context("Query failed")?;
@@ -300,6 +301,7 @@ impl Storage {
         source_config: &str,
         device_id: &str,
         equipment_id: Option<&str>,
+        chart_type: &str,
     ) -> Result<i64> {
         let conn = self.conn.clone();
         let key = key.to_string();
@@ -310,15 +312,16 @@ impl Storage {
         let source_config = source_config.to_string();
         let device_id = device_id.to_string();
         let equipment_id = equipment_id.map(|s| s.to_string());
+        let chart_type = chart_type.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
                 "INSERT INTO sensors (key, name, unit, color, min_val, max_val, warn_val, crit_val,
-                 base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                 base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id, chart_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 rusqlite::params![key, name, unit, color, min_val, max_val, warn_val, crit_val,
                                   base_val, sort_order, decimals, source_type, source_config,
-                                  device_id, equipment_id],
+                                  device_id, equipment_id, chart_type],
             )
             .context("Insert sensor failed")?;
             Ok(conn.last_insert_rowid())
@@ -338,7 +341,7 @@ impl Storage {
             let allowed = [
                 "key", "name", "unit", "color", "min_val", "max_val",
                 "warn_val", "crit_val", "base_val", "sort_order", "decimals",
-                "source_type", "source_config", "device_id", "equipment_id",
+                "source_type", "source_config", "device_id", "equipment_id", "chart_type",
             ];
             let mut parts = Vec::new();
             let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -677,6 +680,16 @@ impl Storage {
             .collect();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
+            // Ensure table exists (guard against DBs created before this feature)
+            conn.execute_batch(
+                "CREATE TABLE IF NOT EXISTS user_shortcuts (
+                    user_id INTEGER NOT NULL,
+                    sensor_id INTEGER NOT NULL,
+                    shortcut TEXT NOT NULL,
+                    PRIMARY KEY (user_id, sensor_id)
+                )",
+            )
+            .context("Ensure user_shortcuts table failed")?;
             let tx = conn.unchecked_transaction().context("Begin tx failed")?;
             tx.execute(
                 "DELETE FROM user_shortcuts WHERE user_id = ?1",
@@ -689,7 +702,7 @@ impl Storage {
                     "INSERT INTO user_shortcuts (user_id, sensor_id, shortcut) VALUES (?1, ?2, ?3)",
                     rusqlite::params![user_id, sensor_id, sc],
                 )
-                .context("Insert shortcut failed")?;
+                .with_context(|| format!("Insert shortcut failed: user_id={user_id}, sensor_id={sensor_id}, shortcut={sc:?}"))?;
             }
             tx.commit().context("Commit failed")
         })
@@ -744,13 +757,13 @@ impl Storage {
         for (i, def) in sensor_defs.iter().enumerate() {
             let plts1_id = self.create_sensor(
                 def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
-                def.8, def.9, def.10, def.11, def.12, "plts_1", None,
+                def.8, def.9, def.10, def.11, def.12, "plts_1", None, "sparkline",
             ).await?;
             plts1_sensor_ids.push(plts1_id);
 
             let plts2_id = self.create_sensor(
                 def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
-                def.8, i as i64 + 6, def.10, def.11, def.12, "plts_2", None,
+                def.8, i as i64 + 6, def.10, def.11, def.12, "plts_2", None, "sparkline",
             ).await?;
             plts2_sensor_ids.push(plts2_id);
         }
@@ -849,7 +862,12 @@ fn init_schema(conn: &Connection) -> Result<()> {
             PRIMARY KEY (screen_id, equipment_id)
         );",
     )
-    .context("Failed to create schema")
+    .context("Failed to create schema")?;
+
+    // Migration: add chart_type column
+    let _ = conn.execute_batch("ALTER TABLE sensors ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'sparkline'");
+
+    Ok(())
 }
 
 #[cfg(test)]
