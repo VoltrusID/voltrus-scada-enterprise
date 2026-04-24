@@ -148,6 +148,32 @@ pub struct HistoryQuery {
     pub to: Option<i64>,
 }
 
+// ── System response types ──
+
+#[derive(Debug, serde::Serialize)]
+pub struct SystemResponse {
+    pub hostname: String,
+    pub os: String,
+    pub uptime_secs: u64,
+    pub cpu_usage: f32,
+    pub memory_total_mb: f64,
+    pub memory_used_mb: f64,
+    pub memory_percent: f64,
+    pub disk_total_gb: f64,
+    pub disk_used_gb: f64,
+    pub disk_percent: f64,
+    pub process: ProcessInfo,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ProcessInfo {
+    pub pid: u32,
+    pub memory_mb: f64,
+    pub cpu_percent: f32,
+    pub uptime_secs: u64,
+    pub binary_size_mb: f64,
+}
+
 // ── Tests ──
 
 #[cfg(test)]
