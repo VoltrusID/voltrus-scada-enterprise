@@ -77,6 +77,7 @@ async fn main() -> anyhow::Result<()> {
         cache,
         storage,
         started_at: std::time::Instant::now(),
+        api_key: app_config.api_key.clone(),
     };
     let app = api::create_router(state);
 
