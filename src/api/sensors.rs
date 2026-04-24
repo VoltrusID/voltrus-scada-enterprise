@@ -39,6 +39,7 @@ pub async fn create_sensor(
         .unwrap_or_else(|| "{}".to_string());
     let device_id = body["device_id"].as_str().unwrap_or("default").to_string();
     let equipment_id = body["equipment_id"].as_str();
+    let chart_type = body["chart_type"].as_str().unwrap_or("sparkline").to_string();
 
     // Get max sort_order
     let all_sensors = state.storage.list_sensors(None).await?;
@@ -62,6 +63,7 @@ pub async fn create_sensor(
             &source_config,
             &device_id,
             equipment_id,
+            &chart_type,
         )
         .await?;
 
