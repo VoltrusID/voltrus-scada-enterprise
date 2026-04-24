@@ -3,9 +3,17 @@ name = "voltrus-lite-rust-service"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "voltrus-lite-rust-service"
+path = "src/main.rs"
+
+[[bin]]
+name = "modbus-sim"
+path = "src/bin/modbus-sim.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-tokio-modbus = { version = "0.16", default-features = false, features = ["tcp"] }
+tokio-modbus = { version = "0.16", default-features = false, features = ["tcp", "tcp-server"] }
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -16,6 +24,7 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.6", features = ["cors"] }
+rand = "0.9"
 
 [dev-dependencies]
 http = "1"

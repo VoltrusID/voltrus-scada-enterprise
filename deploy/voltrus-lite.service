@@ -1,0 +1,23 @@
+[Unit]
+Description=Voltrus Lite Modbus HTTP Service
+After=network.target
+
+[Service]
+Type=simple
+User=voltrus
+Group=voltrus
+WorkingDirectory=/opt/voltrus-lite
+ExecStart=/opt/voltrus-lite/voltrus-lite-rust-service config.yaml
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/voltrus-lite
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
