@@ -43,6 +43,12 @@ echo "==> Replacing binary..."
 cp "${TMPDIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
 chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
 
+echo "==> Updating static files..."
+rm -rf "${INSTALL_DIR}/static"
+if [ -d "${TMPDIR}/static" ]; then
+    cp -r "${TMPDIR}/static" "${INSTALL_DIR}/static"
+fi
+
 echo "==> Starting service..."
 sudo systemctl start "${SERVICE_NAME}"
 
