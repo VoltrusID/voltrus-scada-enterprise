@@ -187,12 +187,16 @@ export default function App() {
   const handleLayoutChange = useCallback((currentLayout: any[], allLayouts: { [bp: string]: any[] }) => {
     const normalize = (items: any[]) => items.map((l: any) => ({ i: String(l.i), x: l.x, y: l.y, w: l.w, h: l.h }));
     const newLayouts: ScreenLayouts = {
-      lg: allLayouts.lg?.length > 0 ? normalize(allLayouts.lg) : screenLayouts.lg,
-      md: allLayouts.md?.length > 0 ? normalize(allLayouts.md) : screenLayouts.md,
-      sm: allLayouts.sm?.length > 0 ? normalize(allLayouts.sm) : screenLayouts.sm,
+      lg: allLayouts.lg?.length > 0 ? normalize(allLayouts.lg) : [],
+      md: allLayouts.md?.length > 0 ? normalize(allLayouts.md) : [],
+      sm: allLayouts.sm?.length > 0 ? normalize(allLayouts.sm) : [],
     };
-    setLocalLayouts(newLayouts);
-  }, [screenLayouts]);
+    setLocalLayouts(prev => {
+      const next = JSON.stringify(newLayouts);
+      if (prev && JSON.stringify(prev) === next) return prev;
+      return newLayouts;
+    });
+  }, []);
 
   const handleAddScreen = () => {
     setScreenPrompt({
