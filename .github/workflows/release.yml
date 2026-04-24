@@ -17,17 +17,23 @@ jobs:
       - name: Install musl-tools
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: Build release binary
-        run: cargo build --release --target x86_64-unknown-linux-musl
+      - name: Build release binaries
+        run: |
+          cargo build --release --target x86_64-unknown-linux-musl --bin voltrus-lite-rust-service
+          cargo build --release --target x86_64-unknown-linux-musl --bin modbus-sim
 
-      - name: Strip binary
-        run: strip target/x86_64-unknown-linux-musl/release/voltrus-lite-rust-service
+      - name: Strip binaries
+        run: |
+          strip target/x86_64-unknown-linux-musl/release/voltrus-lite-rust-service
+          strip target/x86_64-unknown-linux-musl/release/modbus-sim
 
       - name: Package
         run: |
           mkdir -p dist
           cp target/x86_64-unknown-linux-musl/release/voltrus-lite-rust-service dist/
+          cp target/x86_64-unknown-linux-musl/release/modbus-sim dist/
           cp config.yaml dist/config.yaml.example
+          cp deploy/voltrus-lite.service dist/
           tar -czf voltrus-lite-rust-service-linux-x86_64.tar.gz -C dist .
 
       - name: Upload artifact
