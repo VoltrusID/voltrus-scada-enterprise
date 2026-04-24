@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #09090b;
+  --card: #111113;
+  --border: #27272a;
+  --border-light: #3f3f46;
+  --text: #e4e4e7;
+  --text-dim: #a1a1aa;
+  --text-muted: #71717a;
+  --warn: #f59e0b;
+  --crit: #ef4444;
+  --ok: #22c55e;
+  --cyan: #22c55e;
+  --fg: var(--text);
+  --green: #22c55e;
+  --muted: var(--text-muted);
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+}
+
+input, select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  outline: none;
+}
+
+input:focus, select:focus {
+  border-color: var(--border-light);
+}
+
+input[type="color"] {
+  padding: 2px 4px;
+  height: 32px;
+  width: 48px;
+}
+
+/* react-grid-layout overrides */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+
+.react-grid-item.resizing {
+  opacity: 0.9;
+  z-index: 10;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 10;
+  opacity: 0.9;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--cyan);
+  border-bottom: 2px solid var(--cyan);
+}
+
+.react-grid-placeholder {
+  background: var(--cyan) !important;
+  opacity: 0.15 !important;
+  border-radius: 10px;
+  border: 2px dashed var(--cyan) !important;
+}
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}

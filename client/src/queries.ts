@@ -1,0 +1,308 @@
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import type { SensorConfig, Screen, ScreenLayouts, DataPoint } from './types'
+import type { BrandingSettings } from './BrandingDialog'
+
+// ── Query key factory ──────────────────────────────────────────────
+
+export const queryKeys = {
+  sensors:       ['sensors'] as const,
+  screenSensors: (screenId: string) => ['screenSensors', screenId] as const,
+  screens:       ['screens'] as const,
+  layouts:       (screenId: string) => ['layouts', screenId] as const,
+  twinLayouts:   (screenId: string) => ['twinLayouts', screenId] as const,
+  shortcuts:     ['shortcuts'] as const,
+  branding:      ['branding'] as const,
+  history:       (range: string, screenId: string) => ['history', range, screenId] as const,
+  systemInfo:    ['systemInfo'] as const,
+}
+
+// ── Fetcher helper ─────────────────────────────────────────────────
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`fetch ${url} failed: ${r.status}`)
+  return r.json()
+}
+
+// ── Query hooks ────────────────────────────────────────────────────
+
+export function useSensors(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.sensors,
+    queryFn: () => fetchJson<SensorConfig[]>('/api/sensors'),
+    enabled,
+  })
+}
+
+export function useScreenSensors(screenId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.screenSensors(screenId),
+    queryFn: () => fetchJson<SensorConfig[]>(
+      screenId === 'all' ? '/api/sensors' : `/api/screens/${screenId}/sensors`
+    ),
+    enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useScreens(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.screens,
+    queryFn: () => fetchJson<Screen[]>('/api/screens'),
+    enabled,
+  })
+}
+
+export function useLayouts(screenId: string, enabled: boolean) {
+  const actualId = screenId === 'all' ? '__overview' : screenId
+  return useQuery({
+    queryKey: queryKeys.layouts(screenId),
+    queryFn: async () => {
+      const data = await fetchJson<any>(`/api/screens/${actualId}/layouts`)
+      return { lg: data.lg || [], md: data.md || [], sm: data.sm || [] } as ScreenLayouts
+    },
+    enabled,
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useTwinLayouts(screenId: string, enabled: boolean) {
+  const actualId = screenId === 'all' ? '__overview' : screenId
+  return useQuery({
+    queryKey: queryKeys.twinLayouts(screenId),
+    queryFn: () => fetchJson<any[]>(`/api/screens/${actualId}/twin-layouts`),
+    enabled,
+  })
+}
+
+export function useShortcuts(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.shortcuts,
+    queryFn: () => fetchJson<Record<number, string>>('/api/shortcuts'),
+    enabled,
+  })
+}
+
+export function useBranding() {
+  return useQuery({
+    queryKey: queryKeys.branding,
+    queryFn: () => fetchJson<BrandingSettings>('/api/settings/branding'),
+  })
+}
+
+export function useHistory(range: string, screenId: string, enabled: boolean) {
+  const dp = screenId === 'all' ? '' : `&screen=${screenId}`
+  return useQuery({
+    queryKey: queryKeys.history(range, screenId),
+    queryFn: async () => {
+      const result = await fetchJson<{ data: Record<string, DataPoint[]>; sensors: any[] }>(`/api/history?range=${range}${dp}`)
+      return result.data ?? {}
+    },
+    enabled,
+    staleTime: 10_000,
+  })
+}
+
+export function useSystemInfo(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.systemInfo,
+    queryFn: () => fetchJson<any>('/api/system'),
+    enabled,
+    refetchInterval: 5_000,
+    staleTime: 4_000,
+  })
+}
+
+// ── Mutation hooks ─────────────────────────────────────────────────
+
+export function useUpdateSensor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (s: SensorConfig) => {
+      await fetch(`/api/sensors/${s.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(s),
+      })
+      return s
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sensors })
+      qc.invalidateQueries({ queryKey: ['screenSensors'] })
+    },
+  })
+}
+
+export function useDeleteSensor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`/api/sensors/${id}`, { method: 'DELETE' })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sensors })
+      qc.invalidateQueries({ queryKey: ['screenSensors'] })
+    },
+  })
+}
+
+export function useAddSensor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (form: Partial<SensorConfig>) => {
+      const res = await fetch('/api/sensors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      return res.json() as Promise<{ id: number }>
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sensors })
+    },
+  })
+}
+
+export function useSaveLayout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, layouts }: { screenId: string; layouts: ScreenLayouts }) => {
+      const actualId = screenId === 'all' ? '__overview' : screenId
+      await fetch(`/api/screens/${actualId}/layouts`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layouts),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.layouts(screenId) })
+    },
+  })
+}
+
+export function useSaveTwinLayout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, items }: { screenId: string; items: any[] }) => {
+      const actualId = screenId === 'all' ? '__overview' : screenId
+      await fetch(`/api/screens/${actualId}/twin-layouts`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.twinLayouts(screenId) })
+    },
+  })
+}
+
+export function useSaveShortcuts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (shortcuts: Record<number, string | null>) => {
+      await fetch('/api/shortcuts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shortcuts),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.shortcuts })
+    },
+  })
+}
+
+export function useSaveBranding() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (settings: BrandingSettings) => {
+      await fetch('/api/settings/branding', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      })
+      return settings
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.branding })
+    },
+  })
+}
+
+export function useCreateScreen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (name: string) => {
+      await fetch('/api/screens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.screens })
+    },
+  })
+}
+
+export function useRenameScreen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      await fetch(`/api/screens/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.screens })
+    },
+  })
+}
+
+export function useDeleteScreen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await fetch(`/api/screens/${id}`, { method: 'DELETE' })
+      return id
+    },
+    onSuccess: (deletedId) => {
+      qc.invalidateQueries({ queryKey: queryKeys.screens })
+      qc.invalidateQueries({ queryKey: queryKeys.layouts(deletedId) })
+      qc.invalidateQueries({ queryKey: ['screenSensors'] })
+    },
+  })
+}
+
+export function useAddSensorToScreen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, sensorId }: { screenId: string; sensorId: number }) => {
+      await fetch(`/api/screens/${screenId}/sensors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sensor_id: sensorId }),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.screenSensors(screenId) })
+      qc.invalidateQueries({ queryKey: queryKeys.layouts(screenId) })
+    },
+  })
+}
+
+export function useRemoveSensorFromScreen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, sensorId }: { screenId: string; sensorId: number }) => {
+      await fetch(`/api/screens/${screenId}/sensors/${sensorId}`, { method: 'DELETE' })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.screenSensors(screenId) })
+      qc.invalidateQueries({ queryKey: queryKeys.layouts(screenId) })
+    },
+  })
+}
