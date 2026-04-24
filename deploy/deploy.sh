@@ -37,6 +37,7 @@ fi
 
 echo "==> Stopping service gracefully..."
 sudo systemctl stop "${SERVICE_NAME}" || true
+sudo systemctl stop modbus-sim || true
 sleep 1
 
 echo "==> Replacing binary..."
