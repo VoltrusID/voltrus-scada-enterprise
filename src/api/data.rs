@@ -85,7 +85,7 @@ pub async fn get_history(
             let t = start + ((end - start) * i as i64 / num_points.max(1) as i64);
             let t_f64 = t as f64;
             let value = generators::generate_value(sensor, t_f64);
-            points.push(json!({"t": t, "v": value}));
+            points.push(json!({"ts": t * 1000, "value": value}));
         }
         data_map.insert(sensor.key.clone(), json!(points));
     }
