@@ -345,7 +345,11 @@ impl Storage {
             for &col in &allowed {
                 if let Some(val) = obj.get(col) {
                     parts.push(format!("{col} = ?"));
-                    params.push(Box::new(val.to_string()));
+                    let s = match val {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    params.push(Box::new(s));
                 }
             }
             if parts.is_empty() {
