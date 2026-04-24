@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react'
 import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from 'react-grid-layout'
 import { SensorConfig, SensorData, ScreenLayouts } from './types'
 import { Chart } from './Chart'
+import { parseConfig } from './styles'
 import { EditPanel } from './EditPanel'
 import { status, stColor } from './styles'
 
@@ -111,7 +112,18 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                     <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
                   </div>
                   <div style={{ flex: 1, minHeight: 0 }}>
-                    <Chart data={chartDataFor(s.key)} color={s.color} warn={s.warn_val} crit={s.crit_val} />
+                    <Chart
+                      chartType={s.chart_type || 'sparkline'}
+                      data={chartDataFor(s.key)}
+                      color={s.color}
+                      warn={s.warn_val}
+                      crit={s.crit_val}
+                      min={s.min_val}
+                      max={s.max_val}
+                      decimals={s.decimals}
+                      unit={s.unit}
+                      imageUrl={(parseConfig(s.source_config) as Record<string, string>).image_url}
+                    />
                   </div>
                 </div>
                 {editingId === s.id && <EditPanel sensor={s} activeScreen={activeScreen} onSave={onSave} onDelete={onDelete} onClose={() => setEditingId(null)} shortcuts={shortcuts} />}

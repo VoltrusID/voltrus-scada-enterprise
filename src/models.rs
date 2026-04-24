@@ -217,6 +217,7 @@ pub struct Sensor {
     pub source_config: String,
     pub device_id: String,
     pub equipment_id: Option<String>,
+    pub chart_type: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
