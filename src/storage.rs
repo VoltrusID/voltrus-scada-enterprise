@@ -727,36 +727,30 @@ impl Storage {
         self.create_device("plts_1", "PLTS 1", 0).await?;
         self.create_device("plts_2", "PLTS 2", 1).await?;
 
-        // Common PLTS sensor definitions: (key, name, unit, color, min, max, warn, crit, base, sort, decimals, source_type, source_config)
+        // Sensor definitions matching Modbus register names from config.yaml
+        // (key, name, unit, color, min, max, warn, crit, base, sort, decimals, source_type, source_config)
         let sensor_defs: &[(&str, &str, &str, &str, f64, f64, f64, f64, f64, i64, i64, &str, &str)] = &[
-            ("pv_voltage", "PV Voltage", "V", "#f97316", 0.0, 600.0, 20.0, 10.0, 380.0, 0, 1, "random_walk", "{}"),
-            ("pv_current", "PV Current", "A", "#f97316", 0.0, 50.0, 8.0, 10.0, 5.2, 1, 2, "random_walk", "{}"),
-            ("pv_power", "PV Power", "W", "#eab308", 0.0, 30000.0, 200.0, 50.0, 1976.0, 2, 0, "random_walk", "{}"),
-            ("battery_soc", "Battery SOC", "%", "#22c55e", 0.0, 100.0, 20.0, 10.0, 78.0, 3, 1, "random_walk", "{}"),
-            ("battery_voltage", "Battery Voltage", "V", "#22c55e", 0.0, 60.0, 44.0, 42.0, 48.5, 4, 1, "random_walk", "{}"),
-            ("battery_current", "Battery Current", "A", "#22c55e", -50.0, 50.0, -30.0, -40.0, 3.5, 5, 2, "random_walk", "{}"),
-            ("battery_power", "Battery Power", "W", "#22c55e", -3000.0, 3000.0, -2000.0, -2500.0, 170.0, 6, 0, "random_walk", "{}"),
-            ("load_power", "Load Power", "W", "#ef4444", 0.0, 5000.0, 4000.0, 4500.0, 1805.0, 7, 0, "random_walk", "{}"),
-            ("grid_power", "Grid Power", "W", "#3b82f6", -5000.0, 5000.0, 3000.0, 4000.0, 0.0, 8, 0, "random_walk", "{}"),
-            ("grid_frequency", "Grid Frequency", "Hz", "#3b82f6", 45.0, 55.0, 49.0, 48.0, 50.0, 9, 2, "random_walk", "{}"),
-            ("energy_today", "Energy Today", "kWh", "#a855f7", 0.0, 100.0, 5.0, 1.0, 12.4, 10, 1, "random_walk", "{}"),
-            ("temperature", "Temperature", "°C", "#f97316", -10.0, 80.0, 60.0, 70.0, 32.5, 11, 1, "random_walk", "{}"),
+            ("voltage", "Voltage", "V", "#f59e0b", 0.0, 450.0, 400.0, 420.0, 380.0, 0, 1, "modbus", "{}"),
+            ("current", "Current", "A", "#06b6d4", 0.0, 100.0, 85.0, 95.0, 65.0, 1, 2, "modbus", "{}"),
+            ("power", "Power", "W", "#a855f7", 0.0, 50000.0, 40000.0, 45000.0, 24700.0, 2, 0, "modbus", "{}"),
+            ("frequency", "Frequency", "Hz", "#22c55e", 45.0, 55.0, 51.0, 52.0, 50.0, 3, 2, "modbus", "{}"),
+            ("power_factor", "Power Factor", "", "#ef4444", 0.0, 1.0, 0.95, 0.98, 0.92, 4, 3, "modbus", "{}"),
+            ("energy_total", "Energy Total", "kWh", "#8b5cf6", 0.0, 999999.0, 800000.0, 900000.0, 158732.0, 5, 1, "modbus", "{}"),
         ];
 
         let mut plts1_sensor_ids: Vec<i64> = Vec::new();
         let mut plts2_sensor_ids: Vec<i64> = Vec::new();
 
-        for def in sensor_defs {
+        for (i, def) in sensor_defs.iter().enumerate() {
             let plts1_id = self.create_sensor(
                 def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
                 def.8, def.9, def.10, def.11, def.12, "plts_1", None,
             ).await?;
             plts1_sensor_ids.push(plts1_id);
 
-            let plts2_key = format!("{}_2", def.0);
             let plts2_id = self.create_sensor(
-                &plts2_key, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
-                def.8, def.9 + 12, def.10, def.11, def.12, "plts_2", None,
+                def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
+                def.8, i as i64 + 6, def.10, def.11, def.12, "plts_2", None,
             ).await?;
             plts2_sensor_ids.push(plts2_id);
         }
@@ -807,7 +801,7 @@ fn init_schema(conn: &Connection) -> Result<()> {
         );
         CREATE TABLE IF NOT EXISTS sensors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key TEXT UNIQUE NOT NULL,
+            key TEXT NOT NULL,
             name TEXT NOT NULL,
             unit TEXT NOT NULL DEFAULT '',
             color TEXT NOT NULL DEFAULT '#f97316',
