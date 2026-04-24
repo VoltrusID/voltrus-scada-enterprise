@@ -12,6 +12,9 @@ Restart=always
 RestartSec=5
 Environment=RUST_LOG=info
 
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict

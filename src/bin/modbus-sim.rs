@@ -38,12 +38,12 @@ struct PltsData {
 impl PltsData {
     fn new() -> Self {
         Self {
-            voltage: 220.0,
-            current: 5.2,
-            power: 1144.0,
+            voltage: 380.0,
+            current: 65.0,
+            power: 24700.0,
             frequency: 50.0,
-            power_factor: 0.9,
-            energy_total: 12345.0,
+            power_factor: 0.92,
+            energy_total: 158732.0,
         }
     }
 
@@ -72,12 +72,12 @@ impl PltsData {
 
     fn tick(&mut self) {
         let mut rng = rand::rng();
-        self.voltage = (self.voltage + rng.random_range(-0.5..0.5)).clamp(210.0, 230.0);
-        self.current = (self.current + rng.random_range(-0.2..0.2)).clamp(2.0, 8.0);
-        self.power = self.voltage * self.current;
+        self.voltage = (self.voltage + rng.random_range(-2.0..2.0)).clamp(370.0, 390.0);
+        self.current = (self.current + rng.random_range(-3.0..3.0)).clamp(40.0, 80.0);
+        self.power = self.voltage * self.current * self.power_factor;
         self.frequency = (self.frequency + rng.random_range(-0.01..0.01)).clamp(49.8, 50.2);
         self.power_factor =
-            (self.power_factor + rng.random_range(-0.005..0.005)).clamp(0.85, 0.95);
+            (self.power_factor + rng.random_range(-0.005..0.005)).clamp(0.88, 0.96);
         self.energy_total += self.power / 3600.0;
     }
 }

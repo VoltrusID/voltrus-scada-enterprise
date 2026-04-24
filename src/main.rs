@@ -73,14 +73,29 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    let state = AppState { cache, storage };
+    let state = AppState {
+        cache,
+        storage,
+        started_at: std::time::Instant::now(),
+    };
     let app = api::create_router(state);
 
     let addr = format!("0.0.0.0:{}", app_config.server_port);
     tracing::info!("Server listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
 
+    let shutdown = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+        tracing::info!("Received shutdown signal, draining connections...");
+    };
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
+        .await?;
+
+    tracing::info!("Server shutdown complete");
     Ok(())
 }
