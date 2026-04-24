@@ -13,11 +13,9 @@ devices:
       - name: "voltage"
         address: 40001
         type: "float32"
-        scale: 0.1
       - name: "current"
         address: 40003
         type: "float32"
-        scale: 0.01
       - name: "power"
         address: 40005
         type: "float32"
@@ -41,11 +39,9 @@ devices:
       - name: "voltage"
         address: 40001
         type: "float32"
-        scale: 0.1
       - name: "current"
         address: 40003
         type: "float32"
-        scale: 0.01
       - name: "power"
         address: 40005
         type: "float32"
