@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 
-export function Chart({ data, color, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
+export function Chart({ data, color: rawColor, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
+  const color = rawColor.replace(/"/g, '');
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current; if (!cv || data.length < 2) return;
