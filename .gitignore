@@ -1,2 +1,7 @@
 /target
 data.db
+static/
+client/node_modules/
+client/dist/
+.playwright-mcp/
+client/.env
