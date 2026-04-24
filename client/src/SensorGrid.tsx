@@ -35,10 +35,18 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
   // In edit mode with forced breakpoint, simulate that breakpoint's width
   const width = forcedBreakpoint ? BP_WIDTHS[forcedBreakpoint] : measuredWidth
 
-  const handleLayoutChangeWrap = useCallback((currentLayout: any[], allLayouts: { [bp: string]: any[] }) => {
+  const handleInteractionEnd = useCallback((layout: any) => {
     didDrag.current = true
-    onLayoutChange(currentLayout, allLayouts)
-  }, [onLayoutChange])
+    // Build allLayouts from current screenLayouts, replacing the active breakpoint
+    const activeBp = forcedBreakpoint || 'lg'
+    const normalize = (items: readonly any[]) => items.map((l: any) => ({ i: String(l.i), x: l.x, y: l.y, w: l.w, h: l.h }))
+    const allLayouts: Record<string, any[]> = {
+      lg: activeBp === 'lg' ? normalize(layout) : screenLayouts.lg,
+      md: activeBp === 'md' ? normalize(layout) : screenLayouts.md,
+      sm: activeBp === 'sm' ? normalize(layout) : screenLayouts.sm,
+    }
+    onLayoutChange(layout, allLayouts)
+  }, [onLayoutChange, forcedBreakpoint, screenLayouts])
 
   return (
     <div ref={containerRef} style={{ maxWidth: '100%' }}>
@@ -52,7 +60,8 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
           rowHeight={100}
           margin={[gap, gap] as [number, number]}
           compactor={verticalCompactor}
-          onLayoutChange={handleLayoutChangeWrap as any}
+          onDragStop={editMode ? (handleInteractionEnd as any) : undefined}
+          onResizeStop={editMode ? (handleInteractionEnd as any) : undefined}
           dragConfig={editMode ? { handle: '.drag-handle' } : { enabled: false }}
           resizeConfig={editMode ? { enabled: true } : { enabled: false }}
         >
