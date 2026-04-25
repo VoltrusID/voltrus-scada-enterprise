@@ -4,6 +4,7 @@ mod data_sources;
 mod layouts;
 mod shortcuts;
 mod settings;
+mod alarms;
 mod data;
 mod system;
 mod generators;
@@ -124,6 +125,14 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/shortcuts",
             get(shortcuts::get_shortcuts).put(shortcuts::save_shortcuts),
+        )
+        .route(
+            "/api/alarms",
+            get(alarms::list_alarms).post(alarms::acknowledge_all),
+        )
+        .route(
+            "/api/alarms/{id}/acknowledge",
+            post(alarms::acknowledge_alarm),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),
