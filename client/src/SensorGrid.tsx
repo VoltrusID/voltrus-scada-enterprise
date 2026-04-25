@@ -109,6 +109,19 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                         background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
                     </div>
                   </div>}
+                  {hideStatus && editMode && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', opacity: 0.5 }}>
+                    <span className="drag-handle" style={{ cursor: 'grab', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <svg width="8" height="12" viewBox="0 0 8 12">
+                        <circle cx="2" cy="2" r="1.2" fill="var(--fg)"/><circle cx="6" cy="2" r="1.2" fill="var(--fg)"/>
+                        <circle cx="2" cy="6" r="1.2" fill="var(--fg)"/><circle cx="6" cy="6" r="1.2" fill="var(--fg)"/>
+                        <circle cx="2" cy="10" r="1.2" fill="var(--fg)"/><circle cx="6" cy="10" r="1.2" fill="var(--fg)"/>
+                      </svg>
+                      <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{s.name}</span>
+                    </span>
+                    <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/sensors/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
+                  </div>
+                  )}
                   {!hideStatus && (
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, padding: '0 16px' }}>
                     <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
