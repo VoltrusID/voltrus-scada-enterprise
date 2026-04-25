@@ -514,7 +514,7 @@ export default function App() {
           setSelectedSensor={setSelectedSensor}
           chartDataFor={chartDataFor}
           loadSensorsForScreen={() => {
-            queryClient.invalidateQueries({ queryKey: ['screenSensors', activeScreen] });
+            queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] });
             queryClient.invalidateQueries({ queryKey: ['sensors'] });
           }}
           onLayoutChange={handleLayoutChange}
