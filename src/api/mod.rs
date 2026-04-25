@@ -112,6 +112,14 @@ pub fn create_router(state: AppState) -> Router {
             get(layouts::get_twin_layouts).put(layouts::save_twin_layouts),
         )
         .route(
+            "/api/screens/{id}/twin-connections",
+            get(layouts::get_twin_connections).put(layouts::save_twin_connections),
+        )
+        .route(
+            "/api/screens/{id}/canvas-layouts",
+            get(layouts::get_canvas_layouts).put(layouts::save_canvas_layouts),
+        )
+        .route(
             "/api/data-sources",
             get(data_sources::list_data_sources).post(data_sources::create_data_source),
         )

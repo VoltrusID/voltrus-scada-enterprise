@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 
 use crate::models::{
-    DataPoint, Device, ScreenLayoutRow, DataSource, Setting, TwinLayout, User, UserShortcut,
-    Alarm, AlarmQuery,
+    DataPoint, Device, ScreenLayoutRow, DataSource, Setting, TwinLayout, TwinConnection, User, UserShortcut,
+    Alarm, AlarmQuery, CanvasLayoutItem,
 };
 
 #[derive(Clone)]
@@ -650,6 +650,113 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    // ── Twin Connections ──
+
+    pub async fn get_twin_connections(&self, screen_id: &str) -> Result<Vec<TwinConnection>> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT screen_id, from_id, to_id FROM twin_connections WHERE screen_id = ?1")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![screen_id], |row| {
+                    Ok(TwinConnection {
+                        screen_id: row.get(0)?,
+                        from_id: row.get(1)?,
+                        to_id: row.get(2)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn save_twin_connections(&self, screen_id: &str, connections: &[TwinConnection]) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        let connections = connections.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            tx.execute(
+                "DELETE FROM twin_connections WHERE screen_id = ?1",
+                rusqlite::params![screen_id],
+            )
+            .context("Delete twin connections failed")?;
+            for c in &connections {
+                tx.execute(
+                    "INSERT INTO twin_connections (screen_id, from_id, to_id)
+                     VALUES (?1, ?2, ?3)",
+                    rusqlite::params![c.screen_id, c.from_id, c.to_id],
+                )
+                .context("Insert twin connection failed")?;
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Canvas Layouts ──
+
+    pub async fn get_canvas_layouts(&self, screen_id: &str) -> Result<Vec<CanvasLayoutItem>> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT screen_id, data_source_id, x, y, width, height FROM canvas_layouts WHERE screen_id = ?1")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![screen_id], |row| {
+                    Ok(CanvasLayoutItem {
+                        screen_id: row.get(0)?,
+                        data_source_id: row.get(1)?,
+                        x: row.get(2)?,
+                        y: row.get(3)?,
+                        width: row.get(4)?,
+                        height: row.get(5)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn save_canvas_layouts(&self, screen_id: &str, layouts: &[CanvasLayoutItem]) -> Result<()> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        let layouts = layouts.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            tx.execute(
+                "DELETE FROM canvas_layouts WHERE screen_id = ?1",
+                rusqlite::params![screen_id],
+            )
+            .context("Delete canvas layouts failed")?;
+            for l in &layouts {
+                tx.execute(
+                    "INSERT INTO canvas_layouts (screen_id, data_source_id, x, y, width, height)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    rusqlite::params![l.screen_id, l.data_source_id, l.x, l.y, l.width, l.height],
+                )
+                .context("Insert canvas layout failed")?;
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     // ── Settings ──
 
     pub async fn get_settings(&self, keys: &[&str]) -> Result<Vec<Setting>> {
@@ -1139,6 +1246,21 @@ fn init_schema(conn: &Connection) -> Result<()> {
             p256dh TEXT NOT NULL,
             auth_key TEXT NOT NULL,
             created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS canvas_layouts (
+            screen_id TEXT NOT NULL,
+            data_source_id INTEGER NOT NULL,
+            x REAL NOT NULL DEFAULT 0,
+            y REAL NOT NULL DEFAULT 0,
+            width REAL NOT NULL DEFAULT 300,
+            height REAL NOT NULL DEFAULT 200,
+            PRIMARY KEY (screen_id, data_source_id)
+        );
+        CREATE TABLE IF NOT EXISTS twin_connections (
+            screen_id TEXT NOT NULL,
+            from_id TEXT NOT NULL,
+            to_id TEXT NOT NULL,
+            PRIMARY KEY (screen_id, from_id, to_id)
         );",
     )
     .context("Failed to create schema")?;

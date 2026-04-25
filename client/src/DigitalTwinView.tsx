@@ -11,15 +11,22 @@ import { EquipmentLabel } from './twin/EquipmentLabel'
 import { EquipmentPalette } from './twin/EquipmentPalette'
 import { DEFAULT_EQUIPMENT } from './twin/defaults'
 
+interface FlowConnection {
+  from: string
+  to: string
+}
+
 interface Props {
   sensors: SensorConfig[]
   currentValues: Record<string, SensorData>
   activeScreen: string
   twinLayouts: any[]
+  twinConnections: { from_id: string; to_id: string }[]
   onEquipmentClick: (equipmentId: string) => void
   onSwitchToCards?: () => void
   onSensorUpdate: (sensor: SensorConfig) => void
   onSaveLayouts: (equipment: TwinEquipment[]) => void
+  onSaveConnections: (connections: FlowConnection[]) => void
 }
 
 function GroundPlane() {
@@ -35,18 +42,22 @@ function GridHelper() {
   return <gridHelper args={[20, 20, '#333355', '#222244']} />
 }
 
-function DraggableEquipment({ equipment, onDragEnd, onClick, sensors, currentValues, editable, children }: {
+const ROTATION_STEP = Math.PI / 12 // 15 degrees
+
+function DraggableEquipment({ equipment, onDragEnd, onRotate, onClick, sensors, currentValues, editable, highlight, children }: {
   equipment: TwinEquipment
   onDragEnd: (id: string, pos: [number, number, number]) => void
+  onRotate: (id: string, rotation: number) => void
   onClick: () => void
   sensors: SensorConfig[]
   currentValues: Record<string, SensorData>
   editable: boolean
+  highlight?: boolean
   children: React.ReactNode
 }) {
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const { camera, raycaster } = useThree()
+  const { camera, raycaster, gl } = useThree()
   const plane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0))
   const intersection = useRef(new THREE.Vector3())
   const offset = useRef(new THREE.Vector3())
@@ -76,6 +87,22 @@ function DraggableEquipment({ equipment, onDragEnd, onClick, sensors, currentVal
     onDragEnd(equipment.id, [groupRef.current.position.x, 0, groupRef.current.position.z])
   }, [dragging, equipment.id, onDragEnd])
 
+  // Rotation via mouse wheel in edit mode
+  useEffect(() => {
+    if (!editable || !hovered) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const delta = e.deltaY > 0 ? ROTATION_STEP : -ROTATION_STEP
+      onRotate(equipment.id, equipment.rotation + delta)
+    }
+    const canvas = gl.domElement
+    canvas.addEventListener('wheel', handler, { passive: false })
+    return () => canvas.removeEventListener('wheel', handler)
+  }, [editable, hovered, equipment.id, equipment.rotation, onRotate, gl])
+
+  const showHighlight = editable && (hovered || highlight)
+
   return (
     <group
       ref={groupRef}
@@ -89,10 +116,16 @@ function DraggableEquipment({ equipment, onDragEnd, onClick, sensors, currentVal
       onClick={(e: any) => { e.stopPropagation(); onClick() }}
     >
       {children}
-      {editable && hovered && (
+      {showHighlight && (
         <mesh>
           <sphereGeometry args={[1.5, 16, 16]} />
-          <meshBasicMaterial color="#06b6d4" wireframe transparent opacity={0.15} />
+          <meshBasicMaterial color={highlight ? '#22c55e' : '#06b6d4'} wireframe transparent opacity={0.15} />
+        </mesh>
+      )}
+      {editable && hovered && (
+        <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[1.2, 1.35, 32]} />
+          <meshBasicMaterial color="#06b6d4" transparent opacity={0.3} side={THREE.DoubleSide} />
         </mesh>
       )}
       <EquipmentLabel
@@ -104,10 +137,12 @@ function DraggableEquipment({ equipment, onDragEnd, onClick, sensors, currentVal
   )
 }
 
-export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayouts, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts }: Props) {
+export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayouts, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections }: Props) {
   const [equipment, setEquipment] = useState<TwinEquipment[]>(DEFAULT_EQUIPMENT.map(e => ({ ...e })))
   const [twinEditMode, setTwinEditMode] = useState(false)
   const [bindingEquipmentId, setBindingEquipmentId] = useState<string | null>(null)
+  const [connections, setConnections] = useState<FlowConnection[]>([])
+  const [connectFrom, setConnectFrom] = useState<string | null>(null)
 
   const [webglSupported] = useState(() => {
     try {
@@ -140,8 +175,18 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
     }
   }, [twinLayouts])
 
+  useEffect(() => {
+    if (twinConnections.length > 0) {
+      setConnections(twinConnections.map(c => ({ from: c.from_id, to: c.to_id })))
+    }
+  }, [twinConnections])
+
   const handleDragEnd = useCallback((id: string, pos: [number, number, number]) => {
     setEquipment(prev => prev.map(eq => eq.id === id ? { ...eq, position: pos } : eq))
+  }, [])
+
+  const handleRotate = useCallback((id: string, rotation: number) => {
+    setEquipment(prev => prev.map(eq => eq.id === id ? { ...eq, rotation } : eq))
   }, [])
 
   const handleAddEquipment = useCallback((type: EquipmentType) => {
@@ -152,6 +197,7 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
 
   const handleRemoveEquipment = useCallback((id: string) => {
     setEquipment(prev => prev.filter(eq => eq.id !== id))
+    setConnections(prev => prev.filter(c => c.from !== id && c.to !== id))
   }, [])
 
   const getSensorsForEquipment = useCallback((eqId: string) => {
@@ -164,6 +210,10 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
     const newEquipmentId = sensor.equipment_id === bindingEquipmentId ? null : bindingEquipmentId
     onSensorUpdate({ ...sensor, equipment_id: newEquipmentId })
   }, [sensors, bindingEquipmentId, onSensorUpdate])
+
+  const handleRemoveConnection = useCallback((from: string, to: string) => {
+    setConnections(prev => prev.filter(c => !(c.from === from && c.to === to)))
+  }, [])
 
   const renderModel = (eq: TwinEquipment) => {
     const eqSensors = getSensorsForEquipment(eq.id)
@@ -192,13 +242,19 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
     }
   }
 
+  const eqMap = new Map(equipment.map(e => [e.id, e]))
+
   return (
     <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 180px)', minHeight: 500, background: '#0f0f1a', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
       {twinEditMode && <EquipmentPalette equipment={equipment} onAdd={handleAddEquipment} onRemove={handleRemoveEquipment} />}
-      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 6 }}>
+      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
         <button onClick={() => {
-          if (twinEditMode) onSaveLayouts(equipment)
+          if (twinEditMode) {
+            onSaveLayouts(equipment)
+            onSaveConnections(connections)
+          }
           setTwinEditMode(!twinEditMode)
+          setConnectFrom(null)
         }} style={{
           padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
           border: twinEditMode ? '1px solid #06b6d4' : '1px solid rgba(255,255,255,0.2)',
@@ -208,7 +264,56 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
         }}>
           {twinEditMode ? 'Done Editing' : 'Edit Layout'}
         </button>
+        {twinEditMode && (
+          <button onClick={() => { setConnectFrom(connectFrom ? null : '__pick__'); if (connectFrom === '__pick__') setConnectFrom(null) }} style={{
+            padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            border: connectFrom === '__pick__' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.2)',
+            background: connectFrom === '__pick__' ? 'rgba(34,197,94,0.15)' : 'rgba(15,15,20,0.9)',
+            color: connectFrom === '__pick__' ? '#22c55e' : 'rgba(255,255,255,0.6)',
+            fontFamily: 'Inter, sans-serif',
+          }}>
+            {connectFrom === '__pick__' ? 'Click source...' : 'Connect Flow'}
+          </button>
+        )}
+        {twinEditMode && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter, sans-serif' }}>Drag to move · Scroll to rotate</span>}
       </div>
+
+      {/* Connections list in edit mode */}
+      {twinEditMode && connections.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 228, left: 8, zIndex: 10,
+          background: 'rgba(15,15,20,0.9)', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8, padding: 12, width: 220, fontFamily: 'Inter, sans-serif',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+            Flow Connections
+          </div>
+          {connections.map((c, i) => {
+            const fromEq = eqMap.get(c.from)
+            const toEq = eqMap.get(c.to)
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: '#e5e7eb' }}>
+                  {fromEq?.name || c.from} → {toEq?.name || c.to}
+                </span>
+                <button onClick={() => handleRemoveConnection(c.from, c.to)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>&times;</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {connectFrom && connectFrom !== '__pick__' && (
+        <div style={{
+          position: 'absolute', top: 44, right: 8, zIndex: 10,
+          background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)',
+          borderRadius: 6, padding: '6px 12px', fontSize: 11, color: '#22c55e',
+          fontFamily: 'Inter, sans-serif',
+        }}>
+          Source: {eqMap.get(connectFrom)?.name || connectFrom} — click target equipment
+        </div>
+      )}
+
       <Suspense fallback={<div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 3D...</div>}>
         <Canvas
           camera={{ position: [6, 6, 6], fov: 50 }}
@@ -221,9 +326,36 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
           <GroundPlane />
           <GridHelper />
           <OrbitControls makeDefault enabled={!twinEditMode} enableDamping dampingFactor={0.1} maxPolarAngle={Math.PI / 2.2} />
-          <ConnectionLines equipment={equipment} />
+          <ConnectionLines equipment={equipment} connections={connections} />
           {equipment.map(eq => (
-            <DraggableEquipment key={eq.id} equipment={eq} onDragEnd={handleDragEnd} onClick={() => { twinEditMode ? setBindingEquipmentId(eq.id) : onEquipmentClick(eq.id) }} sensors={getSensorsForEquipment(eq.id)} currentValues={currentValues} editable={twinEditMode}>
+            <DraggableEquipment
+              key={eq.id}
+              equipment={eq}
+              onDragEnd={handleDragEnd}
+              onRotate={handleRotate}
+              onClick={() => {
+                if (twinEditMode && connectFrom === '__pick__') {
+                  setConnectFrom(eq.id)
+                } else if (twinEditMode && connectFrom && connectFrom !== '__pick__') {
+                  // Connect from previously selected to this one
+                  if (eq.id !== connectFrom) {
+                    const exists = connections.some(c => c.from === connectFrom && c.to === eq.id)
+                    if (!exists) {
+                      setConnections(prev => [...prev, { from: connectFrom, to: eq.id }])
+                    }
+                  }
+                  setConnectFrom(null)
+                } else if (twinEditMode) {
+                  setBindingEquipmentId(eq.id)
+                } else {
+                  onEquipmentClick(eq.id)
+                }
+              }}
+              sensors={getSensorsForEquipment(eq.id)}
+              currentValues={currentValues}
+              editable={twinEditMode}
+              highlight={connectFrom === eq.id}
+            >
               {renderModel(eq)}
             </DraggableEquipment>
           ))}

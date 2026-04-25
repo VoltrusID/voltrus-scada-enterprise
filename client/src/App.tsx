@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { SensorConfig, SensorData, DataPoint, Screen, MAX_PTS, NORM_PTS } from './types'
+import { SensorConfig, SensorData, DataPoint, Screen, MAX_PTS, NORM_PTS, CanvasLayoutItem } from './types'
 import { status, stColor, fmtTime, btnStyle, tabStyle, normalizeKeyEvent } from './styles'
 import { LoginScreen } from './LoginScreen'
 import { Chart } from './Chart'
@@ -14,9 +14,10 @@ import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
 import { HistoryRangeBar } from './CustomRangePicker'
 import { SensorGrid } from './SensorGrid'
+import { CanvasView } from './CanvasView'
 import { ScreenLayouts, LayoutItem } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen } from './queries'
 const DigitalTwinView = lazy(() => import('./DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
 
 export default function App() {
@@ -51,7 +52,8 @@ export default function App() {
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [showBrandingDialog, setShowBrandingDialog] = useState(false);
   const [layoutBreakpoint, setLayoutBreakpoint] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'cards' | 'twin'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin'>('cards');
+  const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null);
 
   const startTime = useRef(Date.now());
   const lastFetch = useRef(0);
@@ -77,6 +79,11 @@ export default function App() {
 
   const { data: twinLayouts = [] } = useTwinLayouts(activeScreen, authed);
 
+  const { data: twinConnections = [] } = useTwinConnections(activeScreen, authed);
+
+  const { data: serverCanvasLayouts = [] } = useCanvasLayouts(activeScreen, authed);
+  const canvasLayouts = localCanvasLayouts ?? serverCanvasLayouts;
+
   const { data: shortcuts = {} } = useShortcuts(authed);
 
   const { data: branding = DEFAULT_BRANDING } = useBranding();
@@ -90,6 +97,8 @@ export default function App() {
   const addSensorMut = useAddSensor();
   const saveLayoutMut = useSaveLayout();
   const saveTwinLayoutMut = useSaveTwinLayout();
+  const saveTwinConnectionsMut = useSaveTwinConnections();
+  const saveCanvasLayoutMut = useSaveCanvasLayout();
   const saveShortcutsMut = useSaveShortcuts();
   const saveBrandingMut = useSaveBranding();
   const createScreenMut = useCreateScreen();
@@ -217,6 +226,10 @@ export default function App() {
       if (prev && JSON.stringify(prev) === next) return prev;
       return newLayouts;
     });
+  }, []);
+
+  const handleCanvasLayoutChange = useCallback((items: CanvasLayoutItem[]) => {
+    setLocalCanvasLayouts(items);
   }, []);
 
   const handleAddScreen = () => {
@@ -407,8 +420,9 @@ export default function App() {
             </button>
           {/* View mode toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Cards</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D Twin</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Grids</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'canvas' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'canvas' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('canvas')}>Canvas</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D</button>
           </div>
           {/* Live/History toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
@@ -439,6 +453,11 @@ export default function App() {
               if (localLayouts) {
                 saveLayoutMut.mutate({ screenId: activeScreen, layouts: localLayouts });
                 setLocalLayouts(null);
+              }
+              // Persist canvas layouts if changed
+              if (localCanvasLayouts) {
+                saveCanvasLayoutMut.mutate({ screenId: activeScreen, layouts: localCanvasLayouts });
+                setLocalCanvasLayouts(null);
               }
             }
             setEditMode(!editMode);
@@ -551,7 +570,7 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--muted)' }}>Connecting to server...</div>
       )}
 
-      {/* Sensors Grid / Digital Twin */}
+      {/* Sensors Grid / Canvas / Digital Twin */}
       {mode !== 'system' && (viewMode === 'cards' ? (
         <SensorGrid
           screenLayouts={effectiveLayouts}
@@ -574,6 +593,26 @@ export default function App() {
           forcedBreakpoint={layoutBreakpoint}
           shortcuts={shortcuts}
         />
+      ) : viewMode === 'canvas' ? (
+        <CanvasView
+          screenSensors={screenSensors}
+          canvasLayouts={canvasLayouts}
+          editMode={editMode}
+          activeScreen={activeScreen}
+          editingId={editingId}
+          currentValues={currentValues}
+          setEditingId={setEditingId}
+          setSelectedSensor={setSelectedSensor}
+          chartDataFor={chartDataFor}
+          loadSensorsForScreen={() => {
+            queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] });
+            queryClient.invalidateQueries({ queryKey: ['sensors'] });
+          }}
+          onLayoutChange={handleCanvasLayoutChange}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          shortcuts={shortcuts}
+        />
       ) : (
         <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 3D View...</div>}>
           <DigitalTwinView
@@ -581,6 +620,7 @@ export default function App() {
             currentValues={currentValues}
             activeScreen={activeScreen}
             twinLayouts={twinLayouts}
+            twinConnections={twinConnections}
             onSwitchToCards={() => setViewMode('cards')}
             onEquipmentClick={(eqId) => {
               const sensor = sensors.find(s => s.equipment_id === eqId)
@@ -594,6 +634,12 @@ export default function App() {
                   equipment_id: e.id, equipment_type: e.type,
                   position_x: e.position[0], position_z: e.position[2], rotation_y: e.rotation,
                 }))
+              })
+            }}
+            onSaveConnections={(connections) => {
+              saveTwinConnectionsMut.mutate({
+                screenId: activeScreen,
+                connections: connections.map(c => ({ from_id: c.from, to_id: c.to })),
               })
             }}
           />
@@ -612,7 +658,7 @@ export default function App() {
       {showAddDialog && activeScreen !== 'all' && (
         <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => {
           setShowAddDialog(false);
-          queryClient.invalidateQueries({ queryKey: ['screenSensors', activeScreen] });
+          queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] });
           queryClient.invalidateQueries({ queryKey: ['sensors'] });
         }} />
       )}

@@ -95,3 +95,72 @@ pub async fn save_twin_layouts(
     state.storage.save_twin_layouts(&id, &layouts).await?;
     Ok(Json(json!({"ok": true})))
 }
+
+/// GET /api/screens/{id}/canvas-layouts — get canvas layouts for a screen
+pub async fn get_canvas_layouts(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let layouts = state.storage.get_canvas_layouts(&id).await?;
+    Ok(Json(layouts))
+}
+
+/// PUT /api/screens/{id}/canvas-layouts — accept array of {data_source_id, x, y, width, height}
+pub async fn save_canvas_layouts(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let arr = body
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("Expected an array of canvas layouts"))?;
+
+    let mut layouts = Vec::new();
+    for item in arr {
+        layouts.push(CanvasLayoutItem {
+            screen_id: id.clone(),
+            data_source_id: item["data_source_id"]
+                .as_i64()
+                .ok_or_else(|| anyhow::anyhow!("data_source_id is required"))?,
+            x: item["x"].as_f64().unwrap_or(0.0),
+            y: item["y"].as_f64().unwrap_or(0.0),
+            width: item["width"].as_f64().unwrap_or(300.0),
+            height: item["height"].as_f64().unwrap_or(200.0),
+        });
+    }
+
+    state.storage.save_canvas_layouts(&id, &layouts).await?;
+    Ok(Json(json!({"ok": true})))
+}
+
+/// GET /api/screens/{id}/twin-connections
+pub async fn get_twin_connections(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let connections = state.storage.get_twin_connections(&id).await?;
+    Ok(Json(connections))
+}
+
+/// PUT /api/screens/{id}/twin-connections — accept array of {from_id, to_id}
+pub async fn save_twin_connections(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let arr = body
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("Expected an array of twin connections"))?;
+
+    let mut connections = Vec::new();
+    for item in arr {
+        connections.push(TwinConnection {
+            screen_id: id.clone(),
+            from_id: item["from_id"].as_str().unwrap_or("").to_string(),
+            to_id: item["to_id"].as_str().unwrap_or("").to_string(),
+        });
+    }
+
+    state.storage.save_twin_connections(&id, &connections).await?;
+    Ok(Json(json!({"ok": true})))
+}

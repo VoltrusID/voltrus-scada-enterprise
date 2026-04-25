@@ -3,8 +3,14 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { TwinEquipment } from '../types'
 
+interface FlowConnection {
+  from: string
+  to: string
+}
+
 interface Props {
   equipment: TwinEquipment[]
+  connections: FlowConnection[]
 }
 
 interface Connection {
@@ -17,36 +23,32 @@ interface Connection {
 const PARTICLES_PER_LINE = 5
 const PARTICLE_SPEED = 2.0
 
-export function ConnectionLines({ equipment }: Props) {
+export function ConnectionLines({ equipment, connections }: Props) {
   const meshRefs = useRef<(THREE.Mesh | null)[]>([])
   const connectionsRef = useRef<Connection[]>([])
 
-  const connections = useMemo(() => {
-    const panels = equipment.filter(e => e.type === 'solar_panel')
-    const inverter = equipment.find(e => e.type === 'inverter')
-    const gateway = equipment.find(e => e.type === 'gateway')
-    if (!inverter || !gateway) { connectionsRef.current = []; return [] }
+  const eqMap = useMemo(() => new Map(equipment.map(e => [e.id, e])), [equipment])
+
+  const renderedConnections = useMemo(() => {
+    if (connections.length === 0) { connectionsRef.current = []; return [] }
 
     const allConns: Connection[] = []
-    for (const panel of panels) {
-      const from = new THREE.Vector3(panel.position[0], 0.5, panel.position[2])
-      const to = new THREE.Vector3(inverter.position[0], 0.5, inverter.position[2])
+    for (const conn of connections) {
+      const fromEq = eqMap.get(conn.from)
+      const toEq = eqMap.get(conn.to)
+      if (!fromEq || !toEq) continue
+
+      const from = new THREE.Vector3(fromEq.position[0], 0.5, fromEq.position[2])
+      const to = new THREE.Vector3(toEq.position[0], 0.5, toEq.position[2])
       const geom = new THREE.BufferGeometry().setFromPoints([from, to])
       const mat = new THREE.LineBasicMaterial({ color: '#f59e0b', transparent: true, opacity: 0.2 })
       allConns.push({ from, to, color: '#f59e0b', line: new THREE.Line(geom, mat) })
-    }
-    {
-      const from = new THREE.Vector3(inverter.position[0], 0.5, inverter.position[2])
-      const to = new THREE.Vector3(gateway.position[0], 0.5, gateway.position[2])
-      const geom = new THREE.BufferGeometry().setFromPoints([from, to])
-      const mat = new THREE.LineBasicMaterial({ color: '#06b6d4', transparent: true, opacity: 0.2 })
-      allConns.push({ from, to, color: '#06b6d4', line: new THREE.Line(geom, mat) })
     }
 
     connectionsRef.current = allConns
     meshRefs.current = new Array(allConns.length * PARTICLES_PER_LINE).fill(null)
     return allConns
-  }, [equipment])
+  }, [equipment, connections, eqMap])
 
   useEffect(() => () => {
     connectionsRef.current.forEach(c => {
@@ -67,7 +69,7 @@ export function ConnectionLines({ equipment }: Props) {
       mesh.userData.t = t
       mesh.userData.connIdx = connIdx
     })
-  }, [connections])
+  }, [renderedConnections])
 
   const setMeshRef = useCallback((index: number) => (el: THREE.Mesh | null) => {
     meshRefs.current[index] = el
@@ -91,11 +93,11 @@ export function ConnectionLines({ equipment }: Props) {
     }
   })
 
-  if (connections.length === 0) return null
+  if (renderedConnections.length === 0) return null
 
   return (
     <group>
-      {connections.map((conn, ci) => (
+      {renderedConnections.map((conn, ci) => (
         <group key={ci}>
           <primitive object={conn.line} />
           {Array.from({ length: PARTICLES_PER_LINE }).map((_, pi) => (

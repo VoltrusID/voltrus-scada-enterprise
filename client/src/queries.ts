@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm } from './types'
+import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem } from './types'
 import type { BrandingSettings } from './BrandingDialog'
 
 // ── Query key factory ──────────────────────────────────────────────
@@ -15,6 +15,8 @@ export const queryKeys = {
   history:       (range: string, screenId: string) => ['history', range, screenId] as const,
   systemInfo:    ['systemInfo'] as const,
   alarms:        (status: string) => ['alarms', status] as const,
+  canvasLayouts: (screenId: string) => ['canvasLayouts', screenId] as const,
+  twinConnections: (screenId: string) => ['twinConnections', screenId] as const,
 }
 
 // ── Fetcher helper ─────────────────────────────────────────────────
@@ -81,6 +83,15 @@ export function useTwinLayouts(screenId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.twinLayouts(screenId),
     queryFn: () => fetchJson<any[]>(`/api/screens/${actualId}/twin-layouts`),
+    enabled,
+  })
+}
+
+export function useCanvasLayouts(screenId: string, enabled: boolean) {
+  const actualId = screenId === 'all' ? '__overview' : screenId
+  return useQuery({
+    queryKey: queryKeys.canvasLayouts(screenId),
+    queryFn: () => fetchJson<CanvasLayoutItem[]>(`/api/screens/${actualId}/canvas-layouts`),
     enabled,
   })
 }
@@ -203,6 +214,49 @@ export function useSaveTwinLayout() {
     },
     onSuccess: (_, { screenId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.twinLayouts(screenId) })
+    },
+  })
+}
+
+export function useTwinConnections(screenId: string, enabled: boolean) {
+  const actualId = screenId === 'all' ? '__overview' : screenId
+  return useQuery({
+    queryKey: queryKeys.twinConnections(screenId),
+    queryFn: () => fetchJson<{ from_id: string; to_id: string }[]>(`/api/screens/${actualId}/twin-connections`),
+    enabled,
+  })
+}
+
+export function useSaveTwinConnections() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, connections }: { screenId: string; connections: { from_id: string; to_id: string }[] }) => {
+      const actualId = screenId === 'all' ? '__overview' : screenId
+      await fetchOk(`/api/screens/${actualId}/twin-connections`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(connections),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.twinConnections(screenId) })
+    },
+  })
+}
+
+export function useSaveCanvasLayout() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, layouts }: { screenId: string; layouts: CanvasLayoutItem[] }) => {
+      const actualId = screenId === 'all' ? '__overview' : screenId
+      await fetchOk(`/api/screens/${actualId}/canvas-layouts`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(layouts),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.canvasLayouts(screenId) })
     },
   })
 }
