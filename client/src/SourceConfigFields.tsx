@@ -1,7 +1,10 @@
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle } from './styles';
+import { useModbusDevices, useModbusRegisters } from './queries';
 
 export function SourceConfigFields({ sourceType, config, onChange }: { sourceType: string; config: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
   const set = (k: string, v: any) => onChange({ ...config, [k]: v });
+  const { data: modbusDevices = [] } = useModbusDevices(sourceType === 'modbus');
+  const { data: registers = [] } = useModbusRegisters(config.modbus_device_id ?? '', sourceType === 'modbus' && !!config.modbus_device_id);
   switch (sourceType) {
     case 'random_walk': return (<>
       <label style={labelStyle}><span style={labelTextStyle}>Volatility</span><input type="range" min="0.01" max="0.5" step="0.01" value={config.volatility ?? 0.06} onChange={e => set('volatility', parseFloat(e.target.value))} style={{ width: '100%' }} /><span style={{ fontSize: 11, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace' }}>{(config.volatility ?? 0.06).toFixed(2)}</span></label>
@@ -23,6 +26,25 @@ export function SourceConfigFields({ sourceType, config, onChange }: { sourceTyp
       <label style={labelStyle}><span style={labelTextStyle}>Method</span><select value={config.method ?? 'GET'} onChange={e => set('method', e.target.value)} style={inputStyle}><option value="GET">GET</option><option value="POST">POST</option></select></label>
       <label style={labelStyle}><span style={labelTextStyle}>Poll Interval (ms)</span><input type="number" step="1000" min="1000" value={config.poll_interval ?? 5000} onChange={e => set('poll_interval', parseInt(e.target.value))} style={monoInputStyle} /></label>
       <label style={labelStyle}><span style={labelTextStyle}>Headers (JSON)</span><textarea value={typeof config.headers === 'object' ? JSON.stringify(config.headers, null, 2) : config.headers ?? '{}'} onChange={e => { try { set('headers', JSON.parse(e.target.value)) } catch { set('headers', e.target.value) } }} style={{ ...inputStyle, minHeight: 60, fontFamily: 'JetBrains Mono,monospace', fontSize: 11 }} /></label></>);
+    case 'modbus': return (<>
+      <label style={labelStyle}>
+        <span style={labelTextStyle}>Modbus Device</span>
+        <select value={config.modbus_device_id ?? ''} onChange={e => { set('modbus_device_id', e.target.value); set('modbus_register_name', ''); }} style={inputStyle}>
+          <option value="">-- Select Device --</option>
+          {modbusDevices.map(d => <option key={d.id} value={d.id}>{d.name || d.id} ({d.ip})</option>)}
+        </select>
+      </label>
+      {config.modbus_device_id && (
+        <label style={labelStyle}>
+          <span style={labelTextStyle}>Register</span>
+          <select value={config.modbus_register_name ?? ''} onChange={e => set('modbus_register_name', e.target.value)} style={inputStyle}>
+            <option value="">-- Select Register --</option>
+            {registers.map(r => <option key={r.name} value={r.name}>{r.name} (addr {r.address})</option>)}
+          </select>
+        </label>
+      )}
+      {!config.modbus_device_id && <div style={{ color: 'var(--muted)', fontSize: 12, padding: 8 }}>Select a Modbus device to read live data from its registers.</div>}
+    </>);
     default: return null;
   }
 }

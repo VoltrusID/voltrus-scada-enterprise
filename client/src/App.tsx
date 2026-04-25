@@ -8,6 +8,7 @@ import { EditPanel } from './EditPanel'
 import { DashboardSettings } from './DashboardSettings'
 import { SensorDetail } from './SensorDetail'
 import { SensorManager } from './SensorManager'
+import { ModbusDeviceManager } from './ModbusDeviceManager'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
@@ -47,6 +48,7 @@ export default function App() {
   const [mode, setMode] = useState<'live' | 'history' | 'system'>('live');
   const [historyRange, setHistoryRange] = useState('30m');
   const [showSensorManager, setShowSensorManager] = useState(false);
+  const [showModbusManager, setShowModbusManager] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [screenPrompt, setScreenPrompt] = useState<{ title: string; label: string; placeholder?: string; initial?: string; okLabel?: string; onSubmit: (v: string) => void } | null>(null);
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
@@ -472,6 +474,10 @@ export default function App() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
             <span>Sources</span>
           </button>
+          <button style={btnStyle} onClick={() => setShowModbusManager(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
+            <span>Modbus</span>
+          </button>
           <button style={btnStyle} onClick={handleLogout}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             <span>Logout</span>
@@ -654,6 +660,7 @@ export default function App() {
       })()}
 
       {showSensorManager && <SensorManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowSensorManager(false)} shortcuts={shortcuts} />}
+      {showModbusManager && <ModbusDeviceManager onClose={() => setShowModbusManager(false)} />}
 
       {showAddDialog && activeScreen !== 'all' && (
         <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => {
