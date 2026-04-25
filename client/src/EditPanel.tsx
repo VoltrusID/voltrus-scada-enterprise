@@ -12,6 +12,9 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
   const [capturedShortcut, setCapturedShortcut] = useState<string | null>(shortcuts[sensor.id] ?? null);
   const [imageTab, setImageTab] = useState<'url' | 'upload'>('upload');
   const fileRef = useRef<HTMLInputElement>(null);
+  const isImage = (form.chart_type || 'sparkline') === 'image';
+  const isText = (form.chart_type || 'sparkline') === 'text';
+  const hideNumberFields = isImage || isText;
 
   useEffect(() => {
     if (!recording) return;
@@ -46,8 +49,9 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
         </div>
         <div style={{ padding: 16 }}>
           {tab === 'general' && (<div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {(['name', 'key', 'unit'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f}</span><input value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })} style={inputStyle} /></label>))}
-            {(['min_val', 'max_val', 'warn_val', 'crit_val', 'base_val', 'decimals'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f.replace('_', ' ')}</span><input type="number" step="any" value={form[f]} onChange={e => setForm({ ...form, [f]: parseFloat(e.target.value) || 0 })} style={monoInputStyle} /></label>))}
+            {(['name', 'key'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f}</span><input value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })} style={inputStyle} /></label>))}
+            {!hideNumberFields && (['unit'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f}</span><input value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })} style={inputStyle} /></label>))}
+            {!hideNumberFields && (['min_val', 'max_val', 'warn_val', 'crit_val', 'base_val', 'decimals'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f.replace('_', ' ')}</span><input type="number" step="any" value={form[f]} onChange={e => setForm({ ...form, [f]: parseFloat(e.target.value) || 0 })} style={monoInputStyle} /></label>))}
             <label style={labelStyle}><span style={labelTextStyle}>color</span><input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} style={{ height: 32, padding: 2, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6 }} /></label>
             <label style={labelStyle}><span style={labelTextStyle}>chart type</span><select value={form.chart_type || 'sparkline'} onChange={e => setForm({ ...form, chart_type: e.target.value })} style={inputStyle}>{CHART_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
             {(form.chart_type || 'sparkline') === 'image' && (
@@ -85,6 +89,17 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
                 )}
               </div>
             )}
+            {isText && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <span style={labelTextStyle}>Content (Markdown)</span>
+                <textarea
+                  value={srcConfig.text_content || ''}
+                  onChange={e => setSrcConfig({ ...srcConfig, text_content: e.target.value })}
+                  placeholder="# Title&#10;&#10;Write **bold**, *italic*, [links](https://...)&#10;&#10;- Bullet lists&#10;- `code`"
+                  style={{ ...inputStyle, minHeight: 120, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, resize: 'vertical', marginTop: 6 }}
+                />
+              </div>
+            )}
             <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <span style={{ ...labelTextStyle, minWidth: 55 }}>Shortcut</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
@@ -119,7 +134,7 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
             </div>
           </div>)}
           {tab === 'source' && (<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={labelStyle}><span style={labelTextStyle}>Source Type</span><select value={form.source_type} onChange={e => { setForm({ ...form, source_type: e.target.value }); setSrcConfig({}); }} style={inputStyle}>{SOURCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+            <label style={labelStyle}><span style={labelTextStyle}>Source Type</span><select value={form.source_type} onChange={e => { setForm({ ...form, source_type: e.target.value }); setSrcConfig({}); }} style={inputStyle}>{SOURCE_TYPES.map(t => <option key={t} value={t}>{t === 'none' ? 'none (static)' : t}</option>)}</select></label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}><SourceConfigFields sourceType={form.source_type} config={srcConfig} onChange={setSrcConfig} /></div>
           </div>)}
         </div>

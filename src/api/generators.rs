@@ -12,6 +12,7 @@ pub fn pseudo_random(seed: f64) -> f64 {
 pub fn generate_value(sensor: &Sensor, now: f64) -> f64 {
     match sensor.source_type.as_str() {
         "constant" => sensor.base_val,
+        "none" | "api" => sensor.base_val,
         "noise" => {
             let noise = pseudo_random(now + sensor.id as f64) * 2.0 - 1.0;
             let range = sensor.max_val - sensor.min_val;
@@ -111,6 +112,7 @@ mod tests {
             source_config: "{}".to_string(),
             device_id: "test".to_string(),
             equipment_id: None,
+            chart_type: "sparkline".to_string(),
         }
     }
 

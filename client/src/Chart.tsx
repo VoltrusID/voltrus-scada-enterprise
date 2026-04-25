@@ -1,4 +1,6 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 // ── Sparkline ──
 
@@ -182,6 +184,32 @@ function ImageCard({ imageUrl }: { imageUrl: string }) {
   );
 }
 
+// ── Text (Markdown) ──
+
+function TextCard({ text }: { text: string }) {
+  const html = useMemo(() => {
+    if (!text) return '';
+    const raw = marked.parse(text, { async: false }) as string;
+    return DOMPurify.sanitize(raw);
+  }, [text]);
+
+  if (!text) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--muted)', fontSize: 12 }}>
+        No text configured
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{ padding: '12px 16px', overflow: 'auto', height: '100%', fontSize: 14, lineHeight: 1.6, color: 'var(--fg)' }}
+      dangerouslySetInnerHTML={{ __html: html }}
+      className="md-text"
+    />
+  );
+}
+
 // ── Dispatcher ──
 
 export interface ChartProps {
@@ -195,9 +223,10 @@ export interface ChartProps {
   decimals: number;
   unit: string;
   imageUrl?: string;
+  textContent?: string;
 }
 
-export function Chart({ chartType, data, color, warn, crit, min, max, decimals, unit, imageUrl }: ChartProps) {
+export function Chart({ chartType, data, color, warn, crit, min, max, decimals, unit, imageUrl, textContent }: ChartProps) {
   const value = data.length > 0 ? data[data.length - 1] : 0;
 
   switch (chartType) {
@@ -207,6 +236,8 @@ export function Chart({ chartType, data, color, warn, crit, min, max, decimals, 
       return <GaugeChart value={value} min={min} max={max} warn={warn} crit={crit} color={color} decimals={decimals} unit={unit} />;
     case 'image':
       return <ImageCard imageUrl={imageUrl || ''} />;
+    case 'text':
+      return <TextCard text={textContent || ''} />;
     default:
       return <SparklineChart data={data} color={color} warn={warn} crit={crit} />;
   }
