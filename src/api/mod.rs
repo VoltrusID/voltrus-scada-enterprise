@@ -6,6 +6,7 @@ mod layouts;
 mod shortcuts;
 mod settings;
 mod alarms;
+mod modbus_devices;
 mod data;
 mod system;
 mod generators;
@@ -24,12 +25,14 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::cache::DeviceCache;
+use crate::poller_manager::PollerManager;
 use crate::storage::Storage;
 
 #[derive(Clone)]
 pub struct AppState {
     pub cache: DeviceCache,
     pub storage: Storage,
+    pub poller_manager: PollerManager,
     pub started_at: std::time::Instant,
     pub auth_secret: String,
     pub cors_origin: Option<String>,
@@ -147,6 +150,28 @@ pub fn create_router(state: AppState) -> Router {
             "/api/push/subscribe",
             post(push::subscribe).delete(push::unsubscribe),
         )
+        .route(
+            "/api/modbus-devices",
+            get(modbus_devices::list_modbus_devices).post(modbus_devices::create_modbus_device),
+        )
+        .route(
+            "/api/modbus-devices/status",
+            get(modbus_devices::get_poller_statuses),
+        )
+        .route(
+            "/api/modbus-devices/{id}",
+            get(modbus_devices::get_modbus_device)
+                .put(modbus_devices::update_modbus_device)
+                .delete(modbus_devices::delete_modbus_device),
+        )
+        .route(
+            "/api/modbus-devices/{id}/registers",
+            put(modbus_devices::replace_registers),
+        )
+        .route(
+            "/api/modbus-devices/{id}/restart",
+            post(modbus_devices::restart_poller),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -212,9 +237,11 @@ mod tests {
     pub fn test_app() -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
+        let poller_manager = PollerManager::new(cache.clone());
         let state = AppState {
             cache,
             storage,
+            poller_manager,
             started_at: std::time::Instant::now(),
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
@@ -365,9 +392,11 @@ mod tests {
         storage.seed_database().await.unwrap();
 
         let cache = DeviceCache::new();
+        let poller_manager = PollerManager::new(cache.clone());
         let state = AppState {
             cache,
             storage,
+            poller_manager,
             started_at: std::time::Instant::now(),
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
@@ -414,9 +443,11 @@ mod tests {
         storage.seed_database().await.unwrap();
 
         let cache = DeviceCache::new();
+        let poller_manager = PollerManager::new(cache.clone());
         let state = AppState {
             cache,
             storage,
+            poller_manager,
             started_at: std::time::Instant::now(),
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
@@ -485,9 +516,11 @@ mod tests {
         storage.seed_database().await.unwrap();
 
         let cache = DeviceCache::new();
+        let poller_manager = PollerManager::new(cache.clone());
         let state = AppState {
             cache,
             storage,
+            poller_manager,
             started_at: std::time::Instant::now(),
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
