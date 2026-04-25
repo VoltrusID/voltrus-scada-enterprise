@@ -153,6 +153,13 @@ export default function App() {
     }
   }, [authed]);
 
+  // Register service worker for push notifications
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+  }, []);
+
   // ── Branding handler ─────────────────────────────────────────────
 
   const handleSaveBranding = (settings: BrandingSettings) => saveBrandingMut.mutate(settings);
@@ -289,7 +296,7 @@ export default function App() {
           if (arr.length > (turbo ? MAX_PTS : NORM_PTS)) arr.shift();
           newMap[item.key] = arr;
           newVals[item.key] = item;
-          if (item.value >= item.crit || item.value >= item.warn) {
+          if (item.source_type === 'modbus' && ((item.crit > 0 && item.value >= item.crit) || (item.warn > 0 && item.value >= item.warn))) {
             alertCount++;
           }
         }
