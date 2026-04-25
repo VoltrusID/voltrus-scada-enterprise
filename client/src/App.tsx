@@ -166,6 +166,25 @@ export default function App() {
     await addSensorMut.mutateAsync(form);
   };
 
+  const handleDuplicateSensor = async (s: SensorConfig) => {
+    const dup = {
+      key: s.key + '_copy',
+      name: s.name + ' (Copy)',
+      unit: s.unit,
+      min_val: s.min_val,
+      max_val: s.max_val,
+      warn_val: s.warn_val,
+      crit_val: s.crit_val,
+      base_val: s.base_val,
+      decimals: s.decimals,
+      source_type: s.source_type,
+      color: s.color,
+      chart_type: s.chart_type,
+      source_config: s.source_config,
+    };
+    await addSensorMut.mutateAsync(dup);
+  };
+
   const handleLayoutChange = useCallback((currentLayout: any[], allLayouts: { [bp: string]: any[] }) => {
     const normalize = (items: any[]) => items.map((l: any) => ({ i: String(l.i), x: l.x, y: l.y, w: l.w, h: l.h }));
     const newLayouts: ScreenLayouts = {
@@ -378,10 +397,10 @@ export default function App() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             <span>{editMode ? 'Done' : 'Edit'}</span>
           </button>
-          {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Sensor</button>}
+          {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Source</button>}
           <button style={btnStyle} onClick={() => setShowSensorManager(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span>Sensors</span>
+            <span>Sources</span>
           </button>
           <button style={btnStyle} onClick={handleLogout}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -537,7 +556,7 @@ export default function App() {
         return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} shortcuts={shortcuts} /> : null;
       })()}
 
-      {showSensorManager && <SensorManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onClose={() => setShowSensorManager(false)} shortcuts={shortcuts} />}
+      {showSensorManager && <SensorManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowSensorManager(false)} shortcuts={shortcuts} />}
 
       {showAddDialog && activeScreen !== 'all' && (
         <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => {
