@@ -57,8 +57,13 @@ export function ModbusDeviceManager({ onClose }: { onClose: () => void }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+              <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>ID</th>
               <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Name</th>
               <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>IP</th>
+              <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Port</th>
+              <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Unit</th>
+              <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Interval</th>
+              <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Endian</th>
               <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Registers</th>
               <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Status</th>
               <th style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>Enabled</th>
@@ -68,8 +73,13 @@ export function ModbusDeviceManager({ onClose }: { onClose: () => void }) {
           <tbody>
             {devices.map(d => (
               <tr key={d.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '8px', fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{d.id}</td>
                 <td style={{ padding: '8px' }}>{d.name || d.id}</td>
-                <td style={{ padding: '8px', fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{d.ip}:{d.port}</td>
+                <td style={{ padding: '8px', fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{d.ip}</td>
+                <td style={{ padding: '8px', fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{d.port}</td>
+                <td style={{ padding: '8px' }}>{d.unit_id}</td>
+                <td style={{ padding: '8px' }}>{d.interval_ms}ms</td>
+                <td style={{ padding: '8px' }}>{d.endianness}</td>
                 <td style={{ padding: '8px' }}>{d.register_count}</td>
                 <td style={{ padding: '8px' }}>
                   <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: statusMap[d.id] ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)', color: statusMap[d.id] ? 'var(--cyan)' : 'var(--crit)' }}>
