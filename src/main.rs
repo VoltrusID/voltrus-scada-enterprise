@@ -32,6 +32,9 @@ async fn main() -> anyhow::Result<()> {
     let cache = DeviceCache::new();
     let storage = Storage::new(&app_config.db_path)?;
 
+    // Auto-seed on startup if no admin user exists
+    storage.seed_database().await?;
+
     // Spawn one poller task per device
     for device_config in &app_config.devices {
         let device = device_config.clone();
