@@ -35,7 +35,7 @@ export function EquipmentPalette({ equipment, onAdd, onRemove }: Props) {
         ))}
       </div>
       <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>
-        Drag equipment to reposition. Click equipment to view sensor details.
+        Drag to reposition. Scroll to rotate. Use "Connect Flow" to define electricity paths.
       </div>
     </div>
   )

@@ -253,6 +253,23 @@ pub struct TwinLayout {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TwinConnection {
+    pub screen_id: String,
+    pub from_id: String,
+    pub to_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CanvasLayoutItem {
+    pub screen_id: String,
+    pub data_source_id: i64,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserShortcut {
     pub user_id: i64,
     pub data_source_id: i64,

@@ -20,6 +20,11 @@ export interface LayoutItem { i: string; x: number; y: number; w: number; h: num
 
 export type ScreenLayouts = { lg: LayoutItem[]; md: LayoutItem[]; sm: LayoutItem[] }
 
+export interface CanvasLayoutItem {
+  data_source_id: number
+  x: number; y: number; width: number; height: number
+}
+
 export const MAX_PTS = 300;
 export const NORM_PTS = 60;
 export const SOURCE_TYPES = ['random_walk', 'sine', 'step', 'sawtooth', 'constant', 'noise', 'api', 'none'] as const;
