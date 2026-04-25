@@ -58,7 +58,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
           breakpoints={BREAKPOINTS}
           breakpoint={forcedBreakpoint || undefined}
           cols={COLS}
-          rowHeight={100}
+          rowHeight={50}
           margin={[gap, gap] as [number, number]}
           compactor={verticalCompactor}
           onDragStop={editMode ? (handleInteractionEnd as any) : undefined}
