@@ -103,7 +103,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                         }}>{shortcuts[s.id]}</kbd>
                       )}
                       {editMode && activeScreen !== 'all' && (
-                        <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/sensors/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
+                        <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
                       )}
                       <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', padding: '2px 8px', borderRadius: 4,
                         background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
@@ -119,7 +119,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                       </svg>
                       <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{s.name}</span>
                     </span>
-                    <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/sensors/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
+                    <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
                   </div>
                   )}
                   {!hideStatus && (

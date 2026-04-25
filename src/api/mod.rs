@@ -1,6 +1,6 @@
 pub(crate) mod auth;
 mod screens;
-mod sensors;
+mod data_sources;
 mod layouts;
 mod shortcuts;
 mod settings;
@@ -94,11 +94,11 @@ pub fn create_router(state: AppState) -> Router {
             put(screens::update_screen).delete(screens::delete_screen),
         )
         .route(
-            "/api/screens/{id}/sensors",
+            "/api/screens/{id}/data-sources",
             get(screens::list_screen_sensors).post(screens::add_screen_sensor),
         )
         .route(
-            "/api/screens/{id}/sensors/{sensor_id}",
+            "/api/screens/{id}/data-sources/{data_source_id}",
             put(screens::update_screen_sensor).delete(screens::remove_screen_sensor),
         )
         .route(
@@ -110,16 +110,16 @@ pub fn create_router(state: AppState) -> Router {
             get(layouts::get_twin_layouts).put(layouts::save_twin_layouts),
         )
         .route(
-            "/api/sensors",
-            get(sensors::list_sensors).post(sensors::create_sensor),
+            "/api/data-sources",
+            get(data_sources::list_data_sources).post(data_sources::create_data_source),
         )
         .route(
-            "/api/sensors/reorder",
-            patch(sensors::reorder_sensors),
+            "/api/data-sources/reorder",
+            patch(data_sources::reorder_data_sources),
         )
         .route(
-            "/api/sensors/{id}",
-            put(sensors::update_sensor).delete(sensors::delete_sensor),
+            "/api/data-sources/{id}",
+            put(data_sources::update_data_source).delete(data_sources::delete_data_source),
         )
         .route(
             "/api/shortcuts",

@@ -11,14 +11,14 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
   const [newForm, setNewForm] = useState({ key: '', name: '', unit: '', min_val: 0, max_val: 100, warn_val: 80, crit_val: 90, base_val: 50, decimals: 1, source_type: 'random_walk', color: '#8b5cf6' });
 
   const addExisting = async (sensorId: number) => {
-    await fetch(`/api/screens/${screenId}/sensors`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sensor_id: sensorId }) });
+    await fetch(`/api/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: sensorId }) });
     onDone();
   };
 
   const createNew = async () => {
-    const res = await fetch('/api/sensors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newForm) });
+    const res = await fetch('/api/data-sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newForm) });
     const { id } = await res.json();
-    await fetch(`/api/screens/${screenId}/sensors`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sensor_id: id }) });
+    await fetch(`/api/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: id }) });
     onDone();
   };
 

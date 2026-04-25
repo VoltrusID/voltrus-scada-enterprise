@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 
 use crate::models::{
-    DataPoint, Device, ScreenLayoutRow, Sensor, Setting, TwinLayout, User, UserShortcut,
+    DataPoint, Device, ScreenLayoutRow, DataSource, Setting, TwinLayout, User, UserShortcut,
 };
 
 #[derive(Clone)]
@@ -253,14 +253,14 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    // ── Sensors ──
+    // ── Data Sources ──
 
-    pub async fn max_sensor_sort_order(&self) -> Result<i64> {
+    pub async fn max_data_source_sort_order(&self) -> Result<i64> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let max: Option<i64> = conn
-                .query_row("SELECT MAX(sort_order) FROM sensors", [], |row| row.get(0))
+                .query_row("SELECT MAX(sort_order) FROM data_sources", [], |row| row.get(0))
                 .ok();
             Ok(max.unwrap_or(-1))
         })
@@ -268,7 +268,7 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn list_sensors(&self, screen_id: Option<&str>) -> Result<Vec<Sensor>> {
+    pub async fn list_data_sources(&self, screen_id: Option<&str>) -> Result<Vec<DataSource>> {
         let conn = self.conn.clone();
         let screen_id = screen_id.map(|s| s.to_string());
         tokio::task::spawn_blocking(move || {
@@ -278,8 +278,8 @@ impl Storage {
                     "SELECT s.id, s.key, s.name, s.unit, s.color, s.min_val, s.max_val,
                             s.warn_val, s.crit_val, s.base_val, s.sort_order, s.decimals,
                             s.source_type, s.source_config, s.device_id, s.equipment_id, s.chart_type
-                     FROM sensors s
-                     JOIN screen_sensors ss ON s.id = ss.sensor_id
+                     FROM data_sources s
+                     JOIN screen_data_sources ss ON s.id = ss.data_source_id
                      WHERE ss.screen_id = ?1
                      ORDER BY ss.sort_order",
                     vec![Box::new(sid.clone())],
@@ -288,7 +288,7 @@ impl Storage {
                     "SELECT id, key, name, unit, color, min_val, max_val,
                             warn_val, crit_val, base_val, sort_order, decimals,
                             source_type, source_config, device_id, equipment_id, chart_type
-                     FROM sensors
+                     FROM data_sources
                      ORDER BY sort_order",
                     vec![],
                 ),
@@ -297,7 +297,7 @@ impl Storage {
             let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
             let rows = stmt
                 .query_map(param_refs.as_slice(), |row| {
-                    Ok(Sensor {
+                    Ok(DataSource {
                         id: row.get(0)?,
                         key: row.get(1)?,
                         name: row.get(2)?,
@@ -325,7 +325,7 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn create_sensor(
+    pub async fn create_data_source(
         &self,
         key: &str,
         name: &str,
@@ -357,21 +357,21 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT INTO sensors (key, name, unit, color, min_val, max_val, warn_val, crit_val,
+                "INSERT INTO data_sources (key, name, unit, color, min_val, max_val, warn_val, crit_val,
                  base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id, chart_type)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
                 rusqlite::params![key, name, unit, color, min_val, max_val, warn_val, crit_val,
                                   base_val, sort_order, decimals, source_type, source_config,
                                   device_id, equipment_id, chart_type],
             )
-            .context("Insert sensor failed")?;
+            .context("Insert data source failed")?;
             Ok(conn.last_insert_rowid())
         })
         .await
         .context("Task join failed")?
     }
 
-    pub async fn update_sensor(&self, id: i64, fields: &serde_json::Value) -> Result<()> {
+    pub async fn update_data_source(&self, id: i64, fields: &serde_json::Value) -> Result<()> {
         let conn = self.conn.clone();
         let fields = fields.clone();
         tokio::task::spawn_blocking(move || {
@@ -413,40 +413,40 @@ impl Storage {
                 return Ok(());
             }
             params.push(Box::new(id));
-            let sql = format!("UPDATE sensors SET {} WHERE id = ?", parts.join(", "));
+            let sql = format!("UPDATE data_sources SET {} WHERE id = ?", parts.join(", "));
             let param_refs: Vec<&dyn rusqlite::types::ToSql> =
                 params.iter().map(|p| p.as_ref()).collect();
             conn.execute(&sql, param_refs.as_slice())
-                .context("Update sensor failed")?;
+                .context("Update data source failed")?;
             Ok(())
         })
         .await
         .context("Task join failed")?
     }
 
-    pub async fn delete_sensor(&self, id: i64) -> Result<()> {
+    pub async fn delete_data_source(&self, id: i64) -> Result<()> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM sensors WHERE id = ?1", rusqlite::params![id])
-                .context("Delete sensor failed")?;
+            conn.execute("DELETE FROM data_sources WHERE id = ?1", rusqlite::params![id])
+                .context("Delete data source failed")?;
             Ok(())
         })
         .await
         .context("Task join failed")?
     }
 
-    pub async fn reorder_sensors(&self, order: &[i64]) -> Result<()> {
+    pub async fn reorder_data_sources(&self, order: &[i64]) -> Result<()> {
         let conn = self.conn.clone();
         let order = order.to_vec();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             for (i, &id) in order.iter().enumerate() {
                 conn.execute(
-                    "UPDATE sensors SET sort_order = ?1 WHERE id = ?2",
+                    "UPDATE data_sources SET sort_order = ?1 WHERE id = ?2",
                     rusqlite::params![i as i64, id],
                 )
-                .context("Reorder sensor failed")?;
+                .context("Reorder data source failed")?;
             }
             Ok(())
         })
@@ -454,12 +454,12 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    // ── Screen Sensors ──
+    // ── Screen Data Sources ──
 
-    pub async fn add_screen_sensor(
+    pub async fn add_screen_data_source(
         &self,
         screen_id: &str,
-        sensor_id: i64,
+        data_source_id: i64,
         sort_order: i64,
     ) -> Result<()> {
         let conn = self.conn.clone();
@@ -467,20 +467,20 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT OR REPLACE INTO screen_sensors (screen_id, sensor_id, sort_order) VALUES (?1, ?2, ?3)",
-                rusqlite::params![screen_id, sensor_id, sort_order],
+                "INSERT OR REPLACE INTO screen_data_sources (screen_id, data_source_id, sort_order) VALUES (?1, ?2, ?3)",
+                rusqlite::params![screen_id, data_source_id, sort_order],
             )
-            .context("Add screen sensor failed")?;
+            .context("Add screen data source failed")?;
             Ok(())
         })
         .await
         .context("Task join failed")?
     }
 
-    pub async fn update_screen_sensor_sort(
+    pub async fn update_screen_data_source_sort(
         &self,
         screen_id: &str,
-        sensor_id: i64,
+        data_source_id: i64,
         sort_order: i64,
     ) -> Result<()> {
         let conn = self.conn.clone();
@@ -488,42 +488,42 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "UPDATE screen_sensors SET sort_order = ?1 WHERE screen_id = ?2 AND sensor_id = ?3",
-                rusqlite::params![sort_order, screen_id, sensor_id],
+                "UPDATE screen_data_sources SET sort_order = ?1 WHERE screen_id = ?2 AND data_source_id = ?3",
+                rusqlite::params![sort_order, screen_id, data_source_id],
             )
-            .context("Update screen sensor sort failed")?;
+            .context("Update screen data source sort failed")?;
             Ok(())
         })
         .await
         .context("Task join failed")?
     }
 
-    pub async fn remove_screen_sensor(&self, screen_id: &str, sensor_id: i64) -> Result<()> {
+    pub async fn remove_screen_data_source(&self, screen_id: &str, data_source_id: i64) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "DELETE FROM screen_sensors WHERE screen_id = ?1 AND sensor_id = ?2",
-                rusqlite::params![screen_id, sensor_id],
+                "DELETE FROM screen_data_sources WHERE screen_id = ?1 AND data_source_id = ?2",
+                rusqlite::params![screen_id, data_source_id],
             )
-            .context("Remove screen sensor failed")?;
+            .context("Remove screen data source failed")?;
             Ok(())
         })
         .await
         .context("Task join failed")?
     }
 
-    pub async fn delete_screen_sensors_by_screen(&self, screen_id: &str) -> Result<()> {
+    pub async fn delete_screen_data_sources_by_screen(&self, screen_id: &str) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "DELETE FROM screen_sensors WHERE screen_id = ?1",
+                "DELETE FROM screen_data_sources WHERE screen_id = ?1",
                 rusqlite::params![screen_id],
             )
-            .context("Delete screen sensors by screen failed")?;
+            .context("Delete screen data sources by screen failed")?;
             Ok(())
         })
         .await
@@ -704,13 +704,13 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT user_id, sensor_id, shortcut FROM user_shortcuts WHERE user_id = ?1")
+                .prepare("SELECT user_id, data_source_id, shortcut FROM user_shortcuts WHERE user_id = ?1")
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map(rusqlite::params![user_id], |row| {
                     Ok(UserShortcut {
                         user_id: row.get(0)?,
-                        sensor_id: row.get(1)?,
+                        data_source_id: row.get(1)?,
                         shortcut: row.get(2)?,
                     })
                 })
@@ -730,7 +730,7 @@ impl Storage {
         let conn = self.conn.clone();
         let entries: Vec<(i64, Option<String>)> = entries
             .iter()
-            .map(|(sid, sc)| (*sid, sc.map(|s| s.to_string())))
+            .map(|(dsid, sc)| (*dsid, sc.map(|s| s.to_string())))
             .collect();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -738,9 +738,9 @@ impl Storage {
             conn.execute_batch(
                 "CREATE TABLE IF NOT EXISTS user_shortcuts (
                     user_id INTEGER NOT NULL,
-                    sensor_id INTEGER NOT NULL,
+                    data_source_id INTEGER NOT NULL,
                     shortcut TEXT NOT NULL,
-                    PRIMARY KEY (user_id, sensor_id)
+                    PRIMARY KEY (user_id, data_source_id)
                 )",
             )
             .context("Ensure user_shortcuts table failed")?;
@@ -750,13 +750,13 @@ impl Storage {
                 rusqlite::params![user_id],
             )
             .context("Delete shortcuts failed")?;
-            for (sensor_id, shortcut) in &entries {
+            for (data_source_id, shortcut) in &entries {
                 let sc = shortcut.as_deref().unwrap_or("");
                 tx.execute(
-                    "INSERT INTO user_shortcuts (user_id, sensor_id, shortcut) VALUES (?1, ?2, ?3)",
-                    rusqlite::params![user_id, sensor_id, sc],
+                    "INSERT INTO user_shortcuts (user_id, data_source_id, shortcut) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![user_id, data_source_id, sc],
                 )
-                .with_context(|| format!("Insert shortcut failed: user_id={user_id}, sensor_id={sensor_id}, shortcut={sc:?}"))?;
+                .with_context(|| format!("Insert shortcut failed: user_id={user_id}, data_source_id={data_source_id}, shortcut={sc:?}"))?;
             }
             tx.commit().context("Commit failed")
         })
@@ -777,23 +777,23 @@ impl Storage {
             tracing::info!("Seeded admin user");
         }
 
-        // Seed PLTS sensors if none exist
-        let all_sensors = self.list_sensors(None).await?;
-        if all_sensors.is_empty() {
-            self.seed_plts_sensors().await?;
+        // Seed PLTS data sources if none exist
+        let all_data_sources = self.list_data_sources(None).await?;
+        if all_data_sources.is_empty() {
+            self.seed_plts_data_sources().await?;
         }
 
         Ok(())
     }
 
-    async fn seed_plts_sensors(&self) -> Result<()> {
+    async fn seed_plts_data_sources(&self) -> Result<()> {
         // Seed devices
         self.create_device("plts_1", "PLTS 1", 0).await?;
         self.create_device("plts_2", "PLTS 2", 1).await?;
 
-        // Sensor definitions matching Modbus register names from config.yaml
+        // Data source definitions matching Modbus register names from config.yaml
         // (key, name, unit, color, min, max, warn, crit, base, sort, decimals, source_type, source_config)
-        let sensor_defs: &[(&str, &str, &str, &str, f64, f64, f64, f64, f64, i64, i64, &str, &str)] = &[
+        let data_source_defs: &[(&str, &str, &str, &str, f64, f64, f64, f64, f64, i64, i64, &str, &str)] = &[
             ("voltage", "Voltage", "V", "#f59e0b", 0.0, 450.0, 400.0, 420.0, 380.0, 0, 1, "modbus", "{}"),
             ("current", "Current", "A", "#06b6d4", 0.0, 100.0, 85.0, 95.0, 65.0, 1, 2, "modbus", "{}"),
             ("power", "Power", "W", "#a855f7", 0.0, 50000.0, 40000.0, 45000.0, 24700.0, 2, 0, "modbus", "{}"),
@@ -802,34 +802,34 @@ impl Storage {
             ("energy_total", "Energy Total", "kWh", "#8b5cf6", 0.0, 999999.0, 800000.0, 900000.0, 158732.0, 5, 1, "modbus", "{}"),
         ];
 
-        let mut plts1_sensor_ids: Vec<i64> = Vec::new();
-        let mut plts2_sensor_ids: Vec<i64> = Vec::new();
+        let mut plts1_data_source_ids: Vec<i64> = Vec::new();
+        let mut plts2_data_source_ids: Vec<i64> = Vec::new();
 
-        for (i, def) in sensor_defs.iter().enumerate() {
-            let plts1_id = self.create_sensor(
+        for (i, def) in data_source_defs.iter().enumerate() {
+            let plts1_id = self.create_data_source(
                 def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
                 def.8, def.9, def.10, def.11, def.12, "plts_1", None, "sparkline",
             ).await?;
-            plts1_sensor_ids.push(plts1_id);
+            plts1_data_source_ids.push(plts1_id);
 
-            let plts2_id = self.create_sensor(
+            let plts2_id = self.create_data_source(
                 def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
                 def.8, i as i64 + 6, def.10, def.11, def.12, "plts_2", None, "sparkline",
             ).await?;
-            plts2_sensor_ids.push(plts2_id);
+            plts2_data_source_ids.push(plts2_id);
         }
 
-        // Assign sensors to screen "plts_1"
-        for (i, &sid) in plts1_sensor_ids.iter().enumerate() {
-            self.add_screen_sensor("plts_1", sid, i as i64).await?;
+        // Assign data sources to screen "plts_1"
+        for (i, &sid) in plts1_data_source_ids.iter().enumerate() {
+            self.add_screen_data_source("plts_1", sid, i as i64).await?;
         }
 
-        // Assign sensors to screen "plts_2"
-        for (i, &sid) in plts2_sensor_ids.iter().enumerate() {
-            self.add_screen_sensor("plts_2", sid, i as i64).await?;
+        // Assign data sources to screen "plts_2"
+        for (i, &sid) in plts2_data_source_ids.iter().enumerate() {
+            self.add_screen_data_source("plts_2", sid, i as i64).await?;
         }
 
-        tracing::info!("Seeded PLTS sensors for plts_1 and plts_2");
+        tracing::info!("Seeded PLTS data sources for plts_1 and plts_2");
         Ok(())
     }
 }
@@ -857,7 +857,7 @@ fn init_schema(conn: &Connection) -> Result<()> {
             type TEXT NOT NULL DEFAULT 'screen',
             sort_order INTEGER NOT NULL DEFAULT 0
         );
-        CREATE TABLE IF NOT EXISTS sensors (
+        CREATE TABLE IF NOT EXISTS data_sources (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key TEXT NOT NULL,
             name TEXT NOT NULL,
@@ -875,11 +875,11 @@ fn init_schema(conn: &Connection) -> Result<()> {
             device_id TEXT NOT NULL DEFAULT 'default',
             equipment_id TEXT
         );
-        CREATE TABLE IF NOT EXISTS screen_sensors (
+        CREATE TABLE IF NOT EXISTS screen_data_sources (
             screen_id TEXT NOT NULL,
-            sensor_id INTEGER NOT NULL,
+            data_source_id INTEGER NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (screen_id, sensor_id)
+            PRIMARY KEY (screen_id, data_source_id)
         );
         CREATE TABLE IF NOT EXISTS screen_layouts (
             screen_id TEXT NOT NULL,
@@ -893,9 +893,9 @@ fn init_schema(conn: &Connection) -> Result<()> {
         );
         CREATE TABLE IF NOT EXISTS user_shortcuts (
             user_id INTEGER NOT NULL,
-            sensor_id INTEGER NOT NULL,
+            data_source_id INTEGER NOT NULL,
             shortcut TEXT NOT NULL,
-            PRIMARY KEY (user_id, sensor_id)
+            PRIMARY KEY (user_id, data_source_id)
         );
         CREATE TABLE IF NOT EXISTS twin_layouts (
             screen_id TEXT NOT NULL,
@@ -910,7 +910,13 @@ fn init_schema(conn: &Connection) -> Result<()> {
     .context("Failed to create schema")?;
 
     // Migration: add chart_type column
-    let _ = conn.execute_batch("ALTER TABLE sensors ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'sparkline'");
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'sparkline'");
+
+    // Migration: rename legacy tables from sensor → data_source
+    let _ = conn.execute_batch("ALTER TABLE sensors RENAME TO data_sources");
+    let _ = conn.execute_batch("ALTER TABLE screen_sensors RENAME TO screen_data_sources");
+    let _ = conn.execute_batch("ALTER TABLE screen_data_sources RENAME COLUMN sensor_id TO data_source_id");
+    let _ = conn.execute_batch("ALTER TABLE user_shortcuts RENAME COLUMN sensor_id TO data_source_id");
 
     Ok(())
 }

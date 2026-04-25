@@ -13,15 +13,15 @@ pub async fn get_shortcuts(
     let user = state.storage.get_user_by_username(&auth.username).await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let shortcuts = state.storage.get_user_shortcuts(user.id).await?;
-    // Return as map: {sensor_id: shortcut}
+    // Return as map: {data_source_id: shortcut}
     let mut map = serde_json::Map::new();
     for s in &shortcuts {
-        map.insert(s.sensor_id.to_string(), json!(s.shortcut));
+        map.insert(s.data_source_id.to_string(), json!(s.shortcut));
     }
     Ok(Json(serde_json::Value::Object(map)))
 }
 
-/// PUT /api/shortcuts — save shortcuts, accept map of {sensor_id: shortcut}
+/// PUT /api/shortcuts — save shortcuts, accept map of {data_source_id: shortcut}
 /// If value is null or empty string, delete the entry
 pub async fn save_shortcuts(
     State(state): State<AppState>,
@@ -36,22 +36,22 @@ pub async fn save_shortcuts(
 
     // Collect as owned strings first
     let mut owned_entries: Vec<(i64, Option<String>)> = Vec::new();
-    for (sensor_id_str, value) in obj {
-        let sensor_id: i64 = sensor_id_str
+    for (data_source_id_str, value) in obj {
+        let data_source_id: i64 = data_source_id_str
             .parse()
-            .map_err(|_| anyhow::anyhow!("Invalid sensor_id: {}", sensor_id_str))?;
+            .map_err(|_| anyhow::anyhow!("Invalid data_source_id: {}", data_source_id_str))?;
         match value {
             serde_json::Value::Null => {
-                owned_entries.push((sensor_id, None));
+                owned_entries.push((data_source_id, None));
             }
             serde_json::Value::String(s) if s.is_empty() => {
-                owned_entries.push((sensor_id, None));
+                owned_entries.push((data_source_id, None));
             }
             serde_json::Value::String(s) => {
-                owned_entries.push((sensor_id, Some(s.clone())));
+                owned_entries.push((data_source_id, Some(s.clone())));
             }
             _ => {
-                owned_entries.push((sensor_id, Some(value.to_string())));
+                owned_entries.push((data_source_id, Some(value.to_string())));
             }
         }
     }

@@ -77,47 +77,47 @@ pub async fn update_screen(
     Ok(Json(json!({"ok": true})))
 }
 
-/// DELETE /api/screens/{id} — delete a screen and its sensor associations
+/// DELETE /api/screens/{id} — delete a screen and its data source associations
 pub async fn delete_screen(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Delete screen_sensors first
+    // Delete screen_data_sources first
     state
         .storage
-        .delete_screen_sensors_by_screen(&id)
+        .delete_screen_data_sources_by_screen(&id)
         .await?;
     state.storage.delete_device(&id).await?;
 
     Ok(Json(json!({"ok": true})))
 }
 
-/// GET /api/screens/{id}/sensors — list sensors for a screen
+/// GET /api/screens/{id}/data-sources — list data sources for a screen
 pub async fn list_screen_sensors(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let sensors = state.storage.list_sensors(Some(&id)).await?;
-    Ok(Json(sensors))
+    let data_sources = state.storage.list_data_sources(Some(&id)).await?;
+    Ok(Json(data_sources))
 }
 
-/// POST /api/screens/{id}/sensors — add a sensor to a screen
+/// POST /api/screens/{id}/data-sources — add a data source to a screen
 pub async fn add_screen_sensor(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let sensor_id = body["sensor_id"]
+    let data_source_id = body["data_source_id"]
         .as_i64()
-        .ok_or_else(|| anyhow::anyhow!("sensor_id is required"))?;
+        .ok_or_else(|| anyhow::anyhow!("data_source_id is required"))?;
 
-    // Get max sort_order for this screen's sensors
-    let existing = state.storage.list_sensors(Some(&id)).await?;
+    // Get max sort_order for this screen's data sources
+    let existing = state.storage.list_data_sources(Some(&id)).await?;
     let max_sort = existing.iter().map(|s| s.sort_order).max().unwrap_or(-1);
 
     state
         .storage
-        .add_screen_sensor(&id, sensor_id, max_sort + 1)
+        .add_screen_data_source(&id, data_source_id, max_sort + 1)
         .await?;
 
     Ok((
@@ -126,10 +126,10 @@ pub async fn add_screen_sensor(
     ))
 }
 
-/// PUT /api/screens/{id}/sensors/{sensor_id} — update screen sensor sort order
+/// PUT /api/screens/{id}/data-sources/{data_source_id} — update screen data source sort order
 pub async fn update_screen_sensor(
     State(state): State<AppState>,
-    Path((id, sensor_id)): Path<(String, i64)>,
+    Path((id, data_source_id)): Path<(String, i64)>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let sort_order = body["sort_order"]
@@ -138,20 +138,20 @@ pub async fn update_screen_sensor(
 
     state
         .storage
-        .update_screen_sensor_sort(&id, sensor_id, sort_order)
+        .update_screen_data_source_sort(&id, data_source_id, sort_order)
         .await?;
 
     Ok(Json(json!({"ok": true})))
 }
 
-/// DELETE /api/screens/{id}/sensors/{sensor_id} — remove sensor from screen
+/// DELETE /api/screens/{id}/data-sources/{data_source_id} — remove data source from screen
 pub async fn remove_screen_sensor(
     State(state): State<AppState>,
-    Path((id, sensor_id)): Path<(String, i64)>,
+    Path((id, data_source_id)): Path<(String, i64)>,
 ) -> Result<impl IntoResponse, AppError> {
     state
         .storage
-        .remove_screen_sensor(&id, sensor_id)
+        .remove_screen_data_source(&id, data_source_id)
         .await?;
 
     Ok(Json(json!({"ok": true})))

@@ -208,7 +208,7 @@ pub struct Device {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Sensor {
+pub struct DataSource {
     pub id: i64,
     pub key: String,
     pub name: String,
@@ -229,9 +229,9 @@ pub struct Sensor {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ScreenSensor {
+pub struct ScreenDataSource {
     pub screen_id: String,
-    pub sensor_id: i64,
+    pub data_source_id: i64,
     pub sort_order: i64,
 }
 
@@ -255,7 +255,7 @@ pub struct TwinLayout {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserShortcut {
     pub user_id: i64,
-    pub sensor_id: i64,
+    pub data_source_id: i64,
     pub shortcut: String,
 }
 
@@ -293,7 +293,7 @@ pub struct BrandingSettings {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct SensorData {
+pub struct DataSourceData {
     pub id: i64,
     pub key: String,
     pub value: f64,
@@ -304,14 +304,14 @@ pub struct SensorData {
 
 #[derive(Debug, serde::Serialize)]
 pub struct HistoryResponse {
-    pub sensors: Vec<SensorSummary>,
+    pub sensors: Vec<DataSourceSummary>,
     pub data: serde_json::Value,
     pub range: String,
     pub interval: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct SensorSummary {
+pub struct DataSourceSummary {
     pub id: i64,
     pub key: String,
     pub name: String,

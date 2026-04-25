@@ -5,8 +5,8 @@ import type { BrandingSettings } from './BrandingDialog'
 // ── Query key factory ──────────────────────────────────────────────
 
 export const queryKeys = {
-  sensors:       ['sensors'] as const,
-  screenSensors: (screenId: string) => ['screenSensors', screenId] as const,
+  sensors:       ['dataSources'] as const,
+  screenSensors: (screenId: string) => ['screenDataSources', screenId] as const,
   screens:       ['screens'] as const,
   layouts:       (screenId: string) => ['layouts', screenId] as const,
   twinLayouts:   (screenId: string) => ['twinLayouts', screenId] as const,
@@ -38,7 +38,7 @@ async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
 export function useSensors(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.sensors,
-    queryFn: () => fetchJson<SensorConfig[]>('/api/sensors'),
+    queryFn: () => fetchJson<SensorConfig[]>('/api/data-sources'),
     enabled,
   })
 }
@@ -47,7 +47,7 @@ export function useScreenSensors(screenId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.screenSensors(screenId),
     queryFn: () => fetchJson<SensorConfig[]>(
-      screenId === 'all' ? '/api/sensors' : `/api/screens/${screenId}/sensors`
+      screenId === 'all' ? '/api/data-sources' : `/api/screens/${screenId}/data-sources`
     ),
     enabled,
     placeholderData: keepPreviousData,
@@ -128,7 +128,7 @@ export function useUpdateSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (s: SensorConfig) => {
-      await fetchOk(`/api/sensors/${s.id}`, {
+      await fetchOk(`/api/data-sources/${s.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(s),
@@ -137,7 +137,7 @@ export function useUpdateSensor() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.sensors })
-      qc.invalidateQueries({ queryKey: ['screenSensors'] })
+      qc.invalidateQueries({ queryKey: ['screenDataSources'] })
     },
   })
 }
@@ -146,11 +146,11 @@ export function useDeleteSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      await fetchOk(`/api/sensors/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/data-sources/${id}`, { method: 'DELETE' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.sensors })
-      qc.invalidateQueries({ queryKey: ['screenSensors'] })
+      qc.invalidateQueries({ queryKey: ['screenDataSources'] })
     },
   })
 }
@@ -159,7 +159,7 @@ export function useAddSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (form: Partial<SensorConfig>) => {
-      const res = await fetchOk('/api/sensors', {
+      const res = await fetchOk('/api/data-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -281,7 +281,7 @@ export function useDeleteScreen() {
     onSuccess: (deletedId) => {
       qc.invalidateQueries({ queryKey: queryKeys.screens })
       qc.invalidateQueries({ queryKey: queryKeys.layouts(deletedId) })
-      qc.invalidateQueries({ queryKey: ['screenSensors'] })
+      qc.invalidateQueries({ queryKey: ['screenDataSources'] })
     },
   })
 }
@@ -290,10 +290,10 @@ export function useAddSensorToScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ screenId, sensorId }: { screenId: string; sensorId: number }) => {
-      await fetchOk(`/api/screens/${screenId}/sensors`, {
+      await fetchOk(`/api/screens/${screenId}/data-sources`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sensor_id: sensorId }),
+        body: JSON.stringify({ data_source_id: sensorId }),
       })
     },
     onSuccess: (_, { screenId }) => {
@@ -307,7 +307,7 @@ export function useRemoveSensorFromScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ screenId, sensorId }: { screenId: string; sensorId: number }) => {
-      await fetchOk(`/api/screens/${screenId}/sensors/${sensorId}`, { method: 'DELETE' })
+      await fetchOk(`/api/screens/${screenId}/data-sources/${sensorId}`, { method: 'DELETE' })
     },
     onSuccess: (_, { screenId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.screenSensors(screenId) })

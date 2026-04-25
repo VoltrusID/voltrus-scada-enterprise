@@ -1,4 +1,4 @@
-use crate::models::Sensor;
+use crate::models::DataSource;
 
 /// Generate a pseudo-random value from a seed. Equivalent to the Hono worker's
 /// `pseudoRandom` function: fract(sin(x * 12.9898 + 78.233) * 43758.5453)
@@ -7,58 +7,58 @@ pub fn pseudo_random(seed: f64) -> f64 {
     x - x.floor()
 }
 
-/// Generate a sensor value based on its `source_type` and configuration.
+/// Generate a data source value based on its `source_type` and configuration.
 /// `now` is a time factor (seconds since epoch as f64).
-pub fn generate_value(sensor: &Sensor, now: f64) -> f64 {
-    match sensor.source_type.as_str() {
-        "constant" => sensor.base_val,
-        "none" | "api" => sensor.base_val,
+pub fn generate_value(data_source: &DataSource, now: f64) -> f64 {
+    match data_source.source_type.as_str() {
+        "constant" => data_source.base_val,
+        "none" | "api" => data_source.base_val,
         "noise" => {
-            let noise = pseudo_random(now + sensor.id as f64) * 2.0 - 1.0;
-            let range = sensor.max_val - sensor.min_val;
-            (sensor.base_val + noise * range * 0.05).clamp(sensor.min_val, sensor.max_val)
+            let noise = pseudo_random(now + data_source.id as f64) * 2.0 - 1.0;
+            let range = data_source.max_val - data_source.min_val;
+            (data_source.base_val + noise * range * 0.05).clamp(data_source.min_val, data_source.max_val)
         }
         "sine" => {
             let config: serde_json::Value =
-                serde_json::from_str(&sensor.source_config).unwrap_or(serde_json::json!({}));
+                serde_json::from_str(&data_source.source_config).unwrap_or(serde_json::json!({}));
             let period = config["period"].as_f64().unwrap_or(60.0);
-            let amplitude = config["amplitude"].as_f64().unwrap_or(sensor.max_val - sensor.min_val);
+            let amplitude = config["amplitude"].as_f64().unwrap_or(data_source.max_val - data_source.min_val);
             let phase = config["phase"].as_f64().unwrap_or(0.0);
-            let range = sensor.max_val - sensor.min_val;
+            let range = data_source.max_val - data_source.min_val;
             let amp = amplitude.min(range / 2.0);
-            let val = sensor.base_val
+            let val = data_source.base_val
                 + ((now / period) * std::f64::consts::PI * 2.0 + phase).sin() * amp * 0.5;
-            val.clamp(sensor.min_val, sensor.max_val)
+            val.clamp(data_source.min_val, data_source.max_val)
         }
         "step" => {
             // Occasional jumps using pseudo-random trigger
             let step_seed = (now / 30.0).floor();
-            let should_jump = pseudo_random(step_seed + sensor.id as f64) > 0.7;
+            let should_jump = pseudo_random(step_seed + data_source.id as f64) > 0.7;
             if should_jump {
-                let jump_target = pseudo_random(step_seed + sensor.id as f64 * 3.7);
-                let range = sensor.max_val - sensor.min_val;
-                (sensor.min_val + jump_target * range).clamp(sensor.min_val, sensor.max_val)
+                let jump_target = pseudo_random(step_seed + data_source.id as f64 * 3.7);
+                let range = data_source.max_val - data_source.min_val;
+                (data_source.min_val + jump_target * range).clamp(data_source.min_val, data_source.max_val)
             } else {
-                sensor.base_val
+                data_source.base_val
             }
         }
         "sawtooth" => {
             let config: serde_json::Value =
-                serde_json::from_str(&sensor.source_config).unwrap_or(serde_json::json!({}));
+                serde_json::from_str(&data_source.source_config).unwrap_or(serde_json::json!({}));
             let period = config["period"].as_f64().unwrap_or(120.0);
-            let range = sensor.max_val - sensor.min_val;
+            let range = data_source.max_val - data_source.min_val;
             let phase = (now % period) / period;
-            (sensor.min_val + phase * range).clamp(sensor.min_val, sensor.max_val)
+            (data_source.min_val + phase * range).clamp(data_source.min_val, data_source.max_val)
         }
-        _ => random_walk(sensor, now), // default: random_walk
+        _ => random_walk(data_source, now), // default: random_walk
     }
 }
 
-fn random_walk(sensor: &Sensor, now: f64) -> f64 {
-    let range = sensor.max_val - sensor.min_val;
-    let noise = (now * 0.5 + sensor.id as f64 * 1.7).sin() * 0.3
-        + (now * 1.3 + sensor.id as f64 * 2.1).sin() * 0.15;
-    (sensor.base_val + noise * range * 0.08).clamp(sensor.min_val, sensor.max_val)
+fn random_walk(data_source: &DataSource, now: f64) -> f64 {
+    let range = data_source.max_val - data_source.min_val;
+    let noise = (now * 0.5 + data_source.id as f64 * 1.7).sin() * 0.3
+        + (now * 1.3 + data_source.id as f64 * 2.1).sin() * 0.15;
+    (data_source.base_val + noise * range * 0.08).clamp(data_source.min_val, data_source.max_val)
 }
 
 /// Parse a range string like "30m", "1h", "6h", "24h" into (start_seconds_ago, interval_seconds).
@@ -94,8 +94,8 @@ pub fn interval_for_range(range: &str) -> u64 {
 mod tests {
     use super::*;
 
-    fn make_sensor(id: i64, source_type: &str, base_val: f64, min_val: f64, max_val: f64) -> Sensor {
-        Sensor {
+    fn make_data_source(id: i64, source_type: &str, base_val: f64, min_val: f64, max_val: f64) -> DataSource {
+        DataSource {
             id,
             key: "test".to_string(),
             name: "Test".to_string(),
@@ -118,14 +118,14 @@ mod tests {
 
     #[test]
     fn test_constant() {
-        let s = make_sensor(1, "constant", 42.0, 0.0, 100.0);
+        let s = make_data_source(1, "constant", 42.0, 0.0, 100.0);
         assert_eq!(generate_value(&s, 100.0), 42.0);
         assert_eq!(generate_value(&s, 200.0), 42.0);
     }
 
     #[test]
     fn test_noise_within_range() {
-        let s = make_sensor(1, "noise", 50.0, 0.0, 100.0);
+        let s = make_data_source(1, "noise", 50.0, 0.0, 100.0);
         for t in 0..100 {
             let v = generate_value(&s, t as f64);
             assert!(v >= 0.0 && v <= 100.0, "value {v} out of range at t={t}");
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_sine_within_range() {
-        let s = make_sensor(1, "sine", 50.0, 0.0, 100.0);
+        let s = make_data_source(1, "sine", 50.0, 0.0, 100.0);
         for t in 0..100 {
             let v = generate_value(&s, t as f64);
             assert!(v >= 0.0 && v <= 100.0, "value {v} out of range at t={t}");
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_random_walk_within_range() {
-        let s = make_sensor(1, "random_walk", 50.0, 0.0, 100.0);
+        let s = make_data_source(1, "random_walk", 50.0, 0.0, 100.0);
         for t in 0..100 {
             let v = generate_value(&s, t as f64);
             assert!(v >= 0.0 && v <= 100.0, "value {v} out of range at t={t}");
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_sawtooth_within_range() {
-        let s = make_sensor(1, "sawtooth", 50.0, 0.0, 100.0);
+        let s = make_data_source(1, "sawtooth", 50.0, 0.0, 100.0);
         for t in 0..100 {
             let v = generate_value(&s, t as f64);
             assert!(v >= 0.0 && v <= 100.0, "value {v} out of range at t={t}");
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_step_within_range() {
-        let s = make_sensor(1, "step", 50.0, 0.0, 100.0);
+        let s = make_data_source(1, "step", 50.0, 0.0, 100.0);
         for t in 0..100 {
             let v = generate_value(&s, t as f64);
             assert!(v >= 0.0 && v <= 100.0, "value {v} out of range at t={t}");
