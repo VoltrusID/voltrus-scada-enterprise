@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem } from './types'
+import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem, ModbusDevice, ModbusRegister } from './types'
 import type { BrandingSettings } from './BrandingDialog'
 
 // ── Query key factory ──────────────────────────────────────────────
@@ -17,6 +17,10 @@ export const queryKeys = {
   alarms:        (status: string) => ['alarms', status] as const,
   canvasLayouts: (screenId: string) => ['canvasLayouts', screenId] as const,
   twinConnections: (screenId: string) => ['twinConnections', screenId] as const,
+  modbusDevices:  ['modbusDevices'] as const,
+  modbusDevice:   (id: string) => ['modbusDevice', id] as const,
+  modbusRegisters: (id: string) => ['modbusRegisters', id] as const,
+  modbusStatus:   ['modbusStatus'] as const,
 }
 
 // ── Fetcher helper ─────────────────────────────────────────────────
@@ -402,6 +406,125 @@ export function useAcknowledgeAllAlarms() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['alarms'] })
+    },
+  })
+}
+
+// ── Modbus device hooks ──────────────────────────────────────────────
+
+export function useModbusDevices(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.modbusDevices,
+    queryFn: () => fetchJson<ModbusDevice[]>('/api/modbus-devices'),
+    enabled,
+  })
+}
+
+export function useModbusDevice(id: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.modbusDevice(id),
+    queryFn: async () => {
+      const r = await fetchJson<{ device: ModbusDevice; registers: ModbusRegister[] }>(`/api/modbus-devices/${id}`)
+      return r
+    },
+    enabled: enabled && !!id,
+  })
+}
+
+export function useModbusRegisters(deviceId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.modbusRegisters(deviceId),
+    queryFn: async () => {
+      const r = await fetchJson<{ device: ModbusDevice; registers: ModbusRegister[] }>(`/api/modbus-devices/${deviceId}`)
+      return r.registers
+    },
+    enabled: enabled && !!deviceId,
+  })
+}
+
+export function useModbusPollerStatus(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.modbusStatus,
+    queryFn: () => fetchJson<{ device_id: string; running: boolean }[]>('/api/modbus-devices/status'),
+    enabled,
+    refetchInterval: 5_000,
+    staleTime: 4_000,
+  })
+}
+
+export function useCreateModbusDevice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (device: Partial<ModbusDevice> & { registers?: Partial<ModbusRegister>[] }) => {
+      const res = await fetchOk('/api/modbus-devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(device),
+      })
+      return res.json() as Promise<{ ok: boolean; id: string }>
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.modbusDevices })
+      qc.invalidateQueries({ queryKey: queryKeys.modbusStatus })
+    },
+  })
+}
+
+export function useUpdateModbusDevice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...fields }: { id: string } & Record<string, any>) => {
+      await fetchOk(`/api/modbus-devices/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.modbusDevices })
+      qc.invalidateQueries({ queryKey: queryKeys.modbusStatus })
+    },
+  })
+}
+
+export function useDeleteModbusDevice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await fetchOk(`/api/modbus-devices/${id}`, { method: 'DELETE' })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.modbusDevices })
+      qc.invalidateQueries({ queryKey: queryKeys.modbusStatus })
+    },
+  })
+}
+
+export function useReplaceModbusRegisters() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ deviceId, registers }: { deviceId: string; registers: Partial<ModbusRegister>[] }) => {
+      await fetchOk(`/api/modbus-devices/${deviceId}/registers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registers }),
+      })
+    },
+    onSuccess: (_, { deviceId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.modbusRegisters(deviceId) })
+      qc.invalidateQueries({ queryKey: queryKeys.modbusDevice(deviceId) })
+    },
+  })
+}
+
+export function useRestartModbusPoller() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await fetchOk(`/api/modbus-devices/${id}/restart`, { method: 'POST' })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.modbusStatus })
     },
   })
 }

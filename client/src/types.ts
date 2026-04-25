@@ -27,7 +27,7 @@ export interface CanvasLayoutItem {
 
 export const MAX_PTS = 300;
 export const NORM_PTS = 60;
-export const SOURCE_TYPES = ['random_walk', 'sine', 'step', 'sawtooth', 'constant', 'noise', 'api', 'none'] as const;
+export const SOURCE_TYPES = ['random_walk', 'sine', 'step', 'sawtooth', 'constant', 'noise', 'api', 'modbus', 'none'] as const;
 
 export const CHART_TYPES = ['sparkline', 'bignumber', 'gauge', 'image', 'text'] as const;
 
@@ -68,4 +68,28 @@ export interface Alarm {
   resolved_at: number | null
   acknowledged_at: number | null
   acknowledged_by: string | null
+}
+
+export interface ModbusDevice {
+  id: string
+  name: string
+  ip: string
+  port: number
+  unit_id: number
+  interval_ms: number
+  endianness: string
+  enabled: boolean
+  created_at: number
+  updated_at: number
+  register_count: number
+}
+
+export interface ModbusRegister {
+  id: number
+  device_id: string
+  name: string
+  address: number
+  register_type: string
+  scale: number
+  sort_order: number
 }

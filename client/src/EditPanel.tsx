@@ -135,7 +135,12 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
           </div>)}
           {tab === 'source' && (<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <label style={labelStyle}><span style={labelTextStyle}>Source Type</span><select value={form.source_type} onChange={e => { setForm({ ...form, source_type: e.target.value }); setSrcConfig({}); }} style={inputStyle}>{SOURCE_TYPES.map(t => <option key={t} value={t}>{t === 'none' ? 'none (static)' : t}</option>)}</select></label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}><SourceConfigFields sourceType={form.source_type} config={srcConfig} onChange={setSrcConfig} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}><SourceConfigFields sourceType={form.source_type} config={srcConfig} onChange={c => {
+              setSrcConfig(c);
+              if (form.source_type === 'modbus' && c.modbus_device_id) {
+                setForm(f => ({ ...f, device_id: c.modbus_device_id, key: c.modbus_register_name || f.key }));
+              }
+            }} /></div>
           </div>)}
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
