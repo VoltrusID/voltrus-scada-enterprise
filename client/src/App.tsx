@@ -10,6 +10,8 @@ import { SensorDetail } from './SensorDetail'
 import { SensorManager } from './SensorManager'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
+import { useAlarmAudio } from './useAlarmAudio'
+import { AlarmPanel } from './AlarmPanel'
 import { HistoryRangeBar } from './CustomRangePicker'
 import { SensorGrid } from './SensorGrid'
 import { ScreenLayouts, LayoutItem } from './types'
@@ -28,6 +30,9 @@ export default function App() {
   const [historyMap, setHistoryMap] = useState<Record<string, DataPoint[]> | null>(null);
   const [currentValues, setCurrentValues] = useState<Record<string, SensorData>>({});
   const [alerts, setAlerts] = useState(0);
+  const [showAlarmPanel, setShowAlarmPanel] = useState(false);
+  const [alarmMuted, setAlarmMuted] = useState(false);
+  const { startAlarm, stopAlarm, toggleMute } = useAlarmAudio();
   const [paused, setPaused] = useState(false);
   const [turbo, setTurbo] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -269,18 +274,26 @@ export default function App() {
         pendingData.current = null;
         const newMap = { ...dataMapRef.current };
         const newVals = { ...currentValuesRef.current };
-        let a = 0;
+        let alertCount = 0;
         for (const item of d) {
           const arr = newMap[item.key] ? [...newMap[item.key]] : [];
           arr.push({ value: item.value, ts: Date.now() });
           if (arr.length > (turbo ? MAX_PTS : NORM_PTS)) arr.shift();
           newMap[item.key] = arr;
           newVals[item.key] = item;
-          if (item.value >= item.crit || item.value >= item.warn) a++;
+          if (item.value >= item.crit || item.value >= item.warn) {
+            alertCount++;
+          }
         }
         setDataMap(newMap);
         setCurrentValues(newVals);
-        setAlerts(a);
+        setAlerts(alertCount);
+        // Alarm audio: start on new breaches, stop when all clear
+        if (alertCount > 0) {
+          startAlarm();
+        } else {
+          stopAlarm();
+        }
       }
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -354,6 +367,29 @@ export default function App() {
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {/* Alarm bell */}
+            <button onClick={() => setShowAlarmPanel(true)} style={{
+              ...btnStyle, position: 'relative', borderColor: alerts > 0 ? 'var(--crit)' : 'var(--border)',
+              color: alerts > 0 ? 'var(--crit)' : 'var(--fg)',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              {alerts > 0 && <span style={{
+                position: 'absolute', top: -4, right: -4, background: 'var(--crit)',
+                color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+              }}>{alerts}</span>}
+            </button>
+            {/* Mute toggle */}
+            <button onClick={() => { toggleMute(); setAlarmMuted(!alarmMuted); }} style={{
+              ...btnStyle, borderColor: alarmMuted ? 'var(--warn)' : 'var(--border)',
+              color: alarmMuted ? 'var(--warn)' : 'var(--fg)',
+            }}>
+              {alarmMuted ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="2"/></svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              )}
+            </button>
           {/* View mode toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Cards</button>
@@ -569,6 +605,8 @@ export default function App() {
       {screenPrompt && <PromptDialog {...screenPrompt} onClose={() => setScreenPrompt(null)} />}
       {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
       {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
+
+      {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
 
       <div style={{ position: 'fixed', bottom: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8, zIndex: 51 }}>
         <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
