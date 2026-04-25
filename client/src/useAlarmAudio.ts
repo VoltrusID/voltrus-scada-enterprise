@@ -6,7 +6,7 @@ export function useAlarmAudio() {
   const playingRef = useRef(false)
 
   useEffect(() => {
-    audioRef.current = new Audio('/alarm.mp3')
+    audioRef.current = new Audio('/alarm.wav')
     audioRef.current.loop = true
     audioRef.current.volume = 0.5
     return () => {
