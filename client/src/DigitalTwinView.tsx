@@ -220,11 +220,11 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
     let statusColor: string | undefined
     if (eqSensors.length > 0) {
       const hasCrit = eqSensors.some(s => {
-        const cv = currentValues[s.key]
+        const cv = currentValues[s.id]
         return cv && cv.value >= cv.crit
       })
       const hasWarn = eqSensors.some(s => {
-        const cv = currentValues[s.key]
+        const cv = currentValues[s.id]
         return cv && cv.value >= cv.warn
       })
       statusColor = hasCrit ? '#ef4444' : hasWarn ? '#eab308' : undefined
@@ -382,7 +382,7 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>No sensors available</div>
             ) : sensors.map(s => {
               const bound = boundIds.has(s.id)
-              const cv = currentValues[s.key]
+              const cv = currentValues[s.id]
               return (
                 <label key={s.id} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', marginBottom: 2,
@@ -397,7 +397,7 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
                   </div>
                   {cv && (
                     <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: s.color, fontWeight: 600 }}>
-                      {cv.value.toFixed(s.decimals)}
+                      {cv.value != null && !Number.isNaN(cv.value) ? cv.value.toFixed(s.decimals) : '—'}
                     </div>
                   )}
                 </label>

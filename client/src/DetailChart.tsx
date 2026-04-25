@@ -2,7 +2,8 @@ import { useRef, useEffect, useState } from 'react';
 import { DataPoint } from './types';
 import { fmtTs, safeMinMax, toHexColor } from './styles';
 
-export function DetailChart({ data, color: rawColor, warn, crit, unit }: { data: DataPoint[]; color: string; warn: number; crit: number; unit: string }) {
+export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit }: { data: DataPoint[]; color: string; warn: number; crit: number; unit: string }) {
+  const data = rawData.filter(d => d.value != null && !Number.isNaN(d.value));
   const color = toHexColor(rawColor);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<{ idx: number; px: number; py: number } | null>(null);

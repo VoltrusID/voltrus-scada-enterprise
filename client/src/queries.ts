@@ -445,7 +445,7 @@ export function useModbusRegisters(deviceId: string, enabled = true) {
 export function useModbusPollerStatus(enabled = true) {
   return useQuery({
     queryKey: queryKeys.modbusStatus,
-    queryFn: () => fetchJson<{ device_id: string; running: boolean }[]>('/api/modbus-devices/status'),
+    queryFn: () => fetchJson<{ device_id: string; running: boolean; status: string }[]>('/api/modbus-devices/status'),
     enabled,
     refetchInterval: 5_000,
     staleTime: 4_000,

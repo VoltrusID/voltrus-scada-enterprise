@@ -206,6 +206,7 @@ fn default_reg_type_str() -> String {
 pub struct PollerStatus {
     pub device_id: String,
     pub running: bool,
+    pub status: String,
 }
 
 // ── Runtime types ──
