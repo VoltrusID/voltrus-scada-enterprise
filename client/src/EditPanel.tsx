@@ -7,7 +7,13 @@ import { SourceConfigFields } from './SourceConfigFields';
 export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, shortcuts }: { sensor: SensorConfig; activeScreen: string; onSave: (s: SensorConfig, shortcut?: string | null) => void; onDelete: (id: number) => void; onClose: () => void; shortcuts: Record<number, string> }) {
   const [form, setForm] = useState(sensor);
   const [tab, setTab] = useState<'general' | 'source'>('general');
-  const [srcConfig, setSrcConfig] = useState<Record<string, any>>(parseConfig(sensor.source_config));
+  const [srcConfig, setSrcConfig] = useState<Record<string, any>>(() => {
+    const parsed = parseConfig(sensor.source_config);
+    if (sensor.source_type === 'modbus' && sensor.device_id) {
+      parsed.modbus_device_id = sensor.device_id;
+    }
+    return parsed;
+  });
   const [recording, setRecording] = useState(false);
   const [capturedShortcut, setCapturedShortcut] = useState<string | null>(shortcuts[sensor.id] ?? null);
   const [imageTab, setImageTab] = useState<'url' | 'upload'>('upload');

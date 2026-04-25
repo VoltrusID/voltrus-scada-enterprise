@@ -228,7 +228,8 @@ export interface ChartProps {
   textContent?: string;
 }
 
-export function Chart({ chartType, data, color, warn, crit, min, max, decimals, unit, imageUrl, textContent }: ChartProps) {
+export function Chart({ chartType, data: rawData, color, warn, crit, min, max, decimals, unit, imageUrl, textContent }: ChartProps) {
+  const data = rawData.filter(v => v != null && !Number.isNaN(v));
   const value = data.length > 0 ? data[data.length - 1] : 0;
 
   switch (chartType) {

@@ -42,7 +42,7 @@ export default function App() {
   const [fps, setFps] = useState(0);
   const [dashSettings, setDashSettings] = useState({ gap: 12, refreshInterval: 1000 });
   const [showDashSettings, setShowDashSettings] = useState(false);
-  const [selectedSensor, setSelectedSensor] = useState<string | null>(null);
+  const [selectedSensor, setSelectedSensor] = useState<number | null>(null);
   const [activeScreen, setActiveScreen] = useState<string>('all');
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null);
   const [mode, setMode] = useState<'live' | 'history' | 'system'>('live');
@@ -306,11 +306,17 @@ export default function App() {
         const newVals = { ...currentValuesRef.current };
         let alertCount = 0;
         for (const item of d) {
-          const arr = newMap[item.key] ? [...newMap[item.key]] : [];
+          const k = String(item.id);
+          const isOffline = item.value == null || Number.isNaN(item.value);
+          if (isOffline) {
+            newVals[k] = item;
+            continue;
+          }
+          const arr = newMap[k] ? [...newMap[k]] : [];
           arr.push({ value: item.value, ts: Date.now() });
           if (arr.length > (turbo ? MAX_PTS : NORM_PTS)) arr.shift();
-          newMap[item.key] = arr;
-          newVals[item.key] = item;
+          newMap[k] = arr;
+          newVals[k] = item;
           if (item.source_type === 'modbus' && ((item.crit > 0 && item.value >= item.crit) || (item.warn > 0 && item.value >= item.warn))) {
             alertCount++;
           }
@@ -342,11 +348,11 @@ export default function App() {
 
   const GAP = dashSettings.gap;
 
-  const shortcutToSensorKey = useMemo(() => {
-    const map = new Map<string, string>();
+  const shortcutToSensorId = useMemo(() => {
+    const map = new Map<string, number>();
     for (const [id, sc] of Object.entries(shortcuts)) {
       const sensor = sensors.find(s => s.id === Number(id));
-      if (sensor) map.set(sc.toLowerCase(), sensor.key);
+      if (sensor) map.set(sc.toLowerCase(), sensor.id);
     }
     return map;
   }, [shortcuts, sensors]);
@@ -357,28 +363,30 @@ export default function App() {
       if (!el) return;
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) return;
       const combo = normalizeKeyEvent(e).toLowerCase();
-      const sensorKey = shortcutToSensorKey.get(combo);
-      if (sensorKey) {
+      const sensorId = shortcutToSensorId.get(combo);
+      if (sensorId != null) {
         e.preventDefault();
-        setSelectedSensor(sensorKey);
+        setSelectedSensor(sensorId);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [shortcutToSensorKey]);
+  }, [shortcutToSensorId]);
 
   // ── Render gates ─────────────────────────────────────────────────
 
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>;
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />;
 
-  const chartDataFor = (key: string) => {
-    if (mode === 'history' && historyMap && historyMap[key]) return historyMap[key].map(d => d.value);
-    return (dataMap[key] || []).map(d => d.value);
+  const chartDataFor = (id: number) => {
+    const k = String(id);
+    if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k].map(d => d.value);
+    return (dataMap[k] || []).map(d => d.value);
   };
-  const detailDataFor = (key: string): DataPoint[] => {
-    if (mode === 'history' && historyMap && historyMap[key]) return historyMap[key];
-    return dataMap[key] || [];
+  const detailDataFor = (id: number): DataPoint[] => {
+    const k = String(id);
+    if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k];
+    return dataMap[k] || [];
   };
 
   return (
@@ -630,7 +638,7 @@ export default function App() {
             onSwitchToCards={() => setViewMode('cards')}
             onEquipmentClick={(eqId) => {
               const sensor = sensors.find(s => s.equipment_id === eqId)
-              if (sensor) setSelectedSensor(sensor.key)
+              if (sensor) setSelectedSensor(sensor.id)
             }}
             onSensorUpdate={(s) => updateSensorMut.mutate(s)}
             onSaveLayouts={(equipment) => {
@@ -654,8 +662,8 @@ export default function App() {
 
       {showDashSettings && <DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} />}
 
-      {selectedSensor && (() => {
-        const s = sensors.find(x => x.key === selectedSensor);
+      {selectedSensor != null && (() => {
+        const s = sensors.find(x => x.id === selectedSensor);
         return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} shortcuts={shortcuts} /> : null;
       })()}
 

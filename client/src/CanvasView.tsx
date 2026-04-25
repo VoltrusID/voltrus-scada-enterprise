@@ -13,8 +13,8 @@ interface Props {
   editingId: number | null
   currentValues: Record<string, SensorData>
   setEditingId: (id: number | null) => void
-  setSelectedSensor: (key: string | null) => void
-  chartDataFor: (key: string) => number[]
+  setSelectedSensor: (id: number | null) => void
+  chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   onLayoutChange: (items: CanvasLayoutItem[]) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
@@ -72,7 +72,7 @@ export function CanvasView({
   const handleCardClick = useCallback((id: number, e: React.MouseEvent) => {
     if (!editMode) {
       const s = screenSensors.find(s => s.id === id)
-      if (s) setSelectedSensor(s.key)
+      if (s) setSelectedSensor(s.id)
       return
     }
     if (e.shiftKey) {

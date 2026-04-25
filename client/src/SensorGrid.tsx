@@ -17,8 +17,8 @@ interface Props {
   editingId: number | null
   currentValues: Record<string, SensorData>
   setEditingId: (id: number | null) => void
-  setSelectedSensor: (key: string | null) => void
-  chartDataFor: (key: string) => number[]
+  setSelectedSensor: (id: number | null) => void
+  chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   onLayoutChange: (currentLayout: any[], allLayouts: { [bp: string]: any[] }) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
@@ -79,7 +79,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                 onClick={e => {
                   if (didDrag.current) { didDrag.current = false; return; }
                   if (editMode) { e.stopPropagation(); setEditingId(editingId === s.id ? null : s.id); }
-                  else { setSelectedSensor(s.key); }
+                  else { setSelectedSensor(s.id); }
                 }}
               />
               {editingId === s.id && <EditPanel sensor={s} activeScreen={activeScreen} onSave={onSave} onDelete={onDelete} onClose={() => setEditingId(null)} shortcuts={shortcuts} />}

@@ -52,11 +52,16 @@ impl PollerManager {
 
     pub async fn get_statuses(&self) -> Vec<PollerStatus> {
         let handles = self.handles.read().await;
+        let cache_statuses = self.cache.get_statuses().await;
         handles
             .keys()
-            .map(|id| PollerStatus {
-                device_id: id.clone(),
-                running: true,
+            .map(|id| {
+                let status = cache_statuses.get(id).map(|s| s.as_str()).unwrap_or("offline");
+                PollerStatus {
+                    device_id: id.clone(),
+                    running: status == "online",
+                    status: status.to_string(),
+                }
             })
             .collect()
     }
