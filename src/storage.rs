@@ -788,8 +788,12 @@ impl Storage {
 
     async fn seed_plts_data_sources(&self) -> Result<()> {
         // Seed devices
-        self.create_device("plts_1", "PLTS 1", 0).await?;
-        self.create_device("plts_2", "PLTS 2", 1).await?;
+        if !self.device_exists("plts_1").await? {
+            self.create_device("plts_1", "PLTS 1", 0).await?;
+        }
+        if !self.device_exists("plts_2").await? {
+            self.create_device("plts_2", "PLTS 2", 1).await?;
+        }
 
         // Data source definitions matching Modbus register names from config.yaml
         // (key, name, unit, color, min, max, warn, crit, base, sort, decimals, source_type, source_config)
