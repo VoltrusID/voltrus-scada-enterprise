@@ -3,8 +3,13 @@ use std::fs;
 use crate::models::AppConfig;
 
 pub fn load_config(path: &str) -> Result<AppConfig> {
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("Failed to read config file: {path}"))?;
+    let content = match fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => {
+            tracing::info!("Config file {path} not found, using defaults");
+            return Ok(AppConfig::default());
+        }
+    };
 
     let config: AppConfig = serde_yaml::from_str(&content)
         .with_context(|| format!("Failed to parse config file: {path}"))?;
@@ -15,7 +20,9 @@ pub fn load_config(path: &str) -> Result<AppConfig> {
 }
 
 fn validate(config: &AppConfig) -> Result<()> {
-    anyhow::ensure!(!config.devices.is_empty(), "No devices configured");
+    if config.devices.is_empty() {
+        return Ok(());
+    }
 
     let mut ids = std::collections::HashSet::new();
     for device in &config.devices {
@@ -102,13 +109,12 @@ devices:
     }
 
     #[test]
-    fn test_no_devices_fails() {
+    fn test_no_devices_ok() {
         let yaml = "devices: []\n";
         let mut f = tempfile::NamedTempFile::new().unwrap();
         f.write_all(yaml.as_bytes()).unwrap();
-        let result = load_config(f.path().to_str().unwrap());
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No devices"));
+        let config = load_config(f.path().to_str().unwrap()).unwrap();
+        assert!(config.devices.is_empty());
     }
 
     #[test]
@@ -153,8 +159,8 @@ devices:
     }
 
     #[test]
-    fn test_file_not_found() {
-        let result = load_config("/nonexistent/config.yaml");
-        assert!(result.is_err());
+    fn test_file_not_found_returns_default() {
+        let config = load_config("/nonexistent/config.yaml").unwrap();
+        assert!(config.devices.is_empty());
     }
 }

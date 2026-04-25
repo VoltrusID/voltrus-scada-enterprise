@@ -3,8 +3,9 @@ use std::collections::HashMap;
 
 // ── Config types ──
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct AppConfig {
+    #[serde(default)]
     pub devices: Vec<DeviceConfig>,
     #[serde(default = "default_server_port")]
     pub server_port: u16,
@@ -114,6 +115,97 @@ impl RegisterConfig {
             self.address
         }
     }
+}
+
+// ── DB-persisted Modbus types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ModbusDevice {
+    pub id: String,
+    pub name: String,
+    pub ip: String,
+    pub port: u16,
+    pub unit_id: u8,
+    pub interval_ms: u64,
+    pub endianness: String,
+    pub enabled: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl ModbusDevice {
+    pub fn to_device_config(&self, registers: &[ModbusRegister]) -> DeviceConfig {
+        DeviceConfig {
+            id: self.id.clone(),
+            ip: self.ip.clone(),
+            port: self.port,
+            unit_id: self.unit_id,
+            interval_ms: self.interval_ms,
+            endianness: match self.endianness.as_str() {
+                "little" => Endianness::Little,
+                "swapped" => Endianness::Swapped,
+                _ => Endianness::Big,
+            },
+            registers: registers.iter().map(|r| RegisterConfig {
+                name: r.name.clone(),
+                address: r.address,
+                reg_type: match r.register_type.as_str() {
+                    "int16" => RegisterType::Int16,
+                    "uint16" => RegisterType::Uint16,
+                    "int32" => RegisterType::Int32,
+                    _ => RegisterType::Float32,
+                },
+                scale: r.scale,
+            }).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ModbusRegister {
+    pub id: i64,
+    pub device_id: String,
+    pub name: String,
+    pub address: u16,
+    pub register_type: String,
+    pub scale: f64,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateModbusDeviceRequest {
+    pub id: String,
+    pub name: String,
+    pub ip: String,
+    #[serde(default = "default_modbus_port")]
+    pub port: u16,
+    #[serde(default = "default_unit_id")]
+    pub unit_id: u8,
+    #[serde(default = "default_interval")]
+    pub interval_ms: u64,
+    #[serde(default)]
+    pub endianness: String,
+    pub registers: Vec<ModbusRegisterInput>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ModbusRegisterInput {
+    pub name: String,
+    pub address: u16,
+    #[serde(default = "default_reg_type_str")]
+    pub register_type: String,
+    #[serde(default = "default_scale")]
+    pub scale: f64,
+}
+
+fn default_reg_type_str() -> String {
+    "float32".to_string()
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PollerStatus {
+    pub device_id: String,
+    pub running: bool,
 }
 
 // ── Runtime types ──
