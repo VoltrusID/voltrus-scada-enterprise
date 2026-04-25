@@ -231,6 +231,11 @@ export default function App() {
 
   // ── rAF polling loop ─────────────────────────────────────────────
 
+  const dataMapRef = useRef(dataMap);
+  dataMapRef.current = dataMap;
+  const currentValuesRef = useRef(currentValues);
+  currentValuesRef.current = currentValues;
+
   useEffect(() => {
     if (!authed) return;
     const loop = (now: number) => {
@@ -243,8 +248,8 @@ export default function App() {
       if (pendingData.current) {
         const d = pendingData.current;
         pendingData.current = null;
-        const newMap = { ...dataMap };
-        const newVals = { ...currentValues };
+        const newMap = { ...dataMapRef.current };
+        const newVals = { ...currentValuesRef.current };
         let a = 0;
         for (const item of d) {
           const arr = newMap[item.key] ? [...newMap[item.key]] : [];
@@ -261,7 +266,7 @@ export default function App() {
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [authed, paused, turbo, dashSettings.refreshInterval, dataMap, currentValues, fetchData, mode]);
+  }, [authed, paused, turbo, dashSettings.refreshInterval, fetchData, mode]);
 
   // ── History fetch ────────────────────────────────────────────────
 

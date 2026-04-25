@@ -72,7 +72,8 @@ impl Storage {
                     "SELECT timestamp, value FROM telemetry
                      WHERE device_id = ?1 AND metric = ?2
                      AND timestamp >= ?3 AND timestamp <= ?4
-                     ORDER BY timestamp",
+                     ORDER BY timestamp
+                     LIMIT 10000",
                 )
                 .context("Prepare failed")?;
 
@@ -144,6 +145,33 @@ impl Storage {
     }
 
     // ── Devices ──
+
+    pub async fn max_device_sort_order(&self) -> Result<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let max: Option<i64> = conn
+                .query_row("SELECT MAX(sort_order) FROM devices", [], |row| row.get(0))
+                .ok();
+            Ok(max.unwrap_or(-1))
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn device_exists(&self, id: &str) -> Result<bool> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn
+                .query_row("SELECT COUNT(*) FROM devices WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
+                .context("Check device exists failed")?;
+            Ok(count > 0)
+        })
+        .await
+        .context("Task join failed")?
+    }
 
     pub async fn list_devices(&self) -> Result<Vec<Device>> {
         let conn = self.conn.clone();
@@ -226,6 +254,19 @@ impl Storage {
     }
 
     // ── Sensors ──
+
+    pub async fn max_sensor_sort_order(&self) -> Result<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let max: Option<i64> = conn
+                .query_row("SELECT MAX(sort_order) FROM sensors", [], |row| row.get(0))
+                .ok();
+            Ok(max.unwrap_or(-1))
+        })
+        .await
+        .context("Task join failed")?
+    }
 
     pub async fn list_sensors(&self, screen_id: Option<&str>) -> Result<Vec<Sensor>> {
         let conn = self.conn.clone();
@@ -348,11 +389,24 @@ impl Storage {
             for &col in &allowed {
                 if let Some(val) = obj.get(col) {
                     parts.push(format!("{col} = ?"));
-                    let s = match val {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    };
-                    params.push(Box::new(s));
+                    match val {
+                        serde_json::Value::Number(n) => {
+                            if let Some(f) = n.as_f64() {
+                                params.push(Box::new(f));
+                            } else if let Some(i) = n.as_i64() {
+                                params.push(Box::new(i));
+                            }
+                        }
+                        serde_json::Value::String(s) => {
+                            params.push(Box::new(s.clone()));
+                        }
+                        serde_json::Value::Null => {
+                            params.push(Box::new(Option::<String>::None));
+                        }
+                        other => {
+                            params.push(Box::new(other.to_string()));
+                        }
+                    }
                 }
             }
             if parts.is_empty() {
@@ -715,13 +769,10 @@ impl Storage {
     pub async fn seed_database(&self) -> Result<()> {
         let existing = self.get_user_by_username("admin").await?;
         if existing.is_none() {
-            use rand::Rng;
-            let salt: [u8; 16] = rand::rng().random();
-            let salt_hex = hex::encode(salt);
             let password = "admin";
-            let password_hash = hash_password(password, &salt_hex);
+            let password_hash = crate::api::auth::hash_password(password);
 
-            self.create_user("admin", &password_hash, &salt_hex).await?;
+            self.create_user("admin", &password_hash, "").await?;
 
             tracing::info!("Seeded admin user");
         }
@@ -781,12 +832,6 @@ impl Storage {
         tracing::info!("Seeded PLTS sensors for plts_1 and plts_2");
         Ok(())
     }
-}
-
-fn hash_password(password: &str, salt: &str) -> String {
-    use sha2::{Sha256, Digest};
-    let input = format!("{salt}{password}");
-    hex::encode(Sha256::digest(input.as_bytes()))
 }
 
 fn init_schema(conn: &Connection) -> Result<()> {

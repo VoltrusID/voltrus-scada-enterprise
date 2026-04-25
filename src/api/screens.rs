@@ -28,15 +28,22 @@ pub async fn create_screen(
         .to_lowercase()
         .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
     let slug = slug.trim_matches('_').to_string();
-    let id = if slug.is_empty() {
+    let base_id = if slug.is_empty() {
         format!("screen_{}", chrono::Utc::now().timestamp_millis())
     } else {
         slug
     };
 
+    // Deduplicate id if it already exists
+    let mut id = base_id.clone();
+    let mut counter = 1;
+    while state.storage.device_exists(&id).await? {
+        id = format!("{}_{}", base_id, counter);
+        counter += 1;
+    }
+
     // Get max sort_order
-    let devices = state.storage.list_devices().await?;
-    let max_sort = devices.iter().map(|d| d.sort_order).max().unwrap_or(-1);
+    let max_sort = state.storage.max_device_sort_order().await?;
 
     state
         .storage

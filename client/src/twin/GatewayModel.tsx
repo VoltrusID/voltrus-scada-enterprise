@@ -1,5 +1,3 @@
-import * as THREE from 'three'
-
 interface Props {
   position: [number, number, number]
   rotation: number
