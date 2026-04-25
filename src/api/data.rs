@@ -22,18 +22,19 @@ pub async fn get_data(
     let mut result = Vec::new();
     for data_source in &data_sources {
         let value = if data_source.source_type == "modbus" {
-            // Try to get live data from cache
-            let mut val = generators::generate_value(data_source, now);
+            // Only return live data from online device; no fallback
+            let mut val: Option<f64> = None;
             for snapshot in &cache_data {
-                if snapshot.device_id == data_source.device_id {
-                    // Extract metric from data source key
+                if snapshot.device_id == data_source.device_id
+                    && snapshot.status == DeviceStatus::Online
+                {
                     if let Some(cached_val) = snapshot.metrics.get(&data_source.key) {
-                        val = *cached_val;
+                        val = Some(*cached_val);
                         break;
                     }
                 }
             }
-            val
+            val.unwrap_or(f64::NAN)
         } else {
             generators::generate_value(data_source, now)
         };

@@ -1,7 +1,7 @@
 export function status(val: number, warn: number, crit: number) {
   return val >= crit ? 'critical' : val >= warn ? 'warning' : 'normal';
 }
-export const stColor = (s: string) => s === 'critical' ? 'var(--crit)' : s === 'warning' ? 'var(--warn)' : 'var(--ok)';
+export const stColor = (s: string) => s === 'critical' ? 'var(--crit)' : s === 'warning' ? 'var(--warn)' : s === 'offline' ? 'var(--muted)' : 'var(--ok)';
 export function fmtTime(ms: number) {
   const s = ms / 1000 | 0;
   return [s / 3600 | 0, (s % 3600) / 60 | 0, s % 60].map(v => String(v).padStart(2, '0')).join(':');

@@ -10,10 +10,10 @@ interface Props {
   editingId: number | null
   currentValues: Record<string, SensorData>
   shortcuts: Record<number, string>
-  chartDataFor: (key: string) => number[]
+  chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   setEditingId: (id: number | null) => void
-  setSelectedSensor: (key: string | null) => void
+  setSelectedSensor: (id: number | null) => void
   showDragHandle?: boolean
   selected?: boolean
   onClick?: (e: React.MouseEvent) => void
@@ -24,8 +24,9 @@ export function SensorCard({
   chartDataFor, loadSensorsForScreen, setEditingId, setSelectedSensor,
   showDragHandle, selected, onClick,
 }: Props) {
-  const cv = currentValues[s.key];
-  const st = cv ? status(cv.value, cv.warn, cv.crit) : 'normal';
+  const cv = currentValues[s.id];
+  const isOffline = cv && (cv.value == null || Number.isNaN(cv.value));
+  const st = isOffline ? 'offline' : cv ? status(cv.value, cv.warn, cv.crit) : 'normal';
   const ct = s.chart_type || 'sparkline';
   const hideStatus = ct === 'image' || ct === 'text';
 
@@ -71,7 +72,7 @@ export function SensorCard({
             <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
           )}
           <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', padding: '2px 8px', borderRadius: 4,
-            background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
+            background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : st === 'offline' ? 'rgba(100,100,100,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
         </div>
       </div>}
       {hideStatus && editMode && (
@@ -89,14 +90,14 @@ export function SensorCard({
       )}
       {!hideStatus && (
         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, padding: '0 16px' }}>
-          <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
+          <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{isOffline ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
           <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
         </div>
       )}
       <div style={{ flex: 1, minHeight: 0 }}>
         <Chart
           chartType={s.chart_type || 'sparkline'}
-          data={chartDataFor(s.key)}
+          data={chartDataFor(s.id)}
           color={s.color}
           warn={s.warn_val}
           crit={s.crit_val}

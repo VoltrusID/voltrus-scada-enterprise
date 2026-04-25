@@ -16,7 +16,7 @@ export function ModbusDeviceManager({ onClose }: { onClose: () => void }) {
   const [showForm, setShowForm] = useState(false)
   const [editDevice, setEditDevice] = useState<(ModbusDevice & { registers?: ModbusRegister[] }) | undefined>(undefined)
 
-  const statusMap = Object.fromEntries(statuses.map(s => [s.device_id, s.running]))
+  const statusMap = Object.fromEntries(statuses.map(s => [s.device_id, s.status || (s.running ? 'online' : 'offline')]))
   const filtered = devices.filter(d => (d.name || d.id).toLowerCase().includes(filter) || d.ip.toLowerCase().includes(filter))
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export function ModbusDeviceManager({ onClose }: { onClose: () => void }) {
                 <tr key={d.id}>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusMap[d.id] ? 'var(--cyan)' : 'var(--crit)' }} />
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusMap[d.id] === 'online' ? 'var(--cyan)' : 'var(--crit)' }} />
                       {d.name || d.id}
                     </div>
                   </td>
@@ -100,8 +100,8 @@ export function ModbusDeviceManager({ onClose }: { onClose: () => void }) {
                   <td style={tdStyle}><span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,.1)', color: '#a78bfa' }}>{d.endianness}</span></td>
                   <td style={tdStyle}>{d.register_count}</td>
                   <td style={tdStyle}>
-                    <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: statusMap[d.id] ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)', color: statusMap[d.id] ? 'var(--cyan)' : 'var(--crit)' }}>
-                      {d.enabled ? (statusMap[d.id] ? 'polling' : 'stopped') : 'disabled'}
+                    <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: statusMap[d.id] === 'online' ? 'rgba(34,197,94,.1)' : 'rgba(239,68,68,.1)', color: statusMap[d.id] === 'online' ? 'var(--cyan)' : 'var(--crit)' }}>
+                      {d.enabled ? (statusMap[d.id] === 'online' ? 'online' : 'offline') : 'disabled'}
                     </span>
                   </td>
                   <td style={tdStyle}>

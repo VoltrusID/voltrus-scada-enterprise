@@ -9,11 +9,12 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
   onBack: () => void; historyRange: string; onRangeChange: (r: string) => void;
   shortcuts: Record<number, string>;
 }) {
-  const st = currentValue ? status(currentValue.value, currentValue.warn, currentValue.crit) : 'normal';
-  const values = data.map(d => d.value);
-  const [minV, maxV] = safeMinMax(values);
-  const avgV = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
-  const curV = currentValue ? currentValue.value : sensor.base_val;
+  const isOffline = currentValue && (currentValue.value == null || Number.isNaN(currentValue.value));
+  const st = isOffline ? 'offline' : currentValue ? status(currentValue.value, currentValue.warn, currentValue.crit) : 'normal';
+  const safeValues = data.map(d => d.value).filter(v => v != null && !Number.isNaN(v));
+  const [minV, maxV] = safeMinMax(safeValues);
+  const avgV = safeValues.length ? safeValues.reduce((a, b) => a + b, 0) / safeValues.length : 0;
+  const curV = isOffline ? null : currentValue ? currentValue.value : sensor.base_val;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onBack(); };
@@ -44,7 +45,7 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
             <a href={`/api/export/csv?sensor=${sensor.key}&range=${historyRange}`} download style={{ ...btnStyle, textDecoration: 'none' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV
             </a>
-            <div style={{ padding: '4px 12px', borderRadius: 6, fontWeight: 600, fontSize: 12, textTransform: 'uppercase', background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
+            <div style={{ padding: '4px 12px', borderRadius: 6, fontWeight: 600, fontSize: 12, textTransform: 'uppercase', background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : st === 'offline' ? 'rgba(100,100,100,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
             <span style={{ color: 'var(--muted)', fontSize: 12 }}>Source: {sensor.source_type}</span>
           </div>
         </div>
@@ -52,10 +53,10 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Current</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, color: st === 'normal' ? sensor.color : stColor(st) }}>
-              {curV.toFixed(sensor.decimals)}<span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{sensor.unit}</span>
+              {curV != null ? curV.toFixed(sensor.decimals) : 'OFFLINE'}<span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{sensor.unit}</span>
             </div>
           </div>
-          {[{ l: 'Min', v: minV.toFixed(sensor.decimals) }, { l: 'Max', v: maxV.toFixed(sensor.decimals) }, { l: 'Avg', v: avgV.toFixed(sensor.decimals) }, { l: 'Points', v: String(data.length) }].map((s, i) => (
+          {[{ l: 'Min', v: safeValues.length ? minV.toFixed(sensor.decimals) : '—' }, { l: 'Max', v: safeValues.length ? maxV.toFixed(sensor.decimals) : '—' }, { l: 'Avg', v: safeValues.length ? avgV.toFixed(sensor.decimals) : '—' }, { l: 'Points', v: String(data.length) }].map((s, i) => (
             <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
               <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{s.l}</div>
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, marginTop: 2 }}>{s.v}</div>
