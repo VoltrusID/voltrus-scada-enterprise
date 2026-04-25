@@ -95,11 +95,11 @@ export default function App() {
 
   // ── Helpers ──────────────────────────────────────────────────────
 
-  const DEFAULT_COLS: Record<string, number> = { lg: 12, md: 6, sm: 2 };
+  const DEFAULT_COLS: Record<string, number> = { lg: 24, md: 12, sm: 4 };
 
   function generateDefaultLayout(sensorIds: number[], bp: string): LayoutItem[] {
-    const cols = DEFAULT_COLS[bp] || 12;
-    const defaultW = bp === 'lg' ? 3 : bp === 'md' ? 3 : 2;
+    const cols = DEFAULT_COLS[bp] || 24;
+    const defaultW = bp === 'lg' ? 6 : bp === 'md' ? 6 : 4;
     const defaultH = 4;
     let x = 0, y = 0;
     return sensorIds.map(id => {
@@ -430,7 +430,7 @@ export default function App() {
       {editMode && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
           <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em' }}>Edit layout:</span>
-          {([['lg', 'Desktop', 12], ['md', 'Tablet', 6], ['sm', 'Mobile', 2]] as const).map(([bp, label, cols]) => (
+          {([['lg', 'Desktop', 24], ['md', 'Tablet', 12], ['sm', 'Mobile', 4]] as const).map(([bp, label, cols]) => (
             <button key={bp} onClick={() => setLayoutBreakpoint(layoutBreakpoint === bp ? null : bp)} style={{
               padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
               border: `1px solid ${layoutBreakpoint === bp ? 'var(--cyan)' : 'var(--border)'}`,
