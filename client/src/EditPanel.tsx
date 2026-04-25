@@ -36,7 +36,8 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }} onClick={onClose}>
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, width: 480, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, width: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ overflow: 'auto', flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>Edit: {sensor.name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -142,6 +143,7 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
               }
             }} /></div>
           </div>)}
+        </div>
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
           <button onClick={() => { onSave({ ...form, source_config: JSON.stringify(srcConfig) }, capturedShortcut); }} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13 }}>Save</button>
