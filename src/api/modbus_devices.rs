@@ -1,0 +1,158 @@
+use anyhow::Context;
+use axum::extract::{Path, State};
+use axum::response::IntoResponse;
+use axum::Json;
+use serde_json::json;
+
+use crate::api::{AppError, AppState};
+use crate::models::ModbusRegisterInput;
+
+pub async fn list_modbus_devices(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let devices = state.storage.list_modbus_devices().await?;
+    let mut result = Vec::new();
+    for device in &devices {
+        let registers = state.storage.list_modbus_registers(&device.id).await?;
+        result.push(json!({
+            "id": device.id,
+            "name": device.name,
+            "ip": device.ip,
+            "port": device.port,
+            "unit_id": device.unit_id,
+            "interval_ms": device.interval_ms,
+            "endianness": device.endianness,
+            "enabled": device.enabled,
+            "created_at": device.created_at,
+            "updated_at": device.updated_at,
+            "register_count": registers.len(),
+        }));
+    }
+    Ok(Json(result))
+}
+
+pub async fn get_modbus_device(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let device = state.storage.get_modbus_device(&id).await?;
+    let device = device.context("Device not found")?;
+    let registers = state.storage.list_modbus_registers(&id).await?;
+    Ok(Json(json!({
+        "device": device,
+        "registers": registers,
+    })))
+}
+
+pub async fn create_modbus_device(
+    State(state): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let id = body["id"].as_str().unwrap_or("").to_string();
+    let name = body["name"].as_str().unwrap_or("").to_string();
+    let ip = body["ip"].as_str().unwrap_or("").to_string();
+    let port = body["port"].as_u64().unwrap_or(502) as u16;
+    let unit_id = body["unit_id"].as_u64().unwrap_or(1) as u8;
+    let interval_ms = body["interval_ms"].as_u64().unwrap_or(1000);
+    let endianness = body["endianness"].as_str().unwrap_or("big").to_string();
+
+    if id.is_empty() {
+        return Err(AppError(anyhow::anyhow!("Device ID is required")));
+    }
+    if ip.is_empty() {
+        return Err(AppError(anyhow::anyhow!("IP address is required")));
+    }
+
+    let registers: Vec<ModbusRegisterInput> = body
+        .get("registers")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|r| serde_json::from_value(r.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    state.storage.create_modbus_device(
+        &id, &name, &ip, port, unit_id, interval_ms, &endianness, &registers,
+    ).await?;
+
+    // Start poller
+    let config = state.storage.get_all_device_configs().await?;
+    if let Some(dc) = config.iter().find(|c| c.id == id) {
+        state.poller_manager.start(dc.clone()).await;
+    }
+
+    Ok((axum::http::StatusCode::CREATED, Json(json!({"ok": true, "id": id}))))
+}
+
+pub async fn update_modbus_device(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    state.storage.update_modbus_device(&id, &body).await?;
+
+    // Restart poller with updated config
+    let configs = state.storage.get_all_device_configs().await?;
+    if let Some(dc) = configs.iter().find(|c| c.id == id) {
+        state.poller_manager.restart(dc.clone()).await;
+    }
+
+    Ok(Json(json!({"ok": true})))
+}
+
+pub async fn delete_modbus_device(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    state.storage.delete_modbus_device(&id).await?;
+    state.poller_manager.stop(&id).await;
+    Ok(Json(json!({"ok": true})))
+}
+
+pub async fn replace_registers(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let registers: Vec<ModbusRegisterInput> = body
+        .get("registers")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|r| serde_json::from_value(r.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    state.storage.replace_modbus_registers(&id, &registers).await?;
+
+    // Restart poller with updated registers
+    let configs = state.storage.get_all_device_configs().await?;
+    if let Some(dc) = configs.iter().find(|c| c.id == id) {
+        state.poller_manager.restart(dc.clone()).await;
+    }
+
+    Ok(Json(json!({"ok": true})))
+}
+
+pub async fn restart_poller(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let configs = state.storage.get_all_device_configs().await?;
+    let dc = match configs.iter().find(|c| c.id == id) {
+        Some(c) => c,
+        None => return Err(AppError(anyhow::anyhow!("Device not found"))),
+    };
+    state.poller_manager.restart(dc.clone()).await;
+    Ok(Json(json!({"ok": true})))
+}
+
+pub async fn get_poller_statuses(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let statuses = state.poller_manager.get_statuses().await;
+    Ok(Json(statuses))
+}

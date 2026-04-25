@@ -3,10 +3,12 @@ mod cache;
 mod config;
 mod modbus;
 mod models;
+mod poller_manager;
 mod storage;
 
 use api::AppState;
 use cache::DeviceCache;
+use poller_manager::PollerManager;
 use storage::Storage;
 
 #[tokio::main]
@@ -24,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let app_config = config::load_config(&config_path)?;
 
     tracing::info!(
-        "Loaded config: {} devices, port {}",
+        "Loaded config: {} devices in YAML, port {}",
         app_config.devices.len(),
         app_config.server_port
     );
@@ -35,14 +37,19 @@ async fn main() -> anyhow::Result<()> {
     // Auto-seed on startup if no admin user exists
     storage.seed_database().await?;
 
-    // Spawn one poller task per device
-    for device_config in &app_config.devices {
-        let device = device_config.clone();
-        let cache = cache.clone();
-        tokio::spawn(async move {
-            modbus::poll_device(device, cache).await;
-        });
-        tracing::info!("Started poller for device {}", device_config.id);
+    // Migrate YAML devices to DB (one-time)
+    if !storage.is_yaml_migrated().await? && !app_config.devices.is_empty() {
+        storage.import_yaml_devices(&app_config.devices).await?;
+        storage.mark_yaml_migrated().await?;
+        tracing::info!("Migrated {} devices from YAML to database", app_config.devices.len());
+    }
+
+    // Load device configs from DB and start pollers
+    let device_configs = storage.get_all_device_configs().await?;
+    let poller_manager = PollerManager::new(cache.clone());
+    for config in &device_configs {
+        poller_manager.start(config.clone()).await;
+        tracing::info!("Started poller for device {}", config.id);
     }
 
     // Spawn persistence task
@@ -141,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         cache,
         storage,
+        poller_manager,
         started_at: std::time::Instant::now(),
         auth_secret,
         cors_origin: app_config.cors_origin.clone(),
