@@ -69,6 +69,8 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
           {screenSensors.map((s) => {
             const cv = currentValues[s.key];
             const st = cv ? status(cv.value, cv.warn, cv.crit) : 'normal';
+            const ct = s.chart_type || 'sparkline';
+            const hideStatus = ct === 'image' || ct === 'text';
             return (
               <div key={String(s.id)} style={{ position: 'relative' }}>
                 <div style={{ background: 'var(--card)', border: `1px solid ${editingId === s.id ? 'var(--cyan)' : 'var(--border)'}`, borderRadius: 10, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }} onClick={e => {
@@ -76,7 +78,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                   if (editMode) { e.stopPropagation(); setEditingId(editingId === s.id ? null : s.id); }
                   else { setSelectedSensor(s.key); }
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px' }}>
+                  {!hideStatus && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>
                       {editMode && (
                         <span className="drag-handle" style={{ cursor: 'grab', display: 'inline-flex', alignItems: 'center', padding: '0 2px', opacity: 0.4 }}>
@@ -106,11 +108,13 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                       <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', padding: '2px 8px', borderRadius: 4,
                         background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
                     </div>
-                  </div>
+                  </div>}
+                  {!hideStatus && (
                   <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, padding: '0 16px' }}>
                     <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
                     <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
                   </div>
+                  )}
                   <div style={{ flex: 1, minHeight: 0 }}>
                     <Chart
                       chartType={s.chart_type || 'sparkline'}
@@ -123,6 +127,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                       decimals={s.decimals}
                       unit={s.unit}
                       imageUrl={(parseConfig(s.source_config) as Record<string, string>).image_url}
+                      textContent={(parseConfig(s.source_config) as Record<string, string>).text_content}
                     />
                   </div>
                 </div>

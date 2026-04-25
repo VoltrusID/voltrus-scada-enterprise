@@ -1,0 +1,56 @@
+server_port: 3100
+db_path: "data.db"
+persist_interval_secs: 5
+
+devices:
+  - id: "plts_1"
+    ip: "127.0.0.1"
+    port: 5020
+    unit_id: 1
+    interval_ms: 1000
+    endianness: "big"
+    registers:
+      - name: "voltage"
+        address: 0
+        type: "float32"
+      - name: "current"
+        address: 2
+        type: "float32"
+      - name: "power"
+        address: 4
+        type: "float32"
+      - name: "frequency"
+        address: 6
+        type: "float32"
+      - name: "power_factor"
+        address: 8
+        type: "float32"
+      - name: "energy_total"
+        address: 10
+        type: "float32"
+
+  - id: "plts_2"
+    ip: "127.0.0.1"
+    port: 5021
+    unit_id: 1
+    interval_ms: 1000
+    endianness: "big"
+    registers:
+      - name: "voltage"
+        address: 0
+        type: "float32"
+      - name: "current"
+        address: 2
+        type: "float32"
+      - name: "power"
+        address: 4
+        type: "float32"
+      - name: "frequency"
+        address: 6
+        type: "float32"
+      - name: "power_factor"
+        address: 8
+        type: "float32"
+      - name: "energy_total"
+        address: 10
+        type: "float32"

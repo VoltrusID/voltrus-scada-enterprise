@@ -15,6 +15,7 @@ export function SourceConfigFields({ sourceType, config, onChange }: { sourceTyp
       <label style={labelStyle}><span style={labelTextStyle}>Settle Time (s)</span><input type="number" step="1" min="1" value={config.settle_time ?? 5} onChange={e => set('settle_time', parseFloat(e.target.value))} style={monoInputStyle} /></label></>);
     case 'sawtooth': return <label style={labelStyle}><span style={labelTextStyle}>Period (s)</span><input type="number" step="any" min="1" value={config.period ?? 10} onChange={e => set('period', parseFloat(e.target.value))} style={monoInputStyle} /></label>;
     case 'constant': return <div style={{ color: 'var(--muted)', fontSize: 12, padding: 8 }}>Always returns base value.</div>;
+    case 'none': return <div style={{ color: 'var(--muted)', fontSize: 12, padding: 8 }}>No data source. Use for image cards or static displays.</div>;
     case 'noise': return <label style={labelStyle}><span style={labelTextStyle}>Noise Amplitude</span><input type="number" step="any" value={config.noise_amplitude ?? 3} onChange={e => set('noise_amplitude', parseFloat(e.target.value))} style={monoInputStyle} /></label>;
     case 'api': return (<>
       <label style={labelStyle}><span style={labelTextStyle}>URL</span><input type="text" value={config.url ?? ''} onChange={e => set('url', e.target.value)} style={inputStyle} placeholder="https://example.com/api/sensor" /></label>
