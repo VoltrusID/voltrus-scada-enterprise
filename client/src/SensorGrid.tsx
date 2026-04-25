@@ -7,7 +7,7 @@ import { EditPanel } from './EditPanel'
 import { status, stColor } from './styles'
 
 const BREAKPOINTS = { lg: 1200, md: 768, sm: 0 }
-const COLS = { lg: 12, md: 6, sm: 2 }
+const COLS = { lg: 24, md: 12, sm: 4 }
 const BP_WIDTHS: Record<string, number> = { lg: 1200, md: 996, sm: 480 }
 
 interface Props {
