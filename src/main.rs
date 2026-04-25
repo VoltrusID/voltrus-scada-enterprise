@@ -72,6 +72,49 @@ async fn main() -> anyhow::Result<()> {
                 if let Err(e) = storage.insert_batch(&records).await {
                     tracing::error!("Persistence error: {e}");
                 }
+
+                // Evaluate alarm thresholds
+                if let Ok(sources) = storage.list_data_sources(None).await {
+                    let mut value_map = std::collections::HashMap::new();
+                    for snap in &snapshots {
+                        for (metric, value) in &snap.metrics {
+                            value_map.insert(
+                                format!("{}:{}", snap.device_id, metric),
+                                *value,
+                            );
+                        }
+                    }
+
+                    for source in &sources {
+                        let value = if source.source_type == "modbus" {
+                            *value_map
+                                .get(&format!("{}:{}", source.device_id, source.key))
+                                .unwrap_or(&source.base_val)
+                        } else {
+                            continue;
+                        };
+
+                        if source.crit_val > 0.0 && value >= source.crit_val {
+                            if !storage.has_active_alarm(&source.key, "critical").await.unwrap_or(false) {
+                                let msg = format!(
+                                    "{} reached {}{} (critical: {}{})",
+                                    source.name, value, source.unit, source.crit_val, source.unit
+                                );
+                                let _ = storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg).await;
+                            }
+                        } else if source.warn_val > 0.0 && value >= source.warn_val {
+                            if !storage.has_active_alarm(&source.key, "warning").await.unwrap_or(false) {
+                                let msg = format!(
+                                    "{} reached {}{} (warning: {}{})",
+                                    source.name, value, source.unit, source.warn_val, source.unit
+                                );
+                                let _ = storage.create_alarm(&source.key, "warning", value, source.warn_val, &msg).await;
+                            }
+                        } else {
+                            let _ = storage.resolve_active_alarms(&source.key).await;
+                        }
+                    }
+                }
             }
         });
     }
