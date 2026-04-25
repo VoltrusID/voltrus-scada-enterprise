@@ -145,6 +145,14 @@ export default function App() {
     if (authed) fetch('/api/seed', { method: 'POST' });
   }, [authed]);
 
+  // Request notification permission once on login
+  useEffect(() => {
+    if (!authed) return;
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [authed]);
+
   // ── Branding handler ─────────────────────────────────────────────
 
   const handleSaveBranding = (settings: BrandingSettings) => saveBrandingMut.mutate(settings);

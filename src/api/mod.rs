@@ -1,4 +1,5 @@
 pub(crate) mod auth;
+mod push;
 mod screens;
 mod data_sources;
 mod layouts;
@@ -133,6 +134,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/alarms/{id}/acknowledge",
             post(alarms::acknowledge_alarm),
+        )
+        .route(
+            "/api/push/subscribe",
+            post(push::subscribe).delete(push::unsubscribe),
         )
         .layer(middleware::from_fn_with_state(
             state.clone(),

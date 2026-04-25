@@ -996,6 +996,52 @@ impl Storage {
         .context("Task join failed")?
         .map(|_| ())
     }
+
+    // ── Push subscription stubs ──
+
+    pub async fn save_push_subscription(
+        &self,
+        user: &str,
+        endpoint: &str,
+        p256dh: &str,
+        auth_key: &str,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let user = user.to_string();
+        let endpoint = endpoint.to_string();
+        let p256dh = p256dh.to_string();
+        let auth_key = auth_key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = chrono::Utc::now().timestamp();
+            conn.execute(
+                "INSERT INTO push_subscriptions (user, endpoint, p256dh, auth_key, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![user, endpoint, p256dh, auth_key, now],
+            )
+            .context("Insert push subscription failed")
+        })
+        .await
+        .context("Task join failed")?
+        .map(|_| ())
+    }
+
+    pub async fn remove_push_subscription(&self, user: &str, endpoint: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let user = user.to_string();
+        let endpoint = endpoint.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM push_subscriptions WHERE user = ?1 AND endpoint = ?2",
+                rusqlite::params![user, endpoint],
+            )
+            .context("Delete push subscription failed")
+        })
+        .await
+        .context("Task join failed")?
+        .map(|_| ())
+    }
 }
 
 fn init_schema(conn: &Connection) -> Result<()> {
@@ -1085,7 +1131,15 @@ fn init_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_alarms_active
             ON alarms(source_key, severity, acknowledged_at);
         CREATE INDEX IF NOT EXISTS idx_alarms_triggered
-            ON alarms(triggered_at DESC);",
+            ON alarms(triggered_at DESC);
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user TEXT NOT NULL,
+            endpoint TEXT NOT NULL,
+            p256dh TEXT NOT NULL,
+            auth_key TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );",
     )
     .context("Failed to create schema")?;
 
