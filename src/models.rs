@@ -334,6 +334,29 @@ pub struct DataQuery {
     pub to: Option<i64>,
 }
 
+// ── Alarm types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Alarm {
+    pub id: i64,
+    pub source_key: String,
+    pub source_name: String,
+    pub severity: String,
+    pub value: f64,
+    pub threshold: f64,
+    pub message: String,
+    pub triggered_at: i64,
+    pub resolved_at: Option<i64>,
+    pub acknowledged_at: Option<i64>,
+    pub acknowledged_by: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AlarmQuery {
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+}
+
 // ── Tests ──
 
 #[cfg(test)]
