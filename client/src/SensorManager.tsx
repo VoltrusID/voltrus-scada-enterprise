@@ -3,9 +3,9 @@ import { SensorConfig, SOURCE_TYPES } from './types';
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, btnStyle, tabStyle } from './styles';
 import { EditPanel } from './EditPanel';
 
-export function SensorManager({ sensors, onSave, onDelete, onAdd, onClose, shortcuts }: {
+export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts }: {
   sensors: SensorConfig[]; onSave: (s: SensorConfig, shortcut?: string | null) => void; onDelete: (id: number) => void;
-  onAdd: (s: Partial<SensorConfig>) => void; onClose: () => void; shortcuts: Record<number, string>;
+  onAdd: (s: Partial<SensorConfig>) => void; onDuplicate: (s: SensorConfig) => void; onClose: () => void; shortcuts: Record<number, string>;
 }) {
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<SensorConfig | null>(null);
@@ -30,12 +30,12 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onClose, short
             <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
             </button>
-            <h1 style={{ fontSize: 20, fontWeight: 700 }}>Sensor Manager</h1>
-            <span style={{ color: 'var(--muted)', fontSize: 13 }}>{sensors.length} sensors</span>
+            <h1 style={{ fontSize: 20, fontWeight: 700 }}>Data Sources</h1>
+            <span style={{ color: 'var(--muted)', fontSize: 13 }}>{sensors.length} sources</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 200 }} />
-            <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowCreate(true)}>+ Create Sensor</button>
+            <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowCreate(true)}>+ Create Source</button>
           </div>
         </div>
         <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
@@ -44,12 +44,10 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onClose, short
               <tr>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Key</th>
-                <th style={thStyle}>Unit</th>
+                <th style={thStyle}>Type</th>
                 <th style={thStyle}>Source</th>
-                <th style={thStyle}>Range</th>
-                <th style={thStyle}>Warn / Crit</th>
-                <th style={thStyle}>Base</th>
-                <th style={{ ...thStyle, width: 100 }}>Actions</th>
+                <th style={thStyle}>Chart</th>
+                <th style={{ ...thStyle, width: 140 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -59,12 +57,11 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onClose, short
                   <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: 'var(--muted)' }}>{s.key}</td>
                   <td style={tdStyle}>{s.unit || '—'}</td>
                   <td style={tdStyle}><span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,.1)', color: 'var(--cyan)' }}>{s.source_type}</span></td>
-                  <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{s.min_val} – {s.max_val}</td>
-                  <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}><span style={{ color: 'var(--warn)' }}>{s.warn_val}</span> / <span style={{ color: 'var(--crit)' }}>{s.crit_val}</span></td>
-                  <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{s.base_val}</td>
+                  <td style={tdStyle}><span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,.1)', color: '#a78bfa' }}>{s.chart_type || 'sparkline'}</span></td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button onClick={() => setEditing(s)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Edit</button>
+                      <button onClick={() => onDuplicate(s)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}>Dup</button>
                       <button onClick={() => { if (confirm(`Delete ${s.name}?`)) onDelete(s.id); }} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 11 }}>Del</button>
                     </div>
                   </td>
@@ -78,7 +75,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onClose, short
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }} onClick={() => setShowCreate(false)}>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, width: 480, padding: 20 }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Create New Sensor</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Create New Data Source</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <label style={labelStyle}><span style={labelTextStyle}>Key</span><input value={createForm.key} onChange={e => setCreateForm({ ...createForm, key: e.target.value })} style={inputStyle} /></label>
               <label style={labelStyle}><span style={labelTextStyle}>Name</span><input value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} style={inputStyle} /></label>
