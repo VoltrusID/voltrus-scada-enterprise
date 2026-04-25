@@ -3,14 +3,15 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
-use crate::models::User;
-use super::{AppState, AppError};
+use super::{AppState, AppError, AuthUser};
 
 /// GET /api/shortcuts — get shortcuts for the current user
 pub async fn get_shortcuts(
     State(state): State<AppState>,
-    axum::Extension(user): axum::Extension<User>,
+    axum::Extension(auth): axum::Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
+    let user = state.storage.get_user_by_username(&auth.username).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let shortcuts = state.storage.get_user_shortcuts(user.id).await?;
     // Return as map: {sensor_id: shortcut}
     let mut map = serde_json::Map::new();
@@ -24,9 +25,11 @@ pub async fn get_shortcuts(
 /// If value is null or empty string, delete the entry
 pub async fn save_shortcuts(
     State(state): State<AppState>,
-    axum::Extension(user): axum::Extension<User>,
+    axum::Extension(auth): axum::Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
+    let user = state.storage.get_user_by_username(&auth.username).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let obj = body
         .as_object()
         .ok_or_else(|| anyhow::anyhow!("Expected a JSON object"))?;

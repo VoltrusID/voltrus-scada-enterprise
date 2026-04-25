@@ -73,25 +73,12 @@ pub async fn save_twin_layouts(
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("Expected an array of twin layouts"))?;
 
-    let valid_types = [
-        "solar_panel",
-        "battery",
-        "inverter",
-        "charge_controller",
-        "grid_meter",
-        "load",
-        "transformer",
-        "generator",
-    ];
-
     let mut layouts = Vec::new();
     for item in arr {
         let equipment_type = item["equipment_type"]
             .as_str()
             .unwrap_or("")
             .to_string();
-        // Allow any equipment_type (don't restrict for flexibility)
-        let _ = valid_types; // suppress unused warning
         layouts.push(TwinLayout {
             screen_id: id.clone(),
             equipment_id: item["equipment_id"]

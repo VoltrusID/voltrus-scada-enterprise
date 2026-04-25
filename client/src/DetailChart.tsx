@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import { DataPoint } from './types';
-import { fmtTs } from './styles';
+import { fmtTs, safeMinMax, toHexColor } from './styles';
 
-export function DetailChart({ data, color, warn, crit, unit }: { data: DataPoint[]; color: string; warn: number; crit: number; unit: string }) {
+export function DetailChart({ data, color: rawColor, warn, crit, unit }: { data: DataPoint[]; color: string; warn: number; crit: number; unit: string }) {
+  const color = toHexColor(rawColor);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<{ idx: number; px: number; py: number } | null>(null);
   const areaRef = useRef({ pL: 60, pR: 20, pT: 20, pB: 44, cW: 0, cH: 0, yMin: 0, yMax: 0, dLen: 0 });
@@ -13,7 +14,8 @@ export function DetailChart({ data, color, warn, crit, unit }: { data: DataPoint
     cv.width = rect.width * dpr; cv.height = rect.height * dpr; ctx.scale(dpr, dpr);
     const W = rect.width, H = rect.height, pL = 60, pR = 20, pT = 20, pB = 44, cW = W - pL - pR, cH = H - pT - pB;
     const values = data.map(d => d.value);
-    let yMin = Math.min(...values) - 2, yMax = Math.max(...values) + 2; if (yMax - yMin < 4) { yMin--; yMax++; }
+    const [rawMin, rawMax] = safeMinMax(values);
+    let yMin = rawMin - 2, yMax = rawMax + 2; if (yMax - yMin < 4) { yMin--; yMax++; }
     areaRef.current = { pL, pR, pT, pB, cW, cH, yMin, yMax, dLen: data.length };
     const toX = (i: number) => pL + (i / (data.length - 1)) * cW;
     const toY = (v: number) => pT + cH - ((v - yMin) / (yMax - yMin)) * cH;

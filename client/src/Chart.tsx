@@ -1,11 +1,12 @@
 import { useRef, useEffect, useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { safeMinMax, toHexColor } from './styles';
 
 // ── Sparkline ──
 
 function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
-  const color = rawColor.replace(/"/g, '');
+  const color = toHexColor(rawColor.replace(/"/g, ''));
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const cv = ref.current; if (!cv || data.length < 2) return;
@@ -15,7 +16,8 @@ function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[];
     ctx.clearRect(0, 0, W, H);
     ctx.strokeStyle = '#1a1a1e'; ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) { const y = pT + (cH / 4) * i; ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(W - pR, y); ctx.stroke(); }
-    let yMin = Math.min(...data) - 2, yMax = Math.max(...data) + 2; if (yMax - yMin < 4) { yMin--; yMax++; }
+    const [rawMin, rawMax] = safeMinMax(data);
+    let yMin = rawMin - 2, yMax = rawMax + 2; if (yMax - yMin < 4) { yMin--; yMax++; }
     const toX = (i: number) => pL + (i / (data.length - 1)) * cW;
     const toY = (v: number) => pT + cH - ((v - yMin) / (yMax - yMin)) * cH;
     ctx.fillStyle = '#52525b'; ctx.font = '10px JetBrains Mono,monospace'; ctx.textAlign = 'right';
