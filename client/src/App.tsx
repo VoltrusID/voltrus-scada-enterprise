@@ -100,7 +100,7 @@ export default function App() {
   function generateDefaultLayout(sensorIds: number[], bp: string): LayoutItem[] {
     const cols = DEFAULT_COLS[bp] || 12;
     const defaultW = bp === 'lg' ? 3 : bp === 'md' ? 3 : 2;
-    const defaultH = 2;
+    const defaultH = 4;
     let x = 0, y = 0;
     return sensorIds.map(id => {
       if (x + defaultW > cols) { x = 0; y += defaultH; }
