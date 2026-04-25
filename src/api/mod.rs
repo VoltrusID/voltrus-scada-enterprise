@@ -1,4 +1,4 @@
-mod auth;
+pub(crate) mod auth;
 mod screens;
 mod sensors;
 mod layouts;
@@ -10,7 +10,7 @@ mod generators;
 
 use axum::{
     extract::{Request, State},
-    http::StatusCode,
+    http::{HeaderValue, Method, StatusCode, header::CONTENT_TYPE},
     middleware::{self, Next},
     response::IntoResponse,
     routing::{get, patch, post, put},
@@ -30,6 +30,8 @@ pub struct AppState {
     pub storage: Storage,
     pub started_at: std::time::Instant,
     pub auth_secret: String,
+    pub cors_origin: Option<String>,
+    pub cookie_secure: bool,
 }
 
 #[derive(Debug)]
@@ -52,10 +54,19 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
 }
 
 pub fn create_router(state: AppState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = match &state.cors_origin {
+        Some(origin) => {
+            let origin: HeaderValue = origin.parse().expect("Invalid cors_origin value");
+            CorsLayer::new()
+                .allow_origin(origin)
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
+                .allow_headers([CONTENT_TYPE])
+        }
+        None => CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any),
+    };
 
     // Public routes (no auth required)
     let public = Router::new()
@@ -63,12 +74,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
-        .route("/api/seed", post(auth::seed))
         .route("/api/settings/branding", get(settings::get_branding))
         .route("/api/settings/branding", put(settings::update_branding));
 
     // Protected routes (cookie auth required)
     let protected = Router::new()
+        .route("/api/seed", post(auth::seed))
         .route("/api/live", get(system::get_live))
         .route("/api/system", get(system::get_system))
         .route("/api/data", get(data::get_data))
@@ -129,6 +140,11 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+#[derive(Clone)]
+pub struct AuthUser {
+    pub username: String,
+}
+
 async fn cookie_auth_middleware(
     State(state): State<AppState>,
     mut req: Request,
@@ -148,17 +164,10 @@ async fn cookie_auth_middleware(
     }
     match auth::verify_token(token, &state.auth_secret) {
         Some(claims) => {
-            match state.storage.get_user_by_username(&claims.username).await {
-                Ok(Some(user)) => {
-                    req.extensions_mut().insert(user);
-                    next.run(req).await
-                }
-                _ => (
-                    StatusCode::UNAUTHORIZED,
-                    Json(json!({"error": "unauthorized"})),
-                )
-                    .into_response(),
-            }
+            req.extensions_mut().insert(AuthUser {
+                username: claims.username,
+            });
+            next.run(req).await
         }
         None => (
             StatusCode::UNAUTHORIZED,
@@ -186,6 +195,8 @@ mod tests {
             storage,
             started_at: std::time::Instant::now(),
             auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
         };
         create_router(state)
     }
@@ -259,7 +270,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_seed_endpoint() {
+    async fn test_seed_requires_auth() {
         let app = test_app();
         let resp = app
             .oneshot(
@@ -272,32 +283,75 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resp.status(), StatusCode::OK);
-
-        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["ok"], true);
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
-    #[tokio::test]
-    async fn test_login_with_seeded_user() {
-        let app = test_app();
+    async fn seed_and_get_cookie(app: &Router) -> String {
+        // Seed directly via storage (bypass HTTP)
+        let state = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .ok();
 
-        // Seed first
+        // We need to seed via storage - use the login approach with direct seed
+        // For tests, we create a test-specific approach using the seed endpoint
+        // after obtaining a token through direct storage seeding
+        // Simplified: use a separate test helper
+        let storage = Storage::new_in_memory().unwrap();
+        storage.seed_database().await.unwrap();
+
+        // Login
+        let login_body = serde_json::json!({"username": "admin", "password": "admin"});
         let resp = app
             .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/seed")
-                    .body(Body::empty())
+                    .uri("/api/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&login_body).unwrap()))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+
+        let set_cookie = resp
+            .headers()
+            .get("set-cookie")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        set_cookie
+            .split(';')
+            .next()
+            .unwrap()
+            .trim()
+            .trim_start_matches("voltrus_token=")
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn test_login_with_seeded_user() {
+        let storage = Storage::new_in_memory().unwrap();
+        storage.seed_database().await.unwrap();
+
+        let cache = DeviceCache::new();
+        let state = AppState {
+            cache,
+            storage,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+        };
+        let app = create_router(state);
 
         // Login with admin/admin (default seeded credentials)
         let login_body = serde_json::json!({"username": "admin", "password": "admin"});
@@ -315,7 +369,6 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        // Check set-cookie header before consuming body
         let set_cookie = resp
             .headers()
             .get("set-cookie")
@@ -335,19 +388,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_login_invalid_credentials() {
-        let app = test_app();
+        let storage = Storage::new_in_memory().unwrap();
+        storage.seed_database().await.unwrap();
 
-        // Seed first
-        let _ = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/seed")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await;
+        let cache = DeviceCache::new();
+        let state = AppState {
+            cache,
+            storage,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+        };
+        let app = create_router(state);
 
         let login_body = serde_json::json!({"username": "admin", "password": "wrong"});
         let resp = app
@@ -406,19 +459,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_full_auth_flow() {
-        let app = test_app();
+        let storage = Storage::new_in_memory().unwrap();
+        storage.seed_database().await.unwrap();
 
-        // Seed
-        let _ = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/api/seed")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await;
+        let cache = DeviceCache::new();
+        let state = AppState {
+            cache,
+            storage,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+        };
+        let app = create_router(state);
 
         // Login
         let login_body = serde_json::json!({"username": "admin", "password": "admin"});

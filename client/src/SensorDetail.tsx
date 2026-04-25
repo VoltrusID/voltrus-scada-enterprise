@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { SensorConfig, SensorData, DataPoint } from './types';
-import { status, stColor, btnStyle } from './styles';
+import { status, stColor, btnStyle, safeMinMax } from './styles';
 import { DetailChart } from './DetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
 
@@ -11,8 +11,7 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
 }) {
   const st = currentValue ? status(currentValue.value, currentValue.warn, currentValue.crit) : 'normal';
   const values = data.map(d => d.value);
-  const minV = values.length ? Math.min(...values) : 0;
-  const maxV = values.length ? Math.max(...values) : 0;
+  const [minV, maxV] = safeMinMax(values);
   const avgV = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
   const curV = currentValue ? currentValue.value : sensor.base_val;
 

@@ -11,6 +11,21 @@ export function fmtTs(ts: number) {
 }
 export function parseConfig(cfg: string): Record<string, any> { try { return JSON.parse(cfg) } catch { return {} } }
 
+export function safeMinMax(arr: number[]): [number, number] {
+  if (!arr.length) return [0, 0];
+  let min = Infinity, max = -Infinity;
+  for (const v of arr) { if (v < min) min = v; if (v > max) max = v; }
+  return [min, max];
+}
+
+const _colorCtx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+export function toHexColor(color: string): string {
+  if (!_colorCtx) return color;
+  _colorCtx.fillStyle = '#000000';
+  _colorCtx.fillStyle = color;
+  return _colorCtx.fillStyle;
+}
+
 export function normalizeKeyEvent(e: KeyboardEvent): string {
   const parts: string[] = [];
   if (e.ctrlKey) parts.push('Ctrl');

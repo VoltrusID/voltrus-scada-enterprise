@@ -16,6 +16,14 @@ pub struct AppConfig {
     pub api_key: Option<String>,
     #[serde(default)]
     pub auth_secret: Option<String>,
+    #[serde(default)]
+    pub cors_origin: Option<String>,
+    #[serde(default = "default_cookie_secure")]
+    pub cookie_secure: bool,
+}
+
+fn default_cookie_secure() -> bool {
+    true
 }
 
 fn default_server_port() -> u16 {

@@ -42,8 +42,7 @@ pub async fn create_sensor(
     let chart_type = body["chart_type"].as_str().unwrap_or("sparkline").to_string();
 
     // Get max sort_order
-    let all_sensors = state.storage.list_sensors(None).await?;
-    let max_sort = all_sensors.iter().map(|s| s.sort_order).max().unwrap_or(-1);
+    let max_sort = state.storage.max_sensor_sort_order().await?;
 
     let id = state
         .storage
@@ -97,12 +96,12 @@ pub async fn reorder_sensors(
     State(state): State<AppState>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let order = body["order"]
+    let order: Vec<i64> = body["order"]
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("order array is required"))?
         .iter()
-        .filter_map(|v| v.as_i64())
-        .collect::<Vec<i64>>();
+        .map(|v| v.as_i64().ok_or_else(|| anyhow::anyhow!("order must contain integer IDs")))
+        .collect::<Result<Vec<_>, _>>()?;
 
     state.storage.reorder_sensors(&order).await?;
     Ok(Json(json!({"ok": true})))

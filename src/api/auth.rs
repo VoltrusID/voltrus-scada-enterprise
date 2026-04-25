@@ -11,10 +11,26 @@ use super::{AppError, AppState};
 
 const TOKEN_EXPIRY_MS: u64 = 24 * 60 * 60 * 1000;
 
-pub fn hash_password(password: &str, salt: &str) -> String {
-    use sha2::{Digest, Sha256};
-    let input = format!("{salt}{password}");
-    hex::encode(Sha256::digest(input.as_bytes()))
+pub fn hash_password(password: &str) -> String {
+    use argon2::password_hash::{SaltString, PasswordHasher};
+    use rand::Rng;
+    let salt_bytes: [u8; 32] = rand::rng().random();
+    let salt = SaltString::encode_b64(&salt_bytes).unwrap();
+    let params = argon2::Params::new(19456, 2, 1, None).unwrap();
+    let hasher = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+    let hash = hasher.hash_password(password.as_bytes(), &salt).unwrap();
+    hash.to_string()
+}
+
+pub fn verify_password(password: &str, hash: &str) -> bool {
+    use argon2::password_hash::PasswordVerifier;
+    let parsed = argon2::PasswordHash::new(hash).ok();
+    match parsed {
+        Some(parsed) => argon2::Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok(),
+        None => false,
+    }
 }
 
 fn constant_time_equal(a: &str, b: &str) -> bool {
@@ -87,8 +103,7 @@ pub async fn login(
             return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
         }
     };
-    let hash = hash_password(&body.password, &user.salt);
-    if !constant_time_equal(&hash, &user.password_hash) {
+    if !verify_password(&body.password, &user.password_hash) {
         return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
     }
     let secret = &state.auth_secret;
@@ -98,7 +113,7 @@ pub async fn login(
         token.clone(),
     ))
     .http_only(true)
-    .secure(false) // set true in production behind HTTPS
+    .secure(state.cookie_secure)
     .same_site(axum_extra::extract::cookie::SameSite::Strict)
     .max_age(time::Duration::seconds(86400))
     .path("/")
@@ -139,17 +154,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hash_password_deterministic() {
-        let a = hash_password("admin", "abcd1234");
-        let b = hash_password("admin", "abcd1234");
-        assert_eq!(a, b);
+    fn test_hash_and_verify_password() {
+        let hash = hash_password("admin");
+        assert!(verify_password("admin", &hash));
+        assert!(!verify_password("wrong", &hash));
     }
 
     #[test]
-    fn test_hash_password_salt_matters() {
-        let a = hash_password("admin", "salt1");
-        let b = hash_password("admin", "salt2");
-        assert_ne!(a, b);
+    fn test_hash_password_unique_salts() {
+        let a = hash_password("admin");
+        let b = hash_password("admin");
+        assert_ne!(a, b); // different salts each time
     }
 
     #[test]

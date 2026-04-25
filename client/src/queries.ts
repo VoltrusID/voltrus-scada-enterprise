@@ -24,6 +24,15 @@ async function fetchJson<T>(url: string): Promise<T> {
   return r.json()
 }
 
+async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
+  const r = await fetch(url, init)
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}))
+    throw new Error(body.error || `Request failed: ${r.status}`)
+  }
+  return r
+}
+
 // ── Query hooks ────────────────────────────────────────────────────
 
 export function useSensors(enabled: boolean) {
@@ -119,7 +128,7 @@ export function useUpdateSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (s: SensorConfig) => {
-      await fetch(`/api/sensors/${s.id}`, {
+      await fetchOk(`/api/sensors/${s.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(s),
@@ -137,7 +146,7 @@ export function useDeleteSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/sensors/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/sensors/${id}`, { method: 'DELETE' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.sensors })
@@ -150,7 +159,7 @@ export function useAddSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (form: Partial<SensorConfig>) => {
-      const res = await fetch('/api/sensors', {
+      const res = await fetchOk('/api/sensors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -168,7 +177,7 @@ export function useSaveLayout() {
   return useMutation({
     mutationFn: async ({ screenId, layouts }: { screenId: string; layouts: ScreenLayouts }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetch(`/api/screens/${actualId}/layouts`, {
+      await fetchOk(`/api/screens/${actualId}/layouts`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(layouts),
@@ -185,7 +194,7 @@ export function useSaveTwinLayout() {
   return useMutation({
     mutationFn: async ({ screenId, items }: { screenId: string; items: any[] }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetch(`/api/screens/${actualId}/twin-layouts`, {
+      await fetchOk(`/api/screens/${actualId}/twin-layouts`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(items),
@@ -201,7 +210,7 @@ export function useSaveShortcuts() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (shortcuts: Record<number, string | null>) => {
-      await fetch('/api/shortcuts', {
+      await fetchOk('/api/shortcuts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(shortcuts),
@@ -217,7 +226,7 @@ export function useSaveBranding() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (settings: BrandingSettings) => {
-      await fetch('/api/settings/branding', {
+      await fetchOk('/api/settings/branding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
@@ -234,7 +243,7 @@ export function useCreateScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (name: string) => {
-      await fetch('/api/screens', {
+      await fetchOk('/api/screens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -250,7 +259,7 @@ export function useRenameScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      await fetch(`/api/screens/${id}`, {
+      await fetchOk(`/api/screens/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -266,7 +275,7 @@ export function useDeleteScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`/api/screens/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/screens/${id}`, { method: 'DELETE' })
       return id
     },
     onSuccess: (deletedId) => {
@@ -281,7 +290,7 @@ export function useAddSensorToScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ screenId, sensorId }: { screenId: string; sensorId: number }) => {
-      await fetch(`/api/screens/${screenId}/sensors`, {
+      await fetchOk(`/api/screens/${screenId}/sensors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sensor_id: sensorId }),
@@ -298,7 +307,7 @@ export function useRemoveSensorFromScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ screenId, sensorId }: { screenId: string; sensorId: number }) => {
-      await fetch(`/api/screens/${screenId}/sensors/${sensorId}`, { method: 'DELETE' })
+      await fetchOk(`/api/screens/${screenId}/sensors/${sensorId}`, { method: 'DELETE' })
     },
     onSuccess: (_, { screenId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.screenSensors(screenId) })

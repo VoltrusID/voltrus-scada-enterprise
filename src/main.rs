@@ -73,11 +73,32 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    let auth_secret = match &app_config.auth_secret {
+        Some(secret) => {
+            anyhow::ensure!(secret.len() >= 16, "auth_secret must be at least 16 characters");
+            secret.clone()
+        }
+        None => {
+            use rand::Rng;
+            let secret: String = rand::rng()
+                .sample_iter(&rand::distr::Alphanumeric)
+                .take(32)
+                .map(char::from)
+                .collect();
+            tracing::warn!(
+                "auth_secret not set in config — generated a random secret. Set auth_secret in config.yaml for persistent sessions."
+            );
+            secret
+        }
+    };
+
     let state = AppState {
         cache,
         storage,
         started_at: std::time::Instant::now(),
-        auth_secret: app_config.auth_secret.clone().unwrap_or_else(|| "voltrus-lite-dev-secret".to_string()),
+        auth_secret,
+        cors_origin: app_config.cors_origin.clone(),
+        cookie_secure: app_config.cookie_secure,
     };
     let app = api::create_router(state);
 
