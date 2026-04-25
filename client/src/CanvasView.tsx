@@ -206,10 +206,12 @@ export function CanvasView({
                 dragHandleClassName="drag-handle"
                 bounds="parent"
                 style={{ zIndex: zMap[s.id] ?? 1 }}
-                resizeHandleStyle={editMode ? {
-                  width: 8, height: 8, background: 'var(--cyan)', borderRadius: 4, opacity: 0.7,
+                resizeHandleStyles={editMode ? {
+                  bottomRight: { width: 8, height: 8, background: 'var(--cyan)', borderRadius: 4, opacity: 0.7 },
+                  bottomLeft: { width: 8, height: 8, background: 'var(--cyan)', borderRadius: 4, opacity: 0.7 },
+                  topRight: { width: 8, height: 8, background: 'var(--cyan)', borderRadius: 4, opacity: 0.7 },
+                  topLeft: { width: 8, height: 8, background: 'var(--cyan)', borderRadius: 4, opacity: 0.7 },
                 } : undefined}
-                resizeHandleClasses={{ bottomRight: undefined }}
               >
                 <SensorCard
                   sensor={s}
