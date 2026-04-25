@@ -26,7 +26,7 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }} onClick={onClose}>
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, width: 480, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Add Sensor</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Add Data Source</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18 }}>&times;</button>
         </div>
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
@@ -35,7 +35,7 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
         </div>
         <div style={{ padding: 16 }}>
           {tab === 'existing' ? (
-            available.length === 0 ? <div style={{ color: 'var(--muted)', fontSize: 13, padding: 12 }}>All sensors already on this screen.</div> :
+            available.length === 0 ? <div style={{ color: 'var(--muted)', fontSize: 13, padding: 12 }}>All sources already on this screen.</div> :
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {available.map(s => (
                 <button key={s.id} onClick={() => addExisting(s.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--fg)', width: '100%' }}>
