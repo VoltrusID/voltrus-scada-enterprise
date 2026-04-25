@@ -5,6 +5,7 @@ use rusqlite::Connection;
 
 use crate::models::{
     DataPoint, Device, ScreenLayoutRow, DataSource, Setting, TwinLayout, User, UserShortcut,
+    Alarm, AlarmQuery,
 };
 
 #[derive(Clone)]
@@ -836,6 +837,165 @@ impl Storage {
         tracing::info!("Seeded PLTS data sources for plts_1 and plts_2");
         Ok(())
     }
+
+    // ── Alarm methods ──
+
+    pub async fn create_alarm(
+        &self,
+        source_key: &str,
+        severity: &str,
+        value: f64,
+        threshold: f64,
+        message: &str,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let source_key = source_key.to_string();
+        let severity = severity.to_string();
+        let message = message.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = chrono::Utc::now().timestamp();
+            conn.execute(
+                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![source_key, severity, value, threshold, message, now],
+            )
+            .context("Insert alarm failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn resolve_active_alarms(&self, source_key: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let source_key = source_key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = chrono::Utc::now().timestamp();
+            conn.execute(
+                "UPDATE alarms SET resolved_at = ?1
+                 WHERE source_key = ?2 AND resolved_at IS NULL AND acknowledged_at IS NOT NULL",
+                rusqlite::params![now, source_key],
+            )
+            .context("Resolve alarms failed")
+        })
+        .await
+        .context("Task join failed")?
+        .map(|_| ())
+    }
+
+    pub async fn has_active_alarm(&self, source_key: &str, severity: &str) -> Result<bool> {
+        let conn = self.conn.clone();
+        let source_key = source_key.to_string();
+        let severity = severity.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms
+                     WHERE source_key = ?1 AND severity = ?2
+                       AND acknowledged_at IS NULL AND resolved_at IS NULL",
+                    rusqlite::params![source_key, severity],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            Ok(count > 0)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_alarms(&self, status: Option<&str>, limit: i64) -> Result<Vec<Alarm>> {
+        let conn = self.conn.clone();
+        let status = status.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match &status {
+                Some(s) if s == "active" => (
+                    "SELECT id, source_key, severity, value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by
+                     FROM alarms
+                     WHERE acknowledged_at IS NULL
+                     ORDER BY triggered_at DESC LIMIT ?1",
+                    vec![Box::new(limit)],
+                ),
+                Some(s) if s == "acknowledged" => (
+                    "SELECT id, source_key, severity, value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by
+                     FROM alarms
+                     WHERE acknowledged_at IS NOT NULL
+                     ORDER BY triggered_at DESC LIMIT ?1",
+                    vec![Box::new(limit)],
+                ),
+                _ => (
+                    "SELECT id, source_key, severity, value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by
+                     FROM alarms
+                     ORDER BY triggered_at DESC LIMIT ?1",
+                    vec![Box::new(limit)],
+                ),
+            };
+            let mut stmt = conn.prepare(sql).context("Prepare failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok(Alarm {
+                        id: row.get(0)?,
+                        source_key: row.get(1)?,
+                        source_name: String::new(),
+                        severity: row.get(2)?,
+                        value: row.get(3)?,
+                        threshold: row.get(4)?,
+                        message: row.get(5)?,
+                        triggered_at: row.get(6)?,
+                        resolved_at: row.get(7)?,
+                        acknowledged_at: row.get(8)?,
+                        acknowledged_by: row.get(9)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn acknowledge_alarm(&self, id: i64, username: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = chrono::Utc::now().timestamp();
+            conn.execute(
+                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2 WHERE id = ?3",
+                rusqlite::params![now, username, id],
+            )
+            .context("Acknowledge alarm failed")
+        })
+        .await
+        .context("Task join failed")?
+        .map(|_| ())
+    }
+
+    pub async fn acknowledge_all(&self, username: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = chrono::Utc::now().timestamp();
+            conn.execute(
+                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2
+                 WHERE acknowledged_at IS NULL",
+                rusqlite::params![now, username],
+            )
+            .context("Acknowledge all alarms failed")
+        })
+        .await
+        .context("Task join failed")?
+        .map(|_| ())
+    }
 }
 
 fn init_schema(conn: &Connection) -> Result<()> {
@@ -909,7 +1069,23 @@ fn init_schema(conn: &Connection) -> Result<()> {
             position_z REAL NOT NULL DEFAULT 0,
             rotation_y REAL NOT NULL DEFAULT 0,
             PRIMARY KEY (screen_id, equipment_id)
-        );",
+        );
+        CREATE TABLE IF NOT EXISTS alarms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_key TEXT NOT NULL,
+            severity TEXT NOT NULL CHECK(severity IN ('warning', 'critical')),
+            value REAL NOT NULL,
+            threshold REAL NOT NULL,
+            message TEXT NOT NULL,
+            triggered_at INTEGER NOT NULL,
+            resolved_at INTEGER,
+            acknowledged_at INTEGER,
+            acknowledged_by TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_alarms_active
+            ON alarms(source_key, severity, acknowledged_at);
+        CREATE INDEX IF NOT EXISTS idx_alarms_triggered
+            ON alarms(triggered_at DESC);",
     )
     .context("Failed to create schema")?;
 
