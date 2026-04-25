@@ -50,3 +50,17 @@ export const EQUIPMENT_TYPES: { value: EquipmentType; label: string }[] = [
   { value: 'inverter', label: 'Inverter' },
   { value: 'gateway', label: 'Gateway (PLC/HMI)' },
 ]
+
+export interface Alarm {
+  id: number
+  source_key: string
+  source_name: string
+  severity: 'warning' | 'critical'
+  value: number
+  threshold: number
+  message: string
+  triggered_at: number
+  resolved_at: number | null
+  acknowledged_at: number | null
+  acknowledged_by: string | null
+}

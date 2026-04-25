@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import type { SensorConfig, Screen, ScreenLayouts, DataPoint } from './types'
+import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm } from './types'
 import type { BrandingSettings } from './BrandingDialog'
 
 // ── Query key factory ──────────────────────────────────────────────
@@ -14,6 +14,7 @@ export const queryKeys = {
   branding:      ['branding'] as const,
   history:       (range: string, screenId: string) => ['history', range, screenId] as const,
   systemInfo:    ['systemInfo'] as const,
+  alarms:        (status: string) => ['alarms', status] as const,
 }
 
 // ── Fetcher helper ─────────────────────────────────────────────────
@@ -312,6 +313,41 @@ export function useRemoveSensorFromScreen() {
     onSuccess: (_, { screenId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.screenSensors(screenId) })
       qc.invalidateQueries({ queryKey: queryKeys.layouts(screenId) })
+    },
+  })
+}
+
+// ── Alarm hooks ─────────────────────────────────────────────────────
+
+export function useAlarms(status: string = 'all', enabled: boolean = true) {
+  return useQuery({
+    queryKey: queryKeys.alarms(status),
+    queryFn: () => fetchJson<Alarm[]>(`/api/alarms?status=${status}&limit=50`),
+    enabled,
+    staleTime: 5_000,
+  })
+}
+
+export function useAcknowledgeAlarm() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await fetchOk(`/api/alarms/${id}/acknowledge`, { method: 'POST' })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alarms'] })
+    },
+  })
+}
+
+export function useAcknowledgeAllAlarms() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      await fetchOk('/api/alarms', { method: 'POST' })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alarms'] })
     },
   })
 }
