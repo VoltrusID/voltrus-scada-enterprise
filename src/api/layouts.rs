@@ -187,3 +187,85 @@ pub async fn save_twin_camera(
     state.storage.upsert_setting(&key, &value).await?;
     Ok(Json(json!({"ok": true})))
 }
+
+/// GET /api/screens/{id}/scada-equipment
+pub async fn get_scada_equipment(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let items = state.storage.get_scada_equipment(&id).await?;
+    Ok(Json(json!({"items": items})))
+}
+
+/// PUT /api/screens/{id}/scada-equipment
+pub async fn save_scada_equipment(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let arr = body
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| anyhow::anyhow!("Expected {{\"items\": [...]}}"))?;
+
+    let mut items = Vec::new();
+    for item in arr {
+        items.push(ScadaEquipment {
+            screen_id: id.clone(),
+            equipment_id: item["equipment_id"].as_str().unwrap_or("").to_string(),
+            equipment_type: item["equipment_type"].as_str().unwrap_or("").to_string(),
+            equipment_name: item["equipment_name"].as_str().unwrap_or("").to_string(),
+            x: item["x"].as_f64().unwrap_or(0.0),
+            y: item["y"].as_f64().unwrap_or(0.0),
+            width: item["width"].as_f64().unwrap_or(100.0),
+            height: item["height"].as_f64().unwrap_or(60.0),
+            rotation: item["rotation"].as_f64().unwrap_or(0.0),
+            sensor_bindings: item["sensor_bindings"]
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| serde_json::to_string(&item["sensor_bindings"]).unwrap_or("[]".to_string())),
+        });
+    }
+
+    state.storage.save_scada_equipment(&id, &items).await?;
+    Ok(Json(json!({"ok": true})))
+}
+
+/// GET /api/screens/{id}/scada-connections
+pub async fn get_scada_connections(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let connections = state.storage.get_scada_connections(&id).await?;
+    Ok(Json(json!({"items": connections})))
+}
+
+/// PUT /api/screens/{id}/scada-connections
+pub async fn save_scada_connections(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let arr = body
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| anyhow::anyhow!("Expected {{\"items\": [...]}}"))?;
+
+    let mut connections = Vec::new();
+    for item in arr {
+        connections.push(ScadaConnection {
+            screen_id: id.clone(),
+            connection_id: item["connection_id"].as_str().unwrap_or("").to_string(),
+            from_equipment: item["from_equipment"].as_str().unwrap_or("").to_string(),
+            to_equipment: item["to_equipment"].as_str().unwrap_or("").to_string(),
+            waypoints: item["waypoints"]
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| serde_json::to_string(&item["waypoints"]).unwrap_or("[]".to_string())),
+            connection_type: item["connection_type"].as_str().unwrap_or("power").to_string(),
+        });
+    }
+
+    state.storage.save_scada_connections(&id, &connections).await?;
+    Ok(Json(json!({"ok": true})))
+}
