@@ -17,8 +17,9 @@ import { SensorGrid } from './SensorGrid'
 import { CanvasView } from './CanvasView'
 import { ScreenLayouts, LayoutItem } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, fetchOk } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 const DigitalTwinView = lazy(() => import('./DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
+const ScadaView = lazy(() => import('./ScadaView').then(m => ({ default: m.ScadaView })))
 
 export default function App() {
   const queryClient = useQueryClient()
@@ -52,7 +53,7 @@ export default function App() {
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [showBrandingDialog, setShowBrandingDialog] = useState(false);
   const [layoutBreakpoint, setLayoutBreakpoint] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin'>('cards');
+  const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin' | 'scada'>('cards');
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null);
 
   const startTime = useRef(Date.now());
@@ -83,6 +84,9 @@ export default function App() {
 
   const { data: twinConnections = [] } = useTwinConnections(activeScreen, authed);
 
+  const { data: scadaEquipment = [] } = useScadaEquipment(activeScreen, authed && viewMode === 'scada')
+  const { data: scadaConnections = [] } = useScadaConnections(activeScreen, authed && viewMode === 'scada')
+
   const { data: serverCanvasLayouts = [] } = useCanvasLayouts(activeScreen, authed);
   const canvasLayouts = localCanvasLayouts ?? serverCanvasLayouts;
 
@@ -101,6 +105,8 @@ export default function App() {
   const saveTwinLayoutMut = useSaveTwinLayout();
   const saveTwinConnectionsMut = useSaveTwinConnections();
   const saveCanvasLayoutMut = useSaveCanvasLayout();
+  const saveScadaEquipmentMut = useSaveScadaEquipment()
+  const saveScadaConnectionsMut = useSaveScadaConnections()
   const saveShortcutsMut = useSaveShortcuts();
   const saveBrandingMut = useSaveBranding();
   const createScreenMut = useCreateScreen();
@@ -422,9 +428,10 @@ export default function App() {
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Grids</button>
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'canvas' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'canvas' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('canvas')}>Canvas</button>
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'scada' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'scada' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('scada')}>2D</button>
           </div>
           {/* Live/History toggle (hidden in 3D mode) */}
-          {viewMode !== 'twin' && (<>
+          {viewMode !== 'twin' && viewMode !== 'scada' && (<>
             <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
               <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setMode('live')}>Live</button>
               <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History</button>
@@ -617,6 +624,18 @@ export default function App() {
           onDelete={handleDelete}
           shortcuts={shortcuts}
         />
+      ) : viewMode === 'scada' ? (
+        <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 2D View...</div>}>
+          <ScadaView
+            sensors={screenSensors}
+            currentValues={currentValues}
+            activeScreen={activeScreen}
+            scadaEquipment={scadaEquipment}
+            scadaConnections={scadaConnections}
+            onSaveEquipment={(items) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
+            onSaveConnections={(items) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
+          />
+        </Suspense>
       ) : (
         <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 3D View...</div>}>
           <DigitalTwinView
