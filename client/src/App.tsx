@@ -350,6 +350,13 @@ export default function App() {
     fetch(`/api/history?range=${historyRange}${dp}`).then(r => r.json()).then(result => { if (result.data) setHistoryMap(result.data); });
   }, [mode, historyRange, activeScreen, sensors, screenSensors]);
 
+  // Re-seed live dataMap with 30m history when switching back to live
+  useEffect(() => {
+    if (mode !== 'live' || !authed || sensors.length === 0) return;
+    const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`;
+    fetch(`/api/history?range=30m${dp}`).then(r => r.json()).then(result => { if (result.data) setDataMap(result.data); });
+  }, [mode]);
+
   // ── Keyboard shortcuts ───────────────────────────────────────────
 
   const GAP = dashSettings.gap;
