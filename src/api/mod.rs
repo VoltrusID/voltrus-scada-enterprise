@@ -119,6 +119,10 @@ pub fn create_router(state: AppState) -> Router {
             get(layouts::get_twin_connections).put(layouts::save_twin_connections),
         )
         .route(
+            "/api/screens/{id}/twin-camera",
+            put(layouts::save_twin_camera),
+        )
+        .route(
             "/api/screens/{id}/canvas-layouts",
             get(layouts::get_canvas_layouts).put(layouts::save_canvas_layouts),
         )

@@ -54,16 +54,23 @@ pub async fn save_layouts(
     Ok(Json(json!({"ok": true})))
 }
 
-/// GET /api/screens/{id}/twin-layouts — get twin layouts for a screen
+/// GET /api/screens/{id}/twin-layouts — get twin layouts and camera for a screen
 pub async fn get_twin_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     let layouts = state.storage.get_twin_layouts(&id).await?;
-    Ok(Json(layouts))
+    let camera_key = format!("twin_camera:{id}");
+    let camera_settings = state.storage.get_settings(&[&camera_key]).await.unwrap_or_default();
+    let camera: serde_json::Value = camera_settings
+        .iter()
+        .find(|s| s.key == camera_key)
+        .and_then(|s| serde_json::from_str(&s.value).ok())
+        .unwrap_or(json!({"x": 6, "y": 6, "z": 6}));
+    Ok(Json(json!({"items": layouts, "camera": camera})))
 }
 
-/// PUT /api/screens/{id}/twin-layouts — accept array of twin layouts, validate equipment_type
+/// PUT /api/screens/{id}/twin-layouts — accept {items: [...], camera?: {x,y,z}}
 pub async fn save_twin_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -86,6 +93,10 @@ pub async fn save_twin_layouts(
                 .unwrap_or("")
                 .to_string(),
             equipment_type,
+            equipment_name: item["equipment_name"]
+                .as_str()
+                .unwrap_or("")
+                .to_string(),
             position_x: item["position_x"].as_f64().unwrap_or(0.0),
             position_z: item["position_z"].as_f64().unwrap_or(0.0),
             rotation_y: item["rotation_y"].as_f64().unwrap_or(0.0),
@@ -162,5 +173,17 @@ pub async fn save_twin_connections(
     }
 
     state.storage.save_twin_connections(&id, &connections).await?;
+    Ok(Json(json!({"ok": true})))
+}
+
+/// PUT /api/screens/{id}/twin-camera — save camera position {x, y, z}
+pub async fn save_twin_camera(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let key = format!("twin_camera:{id}");
+    let value = serde_json::to_string(&body).unwrap_or_else(|_| "{}".to_string());
+    state.storage.upsert_setting(&key, &value).await?;
     Ok(Json(json!({"ok": true})))
 }
