@@ -634,6 +634,7 @@ export default function App() {
             scadaConnections={scadaConnections}
             onSaveEquipment={(items) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
             onSaveConnections={(items) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
+            onSensorClick={(id) => setSelectedSensor(id)}
           />
         </Suspense>
       ) : (
@@ -678,7 +679,7 @@ export default function App() {
 
       {selectedSensor != null && (() => {
         const s = sensors.find(x => x.id === selectedSensor);
-        return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} shortcuts={shortcuts} /> : null;
+        return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} /> : null;
       })()}
 
       {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} />}
