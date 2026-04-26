@@ -340,6 +340,7 @@ pub struct TwinLayout {
     pub screen_id: String,
     pub equipment_id: String,
     pub equipment_type: String,
+    pub equipment_name: String,
     pub position_x: f64,
     pub position_z: f64,
     pub rotation_y: f64,

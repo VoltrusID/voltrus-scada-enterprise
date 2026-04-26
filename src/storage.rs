@@ -602,8 +602,9 @@ impl Storage {
         let screen_id = screen_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
+            // Try with equipment_name column first, fall back to without
             let mut stmt = conn
-                .prepare("SELECT screen_id, equipment_id, equipment_type, position_x, position_z, rotation_y FROM twin_layouts WHERE screen_id = ?1")
+                .prepare("SELECT screen_id, equipment_id, equipment_type, COALESCE(equipment_name, ''), position_x, position_z, rotation_y FROM twin_layouts WHERE screen_id = ?1")
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map(rusqlite::params![screen_id], |row| {
@@ -611,9 +612,10 @@ impl Storage {
                         screen_id: row.get(0)?,
                         equipment_id: row.get(1)?,
                         equipment_type: row.get(2)?,
-                        position_x: row.get(3)?,
-                        position_z: row.get(4)?,
-                        rotation_y: row.get(5)?,
+                        equipment_name: row.get(3)?,
+                        position_x: row.get(4)?,
+                        position_z: row.get(5)?,
+                        rotation_y: row.get(6)?,
                     })
                 })
                 .context("Query failed")?;
@@ -638,9 +640,9 @@ impl Storage {
             .context("Delete twin layouts failed")?;
             for l in &layouts {
                 tx.execute(
-                    "INSERT INTO twin_layouts (screen_id, equipment_id, equipment_type, position_x, position_z, rotation_y)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                    rusqlite::params![l.screen_id, l.equipment_id, l.equipment_type,
+                    "INSERT INTO twin_layouts (screen_id, equipment_id, equipment_type, equipment_name, position_x, position_z, rotation_y)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    rusqlite::params![l.screen_id, l.equipment_id, l.equipment_type, l.equipment_name,
                                       l.position_x, l.position_z, l.rotation_y],
                 )
                 .context("Insert twin layout failed")?;
@@ -1292,6 +1294,9 @@ fn init_schema(conn: &Connection) -> Result<()> {
 
     // Migration: add chart_type column
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'sparkline'");
+
+    // Migration: add equipment_name column to twin_layouts
+    let _ = conn.execute_batch("ALTER TABLE twin_layouts ADD COLUMN equipment_name TEXT NOT NULL DEFAULT ''");
 
     // Migration: rename legacy tables from sensor → data_source
     let _ = conn.execute_batch("ALTER TABLE sensors RENAME TO data_sources");

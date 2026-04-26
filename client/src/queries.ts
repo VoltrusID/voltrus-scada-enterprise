@@ -31,7 +31,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return r.json()
 }
 
-async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
+export async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
   const r = await fetch(url, init)
   if (!r.ok) {
     const body = await r.json().catch(() => ({}))
@@ -86,7 +86,7 @@ export function useTwinLayouts(screenId: string, enabled: boolean) {
   const actualId = screenId === 'all' ? '__overview' : screenId
   return useQuery({
     queryKey: queryKeys.twinLayouts(screenId),
-    queryFn: () => fetchJson<any[]>(`/api/screens/${actualId}/twin-layouts`),
+    queryFn: () => fetchJson<{ items: any[]; camera: { x: number; y: number; z: number } }>(`/api/screens/${actualId}/twin-layouts`),
     enabled,
   })
 }

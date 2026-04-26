@@ -21,12 +21,14 @@ interface Props {
   currentValues: Record<string, SensorData>
   activeScreen: string
   twinLayouts: any[]
+  twinCamera?: { x: number; y: number; z: number }
   twinConnections: { from_id: string; to_id: string }[]
   onEquipmentClick: (equipmentId: string) => void
   onSwitchToCards?: () => void
   onSensorUpdate: (sensor: SensorConfig) => void
   onSaveLayouts: (equipment: TwinEquipment[]) => void
   onSaveConnections: (connections: FlowConnection[]) => void
+  onSaveCamera: (camera: { x: number; y: number; z: number }) => void
 }
 
 function GroundPlane() {
@@ -137,12 +139,13 @@ function DraggableEquipment({ equipment, onDragEnd, onRotate, onClick, sensors, 
   )
 }
 
-export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayouts, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections }: Props) {
+export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayouts, twinCamera, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections, onSaveCamera }: Props) {
   const [equipment, setEquipment] = useState<TwinEquipment[]>(DEFAULT_EQUIPMENT.map(e => ({ ...e })))
   const [twinEditMode, setTwinEditMode] = useState(false)
   const [bindingEquipmentId, setBindingEquipmentId] = useState<string | null>(null)
   const [connections, setConnections] = useState<FlowConnection[]>([])
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  const cameraRef = useRef<THREE.Camera | null>(null)
 
   const [webglSupported] = useState(() => {
     try {
@@ -167,11 +170,13 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
 
   useEffect(() => {
     if (twinLayouts.length > 0) {
-      setEquipment(prev => prev.map(eq => {
-        const saved = twinLayouts.find((l: any) => l.equipment_id === eq.id)
-        if (saved) return { ...eq, position: [saved.position_x, 0, saved.position_z], rotation: saved.rotation_y }
-        return eq
-      }))
+      setEquipment(twinLayouts.map((l: any) => ({
+        id: l.equipment_id,
+        type: l.equipment_type as EquipmentType,
+        name: l.equipment_name || l.equipment_id,
+        position: [l.position_x, 0, l.position_z] as [number, number, number],
+        rotation: l.rotation_y,
+      })))
     }
   }, [twinLayouts])
 
@@ -198,6 +203,10 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
   const handleRemoveEquipment = useCallback((id: string) => {
     setEquipment(prev => prev.filter(eq => eq.id !== id))
     setConnections(prev => prev.filter(c => c.from !== id && c.to !== id))
+  }, [])
+
+  const handleRenameEquipment = useCallback((id: string, name: string) => {
+    setEquipment(prev => prev.map(eq => eq.id === id ? { ...eq, name } : eq))
   }, [])
 
   const getSensorsForEquipment = useCallback((eqId: string) => {
@@ -252,6 +261,10 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
           if (twinEditMode) {
             onSaveLayouts(equipment)
             onSaveConnections(connections)
+            if (cameraRef.current) {
+              const p = cameraRef.current.position
+              onSaveCamera({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, z: Math.round(p.z * 100) / 100 })
+            }
           }
           setTwinEditMode(!twinEditMode)
           setConnectFrom(null)
@@ -316,10 +329,10 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
 
       <Suspense fallback={<div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 3D...</div>}>
         <Canvas
-          camera={{ position: [6, 6, 6], fov: 50 }}
+          camera={{ position: twinCamera ? [twinCamera.x, twinCamera.y, twinCamera.z] : [6, 6, 6], fov: 50 }}
           frameloop="always"
           dpr={[1, 2]}
-          onCreated={({ camera }) => { camera.lookAt(0, 0, 0) }}
+          onCreated={({ camera }) => { camera.lookAt(0, 0, 0); cameraRef.current = camera }}
         >
           <ambientLight intensity={0.6} />
           <directionalLight position={[5, 8, 5]} intensity={0.8} />
@@ -372,11 +385,19 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
             fontFamily: 'Inter, sans-serif', width: 280, maxHeight: '60%', overflow: 'auto',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#e5e7eb' }}>{eq.name}</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>Select sensors to display</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <input
+                  value={eq.name}
+                  onChange={e => handleRenameEquipment(eq.id, e.target.value)}
+                  style={{
+                    fontSize: 13, fontWeight: 600, color: '#e5e7eb',
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 4, padding: '2px 6px', width: '100%', outline: 'none',
+                  }}
+                />
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 4 }}>Select sensors to display</div>
               </div>
-              <button onClick={() => setBindingEquipmentId(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>&times;</button>
+              <button onClick={() => setBindingEquipmentId(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1, marginLeft: 8 }}>&times;</button>
             </div>
             {sensors.length === 0 ? (
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>No sensors available</div>
