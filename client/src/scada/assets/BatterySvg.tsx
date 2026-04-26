@@ -1,6 +1,6 @@
 import React from 'react'
 interface Props { statusColor?: string }
-export const BatterySvg: React.FC<Props> = ({ statusColor = '#333' }) => (
+export const BatterySvg: React.FC<Props> = ({ statusColor = '#ccc' }) => (
   <svg viewBox="0 0 70 80" width="100%" height="100%" fill="none" stroke={statusColor} strokeWidth="2">
     <rect x="10" y="10" width="50" height="65" rx="3" />
     <rect x="25" y="5" width="20" height="5" rx="1" fill={statusColor} stroke="none" opacity="0.3" />

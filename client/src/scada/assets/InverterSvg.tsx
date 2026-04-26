@@ -1,6 +1,6 @@
 import React from 'react'
 interface Props { statusColor?: string }
-export const InverterSvg: React.FC<Props> = ({ statusColor = '#333' }) => (
+export const InverterSvg: React.FC<Props> = ({ statusColor = '#ccc' }) => (
   <svg viewBox="0 0 80 60" width="100%" height="100%" fill="none" stroke={statusColor} strokeWidth="2">
     <rect x="5" y="5" width="70" height="50" rx="3" />
     <text x="15" y="22" fontSize="8" fill={statusColor} stroke="none" fontWeight="bold">DC</text>
