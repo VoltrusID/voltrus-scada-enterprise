@@ -7,8 +7,7 @@ import { Chart } from './Chart'
 import { EditPanel } from './EditPanel'
 import { DashboardSettings } from './DashboardSettings'
 import { SensorDetail } from './SensorDetail'
-import { SensorManager } from './SensorManager'
-import { ModbusDeviceManager } from './ModbusDeviceManager'
+import { DataManager } from './DataManager'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
@@ -18,7 +17,7 @@ import { SensorGrid } from './SensorGrid'
 import { CanvasView } from './CanvasView'
 import { ScreenLayouts, LayoutItem } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, fetchOk } from './queries'
 const DigitalTwinView = lazy(() => import('./DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
 
 export default function App() {
@@ -47,8 +46,7 @@ export default function App() {
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null);
   const [mode, setMode] = useState<'live' | 'history' | 'system'>('live');
   const [historyRange, setHistoryRange] = useState('30m');
-  const [showSensorManager, setShowSensorManager] = useState(false);
-  const [showModbusManager, setShowModbusManager] = useState(false);
+  const [showDataManager, setShowDataManager] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [screenPrompt, setScreenPrompt] = useState<{ title: string; label: string; placeholder?: string; initial?: string; okLabel?: string; onSubmit: (v: string) => void } | null>(null);
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
@@ -79,7 +77,9 @@ export default function App() {
   const { data: serverLayouts } = useLayouts(activeScreen, authed);
   const screenLayouts = localLayouts ?? (serverLayouts ?? { lg: [], md: [], sm: [] });
 
-  const { data: twinLayouts = [] } = useTwinLayouts(activeScreen, authed);
+  const { data: twinLayoutsData } = useTwinLayouts(activeScreen, authed);
+  const twinLayouts = twinLayoutsData?.items ?? [];
+  const twinCamera = twinLayoutsData?.camera;
 
   const { data: twinConnections = [] } = useTwinConnections(activeScreen, authed);
 
@@ -417,37 +417,23 @@ export default function App() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
               }}>{alerts}</span>}
             </button>
-            {/* Mute toggle */}
-            <button onClick={() => { toggleMute(); setAlarmMuted(!alarmMuted); }} style={{
-              ...btnStyle, borderColor: alarmMuted ? 'var(--warn)' : 'var(--border)',
-              color: alarmMuted ? 'var(--warn)' : 'var(--fg)',
-            }}>
-              {alarmMuted ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="2"/></svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              )}
-            </button>
           {/* View mode toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Grids</button>
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'canvas' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'canvas' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('canvas')}>Canvas</button>
             <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D</button>
           </div>
-          {/* Live/History toggle */}
-          <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setMode('live')}>Live</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'system' ? '#a78bfa' : 'var(--fg)', background: mode === 'system' ? 'rgba(167,139,250,.1)' : 'var(--card)' }} onClick={() => setMode('system')}>System</button>
-          </div>
-          {mode === 'history' && (
-            <HistoryRangeBar range={historyRange} onChange={setHistoryRange} />
-          )}
+          {/* Live/History toggle (hidden in 3D mode) */}
+          {viewMode !== 'twin' && (<>
+            <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setMode('live')}>Live</button>
+              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History</button>
+            </div>
+            {mode === 'history' && (
+              <HistoryRangeBar range={historyRange} onChange={setHistoryRange} />
+            )}
+          </>)}
           {mode === 'live' && (<>
-            <button style={btnStyle} onClick={() => setShowDashSettings(true)}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              <span>Settings</span>
-            </button>
             <button style={btnStyle} onClick={() => setPaused(!paused)}>
               {paused ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>}
               <span>{paused ? 'Resume' : 'Pause'}</span>
@@ -457,14 +443,16 @@ export default function App() {
               <span>{turbo ? 'Turbo ON' : 'Turbo'}</span>
             </button>
           </>)}
+          <button style={btnStyle} onClick={() => setShowDashSettings(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Settings</span>
+          </button>
           <button style={{ ...btnStyle, borderColor: editMode ? 'var(--cyan)' : 'var(--border)', color: editMode ? 'var(--cyan)' : 'var(--fg)' }} onClick={() => {
             if (editMode) {
-              // Persist card layouts if changed
               if (localLayouts) {
                 saveLayoutMut.mutate({ screenId: activeScreen, layouts: localLayouts });
                 setLocalLayouts(null);
               }
-              // Persist canvas layouts if changed
               if (localCanvasLayouts) {
                 saveCanvasLayoutMut.mutate({ screenId: activeScreen, layouts: localCanvasLayouts });
                 setLocalCanvasLayouts(null);
@@ -478,14 +466,11 @@ export default function App() {
             <span>{editMode ? 'Done' : 'Edit'}</span>
           </button>
           {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Source</button>}
-          <button style={btnStyle} onClick={() => setShowSensorManager(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span>Sources</span>
+          <button style={btnStyle} onClick={() => setShowDataManager(true)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            <span>Data</span>
           </button>
-          <button style={btnStyle} onClick={() => setShowModbusManager(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
-            <span>Modbus</span>
-          </button>
+          <div style={{ marginLeft: 'auto' }} />
           <button style={btnStyle} onClick={handleLogout}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             <span>Logout</span>
@@ -495,10 +480,10 @@ export default function App() {
 
       {/* Screen navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
-        <button style={tabStyle(activeScreen === 'all')} onClick={() => setActiveScreen('all')}>Overview</button>
+        <button style={tabStyle(mode !== 'system' && activeScreen === 'all')} onClick={() => { setActiveScreen('all'); if (mode === 'system') setMode('live'); }}>Overview</button>
         {screens.map(s => (
           <div key={s.id} style={{ position: 'relative' }}>
-            <button style={tabStyle(activeScreen === s.id)} onClick={() => setActiveScreen(s.id)}>{s.name}</button>
+            <button style={tabStyle(mode !== 'system' && activeScreen === s.id)} onClick={() => { setActiveScreen(s.id); if (mode === 'system') setMode('live'); }}>{s.name}</button>
             {editMode && (
               <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
                 <button onClick={e => { e.stopPropagation(); handleRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
@@ -508,6 +493,11 @@ export default function App() {
           </div>
         ))}
         {editMode && <button onClick={handleAddScreen} style={{ ...tabStyle(false), color: 'var(--green)' }}>+</button>}
+        <button style={{
+          ...tabStyle(mode === 'system'),
+          color: mode === 'system' ? '#a78bfa' : 'var(--muted)',
+          borderBottom: mode === 'system' ? '2px solid #a78bfa' : '2px solid transparent',
+        }} onClick={() => { setMode('system'); setActiveScreen('all'); }}>System</button>
       </div>
 
       {/* Layout breakpoint selector (edit mode) */}
@@ -634,6 +624,7 @@ export default function App() {
             currentValues={currentValues}
             activeScreen={activeScreen}
             twinLayouts={twinLayouts}
+            twinCamera={twinCamera}
             twinConnections={twinConnections}
             onSwitchToCards={() => setViewMode('cards')}
             onEquipmentClick={(eqId) => {
@@ -645,7 +636,7 @@ export default function App() {
               saveTwinLayoutMut.mutate({
                 screenId: activeScreen,
                 items: equipment.map(e => ({
-                  equipment_id: e.id, equipment_type: e.type,
+                  equipment_id: e.id, equipment_type: e.type, equipment_name: e.name,
                   position_x: e.position[0], position_z: e.position[2], rotation_y: e.rotation,
                 }))
               })
@@ -656,19 +647,22 @@ export default function App() {
                 connections: connections.map(c => ({ from_id: c.from, to_id: c.to })),
               })
             }}
+            onSaveCamera={(camera) => {
+              const actualId = activeScreen === 'all' ? '__overview' : activeScreen
+              fetchOk(`/api/screens/${actualId}/twin-camera`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(camera) })
+            }}
           />
         </Suspense>
       ))}
 
-      {showDashSettings && <DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} />}
+      {showDashSettings && <DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted); }} />}
 
       {selectedSensor != null && (() => {
         const s = sensors.find(x => x.id === selectedSensor);
         return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} shortcuts={shortcuts} /> : null;
       })()}
 
-      {showSensorManager && <SensorManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowSensorManager(false)} shortcuts={shortcuts} />}
-      {showModbusManager && <ModbusDeviceManager onClose={() => setShowModbusManager(false)} />}
+      {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} />}
 
       {showAddDialog && activeScreen !== 'all' && (
         <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => {
