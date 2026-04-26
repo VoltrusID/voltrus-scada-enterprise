@@ -1,6 +1,6 @@
 import React from 'react'
 interface Props { statusColor?: string }
-export const SolarPanelSvg: React.FC<Props> = ({ statusColor = '#333' }) => (
+export const SolarPanelSvg: React.FC<Props> = ({ statusColor = '#ccc' }) => (
   <svg viewBox="0 0 100 60" width="100%" height="100%" fill="none" stroke={statusColor} strokeWidth="2">
     <rect x="5" y="5" width="90" height="40" rx="2" />
     <line x1="5" y1="25" x2="95" y2="25" />

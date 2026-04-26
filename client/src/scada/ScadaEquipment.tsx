@@ -10,6 +10,7 @@ interface Props {
   selected: boolean
   activeTool: string
   onSelect: () => void
+  onDelete: () => void
   onMove: (x: number, y: number) => void
   onResize: (w: number, h: number) => void
   onStartConnection: (portSide: string) => void
@@ -27,10 +28,10 @@ function getStatusColor(eq: ScadaEquipmentItem, currentValues: Record<string, Se
   }
   if (worst === 'critical') return '#ef4444'
   if (worst === 'warning') return '#eab308'
-  return '#333'
+  return '#ccc'
 }
 
-export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, editMode, selected, activeTool, onSelect, onMove, onResize, onStartConnection, onEndConnection }) => {
+export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, editMode, selected, activeTool, onSelect, onDelete, onMove, onResize, onStartConnection, onEndConnection }) => {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
   const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null)
   const statusColor = getStatusColor(equipment, currentValues)
@@ -39,8 +40,10 @@ export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, edit
   const bindings: string[] = JSON.parse(equipment.sensor_bindings || '[]')
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!editMode || activeTool !== 'select') return
+    if (!editMode) return
     e.stopPropagation()
+    if (activeTool === 'delete') { onDelete(); return }
+    if (activeTool !== 'select') return
     onSelect()
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: equipment.x, origY: equipment.y }
     const onMoveHandler = (ev: MouseEvent) => {
@@ -52,7 +55,7 @@ export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, edit
     const onUp = () => { dragRef.current = null; window.removeEventListener('mousemove', onMoveHandler); window.removeEventListener('mouseup', onUp) }
     window.addEventListener('mousemove', onMoveHandler)
     window.addEventListener('mouseup', onUp)
-  }, [editMode, activeTool, equipment.x, equipment.y, onSelect, onMove])
+  }, [editMode, activeTool, equipment.x, equipment.y, onSelect, onDelete, onMove])
 
   const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -80,10 +83,10 @@ export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, edit
       <foreignObject x="0" y="0" width={equipment.width} height={equipment.height}>
         {AssetComponent && <AssetComponent statusColor={statusColor} />}
       </foreignObject>
-      <text x={equipment.width / 2} y={equipment.height + 14} textAnchor="middle" fontSize="10" fill="#555" style={{ userSelect: 'none' }}>{equipment.equipment_name || equipment.equipment_type.replace(/_/g, ' ')}</text>
+      <text x={equipment.width / 2} y={equipment.height + 14} textAnchor="middle" fontSize="10" fill="#999" style={{ userSelect: 'none' }}>{equipment.equipment_name || equipment.equipment_type.replace(/_/g, ' ')}</text>
       {dataLabel && (
         <g>
-          <rect x={equipment.width - 8} y="-14" width={Math.max(dataLabel.length * 6 + 8, 40)} height="16" rx="3" fill="rgba(255,255,255,0.92)" stroke="#ddd" strokeWidth="0.5" />
+          <rect x={equipment.width - 8} y="-14" width={Math.max(dataLabel.length * 6 + 8, 40)} height="16" rx="3" fill="rgba(30,30,30,0.92)" stroke="#444" strokeWidth="0.5" />
           <text x={equipment.width - 4} y="-2" fontSize="9" fill={statusColor} style={{ userSelect: 'none' }}>{dataLabel}</text>
         </g>
       )}

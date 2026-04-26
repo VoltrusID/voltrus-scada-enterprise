@@ -1,6 +1,6 @@
 import React from 'react'
 interface Props { statusColor?: string }
-export const CircuitBreakerSvg: React.FC<Props> = ({ statusColor = '#333' }) => (
+export const CircuitBreakerSvg: React.FC<Props> = ({ statusColor = '#ccc' }) => (
   <svg viewBox="0 0 60 70" width="100%" height="100%" fill="none" stroke={statusColor} strokeWidth="2">
     <rect x="10" y="5" width="40" height="60" rx="3" />
     <line x1="30" y1="20" x2="30" y2="35" />

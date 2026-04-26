@@ -26,7 +26,7 @@ export const ScadaPalette: React.FC<Props> = ({ visible, onSelect, selectedType 
             border: `1px solid ${selectedType === value ? 'var(--cyan)' : 'transparent'}`,
             background: selectedType === value ? 'rgba(34,197,94,.1)' : 'transparent',
           }}>
-            <div style={{ width: 32, height: 24 }}>{SvgIcon && <SvgIcon statusColor={selectedType === value ? 'var(--cyan)' : '#333'} />}</div>
+            <div style={{ width: 32, height: 24 }}>{SvgIcon && <SvgIcon statusColor={selectedType === value ? 'var(--cyan)' : '#ccc'} />}</div>
             <span style={{ fontSize: 9, color: selectedType === value ? 'var(--cyan)' : 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>{label}</span>
           </div>
         )
