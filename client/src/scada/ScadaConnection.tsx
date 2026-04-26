@@ -7,7 +7,9 @@ interface Props {
   equipment: ScadaEquipmentItem[]
   selected: boolean
   editMode: boolean
+  activeTool: string
   onSelect: () => void
+  onDelete: () => void
 }
 
 function getPortPosition(eq: ScadaEquipmentItem, side: string): { x: number; y: number } {
@@ -29,7 +31,7 @@ function buildPath(from: { x: number; y: number }, to: { x: number; y: number },
   return `M ${from.x} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${to.x} ${to.y}`
 }
 
-export const ScadaConnection: React.FC<Props> = ({ connection, equipment, selected, editMode, onSelect }) => {
+export const ScadaConnection: React.FC<Props> = ({ connection, equipment, selected, editMode, activeTool, onSelect, onDelete }) => {
   const fromEq = equipment.find(e => e.equipment_id === connection.from_equipment)
   const toEq = equipment.find(e => e.equipment_id === connection.to_equipment)
   if (!fromEq || !toEq) return null
@@ -52,7 +54,7 @@ export const ScadaConnection: React.FC<Props> = ({ connection, equipment, select
   const angle = Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI
 
   return (
-    <g onClick={editMode ? onSelect : undefined} style={{ cursor: editMode ? 'pointer' : 'default' }}>
+    <g onClick={editMode ? (activeTool === 'delete' ? onDelete : onSelect) : undefined} style={{ cursor: editMode ? (activeTool === 'delete' ? 'crosshair' : 'pointer') : 'default' }}>
       <path d={pathD} fill="none" stroke="transparent" strokeWidth="12" />
       <path d={pathD} fill="none" stroke={selected ? 'var(--cyan)' : color} strokeWidth={strokeWidth} strokeDasharray={isDashed ? '8 4' : undefined} strokeLinecap="round" strokeLinejoin="round" />
       <polygon points="-4,-3 4,0 -4,3" transform={`translate(${midX}, ${midY}) rotate(${angle})`} fill={selected ? 'var(--cyan)' : color} />
