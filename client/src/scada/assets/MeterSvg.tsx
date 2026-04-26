@@ -1,6 +1,6 @@
 import React from 'react'
 interface Props { statusColor?: string }
-export const MeterSvg: React.FC<Props> = ({ statusColor = '#333' }) => (
+export const MeterSvg: React.FC<Props> = ({ statusColor = '#ccc' }) => (
   <svg viewBox="0 0 60 60" width="100%" height="100%" fill="none" stroke={statusColor} strokeWidth="2">
     <circle cx="30" cy="30" r="25" />
     <text x="30" y="36" textAnchor="middle" fontSize="16" fill={statusColor} stroke="none" fontWeight="bold">M</text>
