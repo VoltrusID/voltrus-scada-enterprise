@@ -363,6 +363,32 @@ pub struct CanvasLayoutItem {
     pub height: f64,
 }
 
+// ── SCADA 2D view types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ScadaEquipment {
+    pub screen_id: String,
+    pub equipment_id: String,
+    pub equipment_type: String,
+    pub equipment_name: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub rotation: f64,
+    pub sensor_bindings: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ScadaConnection {
+    pub screen_id: String,
+    pub connection_id: String,
+    pub from_equipment: String,
+    pub to_equipment: String,
+    pub waypoints: String,
+    pub connection_type: String,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserShortcut {
     pub user_id: i64,
