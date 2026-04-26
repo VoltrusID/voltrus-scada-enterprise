@@ -7,6 +7,7 @@ use crate::models::{
     DataPoint, Device, ScreenLayoutRow, DataSource, Setting, TwinLayout, TwinConnection, User, UserShortcut,
     Alarm, CanvasLayoutItem,
     ModbusDevice, ModbusRegister, ModbusRegisterInput, DeviceConfig,
+    ScadaEquipment, ScadaConnection,
 };
 
 #[derive(Clone)]
@@ -1288,7 +1289,29 @@ fn init_schema(conn: &Connection) -> Result<()> {
             UNIQUE(device_id, name)
         );
         CREATE INDEX IF NOT EXISTS idx_modbus_registers_device
-            ON modbus_registers(device_id);",
+            ON modbus_registers(device_id);
+        CREATE TABLE IF NOT EXISTS scada_equipment (
+            screen_id TEXT NOT NULL,
+            equipment_id TEXT NOT NULL,
+            equipment_type TEXT NOT NULL,
+            equipment_name TEXT NOT NULL DEFAULT '',
+            x REAL NOT NULL DEFAULT 0,
+            y REAL NOT NULL DEFAULT 0,
+            width REAL NOT NULL DEFAULT 100,
+            height REAL NOT NULL DEFAULT 60,
+            rotation REAL NOT NULL DEFAULT 0,
+            sensor_bindings TEXT NOT NULL DEFAULT '[]',
+            PRIMARY KEY (screen_id, equipment_id)
+        );
+        CREATE TABLE IF NOT EXISTS scada_connections (
+            screen_id TEXT NOT NULL,
+            connection_id TEXT NOT NULL,
+            from_equipment TEXT NOT NULL,
+            to_equipment TEXT NOT NULL,
+            waypoints TEXT NOT NULL DEFAULT '[]',
+            connection_type TEXT NOT NULL DEFAULT 'power',
+            PRIMARY KEY (screen_id, connection_id)
+        );",
     )
     .context("Failed to create schema")?;
 
