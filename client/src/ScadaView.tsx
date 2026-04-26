@@ -14,11 +14,12 @@ interface Props {
   scadaConnections: ScadaConnectionItem[]
   onSaveEquipment: (items: ScadaEquipmentItem[]) => void
   onSaveConnections: (items: ScadaConnectionItem[]) => void
+  onSensorClick: (sensorId: number) => void
 }
 
 export const ScadaView: React.FC<Props> = ({
   sensors, currentValues, activeScreen, scadaEquipment: serverEquipment, scadaConnections: serverConnections,
-  onSaveEquipment, onSaveConnections,
+  onSaveEquipment, onSaveConnections, onSensorClick,
 }) => {
   const [editMode, setEditMode] = useState(false)
   const [activeTool, setActiveTool] = useState<'select' | 'connect' | 'delete'>('select')
@@ -70,6 +71,12 @@ export const ScadaView: React.FC<Props> = ({
     dirtyRef.current = true
   }, [])
 
+  const handleDeleteConnection = useCallback((id: string) => {
+    setConnections(prev => prev.filter(c => c.connection_id !== id))
+    setSelectedId(null)
+    dirtyRef.current = true
+  }, [])
+
   const handleStartConnection = useCallback((eqId: string, _side: string) => {
     if (connectFrom) {
       if (connectFrom.eqId !== eqId) {
@@ -117,13 +124,15 @@ export const ScadaView: React.FC<Props> = ({
       <div style={{ position: 'relative' }}>
         <ScadaPalette visible={editMode && activeTool === 'select'} onSelect={setPendingType} selectedType={pendingType} />
         <ScadaCanvas
-          equipment={equipment} connections={connections} currentValues={currentValues}
+          equipment={equipment} connections={connections} currentValues={currentValues} sensors={sensors}
           editMode={editMode} selectedId={selectedId} activeTool={activeTool} pendingType={pendingType}
           onSelect={setSelectedId}
           onEquipmentMove={handleEquipmentMove} onEquipmentResize={handleEquipmentResize}
           onAddEquipment={handleAddEquipment}
           onStartConnection={handleStartConnection} onEndConnection={handleEndConnection}
           onDeleteEquipment={handleDeleteEquipment}
+          onDeleteConnection={handleDeleteConnection}
+          onSensorClick={onSensorClick}
         />
         {editMode && selectedEquipment && (
           <ScadaEditPanel equipment={selectedEquipment} sensors={sensors} onUpdate={handleEditPanelUpdate} onClose={() => setSelectedId(null)} />

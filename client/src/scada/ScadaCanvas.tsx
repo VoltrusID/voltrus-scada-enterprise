@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import type { ScadaEquipmentItem, ScadaConnectionItem, ScadaEquipmentType, SensorData } from '../types'
+import type { ScadaEquipmentItem, ScadaConnectionItem, ScadaEquipmentType, SensorData, SensorConfig } from '../types'
 import { ScadaEquipment } from './ScadaEquipment'
 import { ScadaConnection } from './ScadaConnection'
 
@@ -7,6 +7,7 @@ interface Props {
   equipment: ScadaEquipmentItem[]
   connections: ScadaConnectionItem[]
   currentValues: Record<string, SensorData>
+  sensors: SensorConfig[]
   editMode: boolean
   selectedId: string | null
   activeTool: 'select' | 'connect' | 'delete'
@@ -18,11 +19,13 @@ interface Props {
   onStartConnection: (eqId: string, portSide: string) => void
   onEndConnection: (eqId: string, portSide: string) => void
   onDeleteEquipment: (id: string) => void
+  onDeleteConnection: (id: string) => void
+  onSensorClick: (sensorId: number) => void
 }
 
 export const ScadaCanvas: React.FC<Props> = ({
-  equipment, connections, currentValues, editMode, selectedId, activeTool, pendingType,
-  onSelect, onEquipmentMove, onEquipmentResize, onAddEquipment, onStartConnection, onEndConnection, onDeleteEquipment,
+  equipment, connections, currentValues, sensors, editMode, selectedId, activeTool, pendingType,
+  onSelect, onEquipmentMove, onEquipmentResize, onAddEquipment, onStartConnection, onEndConnection, onDeleteEquipment, onDeleteConnection, onSensorClick,
 }) => {
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 1200, h: 800 })
   const [isPanning, setIsPanning] = useState(false)
@@ -106,7 +109,7 @@ export const ScadaCanvas: React.FC<Props> = ({
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 180px)', background: '#1a1a2e', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 180px)', background: '#060e09', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <button onClick={zoomIn} style={{ width: 28, height: 28, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
         <button onClick={zoomOut} style={{ width: 28, height: 28, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
@@ -124,15 +127,16 @@ export const ScadaCanvas: React.FC<Props> = ({
       >
         <defs>
           <pattern id="scada-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#2a2a3e" strokeWidth="0.5" />
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#0e1f16" strokeWidth="0.5" />
           </pattern>
         </defs>
+        <rect className="canvas-bg" x={viewBox.x - 100} y={viewBox.y - 100} width={viewBox.w + 200} height={viewBox.h + 200} fill="#060e09" />
         <rect className="canvas-bg" x={viewBox.x - 100} y={viewBox.y - 100} width={viewBox.w + 200} height={viewBox.h + 200} fill="url(#scada-grid)" />
         {connections.map(conn => (
-          <ScadaConnection key={conn.connection_id} connection={conn} equipment={equipment} selected={selectedId === conn.connection_id} editMode={editMode} onSelect={() => onSelect(conn.connection_id)} />
+          <ScadaConnection key={conn.connection_id} connection={conn} equipment={equipment} selected={selectedId === conn.connection_id} editMode={editMode} activeTool={activeTool} onSelect={() => onSelect(conn.connection_id)} onDelete={() => onDeleteConnection(conn.connection_id)} />
         ))}
         {equipment.map(eq => (
-          <ScadaEquipment key={eq.equipment_id} equipment={eq} currentValues={currentValues} editMode={editMode} selected={selectedId === eq.equipment_id} activeTool={activeTool} onSelect={() => onSelect(eq.equipment_id)} onDelete={() => onDeleteEquipment(eq.equipment_id)} onMove={(x, y) => onEquipmentMove(eq.equipment_id, x, y)} onResize={(w, h) => onEquipmentResize(eq.equipment_id, w, h)} onStartConnection={(side) => onStartConnection(eq.equipment_id, side)} onEndConnection={(side) => onEndConnection(eq.equipment_id, side)} />
+          <ScadaEquipment key={eq.equipment_id} equipment={eq} currentValues={currentValues} sensors={sensors} editMode={editMode} selected={selectedId === eq.equipment_id} activeTool={activeTool} onSelect={() => onSelect(eq.equipment_id)} onDelete={() => onDeleteEquipment(eq.equipment_id)} onMove={(x, y) => onEquipmentMove(eq.equipment_id, x, y)} onResize={(w, h) => onEquipmentResize(eq.equipment_id, w, h)} onStartConnection={(side) => onStartConnection(eq.equipment_id, side)} onEndConnection={(side) => onEndConnection(eq.equipment_id, side)} onSensorClick={onSensorClick} />
         ))}
       </svg>
     </div>

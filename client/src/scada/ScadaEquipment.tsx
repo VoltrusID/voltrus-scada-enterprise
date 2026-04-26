@@ -1,11 +1,12 @@
 import React, { useCallback, useRef } from 'react'
-import type { ScadaEquipmentItem, SensorData } from '../types'
+import type { ScadaEquipmentItem, SensorData, SensorConfig } from '../types'
 import { ASSET_MAP } from './assets'
 import { PORT_POSITIONS } from './defaults'
 
 interface Props {
   equipment: ScadaEquipmentItem
   currentValues: Record<string, SensorData>
+  sensors: SensorConfig[]
   editMode: boolean
   selected: boolean
   activeTool: string
@@ -15,6 +16,7 @@ interface Props {
   onResize: (w: number, h: number) => void
   onStartConnection: (portSide: string) => void
   onEndConnection: (portSide: string) => void
+  onSensorClick: (sensorId: number) => void
 }
 
 function getStatusColor(eq: ScadaEquipmentItem, currentValues: Record<string, SensorData>): string {
@@ -31,7 +33,7 @@ function getStatusColor(eq: ScadaEquipmentItem, currentValues: Record<string, Se
   return '#ccc'
 }
 
-export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, editMode, selected, activeTool, onSelect, onDelete, onMove, onResize, onStartConnection, onEndConnection }) => {
+export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, sensors, editMode, selected, activeTool, onSelect, onDelete, onMove, onResize, onStartConnection, onEndConnection, onSensorClick }) => {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
   const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null)
   const statusColor = getStatusColor(equipment, currentValues)
@@ -75,7 +77,16 @@ export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, edit
     onStartConnection(side)
   }, [editMode, activeTool, onStartConnection])
 
-  const dataLabel = bindings.map(id => { const val = currentValues[String(id)]; return val ? `${val.value.toFixed(1)}` : null }).filter(Boolean).join(' | ')
+  const dataCards = bindings.map(id => {
+    const val = currentValues[String(id)]
+    const cfg = sensors.find(s => String(s.id) === String(id))
+    if (!val || !cfg) return null
+    let color = '#22c55e'
+    if (val.crit > 0 && val.value >= val.crit) color = '#ef4444'
+    else if (val.warn > 0 && val.value >= val.warn) color = '#eab308'
+    else color = cfg.color || '#22c55e'
+    return { sensorId: cfg.id, value: val.value.toFixed(cfg.decimals ?? 1), unit: cfg.unit || '', name: cfg.name, color }
+  }).filter(Boolean) as { sensorId: number; value: string; unit: string; name: string; color: string }[]
 
   return (
     <g transform={`translate(${equipment.x}, ${equipment.y})${equipment.rotation ? ` rotate(${equipment.rotation}, ${equipment.width/2}, ${equipment.height/2})` : ''}`} onMouseDown={handleMouseDown} style={{ cursor: editMode ? 'move' : 'pointer' }}>
@@ -84,10 +95,24 @@ export const ScadaEquipment: React.FC<Props> = ({ equipment, currentValues, edit
         {AssetComponent && <AssetComponent statusColor={statusColor} />}
       </foreignObject>
       <text x={equipment.width / 2} y={equipment.height + 14} textAnchor="middle" fontSize="10" fill="#999" style={{ userSelect: 'none' }}>{equipment.equipment_name || equipment.equipment_type.replace(/_/g, ' ')}</text>
-      {dataLabel && (
+      {dataCards.length > 0 && (
         <g>
-          <rect x={equipment.width - 8} y="-14" width={Math.max(dataLabel.length * 6 + 8, 40)} height="16" rx="3" fill="rgba(30,30,30,0.92)" stroke="#444" strokeWidth="0.5" />
-          <text x={equipment.width - 4} y="-2" fontSize="9" fill={statusColor} style={{ userSelect: 'none' }}>{dataLabel}</text>
+          {dataCards.map((card, i) => {
+            const nameW = Math.max(card.name.length, 4) * 4.2 + 14
+            const valW = (card.value.length + (card.unit ? card.unit.length + 1 : 0)) * 6.2 + 14
+            const cardW = Math.max(nameW, valW, 40)
+            const cardH = 22
+            const offsetX = -cardW - 4
+            const offsetY = i * (cardH + 3)
+            return (
+              <g key={i} transform={`translate(${offsetX}, ${offsetY})`} style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onSensorClick(card.sensorId) }}>
+                <rect x="0" y="0" width={cardW} height={cardH} rx="3" fill="rgba(20,20,30,0.93)" stroke={card.color} strokeWidth="0.8" />
+                <rect x="0" y="0" width="3" height={cardH} rx="1" fill={card.color} />
+                <text x="8" y="10" fontSize="7" fill="#888" style={{ userSelect: 'none' }}>{card.name.length > 10 ? card.name.slice(0, 10) + '…' : card.name}</text>
+                <text x="8" y="19" fontSize="10" fontWeight="600" fill={card.color} style={{ userSelect: 'none' }}>{card.value}<tspan fontSize="8" fill="#aaa">{card.unit ? ` ${card.unit}` : ''}</tspan></text>
+              </g>
+            )
+          })}
         </g>
       )}
       {editMode && activeTool === 'connect' && ports.map((port, i) => (

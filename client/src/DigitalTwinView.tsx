@@ -35,13 +35,13 @@ function GroundPlane() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
       <planeGeometry args={[20, 20]} />
-      <meshStandardMaterial color="#1a1a2e" />
+      <meshStandardMaterial color="#0b1210" />
     </mesh>
   )
 }
 
 function GridHelper() {
-  return <gridHelper args={[20, 20, '#333355', '#222244']} />
+  return <gridHelper args={[20, 20, '#1a3324', '#152820']} />
 }
 
 const ROTATION_STEP = Math.PI / 12 // 15 degrees
@@ -263,7 +263,7 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
   const eqMap = new Map(equipment.map(e => [e.id, e]))
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 180px)', minHeight: 500, background: '#0f0f1a', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+    <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 180px)', minHeight: 500, background: '#0b1210', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
       {twinEditMode && <EquipmentPalette equipment={equipment} onAdd={handleAddEquipment} onRemove={handleRemoveEquipment} />}
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
         <button onClick={() => {
