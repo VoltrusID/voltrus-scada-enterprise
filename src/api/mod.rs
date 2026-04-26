@@ -127,6 +127,14 @@ pub fn create_router(state: AppState) -> Router {
             get(layouts::get_canvas_layouts).put(layouts::save_canvas_layouts),
         )
         .route(
+            "/api/screens/{id}/scada-equipment",
+            get(layouts::get_scada_equipment).put(layouts::save_scada_equipment),
+        )
+        .route(
+            "/api/screens/{id}/scada-connections",
+            get(layouts::get_scada_connections).put(layouts::save_scada_connections),
+        )
+        .route(
             "/api/data-sources",
             get(data_sources::list_data_sources).post(data_sources::create_data_source),
         )
