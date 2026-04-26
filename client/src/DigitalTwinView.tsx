@@ -146,6 +146,8 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
   const [connections, setConnections] = useState<FlowConnection[]>([])
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   const cameraRef = useRef<THREE.Camera | null>(null)
+  const [cameraMoved, setCameraMoved] = useState(false)
+  const savedCameraPos = useRef(twinCamera ? [twinCamera.x, twinCamera.y, twinCamera.z] : [6, 6, 6])
 
   const [webglSupported] = useState(() => {
     try {
@@ -167,6 +169,13 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
       </div>
     )
   }
+
+  useEffect(() => {
+    if (twinCamera) {
+      savedCameraPos.current = [twinCamera.x, twinCamera.y, twinCamera.z]
+    }
+    setCameraMoved(false)
+  }, [twinCamera])
 
   useEffect(() => {
     if (twinLayouts.length > 0) {
@@ -261,10 +270,6 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
           if (twinEditMode) {
             onSaveLayouts(equipment)
             onSaveConnections(connections)
-            if (cameraRef.current) {
-              const p = cameraRef.current.position
-              onSaveCamera({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, z: Math.round(p.z * 100) / 100 })
-            }
           }
           setTwinEditMode(!twinEditMode)
           setConnectFrom(null)
@@ -289,6 +294,32 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
           </button>
         )}
         {twinEditMode && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter, sans-serif' }}>Drag to move · Scroll to rotate</span>}
+        {!twinEditMode && cameraMoved && (
+          <>
+            <button onClick={() => {
+              if (!cameraRef.current) return
+              const p = cameraRef.current.position
+              onSaveCamera({ x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, z: Math.round(p.z * 100) / 100 })
+              savedCameraPos.current = [p.x, p.y, p.z]
+              setCameraMoved(false)
+            }} style={{
+              padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              border: '1px solid #06b6d4', background: 'rgba(6,182,212,0.15)', color: '#06b6d4',
+              fontFamily: 'Inter, sans-serif',
+            }}>Save View</button>
+            <button onClick={() => {
+              if (!cameraRef.current) return
+              const [sx, sy, sz] = savedCameraPos.current
+              cameraRef.current.position.set(sx, sy, sz)
+              cameraRef.current.lookAt(0, 0, 0)
+              setCameraMoved(false)
+            }} style={{
+              padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(15,15,20,0.9)', color: 'rgba(255,255,255,0.6)',
+              fontFamily: 'Inter, sans-serif',
+            }}>Reset View</button>
+          </>
+        )}
       </div>
 
       {/* Connections list in edit mode */}
@@ -338,7 +369,14 @@ export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayo
           <directionalLight position={[5, 8, 5]} intensity={0.8} />
           <GroundPlane />
           <GridHelper />
-          <OrbitControls makeDefault enabled={!twinEditMode} enableDamping dampingFactor={0.1} maxPolarAngle={Math.PI / 2.2} />
+          <OrbitControls makeDefault enabled={!twinEditMode} enableDamping dampingFactor={0.1} maxPolarAngle={Math.PI / 2.2} onChange={() => {
+            if (!cameraRef.current || twinEditMode) return
+            const [sx, sy, sz] = savedCameraPos.current
+            const p = cameraRef.current.position
+            if (Math.abs(p.x - sx) > 0.05 || Math.abs(p.y - sy) > 0.05 || Math.abs(p.z - sz) > 0.05) {
+              setCameraMoved(true)
+            }
+          }} />
           <ConnectionLines equipment={equipment} connections={connections} />
           {equipment.map(eq => (
             <DraggableEquipment
