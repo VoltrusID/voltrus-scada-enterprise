@@ -93,3 +93,38 @@ export interface ModbusRegister {
   scale: number
   sort_order: number
 }
+
+// ── SCADA 2D view types ──
+
+export type ScadaEquipmentType = 'solar_panel' | 'inverter' | 'gateway' | 'transformer' | 'battery' | 'meter' | 'circuit_breaker'
+export type ScadaConnectionType = 'power' | 'data' | 'flow'
+
+export const SCADA_EQUIPMENT_TYPES: { value: ScadaEquipmentType; label: string; defaultWidth: number; defaultHeight: number }[] = [
+  { value: 'solar_panel', label: 'Solar Panel', defaultWidth: 100, defaultHeight: 60 },
+  { value: 'inverter', label: 'Inverter', defaultWidth: 80, defaultHeight: 60 },
+  { value: 'gateway', label: 'Gateway/PLC', defaultWidth: 80, defaultHeight: 70 },
+  { value: 'transformer', label: 'Transformer', defaultWidth: 90, defaultHeight: 80 },
+  { value: 'battery', label: 'Battery', defaultWidth: 70, defaultHeight: 80 },
+  { value: 'meter', label: 'Meter', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'circuit_breaker', label: 'Circuit Breaker', defaultWidth: 60, defaultHeight: 70 },
+]
+
+export interface ScadaEquipmentItem {
+  equipment_id: string
+  equipment_type: ScadaEquipmentType
+  equipment_name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  sensor_bindings: string
+}
+
+export interface ScadaConnectionItem {
+  connection_id: string
+  from_equipment: string
+  to_equipment: string
+  waypoints: string
+  connection_type: ScadaConnectionType
+}
