@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem, ModbusDevice, ModbusRegister } from './types'
+import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem, ModbusDevice, ModbusRegister, ScadaEquipmentItem, ScadaConnectionItem } from './types'
 import type { BrandingSettings } from './BrandingDialog'
 
 // ── Query key factory ──────────────────────────────────────────────
@@ -21,6 +21,8 @@ export const queryKeys = {
   modbusDevice:   (id: string) => ['modbusDevice', id] as const,
   modbusRegisters: (id: string) => ['modbusRegisters', id] as const,
   modbusStatus:   ['modbusStatus'] as const,
+  scadaEquipment:  (screenId: string) => ['scadaEquipment', screenId] as const,
+  scadaConnections: (screenId: string) => ['scadaConnections', screenId] as const,
 }
 
 // ── Fetcher helper ─────────────────────────────────────────────────
@@ -525,6 +527,60 @@ export function useRestartModbusPoller() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.modbusStatus })
+    },
+  })
+}
+
+// ── SCADA 2D view hooks ────────────────────────────────────────────────
+
+export function useScadaEquipment(screenId: string, enabled: boolean) {
+  const actualId = screenId === 'all' ? '__overview' : screenId
+  return useQuery({
+    queryKey: queryKeys.scadaEquipment(screenId),
+    queryFn: () => fetchJson<{ items: ScadaEquipmentItem[] }>(`/api/screens/${actualId}/scada-equipment`).then(r => r.items),
+    enabled,
+  })
+}
+
+export function useScadaConnections(screenId: string, enabled: boolean) {
+  const actualId = screenId === 'all' ? '__overview' : screenId
+  return useQuery({
+    queryKey: queryKeys.scadaConnections(screenId),
+    queryFn: () => fetchJson<{ items: ScadaConnectionItem[] }>(`/api/screens/${actualId}/scada-connections`).then(r => r.items),
+    enabled,
+  })
+}
+
+export function useSaveScadaEquipment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, items }: { screenId: string; items: ScadaEquipmentItem[] }) => {
+      const actualId = screenId === 'all' ? '__overview' : screenId
+      await fetchOk(`/api/screens/${actualId}/scada-equipment`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.scadaEquipment(screenId) })
+    },
+  })
+}
+
+export function useSaveScadaConnections() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ screenId, items }: { screenId: string; items: ScadaConnectionItem[] }) => {
+      const actualId = screenId === 'all' ? '__overview' : screenId
+      await fetchOk(`/api/screens/${actualId}/scada-connections`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+    },
+    onSuccess: (_, { screenId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.scadaConnections(screenId) })
     },
   })
 }
