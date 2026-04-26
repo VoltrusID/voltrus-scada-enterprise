@@ -272,7 +272,13 @@ export default function App() {
     if (!authed || sensors.length === 0 || initialLoadDone.current) return;
     initialLoadDone.current = true;
     fetch('/api/history?range=30m').then(r => r.json()).then(result => {
-      if (result.data) setDataMap(result.data);
+      if (!result.data) return;
+      const remapped: Record<string, DataPoint[]> = {};
+      for (const s of sensors) {
+        const pts = result.data[s.key];
+        if (pts) remapped[String(s.id)] = pts;
+      }
+      setDataMap(remapped);
     });
   }, [authed, sensors]);
 
@@ -347,14 +353,31 @@ export default function App() {
   useEffect(() => {
     if (mode !== 'history') { setHistoryMap(null); return; }
     const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`;
-    fetch(`/api/history?range=${historyRange}${dp}`).then(r => r.json()).then(result => { if (result.data) setHistoryMap(result.data); });
+    fetch(`/api/history?range=${historyRange}${dp}`).then(r => r.json()).then(result => {
+      if (!result.data) return;
+      const remapped: Record<string, DataPoint[]> = {};
+      for (const s of screenSensors) {
+        const pts = result.data[s.key];
+        if (pts) remapped[String(s.id)] = pts;
+      }
+      setHistoryMap(remapped);
+    });
   }, [mode, historyRange, activeScreen, sensors, screenSensors]);
 
   // Re-seed live dataMap with 30m history when switching back to live
   useEffect(() => {
     if (mode !== 'live' || !authed || sensors.length === 0) return;
     const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`;
-    fetch(`/api/history?range=30m${dp}`).then(r => r.json()).then(result => { if (result.data) setDataMap(result.data); });
+    fetch(`/api/history?range=30m${dp}`).then(r => r.json()).then(result => {
+      if (!result.data) return;
+      // History API keys by sensor key, live data keys by sensor id — remap
+      const remapped: Record<string, DataPoint[]> = {};
+      for (const s of screenSensors) {
+        const pts = result.data[s.key];
+        if (pts) remapped[String(s.id)] = pts;
+      }
+      setDataMap(remapped);
+    });
   }, [mode]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────
