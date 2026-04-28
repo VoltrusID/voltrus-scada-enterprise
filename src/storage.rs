@@ -232,6 +232,80 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
+    pub async fn query_device_metrics_merged(
+        &self,
+        device_id: &str,
+        from: i64,
+        to: i64,
+        raw_cutoff: i64,
+        hourly_cutoff: i64,
+    ) -> Result<Vec<(i64, std::collections::HashMap<String, f64>)>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut grouped: std::collections::BTreeMap<i64, std::collections::HashMap<String, f64>> =
+                std::collections::BTreeMap::new();
+
+            // Raw data (within raw retention window)
+            let raw_from = from.max(hourly_cutoff).min(raw_cutoff);
+            let raw_to = to.min(raw_cutoff);
+            if raw_from < raw_to {
+                let mut stmt = conn.prepare(
+                    "SELECT timestamp, metric, value FROM telemetry
+                     WHERE device_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+                     ORDER BY timestamp LIMIT 10000"
+                ).context("Prepare raw failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, raw_from, raw_to], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
+                }).context("Query raw failed")?;
+                for row in rows {
+                    let (ts, metric, value) = row.context("Row mapping failed")?;
+                    grouped.entry(ts).or_default().insert(metric, value);
+                }
+            }
+
+            // Hourly data (between raw_cutoff and hourly_cutoff)
+            let hourly_from = from.max(hourly_cutoff);
+            let hourly_to = to.min(raw_cutoff);
+            if hourly_from < hourly_to {
+                let mut stmt = conn.prepare(
+                    "SELECT bucket_start, metric, avg_value FROM telemetry_hourly
+                     WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
+                     ORDER BY bucket_start LIMIT 10000"
+                ).context("Prepare hourly failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, hourly_from, hourly_to], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
+                }).context("Query hourly failed")?;
+                for row in rows {
+                    let (ts, metric, value) = row.context("Row mapping failed")?;
+                    grouped.entry(ts).or_default().insert(metric, value);
+                }
+            }
+
+            // Daily data (older than hourly_cutoff)
+            let daily_to = to.min(hourly_cutoff);
+            if from < daily_to {
+                let mut stmt = conn.prepare(
+                    "SELECT bucket_start, metric, avg_value FROM telemetry_daily
+                     WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
+                     ORDER BY bucket_start LIMIT 10000"
+                ).context("Prepare daily failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, from, daily_to], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
+                }).context("Query daily failed")?;
+                for row in rows {
+                    let (ts, metric, value) = row.context("Row mapping failed")?;
+                    grouped.entry(ts).or_default().insert(metric, value);
+                }
+            }
+
+            Ok(grouped.into_iter().collect())
+        }).await.context("Task join failed")?
+    }
+
     // ── Users ──
 
     pub async fn get_user_by_username(&self, username: &str) -> Result<Option<User>> {
