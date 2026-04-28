@@ -1,4 +1,5 @@
 /target
+voltrus-iced/target/
 data.db
 static/
 client/node_modules/
