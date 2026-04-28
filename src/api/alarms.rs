@@ -33,13 +33,24 @@ pub async fn list_alarms(
     Ok(Json(alarms))
 }
 
+async fn get_cooldown_secs(storage: &crate::storage::Storage) -> i64 {
+    storage
+        .get_settings(&["alarm_cooldown_secs"])
+        .await
+        .ok()
+        .and_then(|s| s.into_iter().next())
+        .and_then(|s| s.value.parse().ok())
+        .unwrap_or(300)
+}
+
 /// POST /api/alarms/{id}/acknowledge
 pub async fn acknowledge_alarm(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    state.storage.acknowledge_alarm(id, &user.username).await?;
+    let cooldown = get_cooldown_secs(&state.storage).await;
+    state.storage.acknowledge_alarm(id, &user.username, cooldown).await?;
     Ok(Json(json!({"ok": true})))
 }
 
@@ -48,6 +59,7 @@ pub async fn acknowledge_all(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    state.storage.acknowledge_all(&user.username).await?;
+    let cooldown = get_cooldown_secs(&state.storage).await;
+    state.storage.acknowledge_all(&user.username, cooldown).await?;
     Ok(Json(json!({"ok": true})))
 }

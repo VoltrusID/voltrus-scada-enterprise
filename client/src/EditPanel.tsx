@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { SensorConfig } from './types';
-import { SOURCE_TYPES, CHART_TYPES } from './types';
+import { SOURCE_TYPES, CHART_TYPES, SOURCE_CATEGORY, SIMULATE_TYPES } from './types';
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, tabStyle, parseConfig, normalizeKeyEvent, displayShortcut } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
 
@@ -47,7 +47,7 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ fontSize: 13, fontWeight: 600 }}>Edit: {sensor.name}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'rgba(34,197,94,.1)', color: 'var(--cyan)' }}>{form.source_type}</div>
+            <div style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: `${SOURCE_CATEGORY[form.source_type]?.color ?? 'var(--muted)'}18`, color: SOURCE_CATEGORY[form.source_type]?.color ?? 'var(--muted)', fontWeight: 700, letterSpacing: '.04em' }}>{SOURCE_CATEGORY[form.source_type]?.tag ?? form.source_type} — {SOURCE_CATEGORY[form.source_type]?.label ?? form.source_type}</div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>&times;</button>
           </div>
         </div>
@@ -141,7 +141,21 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
             </div>
           </div>)}
           {tab === 'source' && (<div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={labelStyle}><span style={labelTextStyle}>Source Type</span><select value={form.source_type} onChange={e => { setForm({ ...form, source_type: e.target.value }); setSrcConfig({}); }} style={inputStyle}>{SOURCE_TYPES.map(t => <option key={t} value={t}>{t === 'none' ? 'none (static)' : t}</option>)}</select></label>
+            <label style={labelStyle}>
+              <span style={labelTextStyle}>Data Source</span>
+              <select value={form.source_type} onChange={e => { setForm({ ...form, source_type: e.target.value }); setSrcConfig({}); }} style={inputStyle}>
+                <optgroup label="Real Data">
+                  <option value="modbus">Modbus (Live Device)</option>
+                </optgroup>
+                <optgroup label="Simulate / Synthetic">
+                  {(SIMULATE_TYPES as readonly string[]).map(t => <option key={t} value={t}>{SOURCE_CATEGORY[t]?.label ?? t}</option>)}
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="api">API (HTTP Poll)</option>
+                  <option value="none">None (Static)</option>
+                </optgroup>
+              </select>
+            </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}><SourceConfigFields sourceType={form.source_type} config={srcConfig} onChange={c => {
               setSrcConfig(c);
               if (form.source_type === 'modbus' && c.modbus_device_id) {

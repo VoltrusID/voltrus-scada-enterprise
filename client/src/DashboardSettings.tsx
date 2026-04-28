@@ -1,4 +1,5 @@
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, btnStyle } from './styles';
+import { useAlarmCooldown, useUpdateAlarmCooldown } from './queries';
 
 const aggOptions = [
   { value: 'sampling', label: 'Sampling', desc: 'Pick evenly-spaced points. Fastest, but skips data between intervals.' },
@@ -9,6 +10,9 @@ const aggOptions = [
 export type HistoryAutoAgg = typeof aggOptions[number]['value'];
 
 export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onToggleMute }: { settings: { gap: number; refreshInterval: number; historyAutoAgg: HistoryAutoAgg }; onChange: (s: any) => void; onClose: () => void; alarmMuted: boolean; onToggleMute: () => void }) {
+  const { data: cooldownSecs = 300 } = useAlarmCooldown()
+  const updateCooldown = useUpdateAlarmCooldown()
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={onClose}>
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, minWidth: 340, maxWidth: 440 }} onClick={e => e.stopPropagation()}>
@@ -34,6 +38,19 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
               {aggOptions.find(o => o.value === settings.historyAutoAgg)?.desc}
             </div>
           </div>
+          <label style={labelStyle}>
+            <span style={labelTextStyle}>Alarm Cooldown (seconds)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <input type="number" step="30" min="0" max="86400" value={cooldownSecs} onChange={e => {
+                const val = Math.max(0, Math.min(86400, parseInt(e.target.value) || 0))
+                updateCooldown.mutate(val)
+              }} style={monoInputStyle} />
+              <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>0 = disabled</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 4, lineHeight: 1.4 }}>
+              After acknowledging an alarm, wait this long before triggering a new alarm for the same sensor if the value is still above threshold.
+            </div>
+          </label>
           <label style={labelStyle}>
             <span style={labelTextStyle}>Mute Alarms</span>
             <button onClick={onToggleMute} style={{

@@ -91,7 +91,7 @@ pub fn parse_range(range: &str) -> (i64, i64) {
             }
         }
     }
-    let now = chrono::Utc::now().timestamp();
+    let now = crate::timeutil::now_secs();
     let secs = match range {
         "30m" => 30 * 60,
         "1h" => 60 * 60,

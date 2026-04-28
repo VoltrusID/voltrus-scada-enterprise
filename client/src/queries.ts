@@ -626,6 +626,35 @@ export function useSaveScadaConnections() {
   })
 }
 
+// ── Alarm cooldown hooks ──────────────────────────────────────────────
+
+export function useAlarmCooldown() {
+  return useQuery({
+    queryKey: ['alarmCooldown'],
+    queryFn: async () => {
+      const r = await fetchJson<{ secs: number }>('/api/settings/alarm-cooldown')
+      return r.secs
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateAlarmCooldown() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (secs: number) => {
+      await fetchOk('/api/settings/alarm-cooldown', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secs }),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alarmCooldown'] })
+    },
+  })
+}
+
 // ── User management hooks ──────────────────────────────────────────────
 
 export function useUsers(enabled: boolean) {

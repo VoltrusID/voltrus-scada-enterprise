@@ -12,33 +12,33 @@ name = "modbus-sim"
 path = "src/bin/modbus-sim.rs"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
-futures = "0.3"
-tokio-modbus = { version = "0.16", default-features = false, features = ["tcp", "tcp-server"] }
-axum = "0.8"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
-rusqlite = { version = "0.34", features = ["bundled"] }
-chrono = "0.4"
-anyhow = "1"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
-axum-extra = { version = "0.10", features = ["cookie"] }
-hmac = "0.12"
-sha2 = "0.10"
-hex = "0.4"
-base64 = "0.22"
-argon2 = "0.5"
-password-hash = "0.5"
-rand = "0.9"
-flate2 = "1"
-sysinfo = "0.34"
-time = "0.3.47"
+tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
+tokio-stream = { version = "=0.1.18", features = ["sync"] }
+tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp", "tcp-server"] }
+axum = "=0.8.9"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"
+serde_yml = "=0.0.12"
+rusqlite = { version = "=0.34.0", features = ["bundled"] }
+anyhow = "=1.0.102"
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
+tower-http = { version = "=0.6.8", features = ["cors", "fs"] }
+axum-extra = { version = "=0.10.3", features = ["cookie"] }
+hmac = "=0.12.1"
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+base64 = "=0.22.1"
+argon2 = "=0.5.3"
+password-hash = "=0.5.0"
+rand = "=0.9.4"
+flate2 = "=1.1.9"
+sysinfo = "=0.34.2"
+time = "=0.3.47"
+jsonwebtoken = "=9.3"
+reqwest = { version = "=0.12.15", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
-http = "1"
-tower = { version = "0.5", features = ["util"] }
-tempfile = "3"
+http = "=1.4.0"
+tower = { version = "=0.5.3", features = ["util"] }
+tempfile = "=3.27.0"

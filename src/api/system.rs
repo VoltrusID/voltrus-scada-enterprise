@@ -60,7 +60,7 @@ pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResp
     let my_pid = sysinfo::Pid::from(std::process::id() as usize);
     let process_info = if let Some(proc) = sys.process(my_pid) {
         let proc_start = proc.start_time();
-        let now = chrono::Utc::now().timestamp() as u64;
+        let now = crate::timeutil::now_secs() as u64;
         let proc_uptime = now.saturating_sub(proc_start);
         let binary_size_mb = std::fs::metadata(std::env::current_exe().unwrap_or_default())
             .map(|m| m.len() as f64 / (1024.0 * 1024.0))
