@@ -57,6 +57,10 @@ pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResp
         (0.0, 0.0, 0.0)
     };
 
+    let db_size_mb = std::fs::metadata(state.storage.db_path())
+        .map(|m| m.len() as f64 / (1024.0 * 1024.0))
+        .unwrap_or(0.0);
+
     let my_pid = sysinfo::Pid::from(std::process::id() as usize);
     let process_info = if let Some(proc) = sys.process(my_pid) {
         let proc_start = proc.start_time();
@@ -93,6 +97,7 @@ pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResp
         disk_total_gb: (disk_total_gb * 10.0).round() / 10.0,
         disk_used_gb: (disk_used_gb * 10.0).round() / 10.0,
         disk_percent: (disk_percent * 10.0).round() / 10.0,
+        db_size_mb: (db_size_mb * 10.0).round() / 10.0,
         process: process_info,
     }))
 }
