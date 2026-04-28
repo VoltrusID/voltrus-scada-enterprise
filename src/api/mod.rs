@@ -10,6 +10,7 @@ mod modbus_devices;
 mod data;
 mod system;
 mod generators;
+mod stream;
 
 use axum::{
     extract::{Request, State},
@@ -85,6 +86,7 @@ pub fn create_router(state: AppState) -> Router {
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
         .route("/api/live", get(system::get_live))
+        .route("/api/stream", get(stream::stream))
         .route("/api/system", get(system::get_system))
         .route("/api/data", get(data::get_data))
         .route("/api/history", get(data::get_history))
