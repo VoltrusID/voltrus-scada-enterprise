@@ -199,6 +199,10 @@ pub fn create_router(state: AppState) -> Router {
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
+        .nest_service(
+            "/lit",
+            ServeDir::new("client-lit").fallback(ServeFile::new("client-lit/index.html")),
+        )
         .fallback_service(
             ServeDir::new("static").fallback(ServeFile::new("static/index.html")),
         )

@@ -9,7 +9,7 @@ export class AlarmAudio {
 
   constructor() {
     if (typeof Audio !== 'undefined') {
-      this._audio = new Audio('/alarm.wav');
+      this._audio = new Audio('alarm.wav');
       this._audio.loop = true;
       this._audio.volume = 0.5;
     }

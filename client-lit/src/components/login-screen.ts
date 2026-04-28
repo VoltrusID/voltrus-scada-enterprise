@@ -65,7 +65,7 @@ export class LoginScreen extends LitElement {
     return html`
       <form @submit="${this._submit}">
         <div class="header">
-          <img src="/favicon-32.png" alt="Voltrus Lite" />
+          <img src="favicon-32.png" alt="Voltrus Lite" />
           <span>Voltrus Lite</span>
         </div>
         <label>

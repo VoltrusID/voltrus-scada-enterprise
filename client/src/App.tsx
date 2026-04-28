@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, SensorData, DataPoint, Screen, LIVE_PTS, CanvasLayoutItem } from './types'
-import { btnStyle, tabStyle, normalizeKeyEvent, displayShortcut } from './styles'
+import { normalizeKeyEvent } from './styles'
 import { expandCompactData } from './utils'
 import { LoginScreen } from './LoginScreen'
-import { Chart } from './Chart'
-import { EditPanel } from './EditPanel'
 import { DashboardSettings } from './DashboardSettings'
 import { SensorDetail } from './SensorDetail'
 import { DataManager } from './DataManager'
@@ -15,11 +13,13 @@ import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
 import { useAlarmAudio } from './useAlarmAudio'
 import { useSSEData } from './useSSEData'
 import { AlarmPanel } from './AlarmPanel'
-import { HistoryRangeBar } from './CustomRangePicker'
 import { SensorGrid } from './SensorGrid'
 import { CanvasView } from './CanvasView'
 import { ScreenLayouts, LayoutItem } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
+import { AppHeader } from './components/AppHeader'
+import { ScreenTabs } from './components/ScreenTabs'
+import { SystemPanel } from './components/SystemPanel'
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useSystemInfo, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 const DigitalTwinView = lazy(() => import('./DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
 const ScadaView = lazy(() => import('./ScadaView').then(m => ({ default: m.ScadaView })))
@@ -466,117 +466,55 @@ export default function App() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', flexShrink: 0, flexWrap: 'wrap', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: editMode ? 'pointer' : 'default' }}
-          onClick={() => { if (editMode) setShowBrandingDialog(true); }}>
-          <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'contain' }} />
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>{branding.title} <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 14 }}>{branding.subtitle}</span></h1>
-          {editMode && (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ marginLeft: -4 }}>
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {/* Alarm bell */}
-            <button onClick={() => setShowAlarmPanel(v => !v)} style={{
-              ...btnStyle, position: 'relative', borderColor: activeAlarms.count > 0 ? 'var(--crit)' : 'var(--border)',
-              color: activeAlarms.count > 0 ? 'var(--crit)' : 'var(--fg)',
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              {effectiveNavShortcuts['action:alarms'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['action:alarms'])}</kbd> : null}
-              {activeAlarms.count > 0 && <span style={{
-                position: 'absolute', top: -4, right: -4, background: 'var(--crit)',
-                color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-              }}>{activeAlarms.count}</span>}
-            </button>
-          {/* View mode toggle */}
-          <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Grids{effectiveNavShortcuts['view:cards'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:cards'])}</kbd> : null}</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'canvas' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'canvas' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('canvas')}>Canvas{effectiveNavShortcuts['view:canvas'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:canvas'])}</kbd> : null}</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D{effectiveNavShortcuts['view:twin'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:twin'])}</kbd> : null}</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'scada' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'scada' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('scada')}>2D{effectiveNavShortcuts['view:scada'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:scada'])}</kbd> : null}</button>
-          </div>
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowShortcutsPanel(!showShortcutsPanel)} style={{ ...btnStyle, padding: '6px 8px', fontSize: 12, color: showShortcutsPanel ? 'var(--cyan)' : 'var(--muted)', background: showShortcutsPanel ? 'rgba(34,197,94,.1)' : 'transparent', border: showShortcutsPanel ? '1px solid var(--cyan)' : '1px solid var(--border)' }} title="Keyboard shortcuts">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/></svg>
-            </button>
-            {showShortcutsPanel && <ShortcutsConfigPanel effectiveNavShortcuts={effectiveNavShortcuts} navShortcuts={navShortcuts} saveNavShortcutsMut={saveNavShortcutsMut} onClose={() => setShowShortcutsPanel(false)} />}
-          </div>
-          {/* Live/History toggle (hidden in 3D mode) */}
-          {viewMode !== 'twin' && viewMode !== 'scada' && (<>
-            <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setMode('live')}>Live{effectiveNavShortcuts['mode:live'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['mode:live'])}</kbd> : null}</button>
-              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History{effectiveNavShortcuts['mode:history'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['mode:history'])}</kbd> : null}</button>
-            </div>
-            {mode === 'history' && (
-              <HistoryRangeBar range={historyRange} onChange={setHistoryRange} detail={historyDetail} onDetailChange={setHistoryDetail} agg={dashSettings.historyAutoAgg} />
-            )}
-          </>)}
-          <button style={btnStyle} onClick={() => setShowDashSettings(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            <span>Settings</span>
-          </button>
-          <button style={btnStyle} onClick={() => setShowDataManager(true)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-            <span>Data</span>
-          </button>
-          <div style={{ marginLeft: 'auto' }} />
-          <button style={btnStyle} onClick={handleLogout}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            <span>Logout</span>
-          </button>
-        </div>
-      </div>
+      <AppHeader
+        branding={branding}
+        editMode={editMode}
+        onBrandingClick={() => { if (editMode) setShowBrandingDialog(true); }}
+        activeAlarmCount={activeAlarms.count}
+        effectiveNavShortcuts={effectiveNavShortcuts}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        showShortcutsPanel={showShortcutsPanel}
+        onToggleShortcutsPanel={() => setShowShortcutsPanel(v => !v)}
+        shortcutsPanel={showShortcutsPanel ? <ShortcutsConfigPanel effectiveNavShortcuts={effectiveNavShortcuts} navShortcuts={navShortcuts} saveNavShortcutsMut={saveNavShortcutsMut} onClose={() => setShowShortcutsPanel(false)} /> : null}
+        mode={mode}
+        onModeChange={setMode}
+        historyRange={historyRange}
+        onHistoryRangeChange={setHistoryRange}
+        historyDetail={historyDetail}
+        onHistoryDetailChange={setHistoryDetail}
+        historyAutoAgg={dashSettings.historyAutoAgg}
+        onSettingsClick={() => setShowDashSettings(true)}
+        onDataManagerClick={() => setShowDataManager(true)}
+        onLogout={handleLogout}
+        onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
+      />
 
       {/* Screen navigation + content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
-        <button style={tabStyle(mode !== 'system' && activeScreen === 'all')} onClick={() => { setActiveScreen('all'); if (mode === 'system') setMode('live'); }}>Overview{effectiveNavShortcuts['screen:all'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['screen:all'])}</kbd> : null}</button>
-        {screens.map(s => (
-          <div key={s.id} style={{ position: 'relative' }}>
-            <button style={tabStyle(mode !== 'system' && activeScreen === s.id)} onClick={() => { setActiveScreen(s.id); if (mode === 'system') setMode('live'); }}>{s.name}{effectiveNavShortcuts[`screen:${s.id}`] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts[`screen:${s.id}`])}</kbd> : null}</button>
-            {editMode && (
-              <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
-                <button onClick={e => { e.stopPropagation(); handleRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
-                <button onClick={e => { e.stopPropagation(); handleDeleteScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&times;</button>
-              </div>
-            )}
-          </div>
-        ))}
-        {editMode && <button onClick={handleAddScreen} style={{ ...tabStyle(false), color: 'var(--green)' }}>+</button>}
-        <button style={{
-          ...tabStyle(mode === 'system'),
-          color: mode === 'system' ? '#a78bfa' : 'var(--muted)',
-          borderBottom: mode === 'system' ? '2px solid #a78bfa' : '2px solid transparent',
-        }} onClick={() => { setMode('system'); setActiveScreen('all'); }}>System{effectiveNavShortcuts['screen:system'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['screen:system'])}</kbd> : null}</button>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {isAdmin && (
-          <button style={{ ...btnStyle, borderColor: editMode ? 'var(--cyan)' : 'var(--border)', color: editMode ? 'var(--cyan)' : 'var(--fg)' }} onClick={() => {
-            if (editMode) {
-              if (localLayouts) {
-                saveLayoutMut.mutate({ screenId: activeScreen, layouts: localLayouts });
-                setLocalLayouts(null);
-              }
-              if (localCanvasLayouts) {
-                saveCanvasLayoutMut.mutate({ screenId: activeScreen, layouts: localCanvasLayouts });
-                setLocalCanvasLayouts(null);
-              }
-            }
-            setEditMode(!editMode);
-            setEditingId(null);
-            setLayoutBreakpoint(null);
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            <span>{editMode ? 'Done' : 'Edit'}</span>
-          </button>
-          )}
-          {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Source</button>}
-        </div>
-      </div>
+      <ScreenTabs
+        mode={mode}
+        activeScreen={activeScreen}
+        screens={screens}
+        effectiveNavShortcuts={effectiveNavShortcuts}
+        editMode={editMode}
+        onTabClick={(id) => { setActiveScreen(id); if (mode === 'system') setMode('live'); }}
+        onSystemClick={() => { setMode('system'); setActiveScreen('all'); }}
+        onRenameScreen={handleRenameScreen}
+        onDeleteScreen={handleDeleteScreen}
+        onAddScreen={handleAddScreen}
+        isAdmin={isAdmin}
+        onToggleEditMode={() => {
+          if (editMode) {
+            if (localLayouts) { saveLayoutMut.mutate({ screenId: activeScreen, layouts: localLayouts }); setLocalLayouts(null); }
+            if (localCanvasLayouts) { saveCanvasLayoutMut.mutate({ screenId: activeScreen, layouts: localCanvasLayouts }); setLocalCanvasLayouts(null); }
+          }
+          setEditMode(!editMode); setEditingId(null); setLayoutBreakpoint(null);
+        }}
+        editLabel={editMode ? 'Done' : 'Edit'}
+        onAddSource={() => setShowAddDialog(true)}
+        canAddSource={activeScreen !== 'all'}
+      />
 
       {/* Layout breakpoint selector (edit mode) */}
       {editMode && (
@@ -598,63 +536,7 @@ export default function App() {
         const s = sensors.find(x => x.id === selectedSensor);
         return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} getDataFor={detailDataFor} currentValues={currentValues} /> : null;
       })() : (<>
-      {/* System Resource Panel */}
-      {mode === 'system' && systemInfo && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, padding: 8 }}>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>Host</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{systemInfo.hostname}</div>
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>{systemInfo.os} — up {Math.floor(systemInfo.uptime_secs / 86400)}d {Math.floor((systemInfo.uptime_secs % 86400) / 3600)}h {Math.floor((systemInfo.uptime_secs % 3600) / 60)}m</div>
-          </div>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>CPU Usage</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: systemInfo.cpu_usage > 80 ? 'var(--crit)' : systemInfo.cpu_usage > 50 ? 'var(--warn)' : 'var(--ok)' }}>{systemInfo.cpu_usage.toFixed(1)}%</div>
-            <div style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--border)' }}>
-              <div style={{ height: '100%', borderRadius: 3, background: systemInfo.cpu_usage > 80 ? 'var(--crit)' : systemInfo.cpu_usage > 50 ? 'var(--warn)' : 'var(--ok)', width: `${Math.min(systemInfo.cpu_usage, 100)}%`, transition: 'width 0.3s' }} />
-            </div>
-          </div>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>Memory</div>
-            <div style={{ fontSize: 28, fontWeight: 700 }}>{systemInfo.memory_used_mb.toFixed(0)} <span style={{ fontSize: 14, color: 'var(--muted)' }}>/ {systemInfo.memory_total_mb.toFixed(0)} MB</span></div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{systemInfo.memory_percent.toFixed(1)}%</div>
-            <div style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--border)' }}>
-              <div style={{ height: '100%', borderRadius: 3, background: systemInfo.memory_percent > 90 ? 'var(--crit)' : systemInfo.memory_percent > 70 ? 'var(--warn)' : 'var(--ok)', width: `${Math.min(systemInfo.memory_percent, 100)}%`, transition: 'width 0.3s' }} />
-            </div>
-          </div>
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>Disk</div>
-            <div style={{ fontSize: 28, fontWeight: 700 }}>{systemInfo.disk_used_gb.toFixed(1)} <span style={{ fontSize: 14, color: 'var(--muted)' }}>/ {systemInfo.disk_total_gb.toFixed(1)} GB</span></div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{systemInfo.disk_percent.toFixed(1)}%</div>
-            <div style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--border)' }}>
-              <div style={{ height: '100%', borderRadius: 3, background: systemInfo.disk_percent > 90 ? 'var(--crit)' : systemInfo.disk_percent > 70 ? 'var(--warn)' : 'var(--ok)', width: `${Math.min(systemInfo.disk_percent, 100)}%`, transition: 'width 0.3s' }} />
-            </div>
-          </div>
-          <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', border: '1px solid #22c55e', borderRadius: 10, padding: 20, gridColumn: 'span 2' }}>
-            <div style={{ fontSize: 11, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12, fontWeight: 700 }}>Rust Service (PID {systemInfo.process.pid})</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{systemInfo.process.memory_mb.toFixed(1)} MB</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>RSS Memory</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{systemInfo.process.cpu_percent.toFixed(1)}%</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>CPU Usage</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{Math.floor(systemInfo.process.uptime_secs / 86400)}d {Math.floor((systemInfo.process.uptime_secs % 86400) / 3600)}h {Math.floor((systemInfo.process.uptime_secs % 3600) / 60)}m</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Uptime</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: '#22c55e' }}>{systemInfo.process.binary_size_mb.toFixed(1)} MB</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Binary Size</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {mode === 'system' && !systemInfo && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--muted)' }}>Connecting to server...</div>
-      )}
+      {mode === 'system' && <SystemPanel systemInfo={systemInfo} />}
 
       {/* Sensors Grid / Canvas / Digital Twin */}
       {mode !== 'system' && (viewMode === 'cards' ? (
