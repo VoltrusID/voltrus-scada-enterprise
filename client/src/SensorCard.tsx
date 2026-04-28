@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { SensorConfig, SensorData, SOURCE_CATEGORY } from './types'
 import { Chart } from './Chart'
-import { status, stColor } from './styles'
+import { stColor } from './styles'
 import { parseConfig } from './styles'
 
 interface Props {
@@ -25,8 +25,7 @@ export const SensorCard = React.memo(function SensorCard({
   shortcut, chartDataFor, loadSensorsForScreen, setEditingId, setSelectedSensor,
   showDragHandle, selected, onClick,
 }: Props) {
-  const isOffline = cv && (cv.value == null || Number.isNaN(cv.value));
-  const st = isOffline ? 'offline' : cv ? status(cv.value, cv.warn, cv.crit) : 'normal';
+  const st = cv?.status ?? 'normal';
   const ct = s.chart_type || 'sparkline';
   const hideStatus = ct === 'image' || ct === 'text';
 
@@ -93,7 +92,7 @@ export const SensorCard = React.memo(function SensorCard({
       )}
       {!hideStatus && (
         <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, padding: '0 16px' }}>
-          <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{isOffline ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
+          <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
           <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
         </div>
       )}

@@ -1,6 +1,3 @@
-export function status(val: number, warn: number, crit: number) {
-  return val >= crit ? 'critical' : val >= warn ? 'warning' : 'normal';
-}
 export const stColor = (s: string) => s === 'critical' ? 'var(--crit)' : s === 'warning' ? 'var(--warn)' : s === 'offline' ? 'var(--muted)' : 'var(--ok)';
 export function fmtTime(ms: number) {
   const s = ms / 1000 | 0;

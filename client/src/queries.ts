@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem, ModbusDevice, ModbusRegister, ScadaEquipmentItem, ScadaConnectionItem, UserItem } from './types'
 import type { BrandingSettings } from './BrandingDialog'
+import { expandCompactData } from './utils'
 
 // ── Query key factory ──────────────────────────────────────────────
 
@@ -134,20 +135,7 @@ export function useHistory(range: string, screenId: string, enabled: boolean) {
     queryFn: async () => {
       const result = await fetchJson<{ data: Record<string, any>; sensors: any[] }>(`/api/history?range=${range}${dp}`)
       if (!result.data) return {}
-      const expanded: Record<string, DataPoint[]> = {}
-      for (const key of Object.keys(result.data)) {
-        const s = result.data[key]
-        if (s && Array.isArray(s.values)) {
-          const pts: DataPoint[] = []
-          for (let i = 0; i < s.values.length; i++) {
-            pts.push({ ts: s.start + i * s.interval, value: s.values[i] })
-          }
-          expanded[key] = pts
-        } else if (Array.isArray(s)) {
-          expanded[key] = s
-        }
-      }
-      return expanded
+      return expandCompactData(result.data)
     },
     enabled,
     staleTime: 10_000,
@@ -419,6 +407,19 @@ export function useRemoveSensorFromScreen() {
 }
 
 // ── Alarm hooks ─────────────────────────────────────────────────────
+
+export function useActiveAlarmCount(enabled: boolean) {
+  return useQuery({
+    queryKey: ['alarms', 'active', 'count'],
+    queryFn: async () => {
+      const r = await fetchJson<{ count: number }>('/api/alarms/active/count')
+      return r
+    },
+    enabled,
+    refetchInterval: 5_000,
+    staleTime: 4_000,
+  })
+}
 
 export function useAlarms(status: string = 'all', enabled: boolean = true) {
   return useQuery({
