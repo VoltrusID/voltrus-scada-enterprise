@@ -1,6 +1,7 @@
 mod api;
 mod cache;
 mod config;
+mod expression;
 mod modbus;
 mod models;
 mod poller_manager;
