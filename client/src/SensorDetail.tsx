@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { SensorConfig, SensorData, DataPoint } from './types';
-import { status, stColor, btnStyle, safeMinMax } from './styles';
+import { status, stColor, btnStyle, safeMinMax, displayShortcut } from './styles';
 import { DetailChart, OverlaySeries } from './DetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
 
@@ -77,7 +77,7 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
                 fontFamily: "'JetBrains Mono',monospace", fontSize: 11, fontWeight: 600,
                 padding: '2px 8px', borderRadius: 4,
                 background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)',
-              }}>{shortcuts[sensor.id]}</kbd>
+              }}>{displayShortcut(shortcuts[sensor.id])}</kbd>
             )}
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>({sensor.key})</span>
           </div>
