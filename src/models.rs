@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 // ── Config types ──
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
     pub devices: Vec<DeviceConfig>,
@@ -21,6 +21,67 @@ pub struct AppConfig {
     pub cors_origin: Option<String>,
     #[serde(default = "default_cookie_secure")]
     pub cookie_secure: bool,
+    #[serde(default)]
+    pub retention: RetentionConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RetentionConfig {
+    #[serde(default = "default_retention_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_run_interval")]
+    pub run_interval_secs: u64,
+    #[serde(default = "default_archive_dir")]
+    pub archive_dir: String,
+    #[serde(default = "default_tiers")]
+    pub tiers: Vec<RetentionTier>,
+}
+
+impl Default for RetentionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_retention_enabled(),
+            run_interval_secs: default_run_interval(),
+            archive_dir: default_archive_dir(),
+            tiers: default_tiers(),
+        }
+    }
+}
+
+fn default_retention_enabled() -> bool { true }
+fn default_run_interval() -> u64 { 21600 }
+fn default_archive_dir() -> String { "./archive".to_string() }
+
+fn default_tiers() -> Vec<RetentionTier> {
+    vec![
+        RetentionTier {
+            name: "raw".into(),
+            keep: Some(604800),
+            downsample_to: Some("hourly".into()),
+            archive: true,
+        },
+        RetentionTier {
+            name: "hourly".into(),
+            keep: Some(7776000),
+            downsample_to: Some("daily".into()),
+            archive: false,
+        },
+        RetentionTier {
+            name: "daily".into(),
+            keep: None,
+            downsample_to: None,
+            archive: false,
+        },
+    ]
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RetentionTier {
+    pub name: String,
+    pub keep: Option<u64>,
+    pub downsample_to: Option<String>,
+    #[serde(default)]
+    pub archive: bool,
 }
 
 fn default_cookie_secure() -> bool {
@@ -519,6 +580,7 @@ pub struct Alarm {
     pub resolved_at: Option<i64>,
     pub acknowledged_at: Option<i64>,
     pub acknowledged_by: Option<String>,
+    pub cooldown_until: Option<i64>,
 }
 
 #[derive(Debug, serde::Deserialize)]
