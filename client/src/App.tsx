@@ -25,6 +25,7 @@ export default function App() {
   const queryClient = useQueryClient()
 
   const [authed, setAuthed] = useState(false);
+  const [authRole, setAuthRole] = useState<string>('user');
   const [authLoading, setAuthLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
 
@@ -40,13 +41,14 @@ export default function App() {
   const [editMode, setEditMode] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [fps, setFps] = useState(0);
-  const [dashSettings, setDashSettings] = useState({ gap: 12, refreshInterval: 1000 });
+  const [dashSettings, setDashSettings] = useState({ gap: 12, refreshInterval: 1000, historyAutoAgg: 'sampling' as const });
   const [showDashSettings, setShowDashSettings] = useState(false);
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null);
   const [activeScreen, setActiveScreen] = useState<string>('all');
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null);
   const [mode, setMode] = useState<'live' | 'history' | 'system'>('live');
   const [historyRange, setHistoryRange] = useState('30m');
+  const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto');
   const [showDataManager, setShowDataManager] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [screenPrompt, setScreenPrompt] = useState<{ title: string; label: string; placeholder?: string; initial?: string; okLabel?: string; onSubmit: (v: string) => void } | null>(null);
@@ -117,6 +119,25 @@ export default function App() {
 
   // ── Helpers ──────────────────────────────────────────────────────
 
+  function expandCompactData(raw: Record<string, any>): Record<string, DataPoint[]> {
+    const out: Record<string, DataPoint[]> = {};
+    for (const key of Object.keys(raw)) {
+      const s = raw[key];
+      if (s && Array.isArray(s.values)) {
+        const pts: DataPoint[] = [];
+        for (let i = 0; i < s.values.length; i++) {
+          pts.push({ ts: s.start + i * s.interval, value: s.values[i] });
+        }
+        out[key] = pts;
+      } else if (Array.isArray(s)) {
+        out[key] = s; // legacy format fallback
+      }
+    }
+    return out;
+  }
+
+  const isAdmin = authRole === 'admin';
+
   const DEFAULT_COLS: Record<string, number> = { lg: 24, md: 12, sm: 4 };
 
   function generateDefaultLayout(sensorIds: number[], bp: string): LayoutItem[] {
@@ -144,17 +165,17 @@ export default function App() {
   // ── Auth ─────────────────────────────────────────────────────────
 
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthLoading(false); }).catch(() => { setAuthed(false); setAuthLoading(false); });
+    fetch('/api/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthLoading(false); }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthLoading(false); });
   }, []);
 
   const handleLogin = async (username: string, password: string) => {
     setLoginError('');
     const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-    if (r.ok) setAuthed(true);
+    if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user'); }
     else { const d = await r.json(); setLoginError(d.error || 'Login failed'); }
   };
 
-  const handleLogout = async () => { await fetch('/api/auth/logout', { method: 'POST' }); setAuthed(false); };
+  const handleLogout = async () => { await fetch('/api/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user'); };
 
   // ── Seed ─────────────────────────────────────────────────────────
 
@@ -273,9 +294,10 @@ export default function App() {
     initialLoadDone.current = true;
     fetch('/api/history?range=30m').then(r => r.json()).then(result => {
       if (!result.data) return;
+      const expanded = expandCompactData(result.data);
       const remapped: Record<string, DataPoint[]> = {};
       for (const s of sensors) {
-        const pts = result.data[s.key];
+        const pts = expanded[s.key];
         if (pts) remapped[String(s.id)] = pts;
       }
       setDataMap(remapped);
@@ -353,16 +375,19 @@ export default function App() {
   useEffect(() => {
     if (mode !== 'history') { setHistoryMap(null); return; }
     const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`;
-    fetch(`/api/history?range=${historyRange}${dp}`).then(r => r.json()).then(result => {
+    const detailParam = historyDetail === 'full' ? '&detail=full' : '';
+    const aggParam = historyDetail === 'auto' ? `&agg=${dashSettings.historyAutoAgg}` : '';
+    fetch(`/api/history?range=${historyRange}${dp}${detailParam}${aggParam}`).then(r => r.json()).then(result => {
       if (!result.data) return;
+      const expanded = expandCompactData(result.data);
       const remapped: Record<string, DataPoint[]> = {};
       for (const s of screenSensors) {
-        const pts = result.data[s.key];
+        const pts = expanded[s.key];
         if (pts) remapped[String(s.id)] = pts;
       }
       setHistoryMap(remapped);
     });
-  }, [mode, historyRange, activeScreen, sensors, screenSensors]);
+  }, [mode, historyRange, historyDetail, activeScreen, sensors, screenSensors, dashSettings.historyAutoAgg]);
 
   // Re-seed live dataMap with 30m history when switching back to live
   useEffect(() => {
@@ -370,10 +395,10 @@ export default function App() {
     const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`;
     fetch(`/api/history?range=30m${dp}`).then(r => r.json()).then(result => {
       if (!result.data) return;
-      // History API keys by sensor key, live data keys by sensor id — remap
+      const expanded = expandCompactData(result.data);
       const remapped: Record<string, DataPoint[]> = {};
       for (const s of screenSensors) {
-        const pts = result.data[s.key];
+        const pts = expanded[s.key];
         if (pts) remapped[String(s.id)] = pts;
       }
       setDataMap(remapped);
@@ -426,9 +451,9 @@ export default function App() {
   };
 
   return (
-    <div style={{ maxWidth: 1600, margin: '0 auto', padding: 24 }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', flexShrink: 0, flexWrap: 'wrap', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: editMode ? 'pointer' : 'default' }}
           onClick={() => { if (editMode) setShowBrandingDialog(true); }}>
           <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'contain' }} />
@@ -467,7 +492,7 @@ export default function App() {
               <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History</button>
             </div>
             {mode === 'history' && (
-              <HistoryRangeBar range={historyRange} onChange={setHistoryRange} />
+              <HistoryRangeBar range={historyRange} onChange={setHistoryRange} detail={historyDetail} onDetailChange={setHistoryDetail} agg={dashSettings.historyAutoAgg} />
             )}
           </>)}
           {mode === 'live' && (<>
@@ -484,6 +509,7 @@ export default function App() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>Settings</span>
           </button>
+          {isAdmin && (
           <button style={{ ...btnStyle, borderColor: editMode ? 'var(--cyan)' : 'var(--border)', color: editMode ? 'var(--cyan)' : 'var(--fg)' }} onClick={() => {
             if (editMode) {
               if (localLayouts) {
@@ -502,6 +528,7 @@ export default function App() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             <span>{editMode ? 'Done' : 'Edit'}</span>
           </button>
+          )}
           {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Source</button>}
           <button style={btnStyle} onClick={() => setShowDataManager(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
@@ -515,7 +542,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Screen navigation */}
+      {/* Screen navigation + content */}
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
         <button style={tabStyle(mode !== 'system' && activeScreen === 'all')} onClick={() => { setActiveScreen('all'); if (mode === 'system') setMode('live'); }}>Overview</button>
         {screens.map(s => (
@@ -709,10 +737,10 @@ export default function App() {
 
       {selectedSensor != null && (() => {
         const s = sensors.find(x => x.id === selectedSensor);
-        return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} /> : null;
+        return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} getDataFor={detailDataFor} currentValues={currentValues} /> : null;
       })()}
 
-      {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} />}
+      {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdmin} />}
 
       {showAddDialog && activeScreen !== 'all' && (
         <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => {
@@ -727,6 +755,7 @@ export default function App() {
       {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
 
       {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
+      </div>{/* end scrollable content */}
 
       <div style={{ position: 'fixed', bottom: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8, zIndex: 51 }}>
         <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
