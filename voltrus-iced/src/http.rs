@@ -1,4 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::Result;
+use reqwest::cookie::Jar;
 use reqwest::Client;
 
 use crate::models::*;
@@ -6,16 +9,20 @@ use crate::models::*;
 pub struct HttpClient {
     client: Client,
     base_url: String,
+    cookie_jar: Arc<Jar>,
 }
 
 impl HttpClient {
     pub fn new(base_url: &str) -> Self {
+        let jar = Arc::new(Jar::default());
+        let client = Client::builder()
+            .cookie_provider(jar.clone())
+            .build()
+            .expect("failed to build HTTP client");
         Self {
-            client: Client::builder()
-                .cookie_store(true)
-                .build()
-                .expect("failed to build HTTP client"),
+            client,
             base_url: base_url.trim_end_matches('/').to_string(),
+            cookie_jar: jar,
         }
     }
 
@@ -71,5 +78,18 @@ impl HttpClient {
             .send()
             .await?;
         Ok(resp.json().await?)
+    }
+}
+
+impl Clone for HttpClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: Client::builder()
+                .cookie_provider(self.cookie_jar.clone())
+                .build()
+                .expect("failed to build HTTP client"),
+            base_url: self.base_url.clone(),
+            cookie_jar: self.cookie_jar.clone(),
+        }
     }
 }
