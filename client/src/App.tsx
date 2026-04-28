@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, SensorData, DataPoint, Screen, LIVE_PTS, CanvasLayoutItem } from './types'
-import { status, stColor, fmtTime, btnStyle, tabStyle, normalizeKeyEvent, displayShortcut } from './styles'
+import { btnStyle, tabStyle, normalizeKeyEvent, displayShortcut } from './styles'
+import { expandCompactData } from './utils'
 import { LoginScreen } from './LoginScreen'
 import { Chart } from './Chart'
 import { EditPanel } from './EditPanel'
@@ -19,7 +20,7 @@ import { SensorGrid } from './SensorGrid'
 import { CanvasView } from './CanvasView'
 import { ScreenLayouts, LayoutItem } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useSystemInfo, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 const DigitalTwinView = lazy(() => import('./DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
 const ScadaView = lazy(() => import('./ScadaView').then(m => ({ default: m.ScadaView })))
 
@@ -35,7 +36,6 @@ export default function App() {
   const [historyMap, setHistoryMap] = useState<Record<string, DataPoint[]> | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [currentValues, setCurrentValues] = useState<Record<string, SensorData>>({});
-  const [alerts, setAlerts] = useState(0);
   const [showAlarmPanel, setShowAlarmPanel] = useState(false);
   const [alarmMuted, setAlarmMuted] = useState(false);
   const { startAlarm, stopAlarm, toggleMute } = useAlarmAudio();
@@ -113,6 +113,7 @@ export default function App() {
   const { data: branding = DEFAULT_BRANDING } = useBranding();
 
   const { data: systemInfo } = useSystemInfo(authed);
+  const { data: activeAlarms = { count: 0 } } = useActiveAlarmCount(authed);
 
   // SSE for live data
   const sseData = useSSEData(authed && mode === 'live');
@@ -138,23 +139,6 @@ export default function App() {
   const removeSensorFromScreenMut = useRemoveSensorFromScreen();
 
   // ── Helpers ──────────────────────────────────────────────────────
-
-  function expandCompactData(raw: Record<string, any>): Record<string, DataPoint[]> {
-    const out: Record<string, DataPoint[]> = {};
-    for (const key of Object.keys(raw)) {
-      const s = raw[key];
-      if (s && Array.isArray(s.values)) {
-        const pts: DataPoint[] = [];
-        for (let i = 0; i < s.values.length; i++) {
-          pts.push({ ts: s.start + i * s.interval, value: s.values[i] });
-        }
-        out[key] = pts;
-      } else if (Array.isArray(s)) {
-        out[key] = s; // legacy format fallback
-      }
-    }
-    return out;
-  }
 
   const isAdmin = authRole === 'admin';
 
@@ -198,10 +182,6 @@ export default function App() {
   const handleLogout = async () => { await fetch('/api/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user'); };
 
   // ── Seed ─────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (authed) fetch('/api/seed', { method: 'POST' });
-  }, [authed]);
 
   // Request notification permission once on login
   useEffect(() => {
@@ -351,7 +331,6 @@ export default function App() {
     const d = sseData.data;
     const newMap = { ...dataMapRef.current };
     const newVals = { ...currentValuesRef.current };
-    let alertCount = 0;
     for (const item of d) {
       const k = String(item.id);
       const isOffline = item.value == null || Number.isNaN(item.value);
@@ -363,19 +342,19 @@ export default function App() {
       arr.push({ value: item.value, ts: Date.now() });
       newMap[k] = arr.length > LIVE_PTS ? arr.slice(-LIVE_PTS) : arr;
       newVals[k] = item;
-      if (item.source_type === 'modbus' && ((item.crit > 0 && item.value >= item.crit) || (item.warn > 0 && item.value >= item.warn))) {
-        alertCount++;
-      }
     }
     setDataMap(newMap);
     setCurrentValues(newVals);
-    setAlerts(alertCount);
-    if (alertCount > 0) {
+  }, [sseData.data, paused, historyReady]);
+
+  // Alarm sound driven by server-side active alarm count
+  useEffect(() => {
+    if (activeAlarms.count > 0) {
       startAlarm();
     } else {
       stopAlarm();
     }
-  }, [sseData.data, paused, historyReady]);
+  }, [activeAlarms.count, startAlarm, stopAlarm]);
 
   // ── History fetch ────────────────────────────────────────────────
 
@@ -503,16 +482,16 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {/* Alarm bell */}
             <button onClick={() => setShowAlarmPanel(v => !v)} style={{
-              ...btnStyle, position: 'relative', borderColor: alerts > 0 ? 'var(--crit)' : 'var(--border)',
-              color: alerts > 0 ? 'var(--crit)' : 'var(--fg)',
+              ...btnStyle, position: 'relative', borderColor: activeAlarms.count > 0 ? 'var(--crit)' : 'var(--border)',
+              color: activeAlarms.count > 0 ? 'var(--crit)' : 'var(--fg)',
             }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
               {effectiveNavShortcuts['action:alarms'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['action:alarms'])}</kbd> : null}
-              {alerts > 0 && <span style={{
+              {activeAlarms.count > 0 && <span style={{
                 position: 'absolute', top: -4, right: -4, background: 'var(--crit)',
                 color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-              }}>{alerts}</span>}
+              }}>{activeAlarms.count}</span>}
             </button>
           {/* View mode toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>

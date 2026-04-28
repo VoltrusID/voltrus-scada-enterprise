@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { SensorConfig, SensorData, DataPoint } from './types';
-import { status, stColor, btnStyle, safeMinMax, displayShortcut } from './styles';
+import { stColor, btnStyle, safeMinMax, displayShortcut } from './styles';
 import { DetailChart, OverlaySeries } from './DetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
 
@@ -15,8 +15,8 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
   getDataFor?: (id: number) => DataPoint[];
   currentValues?: Record<string, SensorData>;
 }) {
-  const isOffline = currentValue && (currentValue.value == null || Number.isNaN(currentValue.value));
-  const st = isOffline ? 'offline' : currentValue ? status(currentValue.value, currentValue.warn, currentValue.crit) : 'normal';
+  const st = currentValue?.status ?? 'normal';
+  const isOffline = st === 'offline';
   const safeValues = data.map(d => d.value).filter(v => v != null && !Number.isNaN(v));
   const [minV, maxV] = safeMinMax(safeValues);
   const avgV = safeValues.length ? safeValues.reduce((a, b) => a + b, 0) / safeValues.length : 0;

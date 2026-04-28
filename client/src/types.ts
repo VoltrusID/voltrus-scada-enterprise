@@ -9,7 +9,7 @@ export interface SensorConfig {
 }
 
 export interface SensorData {
-  id: number; key: string; value: number; warn: number; crit: number; source_type: string;
+  id: number; key: string; value: number; warn: number; crit: number; source_type: string; status: string;
 }
 
 export interface DataPoint { value: number; ts: number }

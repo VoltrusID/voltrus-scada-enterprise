@@ -1,6 +1,6 @@
 import { Html } from '@react-three/drei'
 import { SensorConfig, SensorData } from '../types'
-import { status, stColor } from '../styles'
+import { stColor } from '../styles'
 
 interface Props {
   name: string
@@ -25,7 +25,7 @@ export function EquipmentLabel({ name, sensors, currentValues }: Props) {
         </div>
         {sensors.map(s => {
           const cv = currentValues[s.id]
-          const st = cv ? status(cv.value, cv.warn, cv.crit) : 'normal'
+          const st = cv?.status ?? 'normal'
           return (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginTop: 2 }}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: st === 'critical' ? '#ef4444' : st === 'warning' ? '#eab308' : '#22c55e', flexShrink: 0 }} />
