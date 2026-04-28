@@ -1,4 +1,8 @@
 mod app;
+mod http;
+mod models;
+mod views;
+mod theme;
 
 pub fn main() -> iced::Result {
     iced::application("Voltrus Viewer", app::update, app::view)
