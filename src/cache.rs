@@ -25,7 +25,7 @@ impl DeviceCache {
     pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>) {
         {
             let mut devices = self.devices.write().await;
-            let timestamp = chrono::Utc::now().timestamp();
+            let timestamp = crate::timeutil::now_secs();
 
             devices
                 .entry(device_id.to_string())

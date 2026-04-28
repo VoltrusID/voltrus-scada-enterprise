@@ -54,3 +54,30 @@ pub async fn update_branding(
 
     Ok(Json(json!({"ok": true})))
 }
+
+/// GET /api/settings/alarm-cooldown — get alarm cooldown in seconds
+pub async fn get_alarm_cooldown(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let settings = state.storage.get_settings(&["alarm_cooldown_secs"]).await?;
+    let secs: i64 = settings
+        .into_iter()
+        .next()
+        .and_then(|s| s.value.parse().ok())
+        .unwrap_or(300);
+    Ok(Json(json!({ "secs": secs })))
+}
+
+/// PUT /api/settings/alarm-cooldown — set alarm cooldown in seconds
+pub async fn update_alarm_cooldown(
+    State(state): State<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let secs = body
+        .get("secs")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(300);
+    let clamped = secs.clamp(0, 86400);
+    state.storage.upsert_setting("alarm_cooldown_secs", &clamped.to_string()).await?;
+    Ok(Json(json!({"ok": true, "secs": clamped})))
+}

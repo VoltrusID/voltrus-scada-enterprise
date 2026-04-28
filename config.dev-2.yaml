@@ -1,0 +1,3 @@
+server_port: 3100
+db_path: "data.db"
+persist_interval_secs: 5

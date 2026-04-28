@@ -55,7 +55,7 @@ fn hmac_sign(payload: &str, secret: &str) -> String {
 }
 
 pub fn create_token(username: &str, role: &str, secret: &str) -> String {
-    let exp = chrono::Utc::now().timestamp_millis() as u64 + TOKEN_EXPIRY_MS;
+    let exp = crate::timeutil::now_millis() as u64 + TOKEN_EXPIRY_MS;
     let payload =
         serde_json::to_string(&TokenClaims {
             username: username.to_string(),
@@ -85,7 +85,7 @@ pub fn verify_token(token: &str, secret: &str) -> Option<TokenClaims> {
         return None;
     }
     let claims: TokenClaims = serde_json::from_str(&payload).ok()?;
-    let now = chrono::Utc::now().timestamp_millis() as u64;
+    let now = crate::timeutil::now_millis() as u64;
     if claims.exp < now {
         return None;
     }
@@ -238,7 +238,7 @@ mod tests {
         let claims = verify_token(&token, secret).unwrap();
         assert_eq!(claims.username, "admin");
         assert_eq!(claims.role, "admin");
-        assert!(claims.exp > chrono::Utc::now().timestamp_millis() as u64);
+        assert!(claims.exp > crate::timeutil::now_millis() as u64);
     }
 
     #[test]

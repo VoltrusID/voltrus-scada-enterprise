@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { SensorConfig, SensorData, DataPoint, Screen, MAX_PTS, NORM_PTS, CanvasLayoutItem } from './types'
+import { SensorConfig, SensorData, DataPoint, Screen, LIVE_PTS, CanvasLayoutItem } from './types'
 import { status, stColor, fmtTime, btnStyle, tabStyle, normalizeKeyEvent, displayShortcut } from './styles'
 import { LoginScreen } from './LoginScreen'
 import { Chart } from './Chart'
@@ -33,6 +33,7 @@ export default function App() {
 
   const [dataMap, setDataMap] = useState<Record<string, DataPoint[]>>({});
   const [historyMap, setHistoryMap] = useState<Record<string, DataPoint[]> | null>(null);
+  const [historyReady, setHistoryReady] = useState(false);
   const [currentValues, setCurrentValues] = useState<Record<string, SensorData>>({});
   const [alerts, setAlerts] = useState(0);
   const [showAlarmPanel, setShowAlarmPanel] = useState(false);
@@ -332,10 +333,10 @@ export default function App() {
       const remapped: Record<string, DataPoint[]> = {};
       for (const s of sensors) {
         const pts = expanded[s.key];
-        if (pts) remapped[String(s.id)] = pts;
+        if (pts) remapped[String(s.id)] = pts.length > LIVE_PTS ? pts.slice(-LIVE_PTS) : pts;
       }
       setDataMap(remapped);
-    });
+    }).catch(() => {}).finally(() => setHistoryReady(true));
   }, [authed, sensors]);
 
   // ── SSE live data processing ─────────────────────────────────────
@@ -346,7 +347,7 @@ export default function App() {
   currentValuesRef.current = currentValues;
 
   useEffect(() => {
-    if (paused || !sseData.data) return;
+    if (paused || !sseData.data || !historyReady) return;
     const d = sseData.data;
     const newMap = { ...dataMapRef.current };
     const newVals = { ...currentValuesRef.current };
@@ -360,8 +361,7 @@ export default function App() {
       }
       const arr = newMap[k] ? [...newMap[k]] : [];
       arr.push({ value: item.value, ts: Date.now() });
-      if (arr.length > (turbo ? MAX_PTS : NORM_PTS)) arr.shift();
-      newMap[k] = arr;
+      newMap[k] = arr.length > LIVE_PTS ? arr.slice(-LIVE_PTS) : arr;
       newVals[k] = item;
       if (item.source_type === 'modbus' && ((item.crit > 0 && item.value >= item.crit) || (item.warn > 0 && item.value >= item.warn))) {
         alertCount++;
@@ -375,7 +375,7 @@ export default function App() {
     } else {
       stopAlarm();
     }
-  }, [sseData.data, paused, turbo]);
+  }, [sseData.data, paused, historyReady]);
 
   // ── History fetch ────────────────────────────────────────────────
 
@@ -406,7 +406,7 @@ export default function App() {
       const remapped: Record<string, DataPoint[]> = {};
       for (const s of screenSensors) {
         const pts = expanded[s.key];
-        if (pts) remapped[String(s.id)] = pts;
+        if (pts) remapped[String(s.id)] = pts.length > LIVE_PTS ? pts.slice(-LIVE_PTS) : pts;
       }
       setDataMap(remapped);
     });

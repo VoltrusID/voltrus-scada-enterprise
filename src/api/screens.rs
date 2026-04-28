@@ -29,7 +29,7 @@ pub async fn create_screen(
         .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
     let slug = slug.trim_matches('_').to_string();
     let base_id = if slug.is_empty() {
-        format!("screen_{}", chrono::Utc::now().timestamp_millis())
+        format!("screen_{}", crate::timeutil::now_millis())
     } else {
         slug
     };

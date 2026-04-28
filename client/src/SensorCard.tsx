@@ -1,4 +1,4 @@
-import { SensorConfig, SensorData } from './types'
+import { SensorConfig, SensorData, SOURCE_CATEGORY } from './types'
 import { Chart } from './Chart'
 import { status, stColor } from './styles'
 import { parseConfig } from './styles'
@@ -57,7 +57,7 @@ export function SensorCard({
           )}
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: stColor(st) }} />
           {s.name}
-          <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>({s.source_type})</span>
+          <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)'}18`, color: SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)', fontWeight: 700, letterSpacing: '.03em', textTransform: 'none' }}>{SOURCE_CATEGORY[s.source_type]?.tag ?? s.source_type}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {shortcuts[s.id] && (

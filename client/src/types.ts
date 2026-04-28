@@ -25,9 +25,24 @@ export interface CanvasLayoutItem {
   x: number; y: number; width: number; height: number
 }
 
+export const LIVE_PTS = 180;
 export const MAX_PTS = 300;
 export const NORM_PTS = 60;
 export const SOURCE_TYPES = ['random_walk', 'sine', 'step', 'sawtooth', 'constant', 'noise', 'api', 'modbus', 'none'] as const;
+
+export const SIMULATE_TYPES = ['random_walk', 'sine', 'step', 'sawtooth', 'constant', 'noise'] as const;
+
+export const SOURCE_CATEGORY: Record<string, { label: string; tag: string; color: string }> = {
+  modbus:      { label: 'Modbus',        tag: 'REAL', color: 'var(--ok)' },
+  random_walk: { label: 'Random Walk',   tag: 'SIM',  color: '#f59e0b' },
+  sine:        { label: 'Sine Wave',     tag: 'SIM',  color: '#f59e0b' },
+  step:        { label: 'Step / Spike',  tag: 'SIM',  color: '#f59e0b' },
+  sawtooth:    { label: 'Sawtooth',      tag: 'SIM',  color: '#f59e0b' },
+  constant:    { label: 'Constant',      tag: 'SIM',  color: '#f59e0b' },
+  noise:       { label: 'Noise',         tag: 'SIM',  color: '#f59e0b' },
+  api:         { label: 'API',           tag: 'API',  color: '#a78bfa' },
+  none:        { label: 'None (static)', tag: 'NONE', color: 'var(--muted)' },
+};
 
 export const CHART_TYPES = ['sparkline', 'bignumber', 'gauge', 'image', 'text'] as const;
 
@@ -68,6 +83,7 @@ export interface Alarm {
   resolved_at: number | null
   acknowledged_at: number | null
   acknowledged_by: string | null
+  cooldown_until: number | null
 }
 
 export interface ModbusDevice {

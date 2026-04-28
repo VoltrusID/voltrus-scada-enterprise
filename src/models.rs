@@ -23,6 +23,18 @@ pub struct AppConfig {
     pub cookie_secure: bool,
     #[serde(default)]
     pub retention: RetentionConfig,
+    #[serde(default)]
+    pub oidc_enabled: bool,
+    #[serde(default)]
+    pub oidc_issuer: String,
+    #[serde(default)]
+    pub oidc_audience: String,
+    #[serde(default)]
+    pub oidc_jwks_url: String,
+    #[serde(default)]
+    pub oidc_role_claim: String,
+    #[serde(default)]
+    pub oidc_admin_role: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
