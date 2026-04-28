@@ -28,11 +28,19 @@ export function toHexColor(color: string): string {
 
 export function normalizeKeyEvent(e: KeyboardEvent): string {
   const parts: string[] = [];
-  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.ctrlKey || e.metaKey) parts.push('Mod');
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey && e.key.length > 1) parts.push('Shift');
   parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
   return parts.join('+');
+}
+
+export function displayShortcut(shortcut: string): string {
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
+  return shortcut
+    .replace(/\bMod\b/g, isMac ? '\u2318' : 'Ctrl')
+    .replace(/\bAlt\b/g, isMac ? '\u2325' : 'Alt')
+    .replace(/\bShift\b/g, isMac ? '\u21E7' : 'Shift');
 }
 
 export const inputStyle: React.CSSProperties = {

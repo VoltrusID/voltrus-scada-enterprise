@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, SensorData, DataPoint, Screen, MAX_PTS, NORM_PTS, CanvasLayoutItem } from './types'
-import { status, stColor, fmtTime, btnStyle, tabStyle, normalizeKeyEvent } from './styles'
+import { status, stColor, fmtTime, btnStyle, tabStyle, normalizeKeyEvent, displayShortcut } from './styles'
 import { LoginScreen } from './LoginScreen'
 import { Chart } from './Chart'
 import { EditPanel } from './EditPanel'
@@ -10,14 +10,16 @@ import { SensorDetail } from './SensorDetail'
 import { DataManager } from './DataManager'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
+import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
 import { useAlarmAudio } from './useAlarmAudio'
+import { useSSEData } from './useSSEData'
 import { AlarmPanel } from './AlarmPanel'
 import { HistoryRangeBar } from './CustomRangePicker'
 import { SensorGrid } from './SensorGrid'
 import { CanvasView } from './CanvasView'
 import { ScreenLayouts, LayoutItem } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useSystemInfo, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 const DigitalTwinView = lazy(() => import('./DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
 const ScadaView = lazy(() => import('./ScadaView').then(m => ({ default: m.ScadaView })))
 
@@ -40,7 +42,6 @@ export default function App() {
   const [turbo, setTurbo] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [fps, setFps] = useState(0);
   const [dashSettings, setDashSettings] = useState({ gap: 12, refreshInterval: 1000, historyAutoAgg: 'sampling' as const });
   const [showDashSettings, setShowDashSettings] = useState(false);
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null);
@@ -51,20 +52,15 @@ export default function App() {
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto');
   const [showDataManager, setShowDataManager] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [screenPrompt, setScreenPrompt] = useState<{ title: string; label: string; placeholder?: string; initial?: string; okLabel?: string; onSubmit: (v: string) => void } | null>(null);
+  const [screenPrompt, setScreenPrompt] = useState<{ title: string; label: string; placeholder?: string; initialValue?: string; shortcutValue?: string; okLabel?: string; onSubmit: (v: string, shortcut?: string | null) => void } | null>(null);
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [showBrandingDialog, setShowBrandingDialog] = useState(false);
   const [layoutBreakpoint, setLayoutBreakpoint] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin' | 'scada'>('cards');
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null);
+  const [showShortcutsPanel, setShowShortcutsPanel] = useState(false);
 
   const startTime = useRef(Date.now());
-  const lastFetch = useRef(0);
-  const fetching = useRef(false);
-  const pendingData = useRef<SensorData[] | null>(null);
-  const rafRef = useRef(0);
-  const frameCount = useRef(0);
-  const lastFpsTime = useRef(performance.now());
   const initialLoadDone = useRef(false);
 
   // ── Query hooks ──────────────────────────────────────────────────
@@ -93,10 +89,31 @@ export default function App() {
   const canvasLayouts = localCanvasLayouts ?? serverCanvasLayouts;
 
   const { data: shortcuts = {} } = useShortcuts(authed);
+  const { data: navShortcuts = {} } = useNavShortcuts(authed);
+
+  const effectiveNavShortcuts = useMemo(() => {
+    const defaults: Record<string, string> = {
+      'screen:all': 'Mod+1',
+      'screen:system': 'Mod+0',
+      'view:cards': '',
+      'view:canvas': '',
+      'view:twin': '',
+      'view:scada': '',
+      'mode:live': '',
+      'mode:history': '',
+    };
+    screens.forEach((s, i) => { defaults[`screen:${s.id}`] = `Mod+${i + 2}`; });
+    // User overrides take precedence
+    Object.entries(navShortcuts).forEach(([k, v]) => { if (v) defaults[k] = v; });
+    return defaults;
+  }, [screens, navShortcuts]);
 
   const { data: branding = DEFAULT_BRANDING } = useBranding();
 
   const { data: systemInfo } = useSystemInfo(authed);
+
+  // SSE for live data
+  const sseData = useSSEData(authed && mode === 'live');
 
   // ── Mutation hooks ───────────────────────────────────────────────
 
@@ -110,6 +127,7 @@ export default function App() {
   const saveScadaEquipmentMut = useSaveScadaEquipment()
   const saveScadaConnectionsMut = useSaveScadaConnections()
   const saveShortcutsMut = useSaveShortcuts();
+  const saveNavShortcutsMut = useSaveNavShortcuts();
   const saveBrandingMut = useSaveBranding();
   const createScreenMut = useCreateScreen();
   const renameScreenMut = useRenameScreen();
@@ -209,7 +227,7 @@ export default function App() {
     if (shortcut !== undefined) {
       const prev = shortcuts[s.id] ?? null;
       if (shortcut !== prev) {
-        await saveShortcutsMut.mutateAsync({ [s.id]: shortcut });
+        await saveShortcutsMut.mutateAsync({ ...shortcuts, [s.id]: shortcut });
       }
     }
     setEditingId(null);
@@ -262,16 +280,31 @@ export default function App() {
   }, []);
 
   const handleAddScreen = () => {
+    const defaultShortcut = `Mod+${screens.length + 2}`;
     setScreenPrompt({
-      title: 'New Screen', label: 'Screen name', placeholder: 'My Screen', okLabel: 'Create',
-      onSubmit: (name) => createScreenMut.mutate(name)
+      title: 'New Screen', label: 'Screen name', placeholder: 'My Screen', shortcutValue: defaultShortcut, okLabel: 'Create',
+      onSubmit: async (name, shortcut) => {
+        const created = await createScreenMut.mutateAsync(name);
+        if (shortcut) {
+          await saveNavShortcutsMut.mutateAsync({ ...navShortcuts, [`screen:${created.id}`]: shortcut });
+        }
+      }
     });
   };
 
   const handleRenameScreen = (id: string, oldName: string) => {
+    const currentShortcut = navShortcuts[`screen:${id}`] || effectiveNavShortcuts[`screen:${id}`] || '';
     setScreenPrompt({
-      title: 'Rename Screen', label: 'Screen name', initial: oldName, okLabel: 'Rename',
-      onSubmit: (name) => { if (name !== oldName) renameScreenMut.mutate({ id, name }) }
+      title: 'Rename Screen', label: 'Screen name', initialValue: oldName, shortcutValue: currentShortcut, okLabel: 'Rename',
+      onSubmit: async (name, shortcut) => {
+        if (name !== oldName) renameScreenMut.mutate({ id, name });
+        const target = `screen:${id}`;
+        if (shortcut !== undefined) {
+          const updated = { ...navShortcuts };
+          if (shortcut) updated[target] = shortcut; else delete updated[target];
+          await saveNavShortcutsMut.mutateAsync(updated);
+        }
+      }
     });
   };
 
@@ -304,20 +337,7 @@ export default function App() {
     });
   }, [authed, sensors]);
 
-  const fetchData = useCallback(async () => {
-    if (fetching.current) return;
-    fetching.current = true;
-    try {
-      const url = activeScreen === 'all' ? '/api/data' : `/api/data?screen=${activeScreen}`;
-      const r = await fetch(url);
-      if (r.status === 401) { setAuthed(false); return; }
-      const d: SensorData[] = await r.json();
-      pendingData.current = d;
-    } catch { /* ignore */ }
-    fetching.current = false;
-  }, [activeScreen]);
-
-  // ── rAF polling loop ─────────────────────────────────────────────
+  // ── SSE live data processing ─────────────────────────────────────
 
   const dataMapRef = useRef(dataMap);
   dataMapRef.current = dataMap;
@@ -325,50 +345,36 @@ export default function App() {
   currentValuesRef.current = currentValues;
 
   useEffect(() => {
-    if (!authed) return;
-    const loop = (now: number) => {
-      rafRef.current = requestAnimationFrame(loop);
-      frameCount.current++;
-      if (now - lastFpsTime.current >= 1000) { setFps(frameCount.current); frameCount.current = 0; lastFpsTime.current = now; }
-      if (paused || mode !== 'live') return;
-      const interval = turbo ? 1000 / 120 : dashSettings.refreshInterval;
-      if (now - lastFetch.current >= interval) { lastFetch.current = now; fetchData(); }
-      if (pendingData.current) {
-        const d = pendingData.current;
-        pendingData.current = null;
-        const newMap = { ...dataMapRef.current };
-        const newVals = { ...currentValuesRef.current };
-        let alertCount = 0;
-        for (const item of d) {
-          const k = String(item.id);
-          const isOffline = item.value == null || Number.isNaN(item.value);
-          if (isOffline) {
-            newVals[k] = item;
-            continue;
-          }
-          const arr = newMap[k] ? [...newMap[k]] : [];
-          arr.push({ value: item.value, ts: Date.now() });
-          if (arr.length > (turbo ? MAX_PTS : NORM_PTS)) arr.shift();
-          newMap[k] = arr;
-          newVals[k] = item;
-          if (item.source_type === 'modbus' && ((item.crit > 0 && item.value >= item.crit) || (item.warn > 0 && item.value >= item.warn))) {
-            alertCount++;
-          }
-        }
-        setDataMap(newMap);
-        setCurrentValues(newVals);
-        setAlerts(alertCount);
-        // Alarm audio: start on new breaches, stop when all clear
-        if (alertCount > 0) {
-          startAlarm();
-        } else {
-          stopAlarm();
-        }
+    if (paused || !sseData.data) return;
+    const d = sseData.data;
+    const newMap = { ...dataMapRef.current };
+    const newVals = { ...currentValuesRef.current };
+    let alertCount = 0;
+    for (const item of d) {
+      const k = String(item.id);
+      const isOffline = item.value == null || Number.isNaN(item.value);
+      if (isOffline) {
+        newVals[k] = item;
+        continue;
       }
-    };
-    rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [authed, paused, turbo, dashSettings.refreshInterval, fetchData, mode]);
+      const arr = newMap[k] ? [...newMap[k]] : [];
+      arr.push({ value: item.value, ts: Date.now() });
+      if (arr.length > (turbo ? MAX_PTS : NORM_PTS)) arr.shift();
+      newMap[k] = arr;
+      newVals[k] = item;
+      if (item.source_type === 'modbus' && ((item.crit > 0 && item.value >= item.crit) || (item.warn > 0 && item.value >= item.warn))) {
+        alertCount++;
+      }
+    }
+    setDataMap(newMap);
+    setCurrentValues(newVals);
+    setAlerts(alertCount);
+    if (alertCount > 0) {
+      startAlarm();
+    } else {
+      stopAlarm();
+    }
+  }, [sseData.data, paused, turbo]);
 
   // ── History fetch ────────────────────────────────────────────────
 
@@ -411,9 +417,10 @@ export default function App() {
 
   const shortcutToSensorId = useMemo(() => {
     const map = new Map<string, number>();
+    const normalize = (s: string) => s.replace(/\bCtrl\b/gi, 'Mod').replace(/\bMeta\b/gi, 'Mod').toLowerCase();
     for (const [id, sc] of Object.entries(shortcuts)) {
       const sensor = sensors.find(s => s.id === Number(id));
-      if (sensor) map.set(sc.toLowerCase(), sensor.id);
+      if (sensor) map.set(normalize(sc), sensor.id);
     }
     return map;
   }, [shortcuts, sensors]);
@@ -424,6 +431,31 @@ export default function App() {
       if (!el) return;
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) return;
       const combo = normalizeKeyEvent(e).toLowerCase();
+
+      // Nav shortcuts
+      const navEntry = Object.entries(effectiveNavShortcuts).find(([, v]) => v && v.replace(/\bCtrl\b/gi, 'Mod').replace(/\bMeta\b/gi, 'Mod').toLowerCase() === combo);
+      if (navEntry) {
+        e.preventDefault();
+        setSelectedSensor(null);
+        const [target] = navEntry;
+        if (target.startsWith('screen:')) {
+          const screenId = target.slice(7);
+          if (screenId === 'system') {
+            setMode('system');
+            setActiveScreen('all');
+          } else {
+            setActiveScreen(screenId);
+            if (mode === 'system') setMode('live');
+          }
+        } else if (target.startsWith('view:')) {
+          setViewMode(target.slice(5) as typeof viewMode);
+        } else if (target.startsWith('mode:')) {
+          setMode(target.slice(5) as 'live' | 'history');
+        }
+        return;
+      }
+
+      // Sensor detail shortcuts
       const sensorId = shortcutToSensorId.get(combo);
       if (sensorId != null) {
         e.preventDefault();
@@ -432,7 +464,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [shortcutToSensorId]);
+  }, [shortcutToSensorId, effectiveNavShortcuts, mode]);
 
   // ── Render gates ─────────────────────────────────────────────────
 
@@ -480,16 +512,22 @@ export default function App() {
             </button>
           {/* View mode toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Grids</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'canvas' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'canvas' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('canvas')}>Canvas</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'scada' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'scada' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('scada')}>2D</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'cards' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'cards' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('cards')}>Grids{effectiveNavShortcuts['view:cards'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:cards'])}</kbd> : null}</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'canvas' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'canvas' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('canvas')}>Canvas{effectiveNavShortcuts['view:canvas'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:canvas'])}</kbd> : null}</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'twin' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'twin' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('twin')}>3D{effectiveNavShortcuts['view:twin'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:twin'])}</kbd> : null}</button>
+            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'scada' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'scada' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setViewMode('scada')}>2D{effectiveNavShortcuts['view:scada'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:scada'])}</kbd> : null}</button>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowShortcutsPanel(!showShortcutsPanel)} style={{ ...btnStyle, padding: '6px 8px', fontSize: 12, color: showShortcutsPanel ? 'var(--cyan)' : 'var(--muted)', background: showShortcutsPanel ? 'rgba(34,197,94,.1)' : 'transparent', border: showShortcutsPanel ? '1px solid var(--cyan)' : '1px solid var(--border)' }} title="Keyboard shortcuts">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/></svg>
+            </button>
+            {showShortcutsPanel && <ShortcutsConfigPanel effectiveNavShortcuts={effectiveNavShortcuts} navShortcuts={navShortcuts} saveNavShortcutsMut={saveNavShortcutsMut} onClose={() => setShowShortcutsPanel(false)} />}
           </div>
           {/* Live/History toggle (hidden in 3D mode) */}
           {viewMode !== 'twin' && viewMode !== 'scada' && (<>
             <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setMode('live')}>Live</button>
-              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History</button>
+              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => setMode('live')}>Live{effectiveNavShortcuts['mode:live'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['mode:live'])}</kbd> : null}</button>
+              <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => setMode('history')}>History{effectiveNavShortcuts['mode:history'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['mode:history'])}</kbd> : null}</button>
             </div>
             {mode === 'history' && (
               <HistoryRangeBar range={historyRange} onChange={setHistoryRange} detail={historyDetail} onDetailChange={setHistoryDetail} agg={dashSettings.historyAutoAgg} />
@@ -545,10 +583,10 @@ export default function App() {
       {/* Screen navigation + content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
-        <button style={tabStyle(mode !== 'system' && activeScreen === 'all')} onClick={() => { setActiveScreen('all'); if (mode === 'system') setMode('live'); }}>Overview</button>
+        <button style={tabStyle(mode !== 'system' && activeScreen === 'all')} onClick={() => { setActiveScreen('all'); if (mode === 'system') setMode('live'); }}>Overview{effectiveNavShortcuts['screen:all'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['screen:all'])}</kbd> : null}</button>
         {screens.map(s => (
           <div key={s.id} style={{ position: 'relative' }}>
-            <button style={tabStyle(mode !== 'system' && activeScreen === s.id)} onClick={() => { setActiveScreen(s.id); if (mode === 'system') setMode('live'); }}>{s.name}</button>
+            <button style={tabStyle(mode !== 'system' && activeScreen === s.id)} onClick={() => { setActiveScreen(s.id); if (mode === 'system') setMode('live'); }}>{s.name}{effectiveNavShortcuts[`screen:${s.id}`] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts[`screen:${s.id}`])}</kbd> : null}</button>
             {editMode && (
               <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
                 <button onClick={e => { e.stopPropagation(); handleRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
@@ -562,7 +600,7 @@ export default function App() {
           ...tabStyle(mode === 'system'),
           color: mode === 'system' ? '#a78bfa' : 'var(--muted)',
           borderBottom: mode === 'system' ? '2px solid #a78bfa' : '2px solid transparent',
-        }} onClick={() => { setMode('system'); setActiveScreen('all'); }}>System</button>
+        }} onClick={() => { setMode('system'); setActiveScreen('all'); }}>System{effectiveNavShortcuts['screen:system'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['screen:system'])}</kbd> : null}</button>
       </div>
 
       {/* Layout breakpoint selector (edit mode) */}
@@ -764,8 +802,9 @@ export default function App() {
         <a href="https://joyodigitama.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'Inter,sans-serif', fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 4, textDecoration: 'none' }}>
           by <span style={{ color: 'var(--cyan)', fontWeight: 600 }}>JoyoDigitama</span>
         </a>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 8px', borderRadius: 4 }}>
-          {fps} FPS
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: sseData.connected ? 'var(--ok)' : 'var(--warn)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 8px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: sseData.connected ? 'var(--ok)' : 'var(--warn)' }} />
+          {sseData.connected ? 'LIVE' : 'SSE...'}
         </div>
       </div>
     </div>

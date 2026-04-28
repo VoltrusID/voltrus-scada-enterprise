@@ -65,3 +65,57 @@ pub async fn save_shortcuts(
     state.storage.save_user_shortcuts(user.id, &entries).await?;
     Ok(Json(json!({"ok": true})))
 }
+
+/// GET /api/nav-shortcuts — get navigation shortcuts for the current user
+pub async fn get_nav_shortcuts(
+    State(state): State<AppState>,
+    axum::Extension(auth): axum::Extension<AuthUser>,
+) -> Result<impl IntoResponse, AppError> {
+    let user = state.storage.get_user_by_username(&auth.username).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+    let shortcuts = state.storage.get_user_nav_shortcuts(user.id).await?;
+    let mut map = serde_json::Map::new();
+    for s in &shortcuts {
+        map.insert(s.target.clone(), json!(s.shortcut));
+    }
+    Ok(Json(serde_json::Value::Object(map)))
+}
+
+/// PUT /api/nav-shortcuts — save navigation shortcuts, accept map of {target: shortcut}
+pub async fn save_nav_shortcuts(
+    State(state): State<AppState>,
+    axum::Extension(auth): axum::Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let user = state.storage.get_user_by_username(&auth.username).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+    let obj = body
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("Expected a JSON object"))?;
+
+    let mut owned_entries: Vec<(String, Option<String>)> = Vec::new();
+    for (target, value) in obj {
+        match value {
+            serde_json::Value::Null => {
+                owned_entries.push((target.clone(), None));
+            }
+            serde_json::Value::String(s) if s.is_empty() => {
+                owned_entries.push((target.clone(), None));
+            }
+            serde_json::Value::String(s) => {
+                owned_entries.push((target.clone(), Some(s.clone())));
+            }
+            _ => {
+                owned_entries.push((target.clone(), Some(value.to_string())));
+            }
+        }
+    }
+
+    let entries: Vec<(String, Option<&str>)> = owned_entries
+        .iter()
+        .map(|(t, opt)| (t.clone(), opt.as_deref()))
+        .collect();
+
+    state.storage.save_user_nav_shortcuts(user.id, &entries).await?;
+    Ok(Json(json!({"ok": true})))
+}

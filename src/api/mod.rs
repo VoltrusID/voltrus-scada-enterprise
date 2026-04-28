@@ -105,6 +105,10 @@ pub fn create_router(state: AppState) -> Router {
             get(shortcuts::get_shortcuts).put(shortcuts::save_shortcuts),
         )
         .route(
+            "/api/nav-shortcuts",
+            get(shortcuts::get_nav_shortcuts).put(shortcuts::save_nav_shortcuts),
+        )
+        .route(
             "/api/alarms",
             get(alarms::list_alarms).post(alarms::acknowledge_all),
         )

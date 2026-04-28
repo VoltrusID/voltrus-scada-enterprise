@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { SensorConfig } from './types';
 import { SOURCE_TYPES, CHART_TYPES } from './types';
-import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, tabStyle, parseConfig, normalizeKeyEvent } from './styles';
+import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, tabStyle, parseConfig, normalizeKeyEvent, displayShortcut } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
 
 export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, shortcuts }: { sensor: SensorConfig; activeScreen: string; onSave: (s: SensorConfig, shortcut?: string | null) => void; onDelete: (id: number) => void; onClose: () => void; shortcuts: Record<number, string> }) {
@@ -115,7 +115,7 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
                     fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 600,
                     padding: '4px 8px', borderRadius: 4,
                     background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--cyan)',
-                  }}>{capturedShortcut}</kbd>
+                  }}>{displayShortcut(capturedShortcut)}</kbd>
                 ) : (
                   <span style={{ fontSize: 12, color: 'var(--muted)' }}>None</span>
                 )}

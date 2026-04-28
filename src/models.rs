@@ -403,6 +403,13 @@ pub struct UserShortcut {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NavShortcut {
+    pub user_id: i64,
+    pub target: String,
+    pub shortcut: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Setting {
     pub key: String,
     pub value: String,
@@ -480,6 +487,7 @@ pub struct DataSourceSummary {
     pub warn_val: f64,
     pub crit_val: f64,
     pub decimals: i64,
+    pub source_type: String,
 }
 
 #[derive(Debug, serde::Deserialize)]

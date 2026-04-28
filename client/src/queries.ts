@@ -11,6 +11,7 @@ export const queryKeys = {
   layouts:       (screenId: string) => ['layouts', screenId] as const,
   twinLayouts:   (screenId: string) => ['twinLayouts', screenId] as const,
   shortcuts:     ['shortcuts'] as const,
+  navShortcuts:  ['navShortcuts'] as const,
   branding:      ['branding'] as const,
   history:       (range: string, screenId: string) => ['history', range, screenId] as const,
   systemInfo:    ['systemInfo'] as const,
@@ -107,6 +108,14 @@ export function useShortcuts(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.shortcuts,
     queryFn: () => fetchJson<Record<number, string>>('/api/shortcuts'),
+    enabled,
+  })
+}
+
+export function useNavShortcuts(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.navShortcuts,
+    queryFn: () => fetchJson<Record<string, string>>('/api/nav-shortcuts'),
     enabled,
   })
 }
@@ -298,6 +307,22 @@ export function useSaveShortcuts() {
   })
 }
 
+export function useSaveNavShortcuts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (shortcuts: Record<string, string | null>) => {
+      await fetchOk('/api/nav-shortcuts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shortcuts),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.navShortcuts })
+    },
+  })
+}
+
 export function useSaveBranding() {
   const qc = useQueryClient()
   return useMutation({
@@ -319,11 +344,12 @@ export function useCreateScreen() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (name: string) => {
-      await fetchOk('/api/screens', {
+      const r = await fetchOk('/api/screens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       })
+      return r.json() as Promise<{ id: string; name: string }>
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.screens })
