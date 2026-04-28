@@ -307,7 +307,7 @@ let AppShell = class AppShell extends LitElement {
         return html `
       <div class="header">
         <div class="brand">
-          ${this._branding.logo ? html `<img src="${this._branding.logo}" alt="${this._branding.title}" />` : html `<img src="/favicon-32.png" alt="${this._branding.title}" />`}
+          ${this._branding.logo ? html `<img src="${this._branding.logo}" alt="${this._branding.title}" />` : html `<img src="favicon-32.png" alt="${this._branding.title}" />`}
           <h1>${this._branding.title} <span>${this._branding.subtitle}</span></h1>
         </div>
         <div class="toolbar">
