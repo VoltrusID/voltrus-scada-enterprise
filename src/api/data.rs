@@ -4,11 +4,12 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
+use crate::expression;
 use crate::models::*;
 use super::{generators, AppState, AppError};
 
 /// GET /api/data?screen=X — fetch data sources, generate values using generators
-/// For source_type == "modbus": read from cache
+/// For source_type == "modbus": read from cache, evaluate expression if present
 pub async fn get_data(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -22,19 +23,39 @@ pub async fn get_data(
     let mut result = Vec::new();
     for data_source in &data_sources {
         let value = if data_source.source_type == "modbus" {
-            // Only return live data from online device; no fallback
-            let mut val: Option<f64> = None;
+            // Find the device's cached metrics
+            let mut metrics: Option<&std::collections::HashMap<String, f64>> = None;
             for snapshot in &cache_data {
                 if snapshot.device_id == data_source.device_id
                     && snapshot.status == DeviceStatus::Online
                 {
-                    if let Some(cached_val) = snapshot.metrics.get(&data_source.key) {
-                        val = Some(*cached_val);
-                        break;
+                    metrics = Some(&snapshot.metrics);
+                    break;
+                }
+            }
+
+            match metrics {
+                None => f64::NAN,
+                Some(m) => {
+                    // Check if source_config has an expression
+                    if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&data_source.source_config) {
+                        if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
+                            match expression::evaluate(expr_str, m) {
+                                Ok(val) => val,
+                                Err(e) => {
+                                    tracing::warn!("Expression eval error for {}: {e}", data_source.key);
+                                    f64::NAN
+                                }
+                            }
+                        } else {
+                            // Fallback: single register lookup by key
+                            m.get(&data_source.key).copied().unwrap_or(f64::NAN)
+                        }
+                    } else {
+                        m.get(&data_source.key).copied().unwrap_or(f64::NAN)
                     }
                 }
             }
-            val.unwrap_or(f64::NAN)
         } else {
             generators::generate_value(data_source, now)
         };
