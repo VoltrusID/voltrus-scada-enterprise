@@ -34,6 +34,7 @@ base64 = "0.22"
 argon2 = "0.5"
 password-hash = "0.5"
 rand = "0.9"
+flate2 = "1"
 sysinfo = "0.34"
 time = "0.3.47"
 
