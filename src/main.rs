@@ -213,6 +213,7 @@ async fn main() -> anyhow::Result<()> {
         cookie_secure: app_config.cookie_secure,
         oidc_config,
         jwks_manager,
+        retention_config: app_config.retention.clone(),
     };
     let app = api::create_router(state);
 
