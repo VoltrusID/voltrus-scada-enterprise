@@ -107,7 +107,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT id, username, password_hash, salt FROM users WHERE username = ?1")
+                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user') FROM users WHERE username = ?1")
                 .context("Prepare failed")?;
             let mut rows = stmt
                 .query_map(rusqlite::params![username], |row| {
@@ -116,6 +116,7 @@ impl Storage {
                         username: row.get(1)?,
                         password_hash: row.get(2)?,
                         salt: row.get(3)?,
+                        role: row.get(4)?,
                     })
                 })
                 .context("Query failed")?;
@@ -129,19 +130,113 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn create_user(&self, username: &str, password_hash: &str, salt: &str) -> Result<i64> {
+    pub async fn create_user(&self, username: &str, password_hash: &str, salt: &str, role: &str) -> Result<i64> {
         let conn = self.conn.clone();
         let username = username.to_string();
         let password_hash = password_hash.to_string();
         let salt = salt.to_string();
+        let role = role.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT INTO users (username, password_hash, salt) VALUES (?1, ?2, ?3)",
-                rusqlite::params![username, password_hash, salt],
+                "INSERT INTO users (username, password_hash, salt, role) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![username, password_hash, salt, role],
             )
             .context("Insert user failed")?;
             Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_users(&self) -> Result<Vec<User>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user') FROM users ORDER BY id")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(User {
+                        id: row.get(0)?,
+                        username: row.get(1)?,
+                        password_hash: row.get(2)?,
+                        salt: row.get(3)?,
+                        role: row.get(4)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_user_by_id(&self, id: i64) -> Result<Option<User>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user') FROM users WHERE id = ?1")
+                .context("Prepare failed")?;
+            let result = stmt
+                .query_row(rusqlite::params![id], |row| {
+                    Ok(User {
+                        id: row.get(0)?,
+                        username: row.get(1)?,
+                        password_hash: row.get(2)?,
+                        salt: row.get(3)?,
+                        role: row.get(4)?,
+                    })
+                })
+                .ok();
+            Ok(result)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_user_role(&self, id: i64, role: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let role = role.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE users SET role = ?1 WHERE id = ?2",
+                rusqlite::params![role, id],
+            )
+            .context("Update user role failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_user_password(&self, id: i64, password_hash: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let password_hash = password_hash.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE users SET password_hash = ?1 WHERE id = ?2",
+                rusqlite::params![password_hash, id],
+            )
+            .context("Update user password failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_user(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM users WHERE id = ?1", rusqlite::params![id])
+                .context("Delete user failed")?;
+            Ok(())
         })
         .await
         .context("Task join failed")?
@@ -1000,7 +1095,7 @@ impl Storage {
             let password = "admin";
             let password_hash = crate::api::auth::hash_password(password);
 
-            self.create_user("admin", &password_hash, "").await?;
+            self.create_user("admin", &password_hash, "", "admin").await?;
 
             tracing::info!("Seeded admin user");
         }
@@ -1286,7 +1381,8 @@ fn init_schema(conn: &Connection) -> Result<()> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            salt TEXT NOT NULL
+            salt TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user'
         );
         CREATE TABLE IF NOT EXISTS devices (
             id TEXT PRIMARY KEY,
@@ -1442,6 +1538,10 @@ fn init_schema(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch("ALTER TABLE screen_sensors RENAME TO screen_data_sources");
     let _ = conn.execute_batch("ALTER TABLE screen_data_sources RENAME COLUMN sensor_id TO data_source_id");
     let _ = conn.execute_batch("ALTER TABLE user_shortcuts RENAME COLUMN sensor_id TO data_source_id");
+
+    // Migration: add role column to users
+    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+    let _ = conn.execute_batch("UPDATE users SET role = 'admin' WHERE username = 'admin'");
 
     Ok(())
 }

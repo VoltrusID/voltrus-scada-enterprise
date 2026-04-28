@@ -52,22 +52,30 @@ pub async fn get_data(
     Ok(Json(result))
 }
 
-/// GET /api/history?range=30m&screen=X — generate history data points
+/// GET /api/history?range=30m&screen=X&agg=sampling — generate history data points
+/// `agg`: "sampling" = pick evenly-spaced points, "avg" = average per bucket, "minmax" = min/max/avg per bucket
+/// Returns compact format: each sensor has {values: [f64], start: unix_ms, interval: ms, count: usize}
+/// For minmax: additionally includes {mins: [f64], maxs: [f64]}
 pub async fn get_history(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let range_str = params.range.as_deref().unwrap_or("30m");
+    let detail = params.detail.as_deref();
+    let agg = params.agg.as_deref().unwrap_or("sampling");
     let screen_id = params.screen.as_deref();
     let data_sources = state.storage.list_data_sources(screen_id).await?;
 
     let (start, end) = generators::parse_range(range_str);
-    let interval_ms = generators::interval_for_range(range_str);
+    let interval_ms = generators::interval_for_range(range_str, detail);
     let duration_secs = end - start;
-    let num_points = ((duration_secs * 1000) / interval_ms as i64).min(500) as usize;
+    let num_points = ((duration_secs * 1000) / interval_ms as i64) as usize;
 
     let mut data_source_summaries: Vec<DataSourceSummary> = Vec::new();
     let mut data_map = serde_json::Map::new();
+
+    // For avg/minmax: number of sub-samples within each bucket interval
+    let sub_samples = if agg == "sampling" { 1 } else { (interval_ms / 1000).max(1) as usize };
 
     for data_source in &data_sources {
         data_source_summaries.push(DataSourceSummary {
@@ -81,14 +89,42 @@ pub async fn get_history(
             decimals: data_source.decimals,
         });
 
-        let mut points = Vec::with_capacity(num_points);
+        let mut values = Vec::with_capacity(num_points);
+        let mut mins: Vec<f64> = Vec::new();
+        let mut maxs: Vec<f64> = Vec::new();
+
         for i in 0..num_points {
-            let t = start + ((end - start) * i as i64 / num_points.max(1) as i64);
-            let t_f64 = t as f64;
-            let value = generators::generate_value(data_source, t_f64);
-            points.push(json!({"ts": t * 1000, "value": value}));
+            let bucket_start = start + ((end - start) * i as i64 / num_points.max(1) as i64);
+
+            match agg {
+                "avg" | "minmax" => {
+                    let (avg, mn, mx) = generators::aggregate_bucket(
+                        data_source, bucket_start as f64, sub_samples,
+                    );
+                    values.push(avg);
+                    if agg == "minmax" {
+                        mins.push(mn);
+                        maxs.push(mx);
+                    }
+                }
+                _ => {
+                    // sampling: just pick the value at the bucket start
+                    let value = generators::generate_value(data_source, bucket_start as f64);
+                    values.push((value * 100.0).round() / 100.0);
+                }
+            }
         }
-        data_map.insert(data_source.key.clone(), json!(points));
+
+        let mut sensor_data = serde_json::Map::new();
+        sensor_data.insert("values".into(), json!(values));
+        sensor_data.insert("start".into(), json!(start * 1000));
+        sensor_data.insert("interval".into(), json!(interval_ms));
+        sensor_data.insert("count".into(), json!(num_points));
+        if agg == "minmax" {
+            sensor_data.insert("mins".into(), json!(mins));
+            sensor_data.insert("maxs".into(), json!(maxs));
+        }
+        data_map.insert(data_source.key.clone(), json!(sensor_data));
     }
 
     Ok(Json(HistoryResponse {
@@ -119,9 +155,9 @@ pub async fn export_csv(
     };
 
     let (start, end) = generators::parse_range(range_str);
-    let interval_ms = generators::interval_for_range(range_str);
+    let interval_ms = generators::interval_for_range(range_str, params.detail.as_deref());
     let duration_secs = end - start;
-    let num_points = ((duration_secs * 1000) / interval_ms as i64).min(500) as usize;
+    let num_points = ((duration_secs * 1000) / interval_ms as i64) as usize;
 
     // Build CSV
     let mut csv = String::from("timestamp");

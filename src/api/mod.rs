@@ -19,6 +19,7 @@ use axum::{
     routing::{get, patch, post, put},
     Json, Router,
 };
+use axum::extract::Extension;
 use axum_extra::extract::CookieJar;
 use serde_json::json;
 use tower_http::cors::{Any, CorsLayer};
@@ -79,73 +80,24 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
-        .route("/api/settings/branding", get(settings::get_branding))
-        .route("/api/settings/branding", put(settings::update_branding));
+        .route("/api/settings/branding", get(settings::get_branding));
 
-    // Protected routes (cookie auth required)
+    // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
-        .route("/api/seed", post(auth::seed))
         .route("/api/live", get(system::get_live))
         .route("/api/system", get(system::get_system))
         .route("/api/data", get(data::get_data))
         .route("/api/history", get(data::get_history))
         .route("/api/export/csv", get(data::export_csv))
-        .route(
-            "/api/screens",
-            get(screens::list_screens).post(screens::create_screen),
-        )
-        .route(
-            "/api/screens/{id}",
-            put(screens::update_screen).delete(screens::delete_screen),
-        )
-        .route(
-            "/api/screens/{id}/data-sources",
-            get(screens::list_screen_sensors).post(screens::add_screen_sensor),
-        )
-        .route(
-            "/api/screens/{id}/data-sources/{data_source_id}",
-            put(screens::update_screen_sensor).delete(screens::remove_screen_sensor),
-        )
-        .route(
-            "/api/screens/{id}/layouts",
-            get(layouts::get_layouts).put(layouts::save_layouts),
-        )
-        .route(
-            "/api/screens/{id}/twin-layouts",
-            get(layouts::get_twin_layouts).put(layouts::save_twin_layouts),
-        )
-        .route(
-            "/api/screens/{id}/twin-connections",
-            get(layouts::get_twin_connections).put(layouts::save_twin_connections),
-        )
-        .route(
-            "/api/screens/{id}/twin-camera",
-            put(layouts::save_twin_camera),
-        )
-        .route(
-            "/api/screens/{id}/canvas-layouts",
-            get(layouts::get_canvas_layouts).put(layouts::save_canvas_layouts),
-        )
-        .route(
-            "/api/screens/{id}/scada-equipment",
-            get(layouts::get_scada_equipment).put(layouts::save_scada_equipment),
-        )
-        .route(
-            "/api/screens/{id}/scada-connections",
-            get(layouts::get_scada_connections).put(layouts::save_scada_connections),
-        )
-        .route(
-            "/api/data-sources",
-            get(data_sources::list_data_sources).post(data_sources::create_data_source),
-        )
-        .route(
-            "/api/data-sources/reorder",
-            patch(data_sources::reorder_data_sources),
-        )
-        .route(
-            "/api/data-sources/{id}",
-            put(data_sources::update_data_source).delete(data_sources::delete_data_source),
-        )
+        .route("/api/screens", get(screens::list_screens))
+        .route("/api/screens/{id}/data-sources", get(screens::list_screen_sensors))
+        .route("/api/screens/{id}/layouts", get(layouts::get_layouts))
+        .route("/api/screens/{id}/twin-layouts", get(layouts::get_twin_layouts))
+        .route("/api/screens/{id}/twin-connections", get(layouts::get_twin_connections))
+        .route("/api/screens/{id}/canvas-layouts", get(layouts::get_canvas_layouts))
+        .route("/api/screens/{id}/scada-equipment", get(layouts::get_scada_equipment))
+        .route("/api/screens/{id}/scada-connections", get(layouts::get_scada_connections))
+        .route("/api/data-sources", get(data_sources::list_data_sources))
         .route(
             "/api/shortcuts",
             get(shortcuts::get_shortcuts).put(shortcuts::save_shortcuts),
@@ -162,28 +114,51 @@ pub fn create_router(state: AppState) -> Router {
             "/api/push/subscribe",
             post(push::subscribe).delete(push::unsubscribe),
         )
-        .route(
-            "/api/modbus-devices",
-            get(modbus_devices::list_modbus_devices).post(modbus_devices::create_modbus_device),
-        )
-        .route(
-            "/api/modbus-devices/status",
-            get(modbus_devices::get_poller_statuses),
-        )
+        .route("/api/modbus-devices", get(modbus_devices::list_modbus_devices))
+        .route("/api/modbus-devices/status", get(modbus_devices::get_poller_statuses))
         .route(
             "/api/modbus-devices/{id}",
-            get(modbus_devices::get_modbus_device)
-                .put(modbus_devices::update_modbus_device)
-                .delete(modbus_devices::delete_modbus_device),
+            get(modbus_devices::get_modbus_device),
         )
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            cookie_auth_middleware,
+        ));
+
+    // Admin-only routes (authenticated + admin role required)
+    let admin_protected = Router::new()
+        .route("/api/seed", post(auth::seed))
+        .route("/api/settings/branding", put(settings::update_branding))
+        .route("/api/screens", post(screens::create_screen))
+        .route("/api/screens/{id}", put(screens::update_screen).delete(screens::delete_screen))
+        .route("/api/screens/{id}/data-sources", post(screens::add_screen_sensor))
         .route(
-            "/api/modbus-devices/{id}/registers",
-            put(modbus_devices::replace_registers),
+            "/api/screens/{id}/data-sources/{data_source_id}",
+            put(screens::update_screen_sensor).delete(screens::remove_screen_sensor),
         )
+        .route("/api/screens/{id}/layouts", put(layouts::save_layouts))
+        .route("/api/screens/{id}/twin-layouts", put(layouts::save_twin_layouts))
+        .route("/api/screens/{id}/twin-connections", put(layouts::save_twin_connections))
+        .route("/api/screens/{id}/twin-camera", put(layouts::save_twin_camera))
+        .route("/api/screens/{id}/canvas-layouts", put(layouts::save_canvas_layouts))
+        .route("/api/screens/{id}/scada-equipment", put(layouts::save_scada_equipment))
+        .route("/api/screens/{id}/scada-connections", put(layouts::save_scada_connections))
+        .route("/api/data-sources", post(data_sources::create_data_source))
+        .route("/api/data-sources/reorder", patch(data_sources::reorder_data_sources))
         .route(
-            "/api/modbus-devices/{id}/restart",
-            post(modbus_devices::restart_poller),
+            "/api/data-sources/{id}",
+            put(data_sources::update_data_source).delete(data_sources::delete_data_source),
         )
+        .route("/api/modbus-devices", post(modbus_devices::create_modbus_device))
+        .route(
+            "/api/modbus-devices/{id}",
+            put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),
+        )
+        .route("/api/modbus-devices/{id}/registers", put(modbus_devices::replace_registers))
+        .route("/api/modbus-devices/{id}/restart", post(modbus_devices::restart_poller))
+        .route("/api/users", get(auth::list_users).post(auth::create_user_handler))
+        .route("/api/users/{id}", put(auth::update_user_handler).delete(auth::delete_user_handler))
+        .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -192,6 +167,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         .merge(public)
         .merge(protected)
+        .merge(admin_protected)
         .fallback_service(
             ServeDir::new("static").fallback(ServeFile::new("static/index.html")),
         )
@@ -199,9 +175,25 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
 }
 
+async fn admin_only_middleware(
+    Extension(auth): Extension<AuthUser>,
+    req: Request,
+    next: Next,
+) -> impl IntoResponse {
+    if auth.role != "admin" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "admin access required"})),
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
 #[derive(Clone)]
 pub struct AuthUser {
     pub username: String,
+    pub role: String,
 }
 
 async fn cookie_auth_middleware(
@@ -225,6 +217,7 @@ async fn cookie_auth_middleware(
         Some(claims) => {
             req.extensions_mut().insert(AuthUser {
                 username: claims.username,
+                role: claims.role,
             });
             next.run(req).await
         }
