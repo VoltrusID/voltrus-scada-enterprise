@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { DataPoint } from './types';
 import { fmtTs, safeMinMax, toHexColor } from './styles';
 
@@ -9,35 +9,51 @@ export interface OverlaySeries {
   unit: string;
 }
 
-export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, overlays = [] }: { data: DataPoint[]; color: string; warn: number; crit: number; unit: string; overlays?: OverlaySeries[] }) {
+export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, overlays = [], pointWidth = 0 }: { data: DataPoint[]; color: string; warn: number; crit: number; unit: string; overlays?: OverlaySeries[]; pointWidth?: number }) {
   const data = rawData.filter(d => d.value != null && !Number.isNaN(d.value));
   const color = toHexColor(rawColor);
   const validOverlays = useMemo(() => overlays.map(o => ({ ...o, data: o.data.filter((d: DataPoint) => d.value != null && !Number.isNaN(d.value)), color: toHexColor(o.color) })).filter(o => o.data.length >= 2), [overlays]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ idx: number; px: number; py: number } | null>(null);
   const areaRef = useRef({ pL: 60, pR: 20, pT: 20, pB: 44, cW: 0, cH: 0, yMin: 0, yMax: 0, dLen: 0 });
-  const overlayRangesRef = useRef<{ min: number; max: number }[]>([]);
+  const [scrollLeft, setScrollLeft] = useState(0);
 
-  useEffect(() => {
+  // Calculate virtual chart width based on pointWidth
+  const containerWidthRef = useRef(0);
+  const virtualWidth = useMemo(() => {
+    if (pointWidth <= 0 || data.length < 2) return 0; // 0 = auto (fit container)
+    return Math.max(pointWidth * data.length + 80, containerWidthRef.current);
+  }, [pointWidth, data.length]);
+
+  const draw = useCallback(() => {
     const cv = canvasRef.current; if (!cv || data.length < 2) return;
-    const ctx = cv.getContext('2d')!, dpr = devicePixelRatio || 1, rect = cv.getBoundingClientRect();
-    cv.width = rect.width * dpr; cv.height = rect.height * dpr; ctx.scale(dpr, dpr);
-    const W = rect.width, H = rect.height, pL = 60, pR = 20, pT = 20, pB = 44, cW = W - pL - pR, cH = H - pT - pB;
+    const ctx = cv.getContext('2d')!, dpr = devicePixelRatio || 1;
+    const rect = cv.parentElement?.getBoundingClientRect();
+    if (rect) containerWidthRef.current = rect.width;
+    const displayW = virtualWidth > 0 ? virtualWidth : (rect?.width ?? cv.width / dpr);
+    const displayH = rect?.height ?? cv.height / dpr;
+    cv.style.width = displayW + 'px';
+    cv.style.height = displayH + 'px';
+    cv.width = displayW * dpr; cv.height = displayH * dpr; ctx.scale(dpr, dpr);
+    const W = displayW, H = displayH, pL = 60, pR = 20, pT = 20, pB = 44, cW = W - pL - pR, cH = H - pT - pB;
     const values = data.map(d => d.value);
     const [rawMin, rawMax] = safeMinMax(values);
     let yMin = rawMin - 2, yMax = rawMax + 2; if (yMax - yMin < 4) { yMin--; yMax++; }
     areaRef.current = { pL, pR, pT, pB, cW, cH, yMin, yMax, dLen: data.length };
     const toX = (i: number, len: number) => pL + (i / (len - 1)) * cW;
     const toY = (v: number) => pT + cH - ((v - yMin) / (yMax - yMin)) * cH;
-    const overlayRanges: { min: number; max: number }[] = [];
     ctx.clearRect(0, 0, W, H);
     ctx.strokeStyle = '#1a1a1e'; ctx.lineWidth = 1;
     for (let i = 0; i <= 5; i++) { const y = pT + (cH / 5) * i; ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(W - pR, y); ctx.stroke(); }
     ctx.fillStyle = '#52525b'; ctx.font = '11px JetBrains Mono,monospace'; ctx.textAlign = 'right';
     for (let i = 0; i <= 5; i++) { const v = yMin + ((yMax - yMin) / 5) * (5 - i); ctx.fillText(v.toFixed(1), pL - 8, pT + (cH / 5) * i + 4); }
+    // X-axis labels — adaptive step based on chart width
     ctx.textAlign = 'center';
-    const step = Math.max(1, Math.floor(data.length / 7));
-    for (let i = 0; i < data.length; i += step) ctx.fillText(fmtTs(data[i].ts), toX(i, data.length), H - pB + 16);
+    const labelGap = virtualWidth > 0 ? Math.max(60, virtualWidth / 12) : Math.max(60, cW / 7);
+    const pxStep = cW / (data.length - 1);
+    const indexStep = Math.max(1, Math.ceil(labelGap / pxStep));
+    for (let i = 0; i < data.length; i += indexStep) ctx.fillText(fmtTs(data[i].ts), toX(i, data.length), H - pB + 16);
     ctx.fillText(fmtTs(data[data.length - 1].ts), toX(data.length - 1, data.length), H - pB + 16);
     ctx.setLineDash([6, 4]);
     if (warn >= yMin && warn <= yMax) { ctx.strokeStyle = 'rgba(234,179,8,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pL, toY(warn)); ctx.lineTo(W - pR, toY(warn)); ctx.stroke(); ctx.fillStyle = 'rgba(234,179,8,0.7)'; ctx.font = '10px JetBrains Mono,monospace'; ctx.textAlign = 'left'; ctx.fillText('WARN', W - pR + 4, toY(warn) + 3); }
@@ -48,7 +64,6 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
       const ovVals = ov.data.map(d => d.value);
       const [ovMin, ovMax] = safeMinMax(ovVals);
       const ovRange = Math.max(ovMax - ovMin, 0.001);
-      overlayRanges.push({ min: ovMin, max: ovMax });
       const ovToY = (v: number) => pT + cH - ((v - ovMin) / ovRange) * cH;
       ctx.beginPath();
       for (let i = 0; i < ov.data.length; i++) { const x = toX(i, ov.data.length), y = ovToY(ov.data[i].value); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
@@ -56,7 +71,6 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
       const lx = toX(ov.data.length - 1, ov.data.length), ly = ovToY(ov.data[ov.data.length - 1].value);
       ctx.beginPath(); ctx.arc(lx, ly, 3, 0, Math.PI * 2); ctx.fillStyle = ov.color; ctx.fill();
     }
-    overlayRangesRef.current = overlayRanges;
     // Primary series
     ctx.beginPath();
     for (let i = 0; i < data.length; i++) { const x = toX(i, data.length), y = toY(data[i].value); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
@@ -69,7 +83,9 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
     ctx.beginPath(); ctx.arc(lx, cy, 9, 0, Math.PI * 2); ctx.strokeStyle = color + '40'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = color; ctx.font = 'bold 13px JetBrains Mono,monospace'; ctx.textAlign = 'right';
     ctx.fillText(lv.toFixed(1) + (unit ? ' ' + unit : ''), W - pR - 2, cy - 12);
-  });
+  }, [data, color, warn, crit, unit, validOverlays, virtualWidth]);
+
+  useEffect(() => { draw(); }, [draw]);
 
   const onMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const cv = canvasRef.current; if (!cv || data.length < 2) { setHover(null); return; }
@@ -82,12 +98,26 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
     setHover({ idx, px: toX(idx), py: toY(data[idx].value) });
   };
 
+  const onScroll = () => {
+    if (scrollRef.current) setScrollLeft(scrollRef.current.scrollLeft);
+  };
+
+  // Scroll to end (latest data) on initial render or data change
+  useEffect(() => {
+    if (virtualWidth > 0 && scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+    }
+  }, [virtualWidth, data.length]);
+
+  // Tooltip position relative to scroll container viewport
+  const scrollOffset = scrollLeft;
+
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', cursor: 'crosshair' }} onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
+    <div ref={scrollRef} onScroll={onScroll} style={{ position: 'relative', width: '100%', height: '100%', overflowX: virtualWidth > containerWidthRef.current ? 'auto' : 'hidden', overflowY: 'hidden' }}>
+      <canvas ref={canvasRef} style={{ display: 'block', cursor: 'crosshair' }} onMouseMove={onMove} onMouseLeave={() => setHover(null)} />
       {/* Legend for overlays */}
       {validOverlays.length > 0 && (
-        <div style={{ position: 'absolute', top: 8, right: 24, display: 'flex', gap: 10, pointerEvents: 'none' }}>
+        <div style={{ position: 'sticky', top: 8, right: 24, float: 'right', display: 'flex', gap: 10, pointerEvents: 'none', marginRight: 24 }}>
           {validOverlays.map((ov, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: ov.color, opacity: 0.85 }}>
               <div style={{ width: 12, height: 2, background: ov.color, borderRadius: 1 }} />
@@ -106,11 +136,13 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
           if (ov.data[ovIdx]) allSeries.push({ name: ov.name, val: ov.data[ovIdx].value.toFixed(2) + (ov.unit ? ' ' + ov.unit : ''), color: ov.color });
         }
         const tipW = 190, tipH = 28 + allSeries.length * 18;
-        const tipLeft = hover.px + 16 + tipW > (a.pL + a.cW) ? hover.px - tipW - 12 : hover.px + 16;
+        const adjPx = hover.px - scrollOffset;
+        const containerW = containerWidthRef.current;
+        const tipLeft = adjPx + 16 + tipW > containerW ? adjPx - tipW - 12 : adjPx + 16;
         const tipTop = Math.max(a.pT, Math.min(hover.py - tipH / 2, a.pT + a.cH - tipH));
         return (<>
-          <div style={{ position: 'absolute', left: hover.px, top: a.pT, width: 1, height: a.cH, background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', left: hover.px - 5, top: hover.py - 5, width: 10, height: 10, borderRadius: '50%', background: color, border: '2px solid #fff', pointerEvents: 'none', zIndex: 2 }} />
+          <div style={{ position: 'absolute', left: adjPx, top: a.pT, width: 1, height: a.cH, background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: adjPx - 5, top: hover.py - 5, width: 10, height: 10, borderRadius: '50%', background: color, border: '2px solid #fff', pointerEvents: 'none', zIndex: 2 }} />
           <div style={{ position: 'absolute', left: tipLeft, top: tipTop, background: 'rgba(17,17,19,0.95)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', pointerEvents: 'none', zIndex: 3, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, whiteSpace: 'nowrap' }}>
             {allSeries.map((s, i) => (
               <div key={i} style={{ color: s.color, fontWeight: i === 0 ? 700 : 500, fontSize: i === 0 ? 14 : 11, marginTop: i > 0 ? 2 : 0 }}>
