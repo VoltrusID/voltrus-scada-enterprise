@@ -1,0 +1,161 @@
+import { lazy, Suspense, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { SensorGrid } from '../SensorGrid'
+import { CanvasView } from '../CanvasView'
+import { ScreenLayouts, CanvasLayoutItem, SensorConfig, SensorData, DataPoint } from '../types'
+import type { LayoutItem } from '../types'
+
+const DigitalTwinView = lazy(() => import('../DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
+const ScadaView = lazy(() => import('../ScadaView').then(m => ({ default: m.ScadaView })))
+
+interface Props {
+  viewMode: 'cards' | 'canvas' | 'twin' | 'scada'
+  mode: 'live' | 'history' | 'system'
+  screenSensors: SensorConfig[]
+  effectiveLayouts: ScreenLayouts
+  canvasLayouts: CanvasLayoutItem[]
+  editMode: boolean
+  activeScreen: string
+  gap: number
+  editingId: number | null
+  setEditingId: (id: number | null) => void
+  setSelectedSensor: (id: number | null) => void
+  chartDataFor: (id: number) => number[]
+  onLayoutChange: (current: any[], all: { [bp: string]: any[] }) => void
+  onCanvasLayoutChange: (items: CanvasLayoutItem[]) => void
+  onSave: (s: SensorConfig, shortcut?: string | null) => void
+  onDelete: (id: number) => void
+  forcedBreakpoint: string | null
+  shortcuts: Record<number, string>
+  scadaEquipment: any[]
+  scadaConnections: any[]
+  twinLayouts: any[]
+  twinCamera: any
+  twinConnections: any[]
+  sensors: SensorConfig[]
+  currentValues: Record<string, SensorData>
+  saveScadaEquipmentMut: any
+  saveScadaConnectionsMut: any
+  saveTwinLayoutMut: any
+  saveTwinConnectionsMut: any
+  updateSensorMut: any
+  fetchOk: any
+}
+
+export function MainContent({
+  viewMode, mode, screenSensors, effectiveLayouts, canvasLayouts,
+  editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor,
+  chartDataFor, onLayoutChange, onCanvasLayoutChange, onSave, onDelete,
+  forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections,
+  twinLayouts, twinCamera, twinConnections, sensors, currentValues,
+  saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
+  saveTwinConnectionsMut, updateSensorMut, fetchOk,
+}: Props) {
+  const queryClient = useQueryClient()
+
+  const loadSensorsForScreen = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] })
+    queryClient.invalidateQueries({ queryKey: ['sensors'] })
+  }, [queryClient, activeScreen])
+
+  if (mode === 'system') return null
+
+  if (viewMode === 'cards') {
+    return (
+      <SensorGrid
+        screenLayouts={effectiveLayouts}
+        screenSensors={screenSensors}
+        editMode={editMode}
+        activeScreen={activeScreen}
+        gap={gap}
+        editingId={editingId}
+        currentValues={currentValues}
+        setEditingId={setEditingId}
+        setSelectedSensor={setSelectedSensor}
+        chartDataFor={chartDataFor}
+        loadSensorsForScreen={loadSensorsForScreen}
+        onLayoutChange={onLayoutChange}
+        onSave={onSave}
+        onDelete={onDelete}
+        forcedBreakpoint={forcedBreakpoint}
+        shortcuts={shortcuts}
+      />
+    )
+  }
+
+  if (viewMode === 'canvas') {
+    return (
+      <CanvasView
+        screenSensors={screenSensors}
+        canvasLayouts={canvasLayouts}
+        editMode={editMode}
+        activeScreen={activeScreen}
+        editingId={editingId}
+        currentValues={currentValues}
+        setEditingId={setEditingId}
+        setSelectedSensor={setSelectedSensor}
+        chartDataFor={chartDataFor}
+        loadSensorsForScreen={loadSensorsForScreen}
+        onLayoutChange={onCanvasLayoutChange}
+        onSave={onSave}
+        onDelete={onDelete}
+        shortcuts={shortcuts}
+      />
+    )
+  }
+
+  if (viewMode === 'scada') {
+    return (
+      <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 2D View...</div>}>
+        <ScadaView
+          sensors={screenSensors}
+          currentValues={currentValues}
+          activeScreen={activeScreen}
+          scadaEquipment={scadaEquipment}
+          scadaConnections={scadaConnections}
+          onSaveEquipment={(items: any[]) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
+          onSaveConnections={(items: any[]) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
+          onSensorClick={(id: number) => setSelectedSensor(id)}
+        />
+      </Suspense>
+    )
+  }
+
+  return (
+    <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 3D View...</div>}>
+      <DigitalTwinView
+        sensors={screenSensors}
+        currentValues={currentValues}
+        activeScreen={activeScreen}
+        twinLayouts={twinLayouts}
+        twinCamera={twinCamera}
+        twinConnections={twinConnections}
+        onSwitchToCards={() => setSelectedSensor(null)}
+        onEquipmentClick={(eqId: string) => {
+          const sensor = sensors.find(s => s.equipment_id === eqId)
+          if (sensor) setSelectedSensor(sensor.id)
+        }}
+        onSensorUpdate={(s: SensorConfig) => updateSensorMut.mutate(s)}
+        onSaveLayouts={(equipment: any[]) => {
+          saveTwinLayoutMut.mutate({
+            screenId: activeScreen,
+            items: equipment.map((e: any) => ({
+              equipment_id: e.id, equipment_type: e.type, equipment_name: e.name,
+              position_x: e.position[0], position_z: e.position[2], rotation_y: e.rotation,
+            }))
+          })
+        }}
+        onSaveConnections={(connections: any[]) => {
+          saveTwinConnectionsMut.mutate({
+            screenId: activeScreen,
+            connections: connections.map((c: any) => ({ from_id: c.from, to_id: c.to })),
+          })
+        }}
+        onSaveCamera={(camera: any) => {
+          const actualId = activeScreen === 'all' ? '__overview' : activeScreen
+          fetchOk(`/api/screens/${actualId}/twin-camera`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(camera) })
+        }}
+      />
+    </Suspense>
+  )
+}
