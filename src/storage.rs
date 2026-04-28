@@ -13,6 +13,7 @@ use crate::models::{
 #[derive(Clone)]
 pub struct Storage {
     conn: Arc<Mutex<Connection>>,
+    db_path: String,
 }
 
 impl Storage {
@@ -22,6 +23,7 @@ impl Storage {
         init_schema(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            db_path: path.to_string(),
         })
     }
 
@@ -30,7 +32,12 @@ impl Storage {
         init_schema(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            db_path: ":memory:".to_string(),
         })
+    }
+
+    pub fn db_path(&self) -> &str {
+        &self.db_path
     }
 
     pub async fn insert_batch(&self, records: &[(String, i64, String, f64)]) -> Result<()> {

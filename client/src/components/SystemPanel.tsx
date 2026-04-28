@@ -9,6 +9,7 @@ interface SystemInfo {
   disk_used_gb: number
   disk_total_gb: number
   disk_percent: number
+  db_size_mb: number
   process: {
     pid: number
     memory_mb: number
@@ -56,6 +57,11 @@ export function SystemPanel({ systemInfo }: Props) {
         <div style={{ marginTop: 8, height: 6, borderRadius: 3, background: 'var(--border)' }}>
           <div style={{ height: '100%', borderRadius: 3, background: systemInfo.disk_percent > 90 ? 'var(--crit)' : systemInfo.disk_percent > 70 ? 'var(--warn)' : 'var(--ok)', width: `${Math.min(systemInfo.disk_percent, 100)}%`, transition: 'width 0.3s' }} />
         </div>
+      </div>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20 }}>
+        <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 8 }}>Database</div>
+        <div style={{ fontSize: 28, fontWeight: 700, color: systemInfo.db_size_mb > 512 ? 'var(--warn)' : 'var(--cyan)' }}>{systemInfo.db_size_mb > 1024 ? `${(systemInfo.db_size_mb / 1024).toFixed(1)} GB` : `${systemInfo.db_size_mb.toFixed(1)} MB`}</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{systemInfo.db_size_mb > 1024 ? `${systemInfo.db_size_mb.toFixed(0)} MB` : 'SQLite file'}</div>
       </div>
       <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', border: '1px solid #22c55e', borderRadius: 10, padding: 20, gridColumn: 'span 2' }}>
         <div style={{ fontSize: 11, color: '#22c55e', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12, fontWeight: 700 }}>Rust Service (PID {systemInfo.process.pid})</div>

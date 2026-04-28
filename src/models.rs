@@ -340,6 +340,7 @@ pub struct SystemResponse {
     pub disk_total_gb: f64,
     pub disk_used_gb: f64,
     pub disk_percent: f64,
+    pub db_size_mb: f64,
     pub process: ProcessInfo,
 }
 
