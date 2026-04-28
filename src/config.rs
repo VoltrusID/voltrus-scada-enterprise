@@ -7,7 +7,7 @@ pub fn load_config(path: &str) -> Result<AppConfig> {
         Ok(c) => c,
         Err(_) => {
             tracing::info!("Config file {path} not found, using defaults");
-            return Ok(AppConfig::default());
+            return Ok(serde_yaml::from_str("").unwrap());
         }
     };
 
