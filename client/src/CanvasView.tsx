@@ -218,8 +218,8 @@ export function CanvasView({
                   editMode={editMode}
                   activeScreen={activeScreen}
                   editingId={editingId}
-                  currentValues={currentValues}
-                  shortcuts={shortcuts}
+                  currentValue={currentValues[String(s.id)]}
+                  shortcut={shortcuts[s.id]}
                   chartDataFor={chartDataFor}
                   loadSensorsForScreen={loadSensorsForScreen}
                   setEditingId={setEditingId}

@@ -469,21 +469,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [shortcutToSensorId, effectiveNavShortcuts, mode]);
 
+  const chartDataFor = useCallback((id: number) => {
+    const k = String(id);
+    if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k].map(d => d.value);
+    return (dataMap[k] || []).map(d => d.value);
+  }, [mode, historyMap, dataMap]);
+  const detailDataFor = useCallback((id: number): DataPoint[] => {
+    const k = String(id);
+    if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k];
+    return dataMap[k] || [];
+  }, [mode, historyMap, dataMap]);
+
   // ── Render gates ─────────────────────────────────────────────────
 
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>;
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />;
-
-  const chartDataFor = (id: number) => {
-    const k = String(id);
-    if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k].map(d => d.value);
-    return (dataMap[k] || []).map(d => d.value);
-  };
-  const detailDataFor = (id: number): DataPoint[] => {
-    const k = String(id);
-    if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k];
-    return dataMap[k] || [];
-  };
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

@@ -69,8 +69,8 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                 editMode={editMode}
                 activeScreen={activeScreen}
                 editingId={editingId}
-                currentValues={currentValues}
-                shortcuts={shortcuts}
+                currentValue={currentValues[String(s.id)]}
+                shortcut={shortcuts[s.id]}
                 chartDataFor={chartDataFor}
                 loadSensorsForScreen={loadSensorsForScreen}
                 setEditingId={setEditingId}
