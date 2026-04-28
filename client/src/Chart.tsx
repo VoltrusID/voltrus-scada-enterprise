@@ -37,7 +37,7 @@ function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[];
     ctx.beginPath(); ctx.arc(lx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
     ctx.beginPath(); ctx.arc(lx, cy, 7, 0, Math.PI * 2); ctx.strokeStyle = color + '40'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = color; ctx.font = 'bold 11px JetBrains Mono,monospace'; ctx.textAlign = 'right'; ctx.fillText(lv.toFixed(1), W - pR - 2, cy - 8);
-  });
+  }, [data, color, warn, crit]);
   return <canvas ref={ref} style={{ display: 'block', width: '100%', height: '100%' }} />;
 }
 
@@ -164,7 +164,7 @@ function GaugeChart({ value, min, max, warn, crit, color: rawColor, decimals, un
     ctx.textAlign = 'center';
     ctx.fillText(min.toFixed(0), cx - r - 4, cy + 14);
     ctx.fillText(max.toFixed(0), cx + r + 4, cy + 14);
-  });
+  }, [value, min, max, warn, crit, color, decimals, unit]);
 
   return <canvas ref={ref} style={{ display: 'block', width: '100%', height: '100%' }} />;
 }

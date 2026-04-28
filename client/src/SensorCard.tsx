@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react'
 import { SensorConfig, SensorData, SOURCE_CATEGORY } from './types'
 import { Chart } from './Chart'
 import { status, stColor } from './styles'
@@ -8,8 +9,8 @@ interface Props {
   editMode: boolean
   activeScreen: string
   editingId: number | null
-  currentValues: Record<string, SensorData>
-  shortcuts: Record<number, string>
+  currentValue: SensorData | undefined
+  shortcut: string | undefined
   chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   setEditingId: (id: number | null) => void
@@ -19,16 +20,18 @@ interface Props {
   onClick?: (e: React.MouseEvent) => void
 }
 
-export function SensorCard({
-  sensor: s, editMode, activeScreen, editingId, currentValues, shortcuts,
-  chartDataFor, loadSensorsForScreen, setEditingId, setSelectedSensor,
+export const SensorCard = React.memo(function SensorCard({
+  sensor: s, editMode, activeScreen, editingId, currentValue: cv,
+  shortcut, chartDataFor, loadSensorsForScreen, setEditingId, setSelectedSensor,
   showDragHandle, selected, onClick,
 }: Props) {
-  const cv = currentValues[s.id];
   const isOffline = cv && (cv.value == null || Number.isNaN(cv.value));
   const st = isOffline ? 'offline' : cv ? status(cv.value, cv.warn, cv.crit) : 'normal';
   const ct = s.chart_type || 'sparkline';
   const hideStatus = ct === 'image' || ct === 'text';
+
+  const sourceTag = useMemo(() => SOURCE_CATEGORY[s.source_type]?.tag ?? s.source_type, [s.source_type]);
+  const sourceTagColor = useMemo(() => SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)', [s.source_type]);
 
   return (
     <div
@@ -57,16 +60,16 @@ export function SensorCard({
           )}
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: stColor(st) }} />
           {s.name}
-          <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)'}18`, color: SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)', fontWeight: 700, letterSpacing: '.03em', textTransform: 'none' }}>{SOURCE_CATEGORY[s.source_type]?.tag ?? s.source_type}</span>
+          <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${sourceTagColor}18`, color: sourceTagColor, fontWeight: 700, letterSpacing: '.03em', textTransform: 'none' }}>{sourceTag}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {shortcuts[s.id] && (
+          {shortcut && (
             <kbd style={{
               fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 600,
               padding: '2px 6px', borderRadius: 3,
               background: 'var(--bg)', border: '1px solid var(--border)',
               color: 'var(--muted)', lineHeight: 1,
-            }}>{shortcuts[s.id]}</kbd>
+            }}>{shortcut}</kbd>
           )}
           {editMode && activeScreen !== 'all' && (
             <button onClick={e => { e.stopPropagation(); fetch(`/api/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
@@ -111,4 +114,19 @@ export function SensorCard({
       </div>
     </div>
   )
-}
+}, (prev, next) => {
+  // Custom comparison: only re-render if relevant props changed
+  if (prev.sensor.id !== next.sensor.id) return false
+  if (prev.editMode !== next.editMode) return false
+  if (prev.activeScreen !== next.activeScreen) return false
+  if (prev.editingId !== next.editingId) return false
+  if (prev.selected !== next.selected) return false
+  if (prev.shortcut !== next.shortcut) return false
+  if (prev.showDragHandle !== next.showDragHandle) return false
+  // Shallow compare currentValue
+  const a = prev.currentValue
+  const b = next.currentValue
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.value === b.value && a.warn === b.warn && a.crit === b.crit && a.source_type === b.source_type
+})
