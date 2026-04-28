@@ -160,6 +160,15 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Spawn retention task
+    {
+        let storage = storage.clone();
+        let retention_config = app_config.retention.clone();
+        tokio::spawn(async move {
+            retention::run_retention_task(storage, retention_config).await;
+        });
+    }
+
     let auth_secret = match &app_config.auth_secret {
         Some(secret) => {
             anyhow::ensure!(secret.len() >= 16, "auth_secret must be at least 16 characters");
