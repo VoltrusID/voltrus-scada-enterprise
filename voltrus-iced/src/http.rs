@@ -71,6 +71,7 @@ impl HttpClient {
         Ok(resp.json().await?)
     }
 
+    #[allow(dead_code)]
     pub async fn fetch_branding(&self) -> Result<BrandingSettings> {
         let resp = self
             .client
