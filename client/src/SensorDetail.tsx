@@ -25,6 +25,15 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
   const [overlayIds, setOverlayIds] = useState<number[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [pointWidth, setPointWidth] = useState(0); // 0 = auto/fit
+
+  const DENSITY_PRESETS = [
+    { label: 'Fit', value: 0 },
+    { label: '2px', value: 2 },
+    { label: '4px', value: 4 },
+    { label: '8px', value: 8 },
+    { label: '16px', value: 16 },
+  ];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onBack(); };
@@ -110,7 +119,13 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
         {/* Chart area with overlay controls */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {/* Overlay bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em' }}>Density:</span>
+            {DENSITY_PRESETS.map(p => (
+              <button key={p.value} onClick={() => setPointWidth(p.value)} style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: 'pointer', border: `1px solid ${pointWidth === p.value ? 'var(--cyan)' : 'var(--border)'}`, background: pointWidth === p.value ? 'rgba(34,197,94,.1)' : 'var(--card)', color: pointWidth === p.value ? 'var(--cyan)' : 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>{p.label}</button>
+            ))}
+            {pointWidth > 0 && <span style={{ fontSize: 10, color: 'var(--muted)' }}>~{pointWidth * data.length}px wide · scroll to explore</span>}
+            <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
             <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em' }}>Overlays:</span>
             {/* Active overlay chips */}
             {overlayIds.map(id => {
@@ -153,7 +168,7 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
             </div>
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
-            <DetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} />
+            <DetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} pointWidth={pointWidth} />
           </div>
         </div>
       </div>
