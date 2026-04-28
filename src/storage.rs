@@ -1360,7 +1360,7 @@ impl Storage {
             let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match &status {
                 Some(s) if s == "active" => (
                     "SELECT id, source_key, severity, value, threshold, message,
-                            triggered_at, resolved_at, acknowledged_at, acknowledged_by
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
                      FROM alarms
                      WHERE acknowledged_at IS NULL
                      ORDER BY triggered_at DESC LIMIT ?1",
@@ -1368,7 +1368,7 @@ impl Storage {
                 ),
                 Some(s) if s == "acknowledged" => (
                     "SELECT id, source_key, severity, value, threshold, message,
-                            triggered_at, resolved_at, acknowledged_at, acknowledged_by
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
                      FROM alarms
                      WHERE acknowledged_at IS NOT NULL
                      ORDER BY triggered_at DESC LIMIT ?1",
@@ -1376,7 +1376,7 @@ impl Storage {
                 ),
                 _ => (
                     "SELECT id, source_key, severity, value, threshold, message,
-                            triggered_at, resolved_at, acknowledged_at, acknowledged_by
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
                      FROM alarms
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
@@ -1398,6 +1398,7 @@ impl Storage {
                         resolved_at: row.get(7)?,
                         acknowledged_at: row.get(8)?,
                         acknowledged_by: row.get(9)?,
+                        cooldown_until: row.get(10)?,
                     })
                 })
                 .context("Query failed")?;
@@ -1408,15 +1409,16 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn acknowledge_alarm(&self, id: i64, username: &str) -> Result<()> {
+    pub async fn acknowledge_alarm(&self, id: i64, username: &str, cooldown_secs: i64) -> Result<()> {
         let conn = self.conn.clone();
         let username = username.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = chrono::Utc::now().timestamp();
+            let cooldown_until = if cooldown_secs > 0 { Some(now + cooldown_secs) } else { None };
             conn.execute(
-                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2 WHERE id = ?3",
-                rusqlite::params![now, username, id],
+                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2, cooldown_until = ?3 WHERE id = ?4",
+                rusqlite::params![now, username, cooldown_until, id],
             )
             .context("Acknowledge alarm failed")
         })
@@ -1425,22 +1427,45 @@ impl Storage {
         .map(|_| ())
     }
 
-    pub async fn acknowledge_all(&self, username: &str) -> Result<()> {
+    pub async fn acknowledge_all(&self, username: &str, cooldown_secs: i64) -> Result<()> {
         let conn = self.conn.clone();
         let username = username.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = chrono::Utc::now().timestamp();
+            let cooldown_until = if cooldown_secs > 0 { Some(now + cooldown_secs) } else { None };
             conn.execute(
-                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2
+                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2, cooldown_until = ?3
                  WHERE acknowledged_at IS NULL",
-                rusqlite::params![now, username],
+                rusqlite::params![now, username, cooldown_until],
             )
             .context("Acknowledge all alarms failed")
         })
         .await
         .context("Task join failed")?
         .map(|_| ())
+    }
+
+    pub async fn is_in_cooldown(&self, source_key: &str, severity: &str) -> Result<bool> {
+        let conn = self.conn.clone();
+        let source_key = source_key.to_string();
+        let severity = severity.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = chrono::Utc::now().timestamp();
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms
+                     WHERE source_key = ?1 AND severity = ?2
+                       AND cooldown_until IS NOT NULL AND cooldown_until > ?3",
+                    rusqlite::params![source_key, severity, now],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            Ok(count > 0)
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── Push subscription stubs ──
@@ -1573,7 +1598,8 @@ fn init_schema(conn: &Connection) -> Result<()> {
             triggered_at INTEGER NOT NULL,
             resolved_at INTEGER,
             acknowledged_at INTEGER,
-            acknowledged_by TEXT
+            acknowledged_by TEXT,
+            cooldown_until INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_alarms_active
             ON alarms(source_key, severity, acknowledged_at);
@@ -1647,7 +1673,33 @@ fn init_schema(conn: &Connection) -> Result<()> {
             waypoints TEXT NOT NULL DEFAULT '[]',
             connection_type TEXT NOT NULL DEFAULT 'power',
             PRIMARY KEY (screen_id, connection_id)
-        );",
+        );
+        CREATE TABLE IF NOT EXISTS telemetry_hourly (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            bucket_start INTEGER NOT NULL,
+            avg_value REAL NOT NULL,
+            min_value REAL NOT NULL,
+            max_value REAL NOT NULL,
+            sample_count INTEGER NOT NULL,
+            UNIQUE(device_id, metric, bucket_start)
+        );
+        CREATE INDEX IF NOT EXISTS idx_hourly_dev_metric
+            ON telemetry_hourly(device_id, metric, bucket_start);
+        CREATE TABLE IF NOT EXISTS telemetry_daily (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            bucket_start INTEGER NOT NULL,
+            avg_value REAL NOT NULL,
+            min_value REAL NOT NULL,
+            max_value REAL NOT NULL,
+            sample_count INTEGER NOT NULL,
+            UNIQUE(device_id, metric, bucket_start)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_dev_metric
+            ON telemetry_daily(device_id, metric, bucket_start);",
     )
     .context("Failed to create schema")?;
 
@@ -1666,6 +1718,9 @@ fn init_schema(conn: &Connection) -> Result<()> {
     // Migration: add role column to users
     let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
     let _ = conn.execute_batch("UPDATE users SET role = 'admin' WHERE username = 'admin'");
+
+    // Migration: add cooldown_until column to alarms
+    let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN cooldown_until INTEGER");
 
     Ok(())
 }
