@@ -14,6 +14,7 @@ path = "src/bin/modbus-sim.rs"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
 tokio-modbus = { version = "0.16", default-features = false, features = ["tcp", "tcp-server"] }
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }
