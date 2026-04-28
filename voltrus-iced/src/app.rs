@@ -35,6 +35,7 @@ pub enum Message {
     SetRange(String),
     BackToGrid,
     Logout,
+    TogglePause,
 }
 
 // ---------------------------------------------------------------------------
@@ -53,9 +54,10 @@ pub struct App {
     pub selected_sensor: Option<i64>,
     pub history_points: Vec<models::DataPoint>,
     pub history_range: String,
-    pub history_loading: bool,
+    pub     history_loading: bool,
     server_url: String,
     poll_interval_secs: u64,
+    pub paused: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +81,7 @@ pub fn new() -> (App, Task<Message>) {
         history_loading: false,
         server_url,
         poll_interval_secs: 5,
+        paused: false,
     };
     (app, Task::none())
 }
@@ -156,7 +159,15 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
             Task::none()
         }
 
+        Message::TogglePause => {
+            state.paused = !state.paused;
+            Task::none()
+        }
+
         Message::PollTick => {
+            if state.paused {
+                return Task::none();
+            }
             match state.phase {
                 AppPhase::Dashboard | AppPhase::Loading => {
                     let client = state.http.clone();
@@ -266,6 +277,7 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
             state.history_points.clear();
             state.history_range = "1h".to_string();
             state.history_loading = false;
+            state.paused = false;
             // Create a fresh HTTP client (new cookie jar) to drop the session
             state.http = http::HttpClient::new(&state.server_url);
             Task::none()
@@ -281,13 +293,21 @@ pub fn view(state: &App) -> Element<'_, Message> {
     match &state.phase {
         AppPhase::Login => crate::views::login::view(state),
         AppPhase::Loading => {
-            iced::widget::column![
-                iced::widget::Space::with_height(100),
-                iced::widget::text("Loading...").size(24),
-            ]
+            iced::widget::container(
+                iced::widget::column![
+                    iced::widget::Space::with_height(100),
+                    iced::widget::text("Loading...").size(18).color(crate::theme::TEXT_MUTED),
+                ]
+                .width(iced::Length::Fill)
+                .height(iced::Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+            )
             .width(iced::Length::Fill)
             .height(iced::Length::Fill)
-            .align_x(iced::alignment::Horizontal::Center)
+            .style(|_theme: &iced::Theme| iced::widget::container::Style {
+                background: Some(iced::Background::Color(crate::theme::BG)),
+                ..Default::default()
+            })
             .into()
         }
         AppPhase::Dashboard => {
@@ -298,18 +318,30 @@ pub fn view(state: &App) -> Element<'_, Message> {
             }
         }
         AppPhase::Error(msg) => {
-            iced::widget::column![
-                iced::widget::Space::with_height(100),
-                iced::widget::text(format!("Error: {msg}"))
-                    .size(18)
-                    .color([0.9, 0.2, 0.2]),
-                iced::widget::Space::with_height(20),
-                iced::widget::button("Back to Login")
+            iced::widget::container(
+                iced::widget::column![
+                    iced::widget::Space::with_height(100),
+                    iced::widget::text(format!("Error: {msg}"))
+                        .size(18)
+                        .color(crate::theme::CRIT),
+                    iced::widget::Space::with_height(20),
+                    iced::widget::button(
+                        iced::widget::text("Back to Login").size(13)
+                    )
+                    .padding([8, 16])
+                    .style(crate::theme::header_btn_style())
                     .on_press(Message::Logout),
-            ]
+                ]
+                .width(iced::Length::Fill)
+                .height(iced::Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+            )
             .width(iced::Length::Fill)
             .height(iced::Length::Fill)
-            .align_x(iced::alignment::Horizontal::Center)
+            .style(|_theme: &iced::Theme| iced::widget::container::Style {
+                background: Some(iced::Background::Color(crate::theme::BG)),
+                ..Default::default()
+            })
             .into()
         }
     }
