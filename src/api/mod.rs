@@ -14,7 +14,7 @@ mod stream;
 
 use axum::{
     extract::{Request, State},
-    http::{HeaderValue, Method, StatusCode, header::CONTENT_TYPE},
+    http::{HeaderValue, Method, StatusCode, header::{self, CONTENT_TYPE}},
     middleware::{self, Next},
     response::IntoResponse,
     routing::{get, patch, post, put},
@@ -23,7 +23,7 @@ use axum::{
 use axum::extract::Extension;
 use axum_extra::extract::CookieJar;
 use serde_json::json;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::auth::oidc::{JwksManager, OidcConfig};
@@ -67,16 +67,34 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
 pub fn create_router(state: AppState) -> Router {
     let cors = match &state.cors_origin {
         Some(origin) => {
-            let origin: HeaderValue = origin.parse().expect("Invalid cors_origin value");
+            let origins: Vec<HeaderValue> = origin
+                .split(',')
+                .map(|o| o.trim().parse().expect("Invalid cors_origin value"))
+                .collect();
             CorsLayer::new()
-                .allow_origin(origin)
+                .allow_origin(origins)
                 .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
                 .allow_headers([CONTENT_TYPE])
+                .allow_credentials(true)
         }
         None => CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any),
+            .allow_origin([
+                "http://localhost:5173".parse().unwrap(),
+                "http://localhost:5174".parse().unwrap(),
+                "http://127.0.0.1:5173".parse().unwrap(),
+                "http://127.0.0.1:5174".parse().unwrap(),
+            ])
+            .allow_methods([
+                Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE,
+            ])
+            .allow_headers([
+                CONTENT_TYPE,
+                header::ACCEPT,
+                header::AUTHORIZATION,
+                header::COOKIE,
+                header::SET_COOKIE,
+            ])
+            .allow_credentials(true),
     };
 
     // Public routes (no auth required)
@@ -117,6 +135,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/alarms",
             get(alarms::list_alarms).post(alarms::acknowledge_all),
         )
+        .route("/api/alarms/active/count", get(alarms::active_alarm_count))
         .route(
             "/api/alarms/{id}/acknowledge",
             post(alarms::acknowledge_alarm),

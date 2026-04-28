@@ -540,6 +540,7 @@ pub struct DataSourceData {
     pub warn: f64,
     pub crit: f64,
     pub source_type: String,
+    pub status: String,
 }
 
 #[derive(Debug, serde::Serialize)]

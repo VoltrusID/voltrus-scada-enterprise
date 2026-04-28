@@ -49,6 +49,16 @@ pub(crate) fn evaluate_data_sources(
                 generators::generate_value(ds, now)
             };
 
+            let status = if value.is_nan() {
+                "offline".to_string()
+            } else if ds.crit_val > 0.0 && value >= ds.crit_val {
+                "critical".to_string()
+            } else if ds.warn_val > 0.0 && value >= ds.warn_val {
+                "warning".to_string()
+            } else {
+                "normal".to_string()
+            };
+
             DataSourceData {
                 id: ds.id,
                 key: ds.key.clone(),
@@ -56,6 +66,7 @@ pub(crate) fn evaluate_data_sources(
                 warn: ds.warn_val,
                 crit: ds.crit_val,
                 source_type: ds.source_type.clone(),
+                status,
             }
         })
         .collect()
