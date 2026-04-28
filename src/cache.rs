@@ -1,38 +1,49 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, broadcast};
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::models::{DeviceSnapshot, DeviceStatus};
+
+const SSE_CHANNEL_CAPACITY: usize = 256;
 
 #[derive(Debug, Clone)]
 pub struct DeviceCache {
     devices: Arc<RwLock<HashMap<String, DeviceSnapshot>>>,
+    tx: broadcast::Sender<Vec<DeviceSnapshot>>,
 }
 
 impl DeviceCache {
     pub fn new() -> Self {
+        let (tx, _) = broadcast::channel(SSE_CHANNEL_CAPACITY);
         Self {
             devices: Arc::new(RwLock::new(HashMap::new())),
+            tx,
         }
     }
 
     pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>) {
-        let mut devices = self.devices.write().await;
-        let timestamp = chrono::Utc::now().timestamp();
+        {
+            let mut devices = self.devices.write().await;
+            let timestamp = chrono::Utc::now().timestamp();
 
-        devices
-            .entry(device_id.to_string())
-            .and_modify(|e| {
-                e.status = DeviceStatus::Online;
-                e.timestamp = timestamp;
-                e.metrics = metrics.clone();
-            })
-            .or_insert_with(|| DeviceSnapshot {
-                device_id: device_id.to_string(),
-                status: DeviceStatus::Online,
-                timestamp,
-                metrics,
-            });
+            devices
+                .entry(device_id.to_string())
+                .and_modify(|e| {
+                    e.status = DeviceStatus::Online;
+                    e.timestamp = timestamp;
+                    e.metrics = metrics.clone();
+                })
+                .or_insert_with(|| DeviceSnapshot {
+                    device_id: device_id.to_string(),
+                    status: DeviceStatus::Online,
+                    timestamp,
+                    metrics,
+                });
+        }
+
+        let snapshots = self.get_all().await;
+        let _ = self.tx.send(snapshots);
     }
 
     pub async fn set_status(&self, device_id: &str, status: DeviceStatus) {
@@ -59,6 +70,10 @@ impl DeviceCache {
                 (id.clone(), status_str.to_string())
             })
             .collect()
+    }
+
+    pub fn subscribe(&self) -> BroadcastStream<Vec<DeviceSnapshot>> {
+        BroadcastStream::new(self.tx.subscribe())
     }
 }
 
@@ -149,5 +164,27 @@ mod tests {
 
         let all = cache.get_all().await;
         assert!(all.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_on_update() {
+        let cache = DeviceCache::new();
+        let mut stream = cache.subscribe();
+
+        let metrics = HashMap::from([("voltage".into(), 220.0)]);
+        cache.update("dev1", metrics).await;
+
+        use tokio_stream::StreamExt;
+        let msg: Vec<DeviceSnapshot> = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            stream.next(),
+        )
+        .await
+        .expect("should receive broadcast")
+        .expect("should be Some")
+        .expect("broadcast should not error");
+
+        assert_eq!(msg.len(), 1);
+        assert_eq!(msg[0].device_id, "dev1");
     }
 }
