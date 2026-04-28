@@ -1,13 +1,39 @@
-import { inputStyle, monoInputStyle, labelStyle, labelTextStyle } from './styles';
+import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, btnStyle } from './styles';
 
-export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onToggleMute }: { settings: { gap: number; refreshInterval: number }; onChange: (s: any) => void; onClose: () => void; alarmMuted: boolean; onToggleMute: () => void }) {
+const aggOptions = [
+  { value: 'sampling', label: 'Sampling', desc: 'Pick evenly-spaced points. Fastest, but skips data between intervals.' },
+  { value: 'avg', label: 'Average', desc: 'Average all 1s values within each interval bucket. Smooth curve, hides peaks.' },
+  { value: 'minmax', label: 'Min/Max/Avg', desc: 'Shows average line with min/max band. Best overview — no data is lost.' },
+] as const;
+
+export type HistoryAutoAgg = typeof aggOptions[number]['value'];
+
+export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onToggleMute }: { settings: { gap: number; refreshInterval: number; historyAutoAgg: HistoryAutoAgg }; onChange: (s: any) => void; onClose: () => void; alarmMuted: boolean; onToggleMute: () => void }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={onClose}>
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, minWidth: 340, maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, minWidth: 340, maxWidth: 440 }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Dashboard Settings</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <label style={labelStyle}><span style={labelTextStyle}>Grid Gap (px)</span><input type="range" min="4" max="24" value={settings.gap} onChange={e => onChange({ ...settings, gap: parseInt(e.target.value) })} style={{ width: '100%' }} /><span style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace' }}>{settings.gap}px</span></label>
           <label style={labelStyle}><span style={labelTextStyle}>Refresh Interval (ms)</span><input type="number" step="100" min="100" value={settings.refreshInterval} onChange={e => onChange({ ...settings, refreshInterval: parseInt(e.target.value) || 1000 })} style={monoInputStyle} /></label>
+          <div style={labelStyle}>
+            <span style={labelTextStyle}>History Auto Mode</span>
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              {aggOptions.map(opt => (
+                <button key={opt.value} onClick={() => onChange({ ...settings, historyAutoAgg: opt.value })} style={{
+                  ...btnStyle, flex: 1, padding: '8px 6px', fontSize: 11, fontWeight: settings.historyAutoAgg === opt.value ? 600 : 400,
+                  borderColor: settings.historyAutoAgg === opt.value ? 'var(--warn)' : 'var(--border)',
+                  color: settings.historyAutoAgg === opt.value ? 'var(--warn)' : 'var(--fg)',
+                  background: settings.historyAutoAgg === opt.value ? 'rgba(234,179,8,.08)' : 'transparent',
+                }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 6, lineHeight: 1.4 }}>
+              {aggOptions.find(o => o.value === settings.historyAutoAgg)?.desc}
+            </div>
+          </div>
           <label style={labelStyle}>
             <span style={labelTextStyle}>Mute Alarms</span>
             <button onClick={onToggleMute} style={{

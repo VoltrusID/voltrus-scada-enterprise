@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { SensorManager } from './SensorManager';
 import { ModbusDeviceManager } from './ModbusDeviceManager';
+import { UserManager } from './UserManager';
 import { btnStyle } from './styles';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus';
+type Tab = 'sources' | 'modbus' | 'users';
 
-export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts }: {
+export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
   onSave: (s: SensorConfig, shortcut?: string | null) => void;
   onDelete: (id: number) => void;
@@ -14,6 +15,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   onDuplicate: (s: SensorConfig) => void;
   onClose: () => void;
   shortcuts: Record<number, string>;
+  isAdmin?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('sources');
 
@@ -42,6 +44,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginLeft: 8 }}>
             <button style={tabBtn('sources')} onClick={() => setTab('sources')}>Sources</button>
             <button style={tabBtn('modbus')} onClick={() => setTab('modbus')}>Modbus</button>
+            {isAdmin && <button style={tabBtn('users')} onClick={() => setTab('users')}>Users</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -54,6 +57,9 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'modbus' && (
             <ModbusDeviceManager onClose={onClose} embedded />
+          )}
+          {tab === 'users' && isAdmin && (
+            <UserManager onClose={onClose} embedded />
           )}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem, ModbusDevice, ModbusRegister, ScadaEquipmentItem, ScadaConnectionItem } from './types'
+import type { SensorConfig, Screen, ScreenLayouts, DataPoint, Alarm, CanvasLayoutItem, ModbusDevice, ModbusRegister, ScadaEquipmentItem, ScadaConnectionItem, UserItem } from './types'
 import type { BrandingSettings } from './BrandingDialog'
 
 // ── Query key factory ──────────────────────────────────────────────
@@ -23,6 +23,7 @@ export const queryKeys = {
   modbusStatus:   ['modbusStatus'] as const,
   scadaEquipment:  (screenId: string) => ['scadaEquipment', screenId] as const,
   scadaConnections: (screenId: string) => ['scadaConnections', screenId] as const,
+  users: ['users'] as const,
 }
 
 // ── Fetcher helper ─────────────────────────────────────────────────
@@ -122,8 +123,22 @@ export function useHistory(range: string, screenId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.history(range, screenId),
     queryFn: async () => {
-      const result = await fetchJson<{ data: Record<string, DataPoint[]>; sensors: any[] }>(`/api/history?range=${range}${dp}`)
-      return result.data ?? {}
+      const result = await fetchJson<{ data: Record<string, any>; sensors: any[] }>(`/api/history?range=${range}${dp}`)
+      if (!result.data) return {}
+      const expanded: Record<string, DataPoint[]> = {}
+      for (const key of Object.keys(result.data)) {
+        const s = result.data[key]
+        if (s && Array.isArray(s.values)) {
+          const pts: DataPoint[] = []
+          for (let i = 0; i < s.values.length; i++) {
+            pts.push({ ts: s.start + i * s.interval, value: s.values[i] })
+          }
+          expanded[key] = pts
+        } else if (Array.isArray(s)) {
+          expanded[key] = s
+        }
+      }
+      return expanded
     },
     enabled,
     staleTime: 10_000,
@@ -581,6 +596,61 @@ export function useSaveScadaConnections() {
     },
     onSuccess: (_, { screenId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.scadaConnections(screenId) })
+    },
+  })
+}
+
+// ── User management hooks ──────────────────────────────────────────────
+
+export function useUsers(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.users,
+    queryFn: () => fetchJson<UserItem[]>('/api/users'),
+    enabled,
+  })
+}
+
+export function useCreateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (user: { username: string; password: string; role: string }) => {
+      const res = await fetchOk('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(user),
+      })
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.users })
+    },
+  })
+}
+
+export function useUpdateUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...fields }: { id: number } & Record<string, any>) => {
+      await fetchOk(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.users })
+    },
+  })
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await fetchOk(`/api/users/${id}`, { method: 'DELETE' })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.users })
     },
   })
 }
