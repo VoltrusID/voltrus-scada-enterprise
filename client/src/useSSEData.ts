@@ -7,6 +7,7 @@ interface SSEDataState {
 }
 
 const FLUSH_INTERVAL_MS = 1000 // batch updates to 1Hz max
+const STALL_TIMEOUT_MS = 5000  // reconnect if no message for 5s
 
 export function useSSEData(enabled: boolean) {
   const [state, setState] = useState<SSEDataState>({ data: null, connected: false })
@@ -14,6 +15,9 @@ export function useSSEData(enabled: boolean) {
   const abortRef = useRef<AbortController | null>(null)
   const bufferRef = useRef<SensorData[] | null>(null)
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const evtSourceRef = useRef<EventSource | null>(null)
+  const lastMessageAtRef = useRef<number>(0)
+  const stallTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const flush = useCallback(() => {
     const batch = bufferRef.current
@@ -30,15 +34,25 @@ export function useSSEData(enabled: boolean) {
     }
   }, [flush])
 
+  const teardown = useCallback(() => {
+    abortRef.current?.abort()
+    evtSourceRef.current?.close()
+    evtSourceRef.current = null
+    if (reconnectTimer.current) { clearTimeout(reconnectTimer.current); reconnectTimer.current = null }
+    if (stallTimerRef.current) { clearInterval(stallTimerRef.current); stallTimerRef.current = null }
+  }, [])
+
   const connect = useCallback(() => {
     if (!enabled) return
 
     // Clean up previous connection
-    abortRef.current?.abort()
+    teardown()
     const abort = new AbortController()
     abortRef.current = abort
 
     const evtSource = new EventSource('/api/stream')
+    evtSourceRef.current = evtSource
+    lastMessageAtRef.current = Date.now()
 
     evtSource.onopen = () => {
       if (abort.signal.aborted) { evtSource.close(); return }
@@ -47,6 +61,7 @@ export function useSSEData(enabled: boolean) {
 
     evtSource.onmessage = (e) => {
       if (abort.signal.aborted) { evtSource.close(); return }
+      lastMessageAtRef.current = Date.now()
       try {
         const parsed: SensorData[] = JSON.parse(e.data)
         // Buffer latest data — if buffer already has data, append
@@ -69,11 +84,23 @@ export function useSSEData(enabled: boolean) {
         reconnectTimer.current = setTimeout(connect, 2000)
       }
     }
-  }, [enabled, scheduleFlush, flush])
+
+    // Stall watchdog: if no message arrives within STALL_TIMEOUT_MS, force reconnect
+    stallTimerRef.current = setInterval(() => {
+      if (abort.signal.aborted) return
+      if (Date.now() - lastMessageAtRef.current > STALL_TIMEOUT_MS) {
+        // Connection is hung — tear down and reconnect
+        evtSource.close()
+        setState(s => ({ ...s, connected: false }))
+        flush()
+        reconnectTimer.current = setTimeout(connect, 1000)
+      }
+    }, 2000) // check every 2 seconds
+  }, [enabled, scheduleFlush, flush, teardown])
 
   useEffect(() => {
     if (!enabled) {
-      abortRef.current?.abort()
+      teardown()
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
       bufferRef.current = null
       setState({ data: null, connected: false })
@@ -81,12 +108,11 @@ export function useSSEData(enabled: boolean) {
     }
     connect()
     return () => {
-      abortRef.current?.abort()
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      teardown()
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
       bufferRef.current = null
     }
-  }, [enabled, connect])
+  }, [enabled, connect, teardown])
 
   return state
 }

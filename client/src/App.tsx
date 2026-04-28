@@ -516,41 +516,10 @@ export default function App() {
               <HistoryRangeBar range={historyRange} onChange={setHistoryRange} detail={historyDetail} onDetailChange={setHistoryDetail} agg={dashSettings.historyAutoAgg} />
             )}
           </>)}
-          {mode === 'live' && (<>
-            <button style={btnStyle} onClick={() => setPaused(!paused)}>
-              {paused ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>}
-              <span>{paused ? 'Resume' : 'Pause'}</span>
-            </button>
-            <button style={{ ...btnStyle, borderColor: turbo ? 'var(--warn)' : 'var(--border)', color: turbo ? 'var(--warn)' : 'var(--fg)' }} onClick={() => setTurbo(!turbo)}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>
-              <span>{turbo ? 'Turbo ON' : 'Turbo'}</span>
-            </button>
-          </>)}
           <button style={btnStyle} onClick={() => setShowDashSettings(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>Settings</span>
           </button>
-          {isAdmin && (
-          <button style={{ ...btnStyle, borderColor: editMode ? 'var(--cyan)' : 'var(--border)', color: editMode ? 'var(--cyan)' : 'var(--fg)' }} onClick={() => {
-            if (editMode) {
-              if (localLayouts) {
-                saveLayoutMut.mutate({ screenId: activeScreen, layouts: localLayouts });
-                setLocalLayouts(null);
-              }
-              if (localCanvasLayouts) {
-                saveCanvasLayoutMut.mutate({ screenId: activeScreen, layouts: localCanvasLayouts });
-                setLocalCanvasLayouts(null);
-              }
-            }
-            setEditMode(!editMode);
-            setEditingId(null);
-            setLayoutBreakpoint(null);
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            <span>{editMode ? 'Done' : 'Edit'}</span>
-          </button>
-          )}
-          {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Source</button>}
           <button style={btnStyle} onClick={() => setShowDataManager(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
             <span>Data</span>
@@ -584,6 +553,29 @@ export default function App() {
           color: mode === 'system' ? '#a78bfa' : 'var(--muted)',
           borderBottom: mode === 'system' ? '2px solid #a78bfa' : '2px solid transparent',
         }} onClick={() => { setMode('system'); setActiveScreen('all'); }}>System{effectiveNavShortcuts['screen:system'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['screen:system'])}</kbd> : null}</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {isAdmin && (
+          <button style={{ ...btnStyle, borderColor: editMode ? 'var(--cyan)' : 'var(--border)', color: editMode ? 'var(--cyan)' : 'var(--fg)' }} onClick={() => {
+            if (editMode) {
+              if (localLayouts) {
+                saveLayoutMut.mutate({ screenId: activeScreen, layouts: localLayouts });
+                setLocalLayouts(null);
+              }
+              if (localCanvasLayouts) {
+                saveCanvasLayoutMut.mutate({ screenId: activeScreen, layouts: localCanvasLayouts });
+                setLocalCanvasLayouts(null);
+              }
+            }
+            setEditMode(!editMode);
+            setEditingId(null);
+            setLayoutBreakpoint(null);
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>{editMode ? 'Done' : 'Edit'}</span>
+          </button>
+          )}
+          {editMode && activeScreen !== 'all' && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAddDialog(true)}>+ Add Source</button>}
+        </div>
       </div>
 
       {/* Layout breakpoint selector (edit mode) */}
@@ -602,6 +594,10 @@ export default function App() {
         </div>
       )}
 
+      {selectedSensor != null ? (() => {
+        const s = sensors.find(x => x.id === selectedSensor);
+        return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} getDataFor={detailDataFor} currentValues={currentValues} /> : null;
+      })() : (<>
       {/* System Resource Panel */}
       {mode === 'system' && systemInfo && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, padding: 8 }}>
@@ -753,13 +749,9 @@ export default function App() {
           />
         </Suspense>
       ))}
+      </>)}
 
       {showDashSettings && <DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted); }} />}
-
-      {selectedSensor != null && (() => {
-        const s = sensors.find(x => x.id === selectedSensor);
-        return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} getDataFor={detailDataFor} currentValues={currentValues} /> : null;
-      })()}
 
       {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdmin} />}
 
