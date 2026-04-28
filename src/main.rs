@@ -9,6 +9,7 @@ mod storage;
 
 use api::AppState;
 use cache::DeviceCache;
+use models::DeviceStatus;
 use poller_manager::PollerManager;
 use storage::Storage;
 
@@ -95,9 +96,34 @@ async fn main() -> anyhow::Result<()> {
 
                     for source in &sources {
                         let value = if source.source_type == "modbus" {
-                            *value_map
-                                .get(&format!("{}:{}", source.device_id, source.key))
-                                .unwrap_or(&source.base_val)
+                            // Find device metrics
+                            let metrics: std::collections::HashMap<String, f64> = snapshots
+                                .iter()
+                                .filter(|s| s.device_id == source.device_id && s.status == DeviceStatus::Online)
+                                .flat_map(|s| s.metrics.clone())
+                                .collect();
+
+                            if metrics.is_empty() {
+                                continue;
+                            }
+
+                            // Check for expression in source_config
+                            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&source.source_config) {
+                                if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
+                                    match expression::evaluate(expr_str, &metrics) {
+                                        Ok(val) => val,
+                                        Err(_) => continue,
+                                    }
+                                } else {
+                                    *value_map
+                                        .get(&format!("{}:{}", source.device_id, source.key))
+                                        .unwrap_or(&source.base_val)
+                                }
+                            } else {
+                                *value_map
+                                    .get(&format!("{}:{}", source.device_id, source.key))
+                                    .unwrap_or(&source.base_val)
+                            }
                         } else {
                             continue;
                         };
