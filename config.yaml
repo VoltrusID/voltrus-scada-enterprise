@@ -30,6 +30,22 @@ devices:
         address: 40011
         type: "float32"
 
+# Data retention - automatic downsampling and archiving
+# retention:
+#   enabled: true
+#   run_interval_secs: 21600  # every 6 hours
+#   archive_dir: "./archive"
+#   tiers:
+#     - name: raw
+#       keep: 604800           # 7 days (in seconds)
+#       downsample_to: hourly
+#       archive: true          # export raw to CSV+gzip before deleting
+#     - name: hourly
+#       keep: 7776000          # 90 days
+#       downsample_to: daily
+#     - name: daily
+#       keep: null             # forever
+
   - id: "plts_2"
     ip: "192.168.1.11"
     port: 502
@@ -55,3 +71,19 @@ devices:
       - name: "energy_total"
         address: 40011
         type: "float32"
+
+# Data retention - automatic downsampling and archiving
+# retention:
+#   enabled: true
+#   run_interval_secs: 21600  # every 6 hours
+#   archive_dir: "./archive"
+#   tiers:
+#     - name: raw
+#       keep: 604800           # 7 days (in seconds)
+#       downsample_to: hourly
+#       archive: true          # export raw to CSV+gzip before deleting
+#     - name: hourly
+#       keep: 7776000          # 90 days
+#       downsample_to: daily
+#     - name: daily
+#       keep: null             # forever
