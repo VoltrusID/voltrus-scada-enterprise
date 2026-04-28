@@ -1,11 +1,14 @@
 mod api;
+mod auth;
 mod cache;
 mod config;
 mod expression;
 mod modbus;
 mod models;
 mod poller_manager;
+mod retention;
 mod storage;
+mod timeutil;
 
 use api::AppState;
 use cache::DeviceCache;
@@ -129,7 +132,9 @@ async fn main() -> anyhow::Result<()> {
                         };
 
                         if source.crit_val > 0.0 && value >= source.crit_val {
-                            if !storage.has_active_alarm(&source.key, "critical").await.unwrap_or(false) {
+                            let has_active = storage.has_active_alarm(&source.key, "critical").await.unwrap_or(false);
+                            let in_cooldown = storage.is_in_cooldown(&source.key, "critical").await.unwrap_or(false);
+                            if !has_active && !in_cooldown {
                                 let msg = format!(
                                     "{} reached {}{} (critical: {}{})",
                                     source.name, value, source.unit, source.crit_val, source.unit
@@ -137,7 +142,9 @@ async fn main() -> anyhow::Result<()> {
                                 let _ = storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg).await;
                             }
                         } else if source.warn_val > 0.0 && value >= source.warn_val {
-                            if !storage.has_active_alarm(&source.key, "warning").await.unwrap_or(false) {
+                            let has_active = storage.has_active_alarm(&source.key, "warning").await.unwrap_or(false);
+                            let in_cooldown = storage.is_in_cooldown(&source.key, "warning").await.unwrap_or(false);
+                            if !has_active && !in_cooldown {
                                 let msg = format!(
                                     "{} reached {}{} (warning: {}{})",
                                     source.name, value, source.unit, source.warn_val, source.unit
@@ -172,6 +179,21 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    let oidc_config = auth::oidc::OidcConfig {
+        enabled: app_config.oidc_enabled,
+        issuer: app_config.oidc_issuer.clone(),
+        audience: app_config.oidc_audience.clone(),
+        jwks_url: app_config.oidc_jwks_url.clone(),
+        role_claim: app_config.oidc_role_claim.clone().into(),
+        admin_role: app_config.oidc_admin_role.clone().into(),
+    };
+
+    let jwks_manager = auth::oidc::JwksManager::new(&oidc_config.jwks_url);
+    if oidc_config.enabled {
+        auth::oidc::spawn_jwks_refresh(jwks_manager.clone());
+        tracing::info!("OIDC enabled, issuer: {}", oidc_config.issuer);
+    }
+
     let state = AppState {
         cache,
         storage,
@@ -180,6 +202,8 @@ async fn main() -> anyhow::Result<()> {
         auth_secret,
         cors_origin: app_config.cors_origin.clone(),
         cookie_secure: app_config.cookie_secure,
+        oidc_config,
+        jwks_manager,
     };
     let app = api::create_router(state);
 
@@ -193,6 +217,11 @@ async fn main() -> anyhow::Result<()> {
             .await
             .expect("Failed to install Ctrl+C handler");
         tracing::info!("Received shutdown signal, draining connections...");
+
+        // Give connections 3s to drain, then force quit
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        tracing::info!("Drain timeout, forcing shutdown");
+        std::process::exit(0);
     };
 
     axum::serve(listener, app)
