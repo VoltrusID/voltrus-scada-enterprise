@@ -128,3 +128,9 @@ export interface ScadaConnectionItem {
   waypoints: string
   connection_type: ScadaConnectionType
 }
+
+export interface UserItem {
+  id: number
+  username: string
+  role: string
+}

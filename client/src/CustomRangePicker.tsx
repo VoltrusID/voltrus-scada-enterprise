@@ -50,10 +50,61 @@ function formatCustomRange(range: string) {
   return `${fmt(s)} – ${fmt(e)}`;
 }
 
-export function HistoryRangeBar({ range, onChange }: { range: string; onChange: (r: string) => void }) {
+function getIntervalMs(range: string, detail?: 'auto' | 'full'): number {
+  const isFull = detail === 'full';
+  // Parse duration in seconds
+  let durSec: number;
+  const parts = range.split('-');
+  if (parts.length === 2) {
+    const s = Number(parts[0]), e = Number(parts[1]);
+    durSec = (!isNaN(s) && !isNaN(e) && e > s) ? (e - s) / 1000 : 1800;
+  } else {
+    const m: Record<string, number> = { '30m': 1800, '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
+    durSec = m[range] ?? 1800;
+  }
+  if (isFull) return 1000;
+  const presets: Record<string, number> = { '30m': 10000, '1h': 20000, '6h': 120000, '24h': 480000, '7d': 3360000, '30d': 14400000 };
+  if (presets[range]) return presets[range];
+  return Math.max(1000, Math.min(3600000, durSec * 1000 / 300));
+}
+
+function formatPts(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(n >= 10_000 ? 0 : 1) + 'K';
+  return String(n);
+}
+
+function fmtInterval(ms: number): string {
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms / 1000) + 's';
+  if (ms < 3600000) return (ms / 60000) + 'm';
+  return (ms / 3600000) + 'h';
+}
+
+const aggLabels: Record<string, string> = { sampling: 'Sampling', avg: 'Avg', minmax: 'Min/Max/Avg' };
+
+export function HistoryRangeBar({ range, onChange, detail, onDetailChange, agg }: { range: string; onChange: (r: string) => void; detail?: 'auto' | 'full'; onDetailChange?: (d: 'auto' | 'full') => void; agg?: string }) {
   const [showCustom, setShowCustom] = useState(false);
   const presets = ['30m', '1h', '6h', '24h'] as const;
   const isCustom = !presets.includes(range as any);
+
+  const intervalMs = getIntervalMs(range, detail);
+  // Parse duration seconds for point count
+  let durSec: number;
+  const parts = range.split('-');
+  if (parts.length === 2) {
+    const s = Number(parts[0]), e = Number(parts[1]);
+    durSec = (!isNaN(s) && !isNaN(e) && e > s) ? (e - s) / 1000 : 1800;
+  } else {
+    const m: Record<string, number> = { '30m': 1800, '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
+    durSec = m[range] ?? 1800;
+  }
+  const pts = Math.round(durSec * 1000 / intervalMs);
+  const isFull = detail === 'full';
+  const aggName = aggLabels[agg ?? 'sampling'] ?? 'Sampling';
+  const label = isFull
+    ? `${formatPts(pts)} pts · 1s res`
+    : `${formatPts(pts)} pts · ${aggName} / ${fmtInterval(intervalMs)}`;
 
   return (
     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -66,6 +117,11 @@ export function HistoryRangeBar({ range, onChange }: { range: string; onChange: 
       {isCustom && (
         <span style={{ fontSize: 11, color: 'var(--warn)', fontFamily: "'JetBrains Mono',monospace", whiteSpace: 'nowrap' }}>{formatCustomRange(range)}</span>
       )}
+      <div style={{ marginLeft: 4, borderLeft: '1px solid var(--border)', paddingLeft: 4, display: 'flex', gap: 2 }}>
+        <button title="Aggregated · ~300 points" style={{ ...btnStyle, padding: '6px 8px', fontSize: 11, borderColor: detail === 'auto' ? 'var(--warn)' : 'var(--border)', color: detail === 'auto' ? 'var(--warn)' : 'var(--fg-muted)' }} onClick={() => onDetailChange?.('auto')}>Auto</button>
+        <button title="Every second · no data loss" style={{ ...btnStyle, padding: '6px 8px', fontSize: 11, borderColor: detail === 'full' ? 'var(--warn)' : 'var(--border)', color: detail === 'full' ? 'var(--warn)' : 'var(--fg-muted)' }} onClick={() => onDetailChange?.('full')}>Full</button>
+      </div>
+      <span style={{ fontSize: 10, color: isFull ? 'var(--warn)' : 'var(--fg-muted)', fontFamily: "'JetBrains Mono',monospace", whiteSpace: 'nowrap', opacity: .7 }}>{label}</span>
       {showCustom && <CustomRangePicker onApply={onChange} onClose={() => setShowCustom(false)} />}
     </div>
   );
