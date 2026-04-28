@@ -1504,6 +1504,24 @@ impl Storage {
         .map(|_| ())
     }
 
+    pub async fn count_active_alarms(&self) -> Result<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms
+                     WHERE acknowledged_at IS NULL AND resolved_at IS NULL",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            Ok(count)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn has_active_alarm(&self, source_key: &str, severity: &str) -> Result<bool> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();

@@ -6,6 +6,14 @@ use serde_json::json;
 use crate::models::*;
 use super::{AppError, AppState, AuthUser};
 
+/// GET /api/alarms/active/count
+pub async fn active_alarm_count(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let count = state.storage.count_active_alarms().await?;
+    Ok(Json(json!({ "count": count })))
+}
+
 /// GET /api/alarms?status=active|acknowledged|all&limit=50
 pub async fn list_alarms(
     State(state): State<AppState>,

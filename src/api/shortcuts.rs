@@ -66,18 +66,41 @@ pub async fn save_shortcuts(
     Ok(Json(json!({"ok": true})))
 }
 
-/// GET /api/nav-shortcuts — get navigation shortcuts for the current user
+/// GET /api/nav-shortcuts — get fully resolved navigation shortcuts
+/// Returns defaults merged with user overrides.
 pub async fn get_nav_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
     let user = state.storage.get_user_by_username(&auth.username).await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
-    let shortcuts = state.storage.get_user_nav_shortcuts(user.id).await?;
+
+    // Build defaults from screens
+    let screens = state.storage.list_devices().await?;
     let mut map = serde_json::Map::new();
-    for s in &shortcuts {
-        map.insert(s.target.clone(), json!(s.shortcut));
+    map.insert("screen:all".to_string(), json!("Mod+1"));
+    map.insert("screen:system".to_string(), json!("Mod+0"));
+    map.insert("view:cards".to_string(), json!(""));
+    map.insert("view:canvas".to_string(), json!(""));
+    map.insert("view:twin".to_string(), json!(""));
+    map.insert("view:scada".to_string(), json!(""));
+    map.insert("mode:live".to_string(), json!(""));
+    map.insert("mode:history".to_string(), json!(""));
+    map.insert("action:alarms".to_string(), json!(""));
+    for (i, s) in screens.iter().enumerate() {
+        map.insert(format!("screen:{}", s.id), json!(format!("Mod+{}", i + 2)));
     }
+
+    // Apply user overrides
+    let user_shortcuts = state.storage.get_user_nav_shortcuts(user.id).await?;
+    for s in &user_shortcuts {
+        if s.shortcut.is_empty() {
+            map.remove(&s.target);
+        } else {
+            map.insert(s.target.clone(), json!(s.shortcut));
+        }
+    }
+
     Ok(Json(serde_json::Value::Object(map)))
 }
 
