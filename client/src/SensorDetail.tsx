@@ -64,8 +64,7 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column', padding: 16 }}>
-      <div style={{ maxWidth: 1600, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={onBack} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -171,7 +170,6 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
             <DetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} pointWidth={pointWidth} />
           </div>
         </div>
-      </div>
     </div>
   );
 }

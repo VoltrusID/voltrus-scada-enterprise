@@ -184,3 +184,10 @@ input[type="color"] {
   background: var(--bg);
   font-weight: 600;
 }
+
+/* Hide keyboard shortcut badges on mobile/tablet */
+@media (max-width: 1023px) {
+  kbd {
+    display: none !important;
+  }
+}
