@@ -289,6 +289,12 @@ pub struct User {
     pub password_hash: String,
     #[serde(skip_serializing)]
     pub salt: String,
+    #[serde(default = "default_user_role")]
+    pub role: String,
+}
+
+fn default_user_role() -> String {
+    "user".to_string()
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -414,12 +420,29 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub ok: bool,
     pub username: String,
+    pub role: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateUserRequest {
+    pub username: String,
+    pub password: String,
+    #[serde(default = "default_user_role")]
+    pub role: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateUserRequest {
+    pub role: Option<String>,
+    pub password: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct TokenClaims {
     pub username: String,
     pub exp: u64,
+    #[serde(default = "default_user_role")]
+    pub role: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -469,6 +492,8 @@ pub struct DataQuery {
     pub metric: Option<String>,
     pub from: Option<i64>,
     pub to: Option<i64>,
+    pub detail: Option<String>,
+    pub agg: Option<String>,
 }
 
 // ── Alarm types ──

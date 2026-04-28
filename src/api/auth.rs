@@ -1,4 +1,4 @@
-use axum::extract::State;
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
@@ -54,12 +54,13 @@ fn hmac_sign(payload: &str, secret: &str) -> String {
     hex::encode(mac.finalize().into_bytes())
 }
 
-pub fn create_token(username: &str, secret: &str) -> String {
+pub fn create_token(username: &str, role: &str, secret: &str) -> String {
     let exp = chrono::Utc::now().timestamp_millis() as u64 + TOKEN_EXPIRY_MS;
     let payload =
         serde_json::to_string(&TokenClaims {
             username: username.to_string(),
             exp,
+            role: role.to_string(),
         })
         .unwrap();
     let sig = hmac_sign(&payload, secret);
@@ -107,7 +108,7 @@ pub async fn login(
         return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
     }
     let secret = &state.auth_secret;
-    let token = create_token(&body.username, secret);
+    let token = create_token(&body.username, &user.role, secret);
     let cookie = axum_extra::extract::cookie::Cookie::build((
         "voltrus_token",
         token.clone(),
@@ -119,7 +120,7 @@ pub async fn login(
     .path("/")
     .build();
     let jar = jar.add(cookie);
-    Ok((jar, Json(LoginResponse { ok: true, username: body.username })).into_response())
+    Ok((jar, Json(LoginResponse { ok: true, username: body.username, role: user.role })).into_response())
 }
 
 pub async fn logout(jar: CookieJar) -> impl IntoResponse {
@@ -139,7 +140,7 @@ pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl Into
         return Json(json!({"authenticated": false}));
     }
     match verify_token(token, &state.auth_secret) {
-        Some(claims) => Json(json!({"authenticated": true, "username": claims.username})),
+        Some(claims) => Json(json!({"authenticated": true, "username": claims.username, "role": claims.role})),
         None => Json(json!({"authenticated": false})),
     }
 }
@@ -147,6 +148,69 @@ pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl Into
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     state.storage.seed_database().await?;
     Ok(Json(json!({"ok": true})))
+}
+
+// ── User management handlers ──
+
+pub async fn list_users(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    let users = state.storage.list_users().await?;
+    Ok(Json(users))
+}
+
+pub async fn create_user_handler(
+    State(state): State<AppState>,
+    Json(body): Json<CreateUserRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if body.username.is_empty() || body.password.is_empty() {
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "username and password are required"}))).into_response());
+    }
+    if body.role != "admin" && body.role != "user" {
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role must be 'admin' or 'user'"}))).into_response());
+    }
+    if state.storage.get_user_by_username(&body.username).await?.is_some() {
+        return Ok((StatusCode::CONFLICT, Json(json!({"error": "username already exists"}))).into_response());
+    }
+    let password_hash = hash_password(&body.password);
+    let id = state.storage.create_user(&body.username, &password_hash, "", &body.role).await?;
+    Ok(Json(json!({"ok": true, "id": id})).into_response())
+}
+
+pub async fn update_user_handler(
+    State(state): State<AppState>,
+    Extension(auth): Extension<super::AuthUser>,
+    Path(id): Path<i64>,
+    Json(body): Json<UpdateUserRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let user = state.storage.get_user_by_id(id).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+    if let Some(role) = body.role {
+        if role != "admin" && role != "user" {
+            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role must be 'admin' or 'user'"}))).into_response());
+        }
+        state.storage.update_user_role(id, &role).await?;
+    }
+    if let Some(password) = body.password {
+        if password.is_empty() {
+            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "password cannot be empty"}))).into_response());
+        }
+        let hash = hash_password(&password);
+        state.storage.update_user_password(id, &hash).await?;
+    }
+    Ok(Json(json!({"ok": true})).into_response())
+}
+
+pub async fn delete_user_handler(
+    State(state): State<AppState>,
+    Extension(auth): Extension<super::AuthUser>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    let user = state.storage.get_user_by_id(id).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+    if user.username == auth.username {
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "cannot delete yourself"}))).into_response());
+    }
+    state.storage.delete_user(id).await?;
+    Ok(Json(json!({"ok": true})).into_response())
 }
 
 #[cfg(test)]
@@ -170,15 +234,16 @@ mod tests {
     #[test]
     fn test_create_and_verify_token() {
         let secret = "test-secret";
-        let token = create_token("admin", secret);
+        let token = create_token("admin", "admin", secret);
         let claims = verify_token(&token, secret).unwrap();
         assert_eq!(claims.username, "admin");
+        assert_eq!(claims.role, "admin");
         assert!(claims.exp > chrono::Utc::now().timestamp_millis() as u64);
     }
 
     #[test]
     fn test_verify_token_wrong_secret() {
-        let token = create_token("admin", "secret1");
+        let token = create_token("admin", "admin", "secret1");
         assert!(verify_token(&token, "secret2").is_none());
     }
 
@@ -188,6 +253,7 @@ mod tests {
         let claims = TokenClaims {
             username: "admin".to_string(),
             exp: 0, // expired
+            role: "admin".to_string(),
         };
         let payload = serde_json::to_string(&claims).unwrap();
         let sig = hmac_sign(&payload, "secret");
