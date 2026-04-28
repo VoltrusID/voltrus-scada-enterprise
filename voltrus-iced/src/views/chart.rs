@@ -1,4 +1,3 @@
-use chrono::{TimeZone, Utc};
 use iced::widget::{button, column, row, text, Space};
 use iced::{Element, Length};
 use plotters::prelude::*;
@@ -170,10 +169,9 @@ impl Chart<Message> for HistoryChart {
 
 fn format_time(timestamp_ms: i64) -> String {
     let secs = timestamp_ms / 1000;
-    match Utc.timestamp_opt(secs, 0).single() {
-        Some(dt) => dt.format("%H:%M").to_string(),
-        None => "--:--".to_string(),
-    }
+    let hours = ((secs % 86400) / 3600).rem_euclid(24) as u32;
+    let mins = ((secs % 3600) / 60).rem_euclid(60) as u32;
+    format!("{:02}:{:02}", hours, mins)
 }
 
 fn format_unit_value(val: f64, unit: &str) -> String {
