@@ -1,71 +1,143 @@
 use iced::alignment;
-use iced::widget::{button, column, container, text, text_input, Space};
-use iced::{Element, Length};
+use iced::widget::{button, column, container, row, text, text_input, Space};
+use iced::{Element, Length, Padding};
 
 use crate::app::{App, Message};
+use crate::theme;
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    let title = text("Voltrus Viewer")
-        .size(28)
-        .width(Length::Fill)
-        .align_x(alignment::Horizontal::Center);
+    // --- Logo + title header ---
+    let logo = container(
+        text("V")
+            .size(18)
+            .color(theme::BG)
+            .font(theme::MONO),
+    )
+    .width(36)
+    .height(36)
+    .align_x(iced::alignment::Horizontal::Center)
+    .align_y(iced::alignment::Vertical::Center)
+    .style(|_theme: &iced::Theme| iced::widget::container::Style {
+        background: Some(iced::Background::Color(theme::OK)),
+        border: iced::border::Border {
+            color: theme::OK,
+            width: 1.0,
+            radius: 8.0.into(),
+        },
+        ..Default::default()
+    });
 
-    let username_input = text_input("Username", &app.username)
+    let title = text("Voltrus Lite")
+        .size(18)
+        .color(theme::TEXT)
+        .font(iced::Font::DEFAULT);
+
+    let header = row![logo, title]
+        .spacing(10)
+        .align_y(iced::Alignment::Center);
+
+    // --- Inputs ---
+    let username_label = text("Username")
+        .size(11)
+        .color(theme::TEXT_MUTED)
+        .font(iced::Font::DEFAULT);
+
+    let username_input = text_input("Enter username", &app.username)
         .on_input(Message::UsernameChanged)
-        .padding(10);
+        .padding(Padding::new(10.0))
+        .style(theme::text_input_style);
 
-    let password_input = text_input("Password", &app.password)
+    let password_label = text("Password")
+        .size(11)
+        .color(theme::TEXT_MUTED)
+        .font(iced::Font::DEFAULT);
+
+    let password_input = text_input("Enter password", &app.password)
         .on_input(Message::PasswordChanged)
         .on_submit(Message::Login)
         .secure(true)
-        .padding(10);
+        .padding(Padding::new(10.0))
+        .style(theme::text_input_style);
 
+    // --- Button ---
     let login_button = if app.login_loading {
         button(
-            text("Logging in...")
+            text("Signing in...")
+                .size(14)
+                .font(iced::Font::DEFAULT)
                 .width(Length::Fill)
                 .align_x(alignment::Horizontal::Center),
         )
         .width(Length::Fill)
         .padding(10)
         .on_press_maybe(None)
+        .style(theme::primary_btn_style())
     } else {
         button(
-            text("Login")
+            text("Sign In")
+                .size(14)
+                .font(iced::Font::DEFAULT)
                 .width(Length::Fill)
                 .align_x(alignment::Horizontal::Center),
         )
         .width(Length::Fill)
         .padding(10)
         .on_press(Message::Login)
+        .style(theme::primary_btn_style())
     };
 
     let mut content = column![
-        Space::with_height(80),
-        title,
-        Space::with_height(30),
+        header,
+        Space::with_height(24),
+        username_label,
+        Space::with_height(4),
         username_input,
+        Space::with_height(12),
+        password_label,
+        Space::with_height(4),
         password_input,
-        Space::with_height(10),
+        Space::with_height(16),
         login_button,
     ]
-    .spacing(8)
-    .max_width(350)
+    .spacing(0)
+    .max_width(340)
     .width(Length::Fill)
-    .align_x(alignment::Horizontal::Center);
+    .align_x(alignment::Horizontal::Left);
 
     if let Some(error) = &app.login_error {
         content = content.push(
-            text(error)
-                .color([0.9, 0.2, 0.2])
-                .width(Length::Fill)
-                .align_x(alignment::Horizontal::Center),
+            column![
+                Space::with_height(12),
+                text(error)
+                    .size(12)
+                    .color(theme::CRIT)
+                    .width(Length::Fill)
+                    .align_x(alignment::Horizontal::Left),
+            ]
         );
     }
 
-    container(content)
+    let card = container(content)
+        .width(Length::Fill)
+        .padding(32)
+        .style(|_theme: &iced::Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(theme::CARD)),
+            border: iced::border::Border {
+                color: theme::BORDER,
+                width: 1.0,
+                radius: 12.0.into(),
+            },
+            ..Default::default()
+        });
+
+    container(card)
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .style(|_theme: &iced::Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(theme::BG)),
+            ..Default::default()
+        })
         .into()
 }

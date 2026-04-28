@@ -1,22 +1,41 @@
 use iced::border;
 use iced::widget::button::{self, Status};
-use iced::{Background, Color};
+use iced::{Background, Color, Font};
 
-/// Alarm severity levels for sensor status coloring.
+// ---------------------------------------------------------------------------
+// Web palette (matches client/src/index.css)
+// ---------------------------------------------------------------------------
+
+pub const BG: Color = Color::from_rgb(0.035, 0.035, 0.043);           // #09090b
+pub const CARD: Color = Color::from_rgb(0.067, 0.067, 0.075);         // #111113
+pub const BORDER: Color = Color::from_rgb(0.153, 0.153, 0.165);       // #27272a
+#[allow(dead_code)]
+pub const BORDER_LIGHT: Color = Color::from_rgb(0.247, 0.247, 0.275); // #3f3f46
+pub const TEXT: Color = Color::from_rgb(0.894, 0.894, 0.906);         // #e4e4e7
+pub const TEXT_DIM: Color = Color::from_rgb(0.631, 0.631, 0.667);     // #a1a1aa
+pub const TEXT_MUTED: Color = Color::from_rgb(0.443, 0.443, 0.478);   // #71717a
+pub const WARN: Color = Color::from_rgb(0.961, 0.620, 0.043);         // #f59e0b
+pub const CRIT: Color = Color::from_rgb(0.937, 0.267, 0.267);         // #ef4444
+pub const OK: Color = Color::from_rgb(0.133, 0.773, 0.369);           // #22c55e
+pub const CYAN: Color = OK;
+
+pub const MONO: Font = Font::MONOSPACE;
+
+// ---------------------------------------------------------------------------
+// Alarm severity levels for sensor status coloring.
+// ---------------------------------------------------------------------------
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlarmLevel {
-    /// Normal operating range.
     Normal,
-    /// Value has crossed the warning threshold.
     Warning,
-    /// Value has crossed the critical threshold.
     Critical,
+    Offline,
 }
 
-/// Determine the alarm level from a sensor value and its thresholds.
 pub fn alarm_level(value: f64, warn: f64, crit: f64) -> AlarmLevel {
     if value.is_nan() {
-        return AlarmLevel::Normal;
+        return AlarmLevel::Offline;
     }
     if value >= crit {
         AlarmLevel::Critical
@@ -28,47 +47,161 @@ pub fn alarm_level(value: f64, warn: f64, crit: f64) -> AlarmLevel {
 }
 
 impl AlarmLevel {
-    /// Return the border color for this alarm level.
-    pub fn border_color(self) -> Color {
+    pub fn color(self) -> Color {
         match self {
-            AlarmLevel::Normal => Color::from_rgb(0.2, 0.75, 0.3),
-            AlarmLevel::Warning => Color::from_rgb(0.9, 0.75, 0.1),
-            AlarmLevel::Critical => Color::from_rgb(0.9, 0.2, 0.2),
+            AlarmLevel::Normal => OK,
+            AlarmLevel::Warning => WARN,
+            AlarmLevel::Critical => CRIT,
+            AlarmLevel::Offline => TEXT_MUTED,
         }
     }
 
-    /// Return the value text color for this alarm level.
-    pub fn text_color(self) -> Color {
+    pub fn bg_alpha(self) -> Color {
         match self {
-            AlarmLevel::Normal => Color::from_rgb(0.5, 0.95, 0.6),
-            AlarmLevel::Warning => Color::from_rgb(1.0, 0.9, 0.3),
-            AlarmLevel::Critical => Color::from_rgb(1.0, 0.4, 0.4),
+            AlarmLevel::Normal => Color::from_rgba(0.133, 0.773, 0.369, 0.15),
+            AlarmLevel::Warning => Color::from_rgba(0.961, 0.620, 0.043, 0.15),
+            AlarmLevel::Critical => Color::from_rgba(0.937, 0.267, 0.267, 0.15),
+            AlarmLevel::Offline => Color::from_rgba(0.392, 0.392, 0.392, 0.15),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AlarmLevel::Normal => "Normal",
+            AlarmLevel::Warning => "Warning",
+            AlarmLevel::Critical => "Critical",
+            AlarmLevel::Offline => "Offline",
         }
     }
 }
 
-/// Build a sensor card button style function.
-///
-/// Returns a closure compatible with `button().style(...)` that produces
-/// a dark card with a colored border indicating alarm status.
+// ---------------------------------------------------------------------------
+// Sensor card button style
+// ---------------------------------------------------------------------------
+
 pub fn sensor_card_style(alarm: AlarmLevel) -> impl Fn(&iced::Theme, Status) -> button::Style {
     move |_theme: &iced::Theme, status: Status| {
         let bg = match status {
-            Status::Hovered => Color::from_rgb(0.18, 0.18, 0.20),
-            _ => Color::from_rgb(0.12, 0.12, 0.14),
+            Status::Hovered => Color::from_rgb(0.10, 0.10, 0.11),
+            _ => CARD,
         };
 
-        let border_color = alarm.border_color();
+        let border_color = if alarm == AlarmLevel::Normal {
+            BORDER
+        } else {
+            alarm.color()
+        };
 
         button::Style {
             background: Some(Background::Color(bg)),
-            text_color: Color::WHITE,
+            text_color: TEXT,
             border: border::Border {
                 color: border_color,
-                width: 2.0,
-                radius: 8.0.into(),
+                width: if alarm == AlarmLevel::Normal { 1.0 } else { 1.5 },
+                radius: 10.0.into(),
             },
             shadow: iced::Shadow::default(),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Range / tab button styles
+// ---------------------------------------------------------------------------
+
+pub fn tab_button_style(active: bool) -> impl Fn(&iced::Theme, Status) -> button::Style {
+    move |_theme: &iced::Theme, status: Status| {
+        let (bg, text, border_col) = if active {
+            (
+                Color::from_rgba(0.133, 0.773, 0.369, 0.10),
+                CYAN,
+                CYAN,
+            )
+        } else {
+            let bg = match status {
+                Status::Hovered => Color::from_rgb(0.15, 0.15, 0.17),
+                _ => Color::TRANSPARENT,
+            };
+            (bg, TEXT_MUTED, Color::TRANSPARENT)
+        };
+
+        button::Style {
+            background: Some(Background::Color(bg)),
+            text_color: text,
+            border: border::Border {
+                color: border_col,
+                width: if active { 2.0 } else { 0.0 },
+                radius: 0.0.into(),
+            },
+            shadow: iced::Shadow::default(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Header button style (small grey buttons)
+// ---------------------------------------------------------------------------
+
+pub fn header_btn_style() -> impl Fn(&iced::Theme, Status) -> button::Style {
+    move |_theme: &iced::Theme, status: Status| {
+        let bg = match status {
+            Status::Hovered => Color::from_rgb(0.18, 0.18, 0.20),
+            _ => Color::TRANSPARENT,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            text_color: TEXT_DIM,
+            border: border::Border {
+                color: BORDER,
+                width: 1.0,
+                radius: 6.0.into(),
+            },
+            shadow: iced::Shadow::default(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Primary action button (green)
+// ---------------------------------------------------------------------------
+
+pub fn primary_btn_style() -> impl Fn(&iced::Theme, Status) -> button::Style {
+    move |_theme: &iced::Theme, status: Status| {
+        let bg = match status {
+            Status::Hovered => Color::from_rgb(0.18, 0.85, 0.42),
+            _ => OK,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            text_color: Color::BLACK,
+            border: border::Border {
+                color: OK,
+                width: 1.0,
+                radius: 6.0.into(),
+            },
+            shadow: iced::Shadow::default(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Text input style
+// ---------------------------------------------------------------------------
+
+pub fn text_input_style(
+    _theme: &iced::Theme,
+    _status: iced::widget::text_input::Status,
+) -> iced::widget::text_input::Style {
+    iced::widget::text_input::Style {
+        background: Background::Color(BG),
+        border: border::Border {
+            color: BORDER,
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        icon: TEXT_MUTED,
+        placeholder: TEXT_MUTED,
+        value: TEXT,
+        selection: iced::Color::from_rgb(0.2, 0.4, 0.65),
     }
 }
