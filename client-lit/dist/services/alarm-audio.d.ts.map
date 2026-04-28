@@ -1,0 +1,1 @@
+{"version":3,"file":"alarm-audio.d.ts","sourceRoot":"","sources":["../../src/services/alarm-audio.ts"],"names":[],"mappings":"AAAA;;;GAGG;AACH,qBAAa,UAAU;IACrB,OAAO,CAAC,MAAM,CAAiC;IAC/C,OAAO,CAAC,MAAM,CAAS;IACvB,OAAO,CAAC,QAAQ,CAAS;;IAUzB,KAAK;IAML,IAAI;IAOJ,UAAU;IAMV,IAAI,OAAO,YAA0B;IACrC,IAAI,SAAS,YAA4B;CAC1C;AAED,eAAO,MAAM,UAAU,YAAmB,CAAC"}

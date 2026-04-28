@@ -4,5 +4,6 @@ data.db
 static/
 client/node_modules/
 client/dist/
+client-lit/node_modules/
 .playwright-mcp/
 client/.env

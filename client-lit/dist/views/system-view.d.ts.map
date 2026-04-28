@@ -1,0 +1,1 @@
+{"version":3,"file":"system-view.d.ts","sourceRoot":"","sources":["../../src/views/system-view.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,UAAU,EAAa,MAAM,KAAK,CAAC;AAkB5C,qBACa,UAAW,SAAQ,UAAU;IACxC,MAAM,CAAC,MAAM,0BAmBX;IAEO,OAAO,CAAC,KAAK,CAA2B;IACjD,OAAO,CAAC,SAAS,CAAC,CAAiC;IAEnD,iBAAiB;IAMjB,oBAAoB;YAKN,KAAK;IAQnB,OAAO,CAAC,SAAS;IAIjB,OAAO,CAAC,UAAU;IAOlB,MAAM;CAqDP"}
