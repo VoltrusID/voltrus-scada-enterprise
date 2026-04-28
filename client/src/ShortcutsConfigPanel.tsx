@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { target: 'view:scada', label: '2D SCADA' },
   { target: 'mode:live', label: 'Live Mode' },
   { target: 'mode:history', label: 'History Mode' },
+  { target: 'action:alarms', label: 'Notifications' },
 ];
 
 function ShortcutRow({ value, onChange }: { value: string; onChange: (v: string | null) => void }) {
