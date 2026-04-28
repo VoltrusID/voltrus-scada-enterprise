@@ -108,13 +108,14 @@ pub async fn get_history(
         .find(|t| t.name == "hourly").and_then(|t| t.keep).unwrap_or(7776000) as i64;
     let raw_cutoff = now - raw_keep;
     let hourly_cutoff = raw_cutoff - hourly_keep;
+    let min_interval_secs = (interval_ms / 1000).max(1) as i64;
 
     // Query all telemetry for modbus devices across all tiers
     let mut device_data: std::collections::HashMap<String, Vec<(i64, std::collections::HashMap<String, f64>)>> =
         std::collections::HashMap::new();
     for device_id in &modbus_device_ids {
         let data = state.storage.query_device_metrics_merged(
-            device_id, start, end, raw_cutoff, hourly_cutoff,
+            device_id, start, end, raw_cutoff, hourly_cutoff, min_interval_secs,
         ).await?;
         device_data.insert(device_id.clone(), data);
     }

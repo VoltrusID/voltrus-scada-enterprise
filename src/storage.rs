@@ -232,6 +232,16 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
+    /// Query telemetry across all retention tiers, transparently merging raw/hourly/daily data.
+    ///
+    /// Tier time windows:
+    /// - Raw:   [raw_cutoff, ∞)  — recent high-resolution data
+    /// - Hourly: [hourly_cutoff, raw_cutoff) — mid-range aggregates
+    /// - Daily:  (-∞, hourly_cutoff) — long-term aggregates
+    ///
+    /// `min_interval_secs` controls resolution awareness: if the caller needs data
+    /// at coarser intervals than a tier provides, that tier is skipped.
+    /// (raw=5s, hourly=3600s, daily=86400s)
     pub async fn query_device_metrics_merged(
         &self,
         device_id: &str,
@@ -239,6 +249,7 @@ impl Storage {
         to: i64,
         raw_cutoff: i64,
         hourly_cutoff: i64,
+        min_interval_secs: i64,
     ) -> Result<Vec<(i64, std::collections::HashMap<String, f64>)>> {
         let conn = self.conn.clone();
         let device_id = device_id.to_string();
@@ -249,28 +260,30 @@ impl Storage {
             let mut grouped: std::collections::BTreeMap<i64, std::collections::HashMap<String, f64>> =
                 std::collections::BTreeMap::new();
 
-            // Raw data (within raw retention window)
-            let raw_from = from.max(hourly_cutoff).min(raw_cutoff);
-            let raw_to = to.min(raw_cutoff);
-            if raw_from < raw_to {
+            // Daily data: (-∞, hourly_cutoff)
+            // Always useful at any resolution
+            let daily_from = from;
+            let daily_to = to.min(hourly_cutoff);
+            if daily_from < daily_to {
                 let mut stmt = conn.prepare(
-                    "SELECT timestamp, metric, value FROM telemetry
-                     WHERE device_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
-                     ORDER BY timestamp LIMIT 10000"
-                ).context("Prepare raw failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, raw_from, raw_to], |row| {
+                    "SELECT bucket_start, metric, avg_value FROM telemetry_daily
+                     WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
+                     ORDER BY bucket_start LIMIT 10000"
+                ).context("Prepare daily failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, daily_from, daily_to], |row| {
                     Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
-                }).context("Query raw failed")?;
+                }).context("Query daily failed")?;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
                 }
             }
 
-            // Hourly data (between raw_cutoff and hourly_cutoff)
+            // Hourly data: [hourly_cutoff, raw_cutoff)
+            // Skip if caller needs daily+ resolution only
             let hourly_from = from.max(hourly_cutoff);
             let hourly_to = to.min(raw_cutoff);
-            if hourly_from < hourly_to {
+            if min_interval_secs <= 3600 && hourly_from < hourly_to {
                 let mut stmt = conn.prepare(
                     "SELECT bucket_start, metric, avg_value FROM telemetry_hourly
                      WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
@@ -285,17 +298,19 @@ impl Storage {
                 }
             }
 
-            // Daily data (older than hourly_cutoff)
-            let daily_to = to.min(hourly_cutoff);
-            if from < daily_to {
+            // Raw data: [raw_cutoff, ∞)
+            // Skip if caller needs hourly+ resolution only (raw is ~5s intervals)
+            let raw_from = from.max(raw_cutoff);
+            let raw_to = to;
+            if min_interval_secs <= 300 && raw_from < raw_to {
                 let mut stmt = conn.prepare(
-                    "SELECT bucket_start, metric, avg_value FROM telemetry_daily
-                     WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
-                     ORDER BY bucket_start LIMIT 10000"
-                ).context("Prepare daily failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, from, daily_to], |row| {
+                    "SELECT timestamp, metric, value FROM telemetry
+                     WHERE device_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+                     ORDER BY timestamp LIMIT 10000"
+                ).context("Prepare raw failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, raw_from, raw_to], |row| {
                     Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
-                }).context("Query daily failed")?;
+                }).context("Query raw failed")?;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
