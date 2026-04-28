@@ -26,6 +26,7 @@ use serde_json::json;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::auth::oidc::{JwksManager, OidcConfig};
 use crate::cache::DeviceCache;
 use crate::poller_manager::PollerManager;
 use crate::storage::Storage;
@@ -39,6 +40,9 @@ pub struct AppState {
     pub auth_secret: String,
     pub cors_origin: Option<String>,
     pub cookie_secure: bool,
+    pub oidc_config: OidcConfig,
+    pub jwks_manager: JwksManager,
+    pub retention_config: crate::models::RetentionConfig,
 }
 
 #[derive(Debug)]
@@ -81,7 +85,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
-        .route("/api/settings/branding", get(settings::get_branding));
+        .route("/api/settings/branding", get(settings::get_branding))
+        .route("/api/settings/alarm-cooldown", get(settings::get_alarm_cooldown));
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
@@ -135,6 +140,7 @@ pub fn create_router(state: AppState) -> Router {
     let admin_protected = Router::new()
         .route("/api/seed", post(auth::seed))
         .route("/api/settings/branding", put(settings::update_branding))
+        .route("/api/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
         .route("/api/screens", post(screens::create_screen))
         .route("/api/screens/{id}", put(screens::update_screen).delete(screens::delete_screen))
         .route("/api/screens/{id}/data-sources", post(screens::add_screen_sensor))
@@ -207,6 +213,23 @@ async fn cookie_auth_middleware(
     mut req: Request,
     next: Next,
 ) -> impl IntoResponse {
+    // Try Bearer token (OIDC) first
+    if state.oidc_config.enabled {
+        if let Some(auth_header) = req.headers().get("authorization") {
+            if let Some(token) = auth_header.to_str().ok().and_then(|v| v.strip_prefix("Bearer ")) {
+                if let Some(claims) = state.jwks_manager.validate_token(token, &state.oidc_config).await {
+                    let role = crate::auth::oidc::extract_role(&claims, &state.oidc_config);
+                    req.extensions_mut().insert(AuthUser {
+                        username: claims.sub,
+                        role,
+                    });
+                    return next.run(req).await;
+                }
+            }
+        }
+    }
+
+    // Fall back to local cookie auth
     let jar = CookieJar::from_headers(req.headers());
     let token = jar
         .get("voltrus_token")
@@ -245,6 +268,21 @@ mod tests {
     use std::collections::HashMap;
     use tower::ServiceExt;
 
+    fn test_oidc_config() -> OidcConfig {
+        OidcConfig {
+            enabled: false,
+            issuer: String::new(),
+            audience: String::new(),
+            jwks_url: String::new(),
+            role_claim: "realm_access.roles".to_string(),
+            admin_role: "voltrus-admin".to_string(),
+        }
+    }
+
+    fn test_jwks_manager() -> JwksManager {
+        JwksManager::new("")
+    }
+
     pub fn test_app() -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
@@ -257,6 +295,9 @@ mod tests {
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
             cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
         };
         create_router(state)
     }
@@ -412,6 +453,9 @@ mod tests {
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
             cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
         };
         let app = create_router(state);
 
@@ -463,6 +507,9 @@ mod tests {
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
             cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
         };
         let app = create_router(state);
 
@@ -536,6 +583,9 @@ mod tests {
             auth_secret: "test-secret".to_string(),
             cors_origin: None,
             cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
         };
         let app = create_router(state);
 

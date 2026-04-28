@@ -8,6 +8,59 @@ use crate::expression;
 use crate::models::*;
 use super::{generators, AppState, AppError};
 
+use std::collections::HashSet;
+
+/// Evaluate all data sources against current cache, producing DataSourceData[].
+pub(crate) fn evaluate_data_sources(
+    data_sources: &[DataSource],
+    cache_data: &[DeviceSnapshot],
+    now: f64,
+) -> Vec<DataSourceData> {
+    data_sources
+        .iter()
+        .map(|ds| {
+            let value = if ds.source_type == "modbus" {
+                let metrics = cache_data
+                    .iter()
+                    .find(|s| s.device_id == ds.device_id && s.status == DeviceStatus::Online)
+                    .map(|s| &s.metrics);
+
+                match metrics {
+                    None => f64::NAN,
+                    Some(m) => {
+                        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&ds.source_config) {
+                            if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
+                                match expression::evaluate(expr_str, m) {
+                                    Ok(val) => val,
+                                    Err(e) => {
+                                        tracing::warn!("Expression eval error for {}: {e}", ds.key);
+                                        f64::NAN
+                                    }
+                                }
+                            } else {
+                                m.get(&ds.key).copied().unwrap_or(f64::NAN)
+                            }
+                        } else {
+                            m.get(&ds.key).copied().unwrap_or(f64::NAN)
+                        }
+                    }
+                }
+            } else {
+                generators::generate_value(ds, now)
+            };
+
+            DataSourceData {
+                id: ds.id,
+                key: ds.key.clone(),
+                value,
+                warn: ds.warn_val,
+                crit: ds.crit_val,
+                source_type: ds.source_type.clone(),
+            }
+        })
+        .collect()
+}
+
 /// GET /api/data?screen=X — fetch data sources, generate values using generators
 /// For source_type == "modbus": read from cache, evaluate expression if present
 pub async fn get_data(
@@ -16,67 +69,16 @@ pub async fn get_data(
 ) -> Result<impl IntoResponse, AppError> {
     let screen_id = params.screen.as_deref();
     let data_sources = state.storage.list_data_sources(screen_id).await?;
-
     let cache_data = state.cache.get_all().await;
-    let now = chrono::Utc::now().timestamp() as f64;
-
-    let mut result = Vec::new();
-    for data_source in &data_sources {
-        let value = if data_source.source_type == "modbus" {
-            // Find the device's cached metrics
-            let mut metrics: Option<&std::collections::HashMap<String, f64>> = None;
-            for snapshot in &cache_data {
-                if snapshot.device_id == data_source.device_id
-                    && snapshot.status == DeviceStatus::Online
-                {
-                    metrics = Some(&snapshot.metrics);
-                    break;
-                }
-            }
-
-            match metrics {
-                None => f64::NAN,
-                Some(m) => {
-                    // Check if source_config has an expression
-                    if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&data_source.source_config) {
-                        if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
-                            match expression::evaluate(expr_str, m) {
-                                Ok(val) => val,
-                                Err(e) => {
-                                    tracing::warn!("Expression eval error for {}: {e}", data_source.key);
-                                    f64::NAN
-                                }
-                            }
-                        } else {
-                            // Fallback: single register lookup by key
-                            m.get(&data_source.key).copied().unwrap_or(f64::NAN)
-                        }
-                    } else {
-                        m.get(&data_source.key).copied().unwrap_or(f64::NAN)
-                    }
-                }
-            }
-        } else {
-            generators::generate_value(data_source, now)
-        };
-
-        result.push(DataSourceData {
-            id: data_source.id,
-            key: data_source.key.clone(),
-            value,
-            warn: data_source.warn_val,
-            crit: data_source.crit_val,
-            source_type: data_source.source_type.clone(),
-        });
-    }
-
+    let now = crate::timeutil::now_secs() as f64;
+    let result = evaluate_data_sources(&data_sources, &cache_data, now);
     Ok(Json(result))
 }
 
-/// GET /api/history?range=30m&screen=X&agg=sampling — generate history data points
-/// `agg`: "sampling" = pick evenly-spaced points, "avg" = average per bucket, "minmax" = min/max/avg per bucket
+/// GET /api/history?range=30m&screen=X&agg=sampling
+/// For modbus sources: reads real telemetry data from DB
+/// For non-modbus sources: generates synthetic data via generators
 /// Returns compact format: each sensor has {values: [f64], start: unix_ms, interval: ms, count: usize}
-/// For minmax: additionally includes {mins: [f64], maxs: [f64]}
 pub async fn get_history(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -89,13 +91,37 @@ pub async fn get_history(
 
     let (start, end) = generators::parse_range(range_str);
     let interval_ms = generators::interval_for_range(range_str, detail);
-    let duration_secs = end - start;
-    let num_points = ((duration_secs * 1000) / interval_ms as i64) as usize;
+
+    // Collect unique device_ids for modbus sources to batch-query
+    let modbus_device_ids: Vec<String> = data_sources
+        .iter()
+        .filter(|ds| ds.source_type == "modbus")
+        .map(|ds| ds.device_id.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    let now = crate::timeutil::now_secs();
+    let raw_keep = state.retention_config.tiers.iter()
+        .find(|t| t.name == "raw").and_then(|t| t.keep).unwrap_or(604800) as i64;
+    let hourly_keep = state.retention_config.tiers.iter()
+        .find(|t| t.name == "hourly").and_then(|t| t.keep).unwrap_or(7776000) as i64;
+    let raw_cutoff = now - raw_keep;
+    let hourly_cutoff = raw_cutoff - hourly_keep;
+
+    // Query all telemetry for modbus devices across all tiers
+    let mut device_data: std::collections::HashMap<String, Vec<(i64, std::collections::HashMap<String, f64>)>> =
+        std::collections::HashMap::new();
+    for device_id in &modbus_device_ids {
+        let data = state.storage.query_device_metrics_merged(
+            device_id, start, end, raw_cutoff, hourly_cutoff,
+        ).await?;
+        device_data.insert(device_id.clone(), data);
+    }
 
     let mut data_source_summaries: Vec<DataSourceSummary> = Vec::new();
     let mut data_map = serde_json::Map::new();
 
-    // For avg/minmax: number of sub-samples within each bucket interval
     let sub_samples = if agg == "sampling" { 1 } else { (interval_ms / 1000).max(1) as usize };
 
     for data_source in &data_sources {
@@ -108,44 +134,85 @@ pub async fn get_history(
             warn_val: data_source.warn_val,
             crit_val: data_source.crit_val,
             decimals: data_source.decimals,
+            source_type: data_source.source_type.clone(),
         });
 
-        let mut values = Vec::with_capacity(num_points);
-        let mut mins: Vec<f64> = Vec::new();
-        let mut maxs: Vec<f64> = Vec::new();
+        let points = if data_source.source_type == "modbus" {
+            // Real data from telemetry DB
+            let raw_points = device_data.get(&data_source.device_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
 
-        for i in 0..num_points {
-            let bucket_start = start + ((end - start) * i as i64 / num_points.max(1) as i64);
+            // Check if there's an expression to evaluate
+            let expr: Option<String> = serde_json::from_str::<serde_json::Value>(&data_source.source_config)
+                .ok()
+                .and_then(|cfg| cfg.get("expression").and_then(|v| v.as_str()).map(|s| s.to_string()));
 
-            match agg {
-                "avg" | "minmax" => {
-                    let (avg, mn, mx) = generators::aggregate_bucket(
-                        data_source, bucket_start as f64, sub_samples,
-                    );
-                    values.push(avg);
-                    if agg == "minmax" {
-                        mins.push(mn);
-                        maxs.push(mx);
+            if let Some(ref expr_str) = expr {
+                // Expression-based: evaluate at each timestamp
+                raw_points.iter()
+                    .filter_map(|(ts, metrics)| {
+                        match expression::evaluate(expr_str, metrics) {
+                            Ok(val) => Some(DataPoint { timestamp: *ts, value: val }),
+                            Err(_) => None,
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                // Simple metric lookup
+                raw_points.iter()
+                    .filter_map(|(ts, metrics)| {
+                        metrics.get(&data_source.key).map(|&v| DataPoint { timestamp: *ts, value: v })
+                    })
+                    .collect::<Vec<_>>()
+            }
+        } else {
+            // Synthetic data from generators
+            let duration_secs = end - start;
+            let num_points = ((duration_secs * 1000) / interval_ms as i64) as usize;
+            let mut pts = Vec::with_capacity(num_points);
+            for i in 0..num_points {
+                let bucket_start = start + ((end - start) * i as i64 / num_points.max(1) as i64);
+                match agg {
+                    "avg" | "minmax" => {
+                        let (avg, mn, mx) = generators::aggregate_bucket(
+                            data_source, bucket_start as f64, sub_samples,
+                        );
+                        pts.push(DataPoint { timestamp: bucket_start, value: avg });
+                    }
+                    _ => {
+                        let value = generators::generate_value(data_source, bucket_start as f64);
+                        pts.push(DataPoint { timestamp: bucket_start, value: (value * 100.0).round() / 100.0 });
                     }
                 }
-                _ => {
-                    // sampling: just pick the value at the bucket start
-                    let value = generators::generate_value(data_source, bucket_start as f64);
-                    values.push((value * 100.0).round() / 100.0);
-                }
             }
-        }
+            pts
+        };
 
-        let mut sensor_data = serde_json::Map::new();
-        sensor_data.insert("values".into(), json!(values));
-        sensor_data.insert("start".into(), json!(start * 1000));
-        sensor_data.insert("interval".into(), json!(interval_ms));
-        sensor_data.insert("count".into(), json!(num_points));
-        if agg == "minmax" {
-            sensor_data.insert("mins".into(), json!(mins));
-            sensor_data.insert("maxs".into(), json!(maxs));
+        // Convert points to compact format
+        if points.is_empty() {
+            let mut sensor_data = serde_json::Map::new();
+            sensor_data.insert("values".into(), json!(Vec::<f64>::new()));
+            sensor_data.insert("start".into(), json!(start * 1000));
+            sensor_data.insert("interval".into(), json!(interval_ms));
+            sensor_data.insert("count".into(), json!(0));
+            data_map.insert(data_source.key.clone(), json!(sensor_data));
+        } else {
+            let values: Vec<f64> = points.iter().map(|p| p.value).collect();
+            let first_ts = points[0].timestamp;
+            let last_ts = points[points.len() - 1].timestamp;
+            let calc_interval = if points.len() > 1 {
+                ((last_ts - first_ts) * 1000 / (points.len() as i64 - 1).max(1)) as u64
+            } else {
+                interval_ms
+            };
+            let mut sensor_data = serde_json::Map::new();
+            sensor_data.insert("values".into(), json!(values));
+            sensor_data.insert("start".into(), json!(first_ts * 1000));
+            sensor_data.insert("interval".into(), json!(calc_interval));
+            sensor_data.insert("count".into(), json!(points.len()));
+            data_map.insert(data_source.key.clone(), json!(sensor_data));
         }
-        data_map.insert(data_source.key.clone(), json!(sensor_data));
     }
 
     Ok(Json(HistoryResponse {
