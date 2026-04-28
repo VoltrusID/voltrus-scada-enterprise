@@ -1,11 +1,13 @@
 use serde::Deserialize;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct LoginResponse {
     pub ok: bool,
@@ -13,6 +15,7 @@ pub struct LoginResponse {
     pub role: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct DataSourceData {
     pub id: i64,
@@ -23,6 +26,7 @@ pub struct DataSourceData {
     pub source_type: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct DataSourceSummary {
     pub id: i64,
@@ -42,6 +46,7 @@ pub struct DataPoint {
     pub value: f64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct HistoryResponse {
     pub sensors: Vec<DataSourceSummary>,
@@ -50,6 +55,7 @@ pub struct HistoryResponse {
     pub interval: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct BrandingSettings {
     pub title: String,
