@@ -148,6 +148,90 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    // ── Downsampling & Retention ──
+
+    pub async fn downsample_raw_to_hourly(&self, cutoff: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO telemetry_hourly (device_id, metric, bucket_start, avg_value, min_value, max_value, sample_count)
+                 SELECT device_id, metric,
+                        (timestamp / 3600) * 3600 as bucket_start,
+                        AVG(value), MIN(value), MAX(value), COUNT(*)
+                 FROM telemetry
+                 WHERE timestamp < ?1
+                 GROUP BY device_id, metric, bucket_start",
+                rusqlite::params![cutoff],
+            ).context("Downsample raw to hourly failed").map(|n| n as u64)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn downsample_hourly_to_daily(&self, cutoff: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO telemetry_daily (device_id, metric, bucket_start, avg_value, min_value, max_value, sample_count)
+                 SELECT device_id, metric,
+                        (bucket_start / 86400) * 86400 as day_start,
+                        AVG(avg_value), MIN(min_value), MAX(max_value), SUM(sample_count)
+                 FROM telemetry_hourly
+                 WHERE bucket_start < ?1
+                 GROUP BY device_id, metric, day_start",
+                rusqlite::params![cutoff],
+            ).context("Downsample hourly to daily failed").map(|n| n as u64)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn delete_raw_older_than(&self, cutoff: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM telemetry WHERE timestamp < ?1",
+                rusqlite::params![cutoff],
+            ).context("Delete raw telemetry failed").map(|n| n as u64)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn delete_hourly_older_than(&self, cutoff: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM telemetry_hourly WHERE bucket_start < ?1",
+                rusqlite::params![cutoff],
+            ).context("Delete hourly telemetry failed").map(|n| n as u64)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn delete_daily_older_than(&self, cutoff: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM telemetry_daily WHERE bucket_start < ?1",
+                rusqlite::params![cutoff],
+            ).context("Delete daily telemetry failed").map(|n| n as u64)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn query_raw_for_archive(&self, cutoff: i64) -> Result<Vec<(String, String, i64, f64)>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT device_id, metric, timestamp, value FROM telemetry
+                 WHERE timestamp < ?1 ORDER BY timestamp"
+            ).context("Prepare archive query failed")?;
+            let rows = stmt.query_map(rusqlite::params![cutoff], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            }).context("Query archive rows failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        }).await.context("Task join failed")?
+    }
+
     // ── Users ──
 
     pub async fn get_user_by_username(&self, username: &str) -> Result<Option<User>> {
