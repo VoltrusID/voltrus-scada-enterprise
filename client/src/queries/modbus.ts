@@ -119,3 +119,29 @@ export function useRestartModbusPoller() {
     },
   })
 }
+
+export interface ScannedRegister {
+  address: number
+  raw_value: number | null
+  raw_value2: number | null
+  changed: boolean
+  readable: boolean
+  likely_type: string
+}
+
+export function useScanModbusRegisters() {
+  return useMutation({
+    mutationFn: async (params: {
+      ip: string; port: number; unit_id: number
+      start_addr: number; end_addr: number
+      endianness: string; register_area: string
+    }) => {
+      const res = await fetchOk('/api/modbus-devices/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      })
+      return res.json() as Promise<ScannedRegister[]>
+    },
+  })
+}

@@ -127,6 +127,7 @@ export interface ModbusRegister {
   name: string
   address: number
   register_type: string
+  register_area: string
   scale: number
   sort_order: number
 }

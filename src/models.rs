@@ -152,6 +152,12 @@ pub struct RegisterConfig {
     pub reg_type: RegisterType,
     #[serde(default = "default_scale")]
     pub scale: f64,
+    #[serde(default = "default_register_area")]
+    pub register_area: String,
+}
+
+fn default_register_area() -> String {
+    "holding".to_string()
 }
 
 fn default_reg_type() -> RegisterType {
@@ -229,6 +235,7 @@ impl ModbusDevice {
                     _ => RegisterType::Float32,
                 },
                 scale: r.scale,
+                register_area: r.register_area.clone(),
             }).collect(),
         }
     }
@@ -241,6 +248,7 @@ pub struct ModbusRegister {
     pub name: String,
     pub address: u16,
     pub register_type: String,
+    pub register_area: String,
     pub scale: f64,
     pub sort_order: i64,
 }
@@ -269,10 +277,41 @@ pub struct ModbusRegisterInput {
     pub register_type: String,
     #[serde(default = "default_scale")]
     pub scale: f64,
+    #[serde(default = "default_register_area")]
+    pub register_area: String,
 }
 
 fn default_reg_type_str() -> String {
     "float32".to_string()
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ScanRegisterRequest {
+    pub ip: String,
+    #[serde(default = "default_modbus_port")]
+    pub port: u16,
+    #[serde(default = "default_unit_id")]
+    pub unit_id: u8,
+    pub start_addr: u16,
+    pub end_addr: u16,
+    #[serde(default)]
+    pub endianness: String,
+    #[serde(default = "default_scan_register_area")]
+    pub register_area: String,
+}
+
+fn default_scan_register_area() -> String {
+    "holding".to_string()
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ScannedRegister {
+    pub address: u16,
+    pub raw_value: Option<u16>,
+    pub raw_value2: Option<u16>,
+    pub changed: bool,
+    pub readable: bool,
+    pub likely_type: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -635,6 +674,7 @@ mod tests {
             address: 40001,
             reg_type: RegisterType::Uint16,
             scale: 1.0,
+            register_area: "holding".into(),
         };
         assert_eq!(r.register_count(), 1);
 
@@ -643,6 +683,7 @@ mod tests {
             address: 40001,
             reg_type: RegisterType::Float32,
             scale: 1.0,
+            register_area: "holding".into(),
         };
         assert_eq!(r.register_count(), 2);
     }
@@ -654,6 +695,7 @@ mod tests {
             address: 40001,
             reg_type: RegisterType::Float32,
             scale: 1.0,
+            register_area: "holding".into(),
         };
         assert_eq!(r.protocol_address(), 0);
 
@@ -662,6 +704,7 @@ mod tests {
             address: 40003,
             reg_type: RegisterType::Float32,
             scale: 1.0,
+            register_area: "holding".into(),
         };
         assert_eq!(r.protocol_address(), 2);
 
@@ -670,6 +713,7 @@ mod tests {
             address: 30005,
             reg_type: RegisterType::Float32,
             scale: 1.0,
+            register_area: "input".into(),
         };
         assert_eq!(r.protocol_address(), 4);
 
@@ -678,6 +722,7 @@ mod tests {
             address: 10,
             reg_type: RegisterType::Uint16,
             scale: 1.0,
+            register_area: "holding".into(),
         };
         assert_eq!(r.protocol_address(), 10);
     }

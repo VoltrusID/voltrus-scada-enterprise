@@ -5,7 +5,7 @@ use axum::Json;
 use serde_json::json;
 
 use crate::api::{AppError, AppState};
-use crate::models::ModbusRegisterInput;
+use crate::models::{ModbusRegisterInput, ScanRegisterRequest, Endianness};
 
 pub async fn list_modbus_devices(
     State(state): State<AppState>,
@@ -170,4 +170,19 @@ pub async fn get_poller_statuses(
 ) -> Result<impl IntoResponse, AppError> {
     let statuses = state.poller_manager.get_statuses().await;
     Ok(Json(statuses))
+}
+
+pub async fn scan_modbus_registers(
+    Json(body): Json<ScanRegisterRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let endianness = match body.endianness.as_str() {
+        "little" => Endianness::Little,
+        "swapped" => Endianness::Swapped,
+        _ => Endianness::Big,
+    };
+    let results = crate::modbus::scan_registers(
+        &body.ip, body.port, body.unit_id,
+        body.start_addr, body.end_addr, &endianness, &body.register_area,
+    ).await?;
+    Ok(Json(results))
 }

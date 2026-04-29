@@ -142,6 +142,46 @@ export default function App() {
     })
   }
 
+  const CHART_SIZES: Record<string, { w: number; h: number }> = {
+    gauge: { w: 4, h: 4 },
+    sparkline: { w: 6, h: 3 },
+    bignumber: { w: 4, h: 3 },
+    image: { w: 6, h: 4 },
+    text: { w: 6, h: 4 },
+  }
+
+  function autoArrangeLayout(sensors: SensorConfig[], bp: string): LayoutItem[] {
+    const cols = DEFAULT_COLS[bp] || 24
+    const groups = new Map<string, SensorConfig[]>()
+    for (const s of sensors) {
+      const key = s.device_id || '_'
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(s)
+    }
+
+    const items: LayoutItem[] = []
+    let globalY = 0
+
+    for (const [, group] of groups) {
+      let x = 0, rowY = globalY, maxRowH = 0
+      for (const s of group) {
+        const ct = s.chart_type || 'sparkline'
+        let { w, h } = CHART_SIZES[ct] || { w: 6, h: 4 }
+        if (bp === 'sm') { w = Math.min(w, 4); h = Math.max(h, 3) }
+        if (x + w > cols) { x = 0; rowY += maxRowH; maxRowH = 0 }
+        items.push({ i: String(s.id), x, y: rowY, w, h })
+        maxRowH = Math.max(maxRowH, h)
+        x += w
+      }
+      globalY = rowY + maxRowH
+    }
+    return items
+  }
+
+  function autoArrangeAll(sensors: SensorConfig[]): ScreenLayouts {
+    return { lg: autoArrangeLayout(sensors, 'lg'), md: autoArrangeLayout(sensors, 'md'), sm: autoArrangeLayout(sensors, 'sm') }
+  }
+
   const defaultLayouts = useMemo(() => {
     if (screenLayouts.lg.length > 0) return null
     const ids = screenSensors.map(s => s.id)
@@ -215,6 +255,10 @@ export default function App() {
   const handleCanvasLayoutChange = useCallback((items: CanvasLayoutItem[]) => {
     setLocalCanvasLayouts(items)
   }, [])
+
+  const handleAutoArrange = useCallback(() => {
+    setLocalLayouts(autoArrangeAll(screenSensors))
+  }, [screenSensors])
 
   const handleAddScreen = () => {
     const defaultShortcut = `Mod+${screens.length + 2}`
@@ -316,6 +360,7 @@ export default function App() {
           editLabel={editMode ? 'Done' : 'Edit'}
           onAddSource={() => setShowAddDialog(true)}
           canAddSource={activeScreen !== 'all'}
+          onAutoArrange={handleAutoArrange}
         />
 
         {editMode && (

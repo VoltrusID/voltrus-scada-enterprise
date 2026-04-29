@@ -17,6 +17,7 @@ interface Props {
   editLabel: string
   onAddSource: () => void
   canAddSource: boolean
+  onAutoArrange?: () => void
 }
 
 export function ScreenTabs({
@@ -24,6 +25,7 @@ export function ScreenTabs({
   editMode, onTabClick, onSystemClick,
   onRenameScreen, onDeleteScreen, onAddScreen,
   isAdmin, onToggleEditMode, editLabel, onAddSource, canAddSource,
+  onAutoArrange,
 }: Props) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20, borderBottom: '1px solid var(--border)' }}>
@@ -53,6 +55,7 @@ export function ScreenTabs({
         </button>
         )}
         {editMode && canAddSource && <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={onAddSource}>+ Add Source</button>}
+        {editMode && onAutoArrange && <button style={{ ...btnStyle, borderColor: '#a78bfa', color: '#a78bfa' }} onClick={onAutoArrange}>Auto Arrange</button>}
       </div>
     </div>
   )
