@@ -93,6 +93,21 @@ pub async fn update_modbus_device(
 ) -> Result<impl IntoResponse, AppError> {
     state.storage.update_modbus_device(&id, &body).await?;
 
+    // If registers array is present, replace registers too
+    if body.get("registers").and_then(|v| v.as_array()).is_some() {
+        let registers: Vec<ModbusRegisterInput> = body
+            .get("registers")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|r| serde_json::from_value(r.clone()).ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        state.storage.replace_modbus_registers(&id, &registers).await?;
+    }
+
     // Restart poller with updated config
     let configs = state.storage.get_all_device_configs().await?;
     if let Some(dc) = configs.iter().find(|c| c.id == id) {
