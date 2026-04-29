@@ -204,8 +204,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let state = AppState {
-        cache,
-        storage,
+        cache: cache.clone(),
+        storage: storage.clone(),
         poller_manager,
         started_at: std::time::Instant::now(),
         auth_secret,
@@ -215,6 +215,8 @@ async fn main() -> anyhow::Result<()> {
         jwks_manager,
         retention_config: app_config.retention.clone(),
     };
+
+    api::stream::spawn_sse_composer(cache, storage, state.clone());
     let app = api::create_router(state);
 
     let addr = format!("0.0.0.0:{}", app_config.server_port);

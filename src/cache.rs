@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{RwLock, broadcast, watch};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::models::{DeviceSnapshot, DeviceStatus};
@@ -10,15 +10,18 @@ const SSE_CHANNEL_CAPACITY: usize = 256;
 #[derive(Debug, Clone)]
 pub struct DeviceCache {
     devices: Arc<RwLock<HashMap<String, DeviceSnapshot>>>,
-    tx: broadcast::Sender<Vec<DeviceSnapshot>>,
+    tx: broadcast::Sender<String>,
+    trigger: watch::Sender<bool>,
 }
 
 impl DeviceCache {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(SSE_CHANNEL_CAPACITY);
+        let (trigger, _) = watch::channel(false);
         Self {
             devices: Arc::new(RwLock::new(HashMap::new())),
             tx,
+            trigger,
         }
     }
 
@@ -42,8 +45,7 @@ impl DeviceCache {
                 });
         }
 
-        let snapshots = self.get_all().await;
-        let _ = self.tx.send(snapshots);
+        let _ = self.trigger.send(true);
     }
 
     pub async fn set_status(&self, device_id: &str, status: DeviceStatus) {
@@ -72,8 +74,16 @@ impl DeviceCache {
             .collect()
     }
 
-    pub fn subscribe(&self) -> BroadcastStream<Vec<DeviceSnapshot>> {
+    pub fn publish_sse_payload(&self, payload: String) {
+        let _ = self.tx.send(payload);
+    }
+
+    pub fn subscribe(&self) -> BroadcastStream<String> {
         BroadcastStream::new(self.tx.subscribe())
+    }
+
+    pub fn trigger_receiver(&self) -> watch::Receiver<bool> {
+        self.trigger.subscribe()
     }
 }
 
@@ -167,15 +177,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_broadcast_on_update() {
+    async fn test_publish_and_receive_sse_payload() {
         let cache = DeviceCache::new();
         let mut stream = cache.subscribe();
 
-        let metrics = HashMap::from([("voltage".into(), 220.0)]);
-        cache.update("dev1", metrics).await;
+        cache.publish_sse_payload(r#"{"test":true}"#.to_string());
 
         use tokio_stream::StreamExt;
-        let msg: Vec<DeviceSnapshot> = tokio::time::timeout(
+        let msg: String = tokio::time::timeout(
             std::time::Duration::from_millis(100),
             stream.next(),
         )
@@ -184,7 +193,23 @@ mod tests {
         .expect("should be Some")
         .expect("broadcast should not error");
 
-        assert_eq!(msg.len(), 1);
-        assert_eq!(msg[0].device_id, "dev1");
+        assert_eq!(msg, r#"{"test":true}"#);
+    }
+
+    #[tokio::test]
+    async fn test_trigger_fires_on_update() {
+        let cache = DeviceCache::new();
+        let mut rx = cache.trigger_receiver();
+
+        let metrics = HashMap::from([("voltage".into(), 220.0)]);
+        cache.update("dev1", metrics).await;
+
+        tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            rx.changed(),
+        )
+        .await
+        .expect("trigger should fire on update")
+        .expect("should succeed");
     }
 }

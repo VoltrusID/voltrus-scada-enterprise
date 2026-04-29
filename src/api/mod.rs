@@ -10,7 +10,7 @@ mod modbus_devices;
 mod data;
 mod system;
 mod generators;
-mod stream;
+pub(crate) mod stream;
 
 use axum::{
     extract::{Request, State},
