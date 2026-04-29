@@ -1,29 +1,41 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import type { SensorData } from './types'
+import type { SensorData, SystemInfo } from './types'
 
-interface SSEDataState {
-  data: SensorData[] | null
+interface SSEMessage {
+  sensors?: SensorData[]
+  system?: SystemInfo
+}
+
+interface SSEState {
+  sensors: SensorData[] | null
+  system: SystemInfo | null
   connected: boolean
 }
 
 const FLUSH_INTERVAL_MS = 1000 // batch updates to 1Hz max
 const STALL_TIMEOUT_MS = 5000  // reconnect if no message for 5s
 
-export function useSSEData(enabled: boolean) {
-  const [state, setState] = useState<SSEDataState>({ data: null, connected: false })
+export function useSSEData(enabled: boolean, turbo: boolean) {
+  const [state, setState] = useState<SSEState>({ sensors: null, system: null, connected: false })
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const bufferRef = useRef<SensorData[] | null>(null)
+  const systemRef = useRef<SystemInfo | null>(null)
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const evtSourceRef = useRef<EventSource | null>(null)
   const lastMessageAtRef = useRef<number>(0)
   const stallTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const turboRef = useRef(turbo)
+  turboRef.current = turbo
 
   const flush = useCallback(() => {
     const batch = bufferRef.current
     if (batch && batch.length > 0) {
-      setState({ data: batch, connected: true })
+      setState({ sensors: batch, system: systemRef.current, connected: true })
       bufferRef.current = null
+    } else if (systemRef.current) {
+      // Even if no new sensors, system info might have updated
+      setState(s => (s.system !== systemRef.current ? { ...s, system: systemRef.current, connected: true } : s))
     }
     flushTimerRef.current = null
   }, [])
@@ -63,14 +75,27 @@ export function useSSEData(enabled: boolean) {
       if (abort.signal.aborted) { evtSource.close(); return }
       lastMessageAtRef.current = Date.now()
       try {
-        const parsed: SensorData[] = JSON.parse(e.data)
-        // Buffer latest data — if buffer already has data, append
-        if (bufferRef.current) {
-          bufferRef.current.push(...parsed)
-        } else {
-          bufferRef.current = parsed
+        const parsed: SSEMessage = JSON.parse(e.data)
+        if (parsed.sensors) {
+          if (bufferRef.current) {
+            bufferRef.current.push(...parsed.sensors)
+          } else {
+            bufferRef.current = parsed.sensors
+          }
         }
-        scheduleFlush()
+        if (parsed.system) {
+          systemRef.current = parsed.system
+        }
+        if (turboRef.current) {
+          // Immediate flush — render at SSE rate
+          if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current)
+            flushTimerRef.current = null
+          }
+          flush()
+        } else {
+          scheduleFlush()
+        }
       } catch { /* ignore parse errors */ }
     }
 
@@ -103,7 +128,8 @@ export function useSSEData(enabled: boolean) {
       teardown()
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
       bufferRef.current = null
-      setState({ data: null, connected: false })
+      systemRef.current = null
+      setState({ sensors: null, system: null, connected: false })
       return
     }
     connect()
@@ -111,6 +137,7 @@ export function useSSEData(enabled: boolean) {
       teardown()
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
       bufferRef.current = null
+      systemRef.current = null
     }
   }, [enabled, connect, teardown])
 

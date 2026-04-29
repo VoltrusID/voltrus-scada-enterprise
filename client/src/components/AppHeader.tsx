@@ -21,6 +21,8 @@ interface Props {
   historyDetail: 'auto' | 'full'
   onHistoryDetailChange: (d: 'auto' | 'full') => void
   historyAutoAgg: string
+  turbo: boolean
+  onToggleTurbo: () => void
   onSettingsClick: () => void
   onDataManagerClick: () => void
   onLogout: () => void
@@ -34,6 +36,7 @@ export function AppHeader({
   showShortcutsPanel, onToggleShortcutsPanel, shortcutsPanel,
   mode, onModeChange,
   historyRange, onHistoryRangeChange, historyDetail, onHistoryDetailChange, historyAutoAgg,
+  turbo, onToggleTurbo,
   onSettingsClick, onDataManagerClick, onLogout, onAlarmPanelToggle,
 }: Props) {
   return (
@@ -84,6 +87,17 @@ export function AppHeader({
           </div>
           {mode === 'history' && (
             <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
+          )}
+          {mode === 'live' && (
+            <button onClick={onToggleTurbo} style={{
+              ...btnStyle,
+              borderColor: turbo ? 'var(--warn)' : 'var(--border)',
+              color: turbo ? 'var(--warn)' : 'var(--fg)',
+              background: turbo ? 'rgba(234,179,8,.1)' : 'var(--card)',
+            }} title={turbo ? 'Turbo ON — rendering at SSE rate' : 'Turbo OFF — throttled to 1 Hz'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: 4 }}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Turbo
+            </button>
           )}
         </>)}
         <button style={btnStyle} onClick={onSettingsClick}>

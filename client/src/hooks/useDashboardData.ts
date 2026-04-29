@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { SensorConfig, SensorData, DataPoint, LIVE_PTS } from '../types'
+import { SensorConfig, SensorData, DataPoint, SystemInfo, LIVE_PTS } from '../types'
 import { expandCompactData } from '../utils'
 import { useSSEData } from '../useSSEData'
 
-export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'system', activeScreen: string, sensors: SensorConfig[], screenSensors: SensorConfig[], historyRange: string, historyDetail: 'auto' | 'full', historyAutoAgg: string) {
+export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'system', activeScreen: string, sensors: SensorConfig[], screenSensors: SensorConfig[], historyRange: string, historyDetail: 'auto' | 'full', historyAutoAgg: string, turbo: boolean) {
   const [dataMap, setDataMap] = useState<Record<string, DataPoint[]>>({});
   const [historyMap, setHistoryMap] = useState<Record<string, DataPoint[]> | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [currentValues, setCurrentValues] = useState<Record<string, SensorData>>({});
+  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const initialLoadDone = useRef(false);
 
-  const sseData = useSSEData(authed && mode === 'live');
+  const sseData = useSSEData(authed, turbo);
 
   // ── Initial data load ────────────────────────────────────────────
   useEffect(() => {
@@ -35,8 +36,8 @@ export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'sy
   currentValuesRef.current = currentValues;
 
   useEffect(() => {
-    if (!sseData.data || !historyReady) return;
-    const d = sseData.data;
+    if (!sseData.sensors || !historyReady) return;
+    const d = sseData.sensors;
     const newMap = { ...dataMapRef.current };
     const newVals = { ...currentValuesRef.current };
     for (const item of d) {
@@ -53,7 +54,14 @@ export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'sy
     }
     setDataMap(newMap);
     setCurrentValues(newVals);
-  }, [sseData.data, historyReady]);
+  }, [sseData.sensors, historyReady]);
+
+  // ── System info from SSE ─────────────────────────────────────────
+  useEffect(() => {
+    if (sseData.system) {
+      setSystemInfo(sseData.system);
+    }
+  }, [sseData.system]);
 
   // ── History fetch ────────────────────────────────────────────────
   useEffect(() => {
@@ -73,22 +81,6 @@ export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'sy
     });
   }, [mode, historyRange, historyDetail, activeScreen, sensors, screenSensors, historyAutoAgg]);
 
-  // Re-seed live dataMap with 30m history when switching back to live
-  useEffect(() => {
-    if (mode !== 'live' || !authed || sensors.length === 0) return;
-    const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`;
-    fetch(`/api/history?range=30m${dp}`).then(r => r.json()).then(result => {
-      if (!result.data) return;
-      const expanded = expandCompactData(result.data);
-      const remapped: Record<string, DataPoint[]> = {};
-      for (const s of screenSensors) {
-        const pts = expanded[s.key];
-        if (pts) remapped[String(s.id)] = pts.length > LIVE_PTS ? pts.slice(-LIVE_PTS) : pts;
-      }
-      setDataMap(remapped);
-    });
-  }, [mode, authed, sensors, screenSensors, activeScreen]);
-
   const chartDataFor = useCallback((id: number) => {
     const k = String(id);
     if (mode === 'history' && historyMap && historyMap[k]) return historyMap[k].map(d => d.value);
@@ -102,7 +94,7 @@ export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'sy
   }, [mode, historyMap, dataMap]);
 
   return {
-    dataMap, currentValues, historyMap, historyReady, sseConnected: sseData.connected,
+    dataMap, currentValues, historyMap, historyReady, sseConnected: sseData.connected, systemInfo,
     chartDataFor, detailDataFor,
   };
 }

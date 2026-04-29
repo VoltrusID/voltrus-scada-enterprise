@@ -20,7 +20,7 @@ import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useSystemInfo, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 
 export default function App() {
   const queryClient = useQueryClient()
@@ -53,6 +53,7 @@ export default function App() {
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
+  const [turbo, setTurbo] = useState(false)
 
   // ── Query hooks ──────────────────────────────────────────────────
   const { data: sensors = [] } = useSensors(authed)
@@ -71,7 +72,6 @@ export default function App() {
   const { data: shortcuts = {} } = useShortcuts(authed)
   const { data: navShortcuts = {} } = useNavShortcuts(authed)
   const { data: branding = DEFAULT_BRANDING } = useBranding()
-  const { data: systemInfo } = useSystemInfo(authed)
   const { data: activeAlarms = { count: 0 } } = useActiveAlarmCount(authed)
 
   // ── Mutation hooks ───────────────────────────────────────────────
@@ -95,9 +95,9 @@ export default function App() {
 
   // ── Dashboard data hook ──────────────────────────────────────────
   const {
-    dataMap, currentValues, historyMap, historyReady, sseConnected,
+    dataMap, currentValues, historyMap, historyReady, sseConnected, systemInfo,
     chartDataFor, detailDataFor,
-  } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg)
+  } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg, turbo)
 
   // ── Derived values ───────────────────────────────────────────────
   const isAdmin = authRole === 'admin'
@@ -280,6 +280,7 @@ export default function App() {
         historyRange={historyRange} onHistoryRangeChange={setHistoryRange}
         historyDetail={historyDetail} onHistoryDetailChange={setHistoryDetail}
         historyAutoAgg={dashSettings.historyAutoAgg}
+        turbo={turbo} onToggleTurbo={() => setTurbo(v => !v)}
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => setShowDataManager(true)}
         onLogout={handleLogout}
