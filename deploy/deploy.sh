@@ -2,62 +2,30 @@
 set -euo pipefail
 
 INSTALL_DIR="/opt/voltrus-lite"
-BINARY_NAME="voltrus-lite-rust-service"
-SERVICE_NAME="voltrus-lite"
-REPO="DzulfikarAs/voltrus-lite-rust-service"
+REPO="dzulfikar08/voltrus-lite-rust-service"
+SERVICES=(voltrus-lite modbus-sim modbus-sim-1)
 HEALTH_URL="http://localhost:3000/api/health"
 HEALTH_TIMEOUT=30
 
-echo "==> Fetching latest release from GitHub..."
-LATEST_URL=$(curl -sL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | grep '"browser_download_url".*linux-x86_64.tar.gz' \
-    | head -1 \
-    | sed -E 's/.*"([^"]+)".*/\1/')
+VERSION=${1:-${VERSION:-latest}}
 
-if [ -z "$LATEST_URL" ]; then
-    echo "ERROR: Could not find latest release binary"
-    exit 1
-fi
+echo "==> Downloading release ${VERSION}..."
+gh release download "${VERSION}" --repo "${REPO}" --clobber
 
-echo "==> Latest release: ${LATEST_URL}"
-
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
-
-echo "==> Downloading..."
-curl -sL "$LATEST_URL" -o "${TMPDIR}/release.tar.gz"
-
-echo "==> Extracting..."
-tar -xzf "${TMPDIR}/release.tar.gz" -C "${TMPDIR}"
-
-if [ ! -f "${TMPDIR}/${BINARY_NAME}" ]; then
-    echo "ERROR: Binary not found in release archive"
-    exit 1
-fi
-
-echo "==> Stopping service gracefully..."
-sudo systemctl stop "${SERVICE_NAME}" || true
-sudo systemctl stop modbus-sim || true
+echo "==> Stopping services..."
+for svc in "${SERVICES[@]}"; do
+    sudo systemctl stop "$svc" || true
+done
 sleep 1
 
-echo "==> Replacing binary..."
-cp "${TMPDIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
-chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+echo "==> Extracting to ${INSTALL_DIR}..."
+sudo tar -xzf ~/voltrus-lite-rust-service-linux-x86_64.tar.gz -C "${INSTALL_DIR}/" --overwrite
+sudo chmod +x "${INSTALL_DIR}/voltrus-lite-rust-service" "${INSTALL_DIR}/modbus-sim"
 
-echo "==> Updating static files..."
-rm -rf "${INSTALL_DIR}/static"
-if [ -d "${TMPDIR}/static" ]; then
-    cp -r "${TMPDIR}/static" "${INSTALL_DIR}/static"
-fi
-
-echo "==> Updating client-lit..."
-rm -rf "${INSTALL_DIR}/client-lit"
-if [ -d "${TMPDIR}/client-lit" ]; then
-    cp -r "${TMPDIR}/client-lit" "${INSTALL_DIR}/client-lit"
-fi
-
-echo "==> Starting service..."
-sudo systemctl start "${SERVICE_NAME}"
+echo "==> Starting services..."
+for svc in "${SERVICES[@]}"; do
+    sudo systemctl start "$svc"
+done
 
 echo "==> Running health check..."
 ELAPSED=0
@@ -66,10 +34,10 @@ until curl -sf "${HEALTH_URL}" > /dev/null 2>&1; do
     ELAPSED=$((ELAPSED + 1))
     if [ "$ELAPSED" -ge "$HEALTH_TIMEOUT" ]; then
         echo "ERROR: Health check failed after ${HEALTH_TIMEOUT}s"
-        sudo systemctl status "${SERVICE_NAME}" --no-pager
+        sudo systemctl status voltrus-lite --no-pager
         exit 1
     fi
 done
 
 echo "==> Deploy complete! Service is healthy."
-sudo systemctl status "${SERVICE_NAME}" --no-pager
+rm -f ~/voltrus-lite-rust-service-linux-x86_64.tar.gz
