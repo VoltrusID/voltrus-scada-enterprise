@@ -45,10 +45,13 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
     onLayoutChange(layout, allLayouts)
   }, [onLayoutChange, forcedBreakpoint, screenLayouts])
 
+  const ready = screenSensors.length > 0 && (screenLayouts.lg.length > 0 || screenLayouts.md.length > 0 || screenLayouts.sm.length > 0)
+
   return (
     <div ref={containerRef} style={{ maxWidth: '100%' }}>
-      {mounted && (
+      {mounted && ready && (
         <ResponsiveGridLayout
+          key={screenSensors.map(s => s.id).join(',')}
           width={width}
           layouts={screenLayouts as any}
           breakpoints={BREAKPOINTS}
