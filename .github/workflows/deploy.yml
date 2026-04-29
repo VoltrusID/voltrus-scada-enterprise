@@ -24,6 +24,9 @@ jobs:
           chmod +x /usr/local/bin/cloudflared
 
       - name: Setup SSH via cloudflared tunnel
+        env:
+          CF_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/key
@@ -34,7 +37,7 @@ jobs:
             User ${{ secrets.VPS_USER }}
             IdentityFile ~/.ssh/key
             StrictHostKeyChecking no
-            ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+            ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h --id "$CF_ID" --secret "$CF_SECRET"
           EOF
 
       - name: Deploy
