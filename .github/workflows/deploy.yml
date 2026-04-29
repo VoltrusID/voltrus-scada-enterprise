@@ -42,7 +42,7 @@ jobs:
 
       - name: Deploy
         env:
-          VERSION: ${{ github.event.inputs.version || 'latest' }}
+          VERSION: ${{ github.event.inputs.version || github.event.workflow_run.head_branch || 'latest' }}
         run: |
           ssh vps "VERSION=$VERSION bash -s" <<'SCRIPT'
           set -euo pipefail
