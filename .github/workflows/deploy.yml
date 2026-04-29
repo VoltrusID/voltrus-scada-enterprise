@@ -44,7 +44,7 @@ jobs:
         env:
           VERSION: ${{ github.event.inputs.version || 'latest' }}
         run: |
-          ssh vps bash -s <<'SCRIPT'
+          ssh vps "VERSION=$VERSION bash -s" <<'SCRIPT'
           set -euo pipefail
           INSTALL_DIR="/opt/voltrus-lite"
           REPO="dzulfikar08/voltrus-lite-rust-service"
