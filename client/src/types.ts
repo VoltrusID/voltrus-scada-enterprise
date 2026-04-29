@@ -12,6 +12,27 @@ export interface SensorData {
   id: number; key: string; value: number; warn: number; crit: number; source_type: string; status: string;
 }
 
+export interface SystemInfo {
+  hostname: string
+  os: string
+  uptime_secs: number
+  cpu_usage: number
+  memory_used_mb: number
+  memory_total_mb: number
+  memory_percent: number
+  disk_used_gb: number
+  disk_total_gb: number
+  disk_percent: number
+  db_size_mb: number
+  process: {
+    pid: number
+    memory_mb: number
+    cpu_percent: number
+    uptime_secs: number
+    binary_size_mb: number
+  }
+}
+
 export interface DataPoint { value: number; ts: number }
 
 export interface Screen { id: string; name: string; type: string; sort_order: number }

@@ -1,26 +1,7 @@
-interface SystemInfo {
-  hostname: string
-  os: string
-  uptime_secs: number
-  cpu_usage: number
-  memory_used_mb: number
-  memory_total_mb: number
-  memory_percent: number
-  disk_used_gb: number
-  disk_total_gb: number
-  disk_percent: number
-  db_size_mb: number
-  process: {
-    pid: number
-    memory_mb: number
-    cpu_percent: number
-    uptime_secs: number
-    binary_size_mb: number
-  }
-}
+import type { SystemInfo } from '../types'
 
 interface Props {
-  systemInfo: SystemInfo | undefined
+  systemInfo: SystemInfo | null | undefined
 }
 
 export function SystemPanel({ systemInfo }: Props) {
