@@ -17,7 +17,7 @@ pub async fn get_health(State(state): State<AppState>) -> Json<HealthResponse> {
     })
 }
 
-pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResponse>, AppError> {
+pub async fn compute_system_info(state: &AppState) -> Result<SystemResponse, AppError> {
     use sysinfo::{Disks, ProcessesToUpdate, ProcessRefreshKind, System};
 
     let mut sys = System::new_all();
@@ -86,7 +86,7 @@ pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResp
         }
     };
 
-    Ok(Json(SystemResponse {
+    Ok(SystemResponse {
         hostname,
         os,
         uptime_secs,
@@ -99,5 +99,9 @@ pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResp
         disk_percent: (disk_percent * 10.0).round() / 10.0,
         db_size_mb: (db_size_mb * 10.0).round() / 10.0,
         process: process_info,
-    }))
+    })
+}
+
+pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResponse>, AppError> {
+    compute_system_info(&state).await.map(Json)
 }
