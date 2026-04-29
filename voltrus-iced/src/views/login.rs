@@ -110,7 +110,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     }
 
     let card = container(content)
-        .width(Length::Fill)
+        .width(360)
         .padding(32)
         .style(|_theme: &iced::Theme| iced::widget::container::Style {
             background: Some(iced::Background::Color(theme::CARD)),
@@ -125,8 +125,8 @@ pub fn view(app: &App) -> Element<'_, Message> {
     container(card)
         .width(Length::Fill)
         .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Center)
         .style(|_theme: &iced::Theme| iced::widget::container::Style {
             background: Some(iced::Background::Color(theme::BG)),
             ..Default::default()
