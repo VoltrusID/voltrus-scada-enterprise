@@ -182,6 +182,7 @@ pub fn create_router(state: AppState) -> Router {
             put(data_sources::update_data_source).delete(data_sources::delete_data_source),
         )
         .route("/api/modbus-devices", post(modbus_devices::create_modbus_device))
+        .route("/api/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
         .route(
             "/api/modbus-devices/{id}",
             put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),

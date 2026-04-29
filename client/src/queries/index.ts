@@ -73,7 +73,10 @@ export {
   useDeleteModbusDevice,
   useReplaceModbusRegisters,
   useRestartModbusPoller,
+  useScanModbusRegisters,
 } from './modbus'
+
+export type { ScannedRegister } from './modbus'
 
 export {
   useSystemInfo,
