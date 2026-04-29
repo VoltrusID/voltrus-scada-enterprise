@@ -230,10 +230,8 @@ impl Service for MeterService {
                     let mut rng = rand::rng();
                     (0..qty).map(|_| rng.random::<u16>()).collect()
                 } else {
-                    all_regs
-                        .get(addr..addr.saturating_add(qty))
-                        .unwrap_or(&[])
-                        .to_vec()
+                    let end = std::cmp::min(addr.saturating_add(qty), all_regs.len());
+                    all_regs.get(addr..end).unwrap_or(&[]).to_vec()
                 };
 
                 Response::ReadHoldingRegisters(regs)
