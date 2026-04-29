@@ -1,11 +1,8 @@
-use iced::widget::{button, column, row, text, Space};
-use iced::{Alignment, Element, Length, Padding};
 use plotters::prelude::*;
-use plotters_iced::{Chart, ChartWidget};
+use plotters_iced::Chart;
 
-use crate::app::{App, Message};
+use crate::app::Message;
 use crate::models;
-use crate::theme;
 
 // ---------------------------------------------------------------------------
 // Chart data structure
@@ -42,15 +39,34 @@ impl Chart<Message> for HistoryChart {
             return;
         }
 
-        let min_ts = self.points.iter().map(|p| p.timestamp).min().unwrap_or(0);
-        let max_ts = self.points.iter().map(|p| p.timestamp).max().unwrap_or(1).max(min_ts + 1);
-        let min_val = self.points.iter().map(|p| p.value).filter(|v| v.is_finite()).fold(f64::INFINITY, f64::min);
-        let max_val = self.points.iter().map(|p| p.value).filter(|v| v.is_finite()).fold(f64::NEG_INFINITY, f64::max);
+        let min_ts = self.points.iter().map(|p| p.ts).min().unwrap_or(0);
+        let max_ts = self
+            .points
+            .iter()
+            .map(|p| p.ts)
+            .max()
+            .unwrap_or(1)
+            .max(min_ts + 1);
+        let min_val = self
+            .points
+            .iter()
+            .map(|p| p.value)
+            .filter(|v| v.is_finite())
+            .fold(f64::INFINITY, f64::min);
+        let max_val = self
+            .points
+            .iter()
+            .map(|p| p.value)
+            .filter(|v| v.is_finite())
+            .fold(f64::NEG_INFINITY, f64::max);
 
         let val_range = max_val - min_val;
         let padding = val_range.max(1.0) * 0.1;
-        let y_min = (min_val - padding).min(self.warn_val.min(self.crit_val)).max(0.0);
-        let y_max = (max_val + padding).max(self.crit_val.max(self.warn_val).max(min_val + 1.0));
+        let y_min = (min_val - padding)
+            .min(self.warn_val.min(self.crit_val))
+            .max(0.0);
+        let y_max = (max_val + padding)
+            .max(self.crit_val.max(self.warn_val).max(min_val + 1.0));
 
         let unit_label = if self.unit.is_empty() {
             "Value".to_string()
@@ -62,7 +78,6 @@ impl Chart<Message> for HistoryChart {
             .x_label_area_size(40)
             .y_label_area_size(60)
             .margin(10)
-            .caption("", ("sans-serif", 16).into_font())
             .build_cartesian_2d(min_ts..max_ts, y_min..y_max)
             .unwrap();
 
@@ -80,18 +95,21 @@ impl Chart<Message> for HistoryChart {
             .draw()
             .unwrap();
 
-        // Main data line (cyan)
+        // Main data line (cyan/green)
         chart
             .draw_series(
                 LineSeries::new(
-                    self.points.iter().map(|p| (p.timestamp, p.value)),
+                    self.points.iter().map(|p| (p.ts, p.value)),
                     ShapeStyle::from(&RGBColor(34, 197, 94)).stroke_width(2),
                 ),
             )
             .unwrap()
             .label("Value")
             .legend(|(x, y)| {
-                Rectangle::new([(x, y - 5), (x + 20, y + 5)], RGBColor(34, 197, 94).filled())
+                Rectangle::new(
+                    [(x, y - 5), (x + 20, y + 5)],
+                    RGBColor(34, 197, 94).filled(),
+                )
             });
 
         // Warning threshold line
@@ -170,106 +188,4 @@ fn format_unit_value(val: f64, unit: &str) -> String {
     } else {
         format!("{:.1} {}", val, unit)
     }
-}
-
-// ---------------------------------------------------------------------------
-// View
-// ---------------------------------------------------------------------------
-
-const RANGES: &[&str] = &["30m", "1h", "6h", "24h"];
-
-pub fn view(app: &App) -> Element<'_, Message> {
-    let sensor_info = app
-        .data_sources
-        .iter()
-        .find(|s| Some(s.id) == app.selected_sensor);
-
-    let sensor_name = sensor_info
-        .map(|s| s.name.as_str())
-        .unwrap_or("Unknown Sensor");
-    let warn_val = sensor_info.map(|s| s.warn_val).unwrap_or(f64::NAN);
-    let crit_val = sensor_info.map(|s| s.crit_val).unwrap_or(f64::NAN);
-    let unit = sensor_info
-        .map(|s| s.unit.clone())
-        .unwrap_or_default();
-
-    // --- Header ---
-    let back_btn = button(
-        text("<< Back")
-            .size(12)
-            .font(iced::Font::DEFAULT),
-    )
-    .padding([6, 12])
-    .on_press(Message::BackToGrid)
-    .style(theme::header_btn_style());
-
-    let title = text(sensor_name)
-        .size(18)
-        .color(theme::TEXT)
-        .font(iced::Font::DEFAULT);
-
-    let header = row![back_btn, title]
-        .spacing(12)
-        .align_y(Alignment::Center)
-        .padding(Padding::new(12.0).left(20.0).right(20.0));
-
-    // --- Range tabs ---
-    let range_buttons: Vec<Element<'_, Message>> = RANGES
-        .iter()
-        .map(|range| {
-            let is_active = app.history_range == *range;
-            button(
-                text(*range)
-                    .size(12)
-                    .font(iced::Font::DEFAULT),
-            )
-            .padding([8, 16])
-            .style(theme::tab_button_style(is_active))
-            .on_press(Message::SetRange(range.to_string()))
-            .into()
-        })
-        .collect();
-
-    let range_row = row(range_buttons)
-        .spacing(0)
-        .padding(Padding::new(0.0).left(20.0).right(20.0).bottom(8.0));
-
-    // --- Content ---
-    let content: Element<'_, Message> = if app.history_loading {
-        column![
-            Space::with_height(100),
-            text("Loading history...").size(14).color(theme::TEXT_MUTED),
-        ]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_x(iced::alignment::Horizontal::Center)
-        .into()
-    } else if app.history_points.is_empty() {
-        column![
-            Space::with_height(100),
-            text("No data available").size(14).color(theme::TEXT_MUTED),
-        ]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_x(iced::alignment::Horizontal::Center)
-        .into()
-    } else {
-        let chart = HistoryChart::new(
-            app.history_points.clone(),
-            warn_val,
-            crit_val,
-            unit,
-        );
-        ChartWidget::new(chart)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
-    };
-
-    column![header, range_row, content]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .spacing(0)
-        .padding(Padding::new(0.0).bottom(12.0))
-        .into()
 }
