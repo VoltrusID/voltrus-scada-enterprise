@@ -107,6 +107,7 @@ export class AppShell extends LitElement {
   @state() private _currentValues: Record<string, SensorData> = {};
   @state() private _alerts = 0;
   @state() private _branding: BrandingSettings = { title: 'Voltrus Lite', subtitle: 'Industrial monitoring', logo: '' };
+  @state() private _version = '';
   @state() private _editMode = false;
   @state() private _dialog: null | { type: 'add-screen' | 'rename-screen' | 'delete-screen'; title: string; label: string; okLabel: string; initialValue: string } = null;
   @state() private _authRole = 'user';
@@ -123,6 +124,7 @@ export class AppShell extends LitElement {
     this._loadShortcuts();
     this._pollAlarms();
     this._pollSystem();
+    this._fetchVersion();
     document.addEventListener('keydown', this._onKeyDown);
   }
 
@@ -181,6 +183,14 @@ export class AppShell extends LitElement {
     };
     check();
     setInterval(check, 30000);
+  }
+
+  private async _fetchVersion() {
+    try {
+      const res = await fetch(`${window.location.origin}/api/version`);
+      const data = await res.json();
+      this._version = data.version || '';
+    } catch { /* ignore */ }
   }
 
   private _setScreen(id: string) {
@@ -372,7 +382,7 @@ export class AppShell extends LitElement {
         <div class="right">
           <span>${this._allSensors.length} sensors</span>
           <span>${this._screens.length} screens</span>
-          <span>v1.0.0-lit</span>
+          ${this._version ? html`<span>v${this._version}</span>` : ''}
         </div>
       </div>
 

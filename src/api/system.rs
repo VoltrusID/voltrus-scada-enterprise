@@ -4,6 +4,12 @@ use axum::Json;
 use crate::models::*;
 use super::{AppState, AppError};
 
+pub async fn get_version() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+    }))
+}
+
 pub async fn get_live(State(state): State<AppState>) -> Json<LiveResponse> {
     let devices = state.cache.get_all().await;
     Json(LiveResponse { devices })
