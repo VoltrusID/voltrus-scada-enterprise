@@ -4,6 +4,7 @@ use std::collections::HashMap;
 enum Token {
     Number(f64),
     Register(String),
+    Func(String),
     Plus,
     Minus,
     Star,
@@ -47,6 +48,14 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                     .map_err(|_| format!("Invalid number '{num_str}'"))?;
                 tokens.push(Token::Number(num));
             }
+            c if c.is_ascii_alphabetic() || c == '_' => {
+                let start = i;
+                while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
+                    i += 1;
+                }
+                let name: String = chars[start..i].iter().collect();
+                tokens.push(Token::Func(name));
+            }
             _ => return Err(format!("Unexpected character '{}' at position {i}", chars[i])),
         }
     }
@@ -58,6 +67,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
 enum Expr {
     Number(f64),
     Register(String),
+    Func(String, Box<Expr>),
     BinOp { op: BinOp, left: Box<Expr>, right: Box<Expr> },
     UnaryMinus(Box<Expr>),
 }
@@ -136,11 +146,23 @@ impl Parser {
         self.parse_atom()
     }
 
-    // atom -> Number | Register | '(' expr ')'
+    // atom -> Number | Register | Func '(' expr ')' | '(' expr ')'
     fn parse_atom(&mut self) -> Result<Expr, String> {
         match self.peek().cloned() {
             Some(Token::Number(n)) => { self.advance(); Ok(Expr::Number(n)) }
             Some(Token::Register(name)) => { self.advance(); Ok(Expr::Register(name)) }
+            Some(Token::Func(name)) => {
+                self.advance();
+                match self.advance() {
+                    Some(Token::LParen) => {}
+                    _ => return Err(format!("Expected '(' after function '{name}'")),
+                }
+                let arg = self.parse_expr()?;
+                match self.advance() {
+                    Some(Token::RParen) => Ok(Expr::Func(name, Box::new(arg))),
+                    _ => Err(format!("Expected ')' after function argument")),
+                }
+            }
             Some(Token::LParen) => {
                 self.advance();
                 let expr = self.parse_expr()?;
@@ -166,6 +188,14 @@ fn eval_expr(expr: &Expr, values: &HashMap<String, f64>) -> Result<f64, String> 
         Expr::Number(n) => Ok(*n),
         Expr::Register(name) => values.get(name).copied()
             .ok_or_else(|| format!("Unknown register: '{name}'")),
+        Expr::Func(name, arg) => {
+            let v = eval_expr(arg, values)?;
+            match name.as_str() {
+                "sqrt" => Ok(v.sqrt()),
+                "abs" => Ok(v.abs()),
+                _ => Err(format!("Unknown function: '{name}'")),
+            }
+        }
         Expr::BinOp { op, left, right } => {
             let l = eval_expr(left, values)?;
             let r = eval_expr(right, values)?;
@@ -267,5 +297,42 @@ mod tests {
             evaluate("  {Voltage_L1}  +  {Voltage_L2}  ", &vals()).unwrap(),
             441.0
         );
+    }
+
+    #[test]
+    fn test_sqrt() {
+        let v = evaluate("sqrt(9)", &HashMap::new()).unwrap();
+        assert!((v - 3.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_sqrt_with_register() {
+        let v = evaluate("sqrt({Active_Power})", &vals()).unwrap();
+        assert!((v - 70.7107).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_sqrt_in_expression() {
+        // Apparent power: sqrt(P^2) = P
+        let v = evaluate("sqrt({Active_Power} * {Active_Power})", &vals()).unwrap();
+        assert!((v - 5000.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_abs() {
+        let v = evaluate("abs(-{Voltage_L1})", &vals()).unwrap();
+        assert_eq!(v, 220.0);
+    }
+
+    #[test]
+    fn test_unknown_function() {
+        assert!(evaluate("foo(1)", &HashMap::new()).is_err());
+    }
+
+    #[test]
+    fn test_sqrt_line_voltage() {
+        // Realistic: Vline = sqrt(3) * Vphase ≈ 1.732 * 220 = 381.05
+        let v = evaluate("sqrt(3) * {Voltage_L1}", &vals()).unwrap();
+        assert!((v - 381.05).abs() < 0.5);
     }
 }
