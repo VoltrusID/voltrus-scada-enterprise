@@ -113,6 +113,7 @@ pub async fn scan_registers(
     end_addr: u16,
     endianness: &Endianness,
     register_area: &str,
+    scan_delay_ms: u64,
 ) -> Result<Vec<ScannedRegister>> {
     let addr = format!("{}:{}", ip, port);
     let socket_addr: std::net::SocketAddr = addr.parse().context("Invalid address")?;
@@ -183,7 +184,7 @@ pub async fn scan_registers(
     }
 
     // Wait and second pass to detect changes
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(scan_delay_ms)).await;
 
     let mut addr = start_addr;
     while addr <= end_addr {
@@ -269,8 +270,18 @@ pub async fn scan_registers(
         }
     }
 
-    // Filter out consumed "lo" registers (second half of 32-bit pairs)
-    Ok(results.into_iter().filter(|r| !r.likely_type.ends_with("_lo")).collect())
+    // Convert to 5-digit convention and filter out "lo" registers
+    let offset: u16 = match register_area {
+        "input" => 30001,
+        "coil" => 1,
+        "discrete" => 10001,
+        _ => 40001,
+    };
+    Ok(results
+        .into_iter()
+        .filter(|r| !r.likely_type.ends_with("_lo"))
+        .map(|mut r| { r.address = r.address.wrapping_add(offset); r })
+        .collect())
 }
 
 struct Backoff {

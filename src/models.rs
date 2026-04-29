@@ -298,6 +298,12 @@ pub struct ScanRegisterRequest {
     pub endianness: String,
     #[serde(default = "default_scan_register_area")]
     pub register_area: String,
+    #[serde(default = "default_scan_delay")]
+    pub scan_delay_ms: u64,
+}
+
+fn default_scan_delay() -> u64 {
+    500
 }
 
 fn default_scan_register_area() -> String {
