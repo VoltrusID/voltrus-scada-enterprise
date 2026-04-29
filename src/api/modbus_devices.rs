@@ -182,7 +182,7 @@ pub async fn scan_modbus_registers(
     };
     let results = crate::modbus::scan_registers(
         &body.ip, body.port, body.unit_id,
-        body.start_addr, body.end_addr, &endianness, &body.register_area,
+        body.start_addr, body.end_addr, &endianness, &body.register_area, body.scan_delay_ms,
     ).await?;
     Ok(Json(results))
 }

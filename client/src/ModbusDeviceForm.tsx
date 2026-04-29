@@ -40,6 +40,7 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
   const [scanStart, setScanStart] = useState(0)
   const [scanEnd, setScanEnd] = useState(100)
   const [scanArea, setScanArea] = useState('holding')
+  const [scanDelay, setScanDelay] = useState(500)
   const [scanResults, setScanResults] = useState<ScannedRegister[]>([])
   const [scanSelected, setScanSelected] = useState<Set<number>>(new Set())
   const [scanError, setScanError] = useState('')
@@ -63,7 +64,7 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
     setScanResults([])
     setScanSelected(new Set())
     scanMut.mutate(
-      { ip, port, unit_id: unitId, start_addr: scanStart, end_addr: scanEnd, endianness, register_area: scanArea },
+      { ip, port, unit_id: unitId, start_addr: scanStart, end_addr: scanEnd, endianness, register_area: scanArea, scan_delay_ms: scanDelay },
       {
         onSuccess: (data) => {
           setScanResults(data.filter(r => r.readable))
@@ -164,15 +165,16 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, width: 560, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600 }}>Scan Modbus Registers</div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <label style={labelStyle}><span style={labelTextStyle}>Start Address</span><input type="number" value={scanStart} onChange={e => setScanStart(parseInt(e.target.value) || 0)} style={monoInputStyle} /></label>
-                <label style={labelStyle}><span style={labelTextStyle}>End Address</span><input type="number" value={scanEnd} onChange={e => setScanEnd(parseInt(e.target.value) || 100)} style={monoInputStyle} /></label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                <label style={labelStyle}><span style={labelTextStyle}>Start Addr</span><input type="number" value={scanStart} onChange={e => setScanStart(parseInt(e.target.value) || 0)} style={monoInputStyle} /></label>
+                <label style={labelStyle}><span style={labelTextStyle}>End Addr</span><input type="number" value={scanEnd} onChange={e => setScanEnd(parseInt(e.target.value) || 100)} style={monoInputStyle} /></label>
                 <label style={labelStyle}>
-                  <span style={labelTextStyle}>Register Area</span>
+                  <span style={labelTextStyle}>Area</span>
                   <select value={scanArea} onChange={e => setScanArea(e.target.value)} style={inputStyle}>
                     {REG_AREAS.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </label>
+                <label style={labelStyle}><span style={labelTextStyle}>Delay (ms)</span><input type="number" value={scanDelay} onChange={e => setScanDelay(parseInt(e.target.value) || 500)} style={monoInputStyle} /></label>
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>Scanning device at {ip}:{port} (Unit {unitId}, {endianness})</div>
               <button onClick={handleScan} disabled={scanMut.isPending || !ip} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: scanMut.isPending ? 'wait' : 'pointer', fontSize: 12, opacity: scanMut.isPending ? 0.6 : 1 }}>

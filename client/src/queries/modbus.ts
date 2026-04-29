@@ -135,6 +135,7 @@ export function useScanModbusRegisters() {
       ip: string; port: number; unit_id: number
       start_addr: number; end_addr: number
       endianness: string; register_area: string
+      scan_delay_ms: number
     }) => {
       const res = await fetchOk('/api/modbus-devices/scan', {
         method: 'POST',
