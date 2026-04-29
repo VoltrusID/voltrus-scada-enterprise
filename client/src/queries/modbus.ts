@@ -127,6 +127,7 @@ export interface ScannedRegister {
   changed: boolean
   readable: boolean
   likely_type: string
+  interpreted_value: number | null
 }
 
 export function useScanModbusRegisters() {

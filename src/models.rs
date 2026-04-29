@@ -318,6 +318,7 @@ pub struct ScannedRegister {
     pub changed: bool,
     pub readable: bool,
     pub likely_type: String,
+    pub interpreted_value: Option<f64>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
