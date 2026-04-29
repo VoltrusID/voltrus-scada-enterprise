@@ -43,6 +43,7 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
   const [scanDelay, setScanDelay] = useState(500)
   const [scanResults, setScanResults] = useState<ScannedRegister[]>([])
   const [scanSelected, setScanSelected] = useState<Set<number>>(new Set())
+  const [scanNames, setScanNames] = useState<Record<number, string>>({})
   const [scanError, setScanError] = useState('')
   const scanMut = useScanModbusRegisters()
 
@@ -92,7 +93,7 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
     const newRegs = scanResults
       .filter((_, i) => scanSelected.has(i))
       .map(r => ({
-        name: `reg_${String(r.address).padStart(3, '0')}`,
+        name: scanNames[r.address] || `reg_${String(r.address).padStart(5, '0')}`,
         address: r.address,
         register_type: (scanArea === 'coil' || scanArea === 'discrete') ? 'uint16' : r.likely_type,
         register_area: scanArea,
@@ -102,6 +103,7 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
     setShowScanDialog(false)
     setScanResults([])
     setScanSelected(new Set())
+    setScanNames({})
   }
 
   return (
@@ -200,6 +202,7 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
                           <th style={{ padding: '4px 6px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500 }}></th>
+                          <th style={{ padding: '4px 6px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500 }}>Name</th>
                           <th style={{ padding: '4px 6px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500 }}>Address</th>
                           <th style={{ padding: '4px 6px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500 }}>Value</th>
                           <th style={{ padding: '4px 6px', textAlign: 'left', color: 'var(--muted)', fontWeight: 500 }}>Changed</th>
@@ -210,8 +213,9 @@ export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
                         {scanResults.map((r, i) => (
                           <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: scanSelected.has(i) ? 'rgba(0,255,200,0.05)' : 'transparent' }}>
                             <td style={{ padding: '3px 6px' }}><input type="checkbox" checked={scanSelected.has(i)} onChange={() => toggleSelect(i)} style={{ cursor: 'pointer' }} /></td>
+                            <td style={{ padding: '3px 4px' }}><input value={scanNames[r.address] ?? ''} onChange={e => setScanNames(prev => ({ ...prev, [r.address]: e.target.value }))} placeholder={`reg_${String(r.address).padStart(5, '0')}`} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--fg)', fontFamily: 'monospace', fontSize: 11, outline: 'none' }} /></td>
                             <td style={{ padding: '3px 6px', fontFamily: 'monospace' }}>{r.address}</td>
-                            <td style={{ padding: '3px 6px', fontFamily: 'monospace' }}>{r.raw_value ?? '-'}</td>
+                            <td style={{ padding: '3px 6px', fontFamily: 'monospace' }}>{r.interpreted_value != null ? r.interpreted_value.toFixed(2) : '-'}</td>
                             <td style={{ padding: '3px 6px' }}>{r.changed ? <span style={{ color: 'var(--green)' }}>yes</span> : <span style={{ color: 'var(--muted)' }}>no</span>}</td>
                             <td style={{ padding: '3px 6px' }}><span style={{ padding: '1px 5px', borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', fontSize: 10 }}>{r.likely_type}</span></td>
                           </tr>

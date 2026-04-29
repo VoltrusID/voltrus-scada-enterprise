@@ -129,6 +129,7 @@ pub async fn scan_registers(
         changed: false,
         readable: false,
         likely_type: "uint16".to_string(),
+        interpreted_value: None,
     }; total];
 
     for (i, r) in results.iter_mut().enumerate() {
@@ -245,6 +246,7 @@ pub async fn scan_registers(
 
                 if f.is_finite() && f.abs() > 0.001 && f.abs() < 1_000_000.0 {
                     results[i].likely_type = "float32".to_string();
+                    results[i].interpreted_value = Some(f as f64);
                     consumed[i] = true;
                     consumed[i + 1] = true;
                     results[i + 1].likely_type = "float32_lo".to_string();
@@ -254,6 +256,7 @@ pub async fn scan_registers(
                 let signed = raw as i32;
                 if signed.abs() < 1_000_000 {
                     results[i].likely_type = "int32".to_string();
+                    results[i].interpreted_value = Some(signed as f64);
                     consumed[i] = true;
                     consumed[i + 1] = true;
                     results[i + 1].likely_type = "int32_lo".to_string();
@@ -264,8 +267,17 @@ pub async fn scan_registers(
             let v = results[i].raw_value.unwrap_or(0);
             if (v as i16) < 0 {
                 results[i].likely_type = "int16".to_string();
+                results[i].interpreted_value = Some((v as i16) as f64);
             } else {
                 results[i].likely_type = "uint16".to_string();
+                results[i].interpreted_value = Some(v as f64);
+            }
+        }
+    } else {
+        // Coils/discrete: just 0 or 1
+        for r in &mut results {
+            if r.readable {
+                r.interpreted_value = Some(r.raw_value.unwrap_or(0) as f64);
             }
         }
     }
