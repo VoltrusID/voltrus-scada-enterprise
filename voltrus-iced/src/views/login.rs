@@ -6,7 +6,6 @@ use crate::app::{App, Message};
 use crate::theme;
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    // --- Logo + title header ---
     let logo = container(
         text("V")
             .size(18)
@@ -27,7 +26,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
         ..Default::default()
     });
 
-    let title = text("Voltrus Lite")
+    let title = text(&app.branding.title)
         .size(18)
         .color(theme::TEXT)
         .font(iced::Font::DEFAULT);
@@ -36,21 +35,14 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .spacing(10)
         .align_y(iced::Alignment::Center);
 
-    // --- Inputs ---
-    let username_label = text("Username")
-        .size(11)
-        .color(theme::TEXT_MUTED)
-        .font(iced::Font::DEFAULT);
-
     let username_input = text_input("Enter username", &app.username)
         .on_input(Message::UsernameChanged)
         .padding(Padding::new(10.0))
         .style(theme::text_input_style);
 
-    let password_label = text("Password")
+    let username_label = text("Username")
         .size(11)
-        .color(theme::TEXT_MUTED)
-        .font(iced::Font::DEFAULT);
+        .color(theme::TEXT_MUTED);
 
     let password_input = text_input("Enter password", &app.password)
         .on_input(Message::PasswordChanged)
@@ -59,24 +51,24 @@ pub fn view(app: &App) -> Element<'_, Message> {
         .padding(Padding::new(10.0))
         .style(theme::text_input_style);
 
-    // --- Button ---
+    let password_label = text("Password")
+        .size(11)
+        .color(theme::TEXT_MUTED);
+
     let login_button = if app.login_loading {
         button(
             text("Signing in...")
                 .size(14)
-                .font(iced::Font::DEFAULT)
                 .width(Length::Fill)
                 .align_x(alignment::Horizontal::Center),
         )
         .width(Length::Fill)
         .padding(10)
-        .on_press_maybe(None)
         .style(theme::primary_btn_style())
     } else {
         button(
             text("Sign In")
                 .size(14)
-                .font(iced::Font::DEFAULT)
                 .width(Length::Fill)
                 .align_x(alignment::Horizontal::Center),
         )
@@ -113,7 +105,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
                     .color(theme::CRIT)
                     .width(Length::Fill)
                     .align_x(alignment::Horizontal::Left),
-            ]
+            ],
         );
     }
 
