@@ -446,8 +446,16 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
         }
         Message::SseEvent(raw) => {
             // Parse SSE data payload
+            #[derive(serde::Deserialize)]
+            struct SensorsPayload {
+                sensors: Vec<models::SensorData>,
+            }
             if let Ok(data) = serde_json::from_str::<Vec<models::SensorData>>(&raw) {
                 for d in data {
+                    state.live_data.insert(d.id, d);
+                }
+            } else if let Ok(wrapped) = serde_json::from_str::<SensorsPayload>(&raw) {
+                for d in wrapped.sensors {
                     state.live_data.insert(d.id, d);
                 }
             } else if let Ok(data) =
