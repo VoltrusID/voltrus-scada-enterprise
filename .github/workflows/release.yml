@@ -33,7 +33,7 @@ jobs:
           cd client-lit
           npm ci
           npm run build
-          mkdir -p ../client-lit-dist
+          mkdir -p ../client-lit-dist/dist
           cp index.html ../client-lit-dist/
           cp dist/bundle.js ../client-lit-dist/dist/
           cp -r public/* ../client-lit-dist/ 2>/dev/null || true
