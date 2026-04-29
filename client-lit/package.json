@@ -8,7 +8,7 @@
   },
   "packageManager": "npm@10.9.0",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && esbuild dist/main.js --bundle --format=esm --outfile=dist/bundle.js --minify",
     "check": "tsc --noEmit",
     "dev": "tsc --watch & npx serve -l 5174 ."
   },
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.184.0",
+    "esbuild": "^0.28.0",
     "typescript": "5.9.3"
   }
 }
