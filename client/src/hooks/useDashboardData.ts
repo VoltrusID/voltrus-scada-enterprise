@@ -1,17 +1,18 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { SensorConfig, SensorData, DataPoint, SystemInfo, LIVE_PTS } from '../types'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { SensorConfig, SensorData, DataPoint, LIVE_PTS } from '../types'
 import { expandCompactData } from '../utils'
 import { useSSEData } from '../useSSEData'
+import { useSystemInfo } from '../queries'
 
 export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'system', activeScreen: string, sensors: SensorConfig[], screenSensors: SensorConfig[], historyRange: string, historyDetail: 'auto' | 'full', historyAutoAgg: string, turbo: boolean) {
   const [dataMap, setDataMap] = useState<Record<string, DataPoint[]>>({});
   const [historyMap, setHistoryMap] = useState<Record<string, DataPoint[]> | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [currentValues, setCurrentValues] = useState<Record<string, SensorData>>({});
-  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const initialLoadDone = useRef(false);
 
   const sseData = useSSEData(authed, turbo);
+  const { data: systemInfo } = useSystemInfo(authed && mode === 'system');
 
   // ── Initial data load ────────────────────────────────────────────
   useEffect(() => {
@@ -55,13 +56,6 @@ export function useDashboardData(authed: boolean, mode: 'live' | 'history' | 'sy
     setDataMap(newMap);
     setCurrentValues(newVals);
   }, [sseData.sensors, historyReady]);
-
-  // ── System info from SSE ─────────────────────────────────────────
-  useEffect(() => {
-    if (sseData.system) {
-      setSystemInfo(sseData.system);
-    }
-  }, [sseData.system]);
 
   // ── History fetch ────────────────────────────────────────────────
   useEffect(() => {
