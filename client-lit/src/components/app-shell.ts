@@ -82,6 +82,21 @@ export class AppShell extends LitElement {
   @state() private _authLoading = true;
   @state() private _view: ViewName = 'grid';
   @state() private _activeScreen = 'all';
+
+  private _readUrlParams() {
+    const p = new URLSearchParams(window.location.search);
+    const v = p.get('view');
+    if (v && ['grid', 'canvas', 'scada', 'twin', 'system'].includes(v)) this._view = v as ViewName;
+    const s = p.get('screen');
+    if (s) this._activeScreen = s;
+  }
+
+  private _syncUrl() {
+    const p = new URLSearchParams(window.location.search);
+    p.set('view', this._view);
+    p.set('screen', this._activeScreen);
+    window.history.replaceState(null, '', `${window.location.pathname}?${p}${window.location.hash}`);
+  }
   @state() private _screens: Screen[] = [];
   @state() private _sseConnected = false;
   @state() private _showAlarmPanel = false;
@@ -99,6 +114,7 @@ export class AppShell extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this._readUrlParams();
     authManager.addEventListener('change', this._onAuth as EventListener);
     authManager.check();
     this._loadScreens();
@@ -170,11 +186,13 @@ export class AppShell extends LitElement {
   private _setScreen(id: string) {
     this._activeScreen = id;
     this._editMode = false;
+    this._syncUrl();
   }
 
   private _setView(v: ViewName) {
     this._view = v;
     this._editMode = false;
+    this._syncUrl();
   }
 
   private _handleLogout() {

@@ -16,6 +16,8 @@ export declare class AppShell extends LitElement {
     private _authLoading;
     private _view;
     private _activeScreen;
+    private _readUrlParams;
+    private _syncUrl;
     private _screens;
     private _sseConnected;
     private _showAlarmPanel;

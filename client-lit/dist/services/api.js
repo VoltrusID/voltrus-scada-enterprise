@@ -1,7 +1,8 @@
 /**
- * Backend base URL.
+ * Backend base URL — derived from current origin so it works
+ * regardless of server port or hostname.
  */
-const API_BASE = 'http://localhost:3100';
+const API_BASE = window.location.origin;
 /**
  * Minimal SSE data manager using native EventSource and CustomEvent.
  */

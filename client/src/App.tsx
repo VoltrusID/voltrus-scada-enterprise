@@ -37,8 +37,11 @@ export default function App() {
   const [dashSettings, setDashSettings] = useState({ gap: 12, refreshInterval: 1000, historyAutoAgg: 'sampling' as const })
   const [showDashSettings, setShowDashSettings] = useState(false)
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
-  const [activeScreen, setActiveScreen] = useState<string>('all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system'>('live')
+  const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
+  const [mode, setMode] = useState<'live' | 'history' | 'system'>(() => {
+    const m = new URLSearchParams(window.location.search).get('mode')
+    return (m === 'history' || m === 'system') ? m : 'live'
+  })
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
   const [showDataManager, setShowDataManager] = useState(false)
@@ -47,13 +50,25 @@ export default function App() {
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
   const [showBrandingDialog, setShowBrandingDialog] = useState(false)
   const [layoutBreakpoint, setLayoutBreakpoint] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin' | 'scada'>('cards')
+  const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin' | 'scada'>(() => {
+    const v = new URLSearchParams(window.location.search).get('view')
+    return (v === 'canvas' || v === 'twin' || v === 'scada') ? v : 'cards'
+  })
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null)
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
+
+  // ── URL sync ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    p.set('mode', mode)
+    p.set('screen', activeScreen)
+    p.set('view', viewMode)
+    window.history.replaceState(null, '', `${window.location.pathname}?${p}`)
+  }, [mode, activeScreen, viewMode])
 
   // ── Query hooks ──────────────────────────────────────────────────
   const { data: sensors = [] } = useSensors(authed)
