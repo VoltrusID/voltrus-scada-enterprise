@@ -15,6 +15,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const [filter, setFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editDevice, setEditDevice] = useState<(ModbusDevice & { registers?: ModbusRegister[] }) | undefined>(undefined)
+  const [dupDevice, setDupDevice] = useState<(ModbusDevice & { registers?: ModbusRegister[] }) | undefined>(undefined)
 
   const statusMap = Object.fromEntries(statuses.map(s => [s.device_id, s.status || (s.running ? 'online' : 'offline')]))
   const filtered = devices.filter(d => (d.name || d.id).toLowerCase().includes(filter) || d.ip.toLowerCase().includes(filter))
@@ -29,8 +30,17 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const thStyle: React.CSSProperties = { textAlign: 'left', padding: '8px 12px', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 600, borderBottom: '1px solid var(--border)' };
   const tdStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 13, borderBottom: '1px solid var(--border)' };
 
+  const handleDup = async (d: ModbusDevice) => {
+    const res = await fetch(`/api/modbus-devices/${d.id}`)
+    if (res.ok) {
+      const data = await res.json()
+      setDupDevice({ ...d, registers: data.registers })
+      setShowForm(true)
+    }
+  }
+
   const handleCreate = (data: any) => {
-    createMut.mutate(data, { onSuccess: () => setShowForm(false) })
+    createMut.mutate(data, { onSuccess: () => { setShowForm(false); setDupDevice(undefined) } })
   }
 
   const handleUpdate = (data: any) => {
@@ -104,6 +114,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button onClick={() => handleEdit(d)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Edit</button>
+                    <button onClick={() => handleDup(d)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Dup</button>
                     <button onClick={() => restartMut.mutate(d.id)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}>Restart</button>
                     <button onClick={() => handleDelete(d.id)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 11 }}>Del</button>
                   </div>
@@ -117,7 +128,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   );
 
   const modals = (<>
-    {showForm && <ModbusDeviceForm onSave={handleCreate} onClose={() => setShowForm(false)} />}
+    {showForm && <ModbusDeviceForm dupDevice={dupDevice} onSave={handleCreate} onClose={() => { setShowForm(false); setDupDevice(undefined) }} />}
     {editDevice && <ModbusDeviceForm device={editDevice} onSave={handleUpdate} onClose={() => setEditDevice(undefined)} />}
   </>);
 

@@ -14,6 +14,7 @@ interface RegisterRow {
 
 interface Props {
   device?: ModbusDevice & { registers?: ModbusRegister[] }
+  dupDevice?: ModbusDevice & { registers?: ModbusRegister[] }
   onSave: (data: { id: string; name: string; ip: string; port: number; unit_id: number; interval_ms: number; endianness: string; registers: RegisterRow[] }) => void
   onClose: () => void
 }
@@ -22,17 +23,18 @@ const REG_TYPES = ['float32', 'int32', 'uint16', 'int16']
 const REG_AREAS = ['holding', 'input', 'coil', 'discrete']
 const ENCODINGS = ['big', 'little', 'swapped']
 
-export function ModbusDeviceForm({ device, onSave, onClose }: Props) {
+export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) {
+  const source = device ?? dupDevice
   const isEdit = !!device
-  const [id, setId] = useState(device?.id ?? '')
-  const [name, setName] = useState(device?.name ?? '')
-  const [ip, setIp] = useState(device?.ip ?? '')
-  const [port, setPort] = useState(device?.port ?? 502)
-  const [unitId, setUnitId] = useState(device?.unit_id ?? 1)
-  const [intervalMs, setIntervalMs] = useState(device?.interval_ms ?? 1000)
-  const [endianness, setEndianness] = useState(device?.endianness ?? 'big')
+  const [id, setId] = useState(dupDevice ? '' : (source?.id ?? ''))
+  const [name, setName] = useState(source?.name ?? '')
+  const [ip, setIp] = useState(source?.ip ?? '')
+  const [port, setPort] = useState(source?.port ?? 502)
+  const [unitId, setUnitId] = useState(source?.unit_id ?? 1)
+  const [intervalMs, setIntervalMs] = useState(source?.interval_ms ?? 1000)
+  const [endianness, setEndianness] = useState(source?.endianness ?? 'big')
   const [registers, setRegisters] = useState<RegisterRow[]>(
-    device?.registers?.map(r => ({ name: r.name, address: r.address, register_type: r.register_type, register_area: r.register_area || 'holding', scale: r.scale })) ?? []
+    source?.registers?.map(r => ({ name: r.name, address: r.address, register_type: r.register_type, register_area: r.register_area || 'holding', scale: r.scale })) ?? []
   )
 
   // Scan state
