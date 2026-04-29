@@ -50,6 +50,12 @@ if [ -d "${TMPDIR}/static" ]; then
     cp -r "${TMPDIR}/static" "${INSTALL_DIR}/static"
 fi
 
+echo "==> Updating client-lit..."
+rm -rf "${INSTALL_DIR}/client-lit"
+if [ -d "${TMPDIR}/client-lit" ]; then
+    cp -r "${TMPDIR}/client-lit" "${INSTALL_DIR}/client-lit"
+fi
+
 echo "==> Starting service..."
 sudo systemctl start "${SERVICE_NAME}"
 
