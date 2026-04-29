@@ -36,7 +36,7 @@ jobs:
           mkdir -p ../client-lit-dist
           cp index.html ../client-lit-dist/
           cp -r dist ../client-lit-dist/
-          cp -r node_modules ../client-lit-dist/
+          cp -rL node_modules ../client-lit-dist/
           cp -r public/* ../client-lit-dist/ 2>/dev/null || true
 
       - name: Install musl target

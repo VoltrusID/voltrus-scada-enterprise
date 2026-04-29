@@ -100,6 +100,7 @@ pub fn create_router(state: AppState) -> Router {
     // Public routes (no auth required)
     let public = Router::new()
         .route("/api/health", get(system::get_health))
+        .route("/api/version", get(system::get_version))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
