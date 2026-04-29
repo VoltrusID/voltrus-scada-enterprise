@@ -2,11 +2,35 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [master]
   workflow_dispatch:
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      should_release: ${{ steps.ver.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from Cargo.toml
+        id: ver
+        run: |
+          VERSION="v$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if git fetch origin "refs/tags/$VERSION" 2>/dev/null && [ "$(git rev-parse "refs/tags/$VERSION" 2>/dev/null)" = "$(git rev-parse HEAD)" ]; then
+            echo "Tag $VERSION already exists at HEAD — skipping"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New version $VERSION — will release"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build-linux:
+    needs: check-version
+    if: needs.check-version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,18 +96,21 @@ jobs:
           path: voltrus-lite-rust-service-linux-x86_64.tar.gz
 
   release:
-    needs: [build-linux]
+    needs: [check-version, build-linux]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.check-version.outputs.version }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: linux-x86_64
 
-      - name: Create GitHub Release
+      - name: Create tag and release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
           files: voltrus-lite-rust-service-linux-x86_64.tar.gz
           generate_release_notes: true
