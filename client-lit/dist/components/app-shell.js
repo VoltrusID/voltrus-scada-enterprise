@@ -139,8 +139,24 @@ let AppShell = class AppShell extends LitElement {
     .footer .right { display: flex; align-items: center; gap: 12px; }
     .footer .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px; }
   `; }
+    _readUrlParams() {
+        const p = new URLSearchParams(window.location.search);
+        const v = p.get('view');
+        if (v && ['grid', 'canvas', 'scada', 'twin', 'system'].includes(v))
+            this._view = v;
+        const s = p.get('screen');
+        if (s)
+            this._activeScreen = s;
+    }
+    _syncUrl() {
+        const p = new URLSearchParams(window.location.search);
+        p.set('view', this._view);
+        p.set('screen', this._activeScreen);
+        window.history.replaceState(null, '', `${window.location.pathname}?${p}${window.location.hash}`);
+    }
     connectedCallback() {
         super.connectedCallback();
+        this._readUrlParams();
         authManager.addEventListener('change', this._onAuth);
         authManager.check();
         this._loadScreens();
@@ -217,10 +233,12 @@ let AppShell = class AppShell extends LitElement {
     _setScreen(id) {
         this._activeScreen = id;
         this._editMode = false;
+        this._syncUrl();
     }
     _setView(v) {
         this._view = v;
         this._editMode = false;
+        this._syncUrl();
     }
     _handleLogout() {
         alarmAudio.stop();
