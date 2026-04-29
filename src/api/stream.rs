@@ -22,10 +22,9 @@ pub async fn stream(State(state): State<AppState>) -> Sse<impl tokio_stream::Str
 #[derive(serde::Serialize)]
 struct StreamPayload {
     sensors: Vec<crate::models::DataSourceData>,
-    system: crate::models::SystemResponse,
 }
 
-pub fn spawn_sse_composer(cache: crate::cache::DeviceCache, storage: crate::storage::Storage, state: AppState) {
+pub fn spawn_sse_composer(cache: crate::cache::DeviceCache, storage: crate::storage::Storage) {
     tokio::spawn(async move {
         let mut rx = cache.trigger_receiver();
         loop {
@@ -45,15 +44,7 @@ pub fn spawn_sse_composer(cache: crate::cache::DeviceCache, storage: crate::stor
             let now = crate::timeutil::now_secs() as f64;
             let sensors = super::data::evaluate_data_sources(&data_sources, &snapshots, now);
 
-            let system = match super::system::compute_system_info(&state).await {
-                Ok(si) => si,
-                Err(e) => {
-                    tracing::warn!("SSE composer: compute_system_info failed: {e:?}");
-                    continue;
-                }
-            };
-
-            let payload = StreamPayload { sensors, system };
+            let payload = StreamPayload { sensors };
             let json = serde_json::to_string(&payload).unwrap_or_default();
             cache.publish_sse_payload(json);
         }

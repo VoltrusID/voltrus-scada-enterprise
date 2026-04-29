@@ -216,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
         retention_config: app_config.retention.clone(),
     };
 
-    api::stream::spawn_sse_composer(cache, storage, state.clone());
+    api::stream::spawn_sse_composer(cache, storage);
     let app = api::create_router(state);
 
     let addr = format!("0.0.0.0:{}", app_config.server_port);
