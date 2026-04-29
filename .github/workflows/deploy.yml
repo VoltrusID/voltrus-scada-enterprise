@@ -52,6 +52,12 @@ jobs:
           HEALTH_URL="http://localhost:3000/api/health"
           VERSION="${VERSION:-latest}"
 
+          # Resolve "latest" to actual tag name
+          if [ "$VERSION" = "latest" ]; then
+            VERSION="$(gh release list --repo "${REPO}" --limit 1 --json tagName --jq '.[0].tagName')"
+            echo "Resolved latest to ${VERSION}"
+          fi
+
           echo "==> Downloading release ${VERSION}..."
           gh release download "${VERSION}" --repo "${REPO}" --clobber
 
