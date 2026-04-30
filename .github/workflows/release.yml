@@ -157,12 +157,12 @@ jobs:
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
         with:
-          key: musl-arm64
+          key: musl-arm64-v2
 
       - name: Build release binary
         env:
           CC_aarch64_unknown_linux_musl: aarch64-linux-gnu-gcc
-          CFLAGS_aarch64_unknown_linux_musl: "-isystem /usr/aarch64-linux-gnu/include -static"
+          CFLAGS_aarch64_unknown_linux_musl: "-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_FORTIFY_SOURCE=0 -static"
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
         run: cargo build --release --target aarch64-unknown-linux-musl --bin voltrus-lite-rust-service
 
