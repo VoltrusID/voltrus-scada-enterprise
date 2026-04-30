@@ -35,7 +35,6 @@ interface Props {
   crit: number
   unit: string
   overlays?: OverlaySeries[]
-  pointWidth?: number
 }
 
 export function TvDetailChart({
@@ -45,7 +44,6 @@ export function TvDetailChart({
   crit,
   unit,
   overlays = [],
-  pointWidth = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -53,7 +51,6 @@ export function TvDetailChart({
   const overlayRefs = useRef<ISeriesApi<'Line'>[]>([])
   const warnLineRef = useRef<ReturnType<ISeriesApi<'Line'>['createPriceLine']> | null>(null)
   const critLineRef = useRef<ReturnType<ISeriesApi<'Line'>['createPriceLine']> | null>(null)
-  const prevPointWidth = useRef(pointWidth)
 
   const color = toHexColor(rawColor)
 
@@ -85,7 +82,7 @@ export function TvDetailChart({
         borderColor: '#27272a',
         timeVisible: true,
         secondsVisible: true,
-        rightOffset: 0,
+        rightOffset: 12,
         barSpacing: 6,
         fixLeftEdge: false,
         fixRightEdge: false,
@@ -127,19 +124,6 @@ export function TvDetailChart({
       })
     }
 
-    // Overlays
-    overlayRefs.current = overlays.map(ov => {
-      const s = chart.addSeries(LineSeries, {
-        color: toHexColor(ov.color),
-        lineWidth: 1,
-        lineType: LineType.Curved,
-        lastValueVisible: false,
-        priceLineVisible: false,
-        title: ov.name,
-      } as LineStyleOptions & SeriesOptionsCommon)
-      return s
-    })
-
     // Legend via tooltip formatter
     chart.applyOptions({
       localization: {
@@ -172,19 +156,8 @@ export function TvDetailChart({
     series.setData(tvData)
 
     const chart = chartRef.current!
-    if (pointWidth === 0) {
-      chart.timeScale().fitContent()
-    } else if (prevPointWidth.current !== pointWidth) {
-      prevPointWidth.current = pointWidth
-      // Density: show last N points where N ≈ width / pointWidth
-      const container = containerRef.current
-      if (container) {
-        const visibleCount = Math.max(10, Math.ceil(container.clientWidth / pointWidth))
-        const from = Math.max(0, tvData.length - visibleCount)
-        chart.timeScale().setVisibleLogicalRange({ from, to: tvData.length })
-      }
-    }
-  }, [rawData, pointWidth])
+    chart.timeScale().fitContent()
+  }, [rawData])
 
   // Update overlays
   useEffect(() => {
