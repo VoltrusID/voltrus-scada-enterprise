@@ -2,17 +2,25 @@ import { useRef, useEffect, useMemo } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { safeMinMax, toHexColor } from './styles';
+import { useCanvasSize } from './hooks/useCanvasSize';
 
 // ── Sparkline ──
 
 function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
   const color = toHexColor(rawColor.replace(/"/g, ''));
-  const ref = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const size = useCanvasSize(containerRef)
+
   useEffect(() => {
-    const cv = ref.current; if (!cv || data.length < 2) return;
-    const ctx = cv.getContext('2d')!, dpr = devicePixelRatio || 1, rect = cv.getBoundingClientRect();
-    cv.width = rect.width * dpr; cv.height = rect.height * dpr; ctx.scale(dpr, dpr);
-    const W = rect.width, H = rect.height, pL = 40, pR = 10, pT = 10, pB = 24, cW = W - pL - pR, cH = H - pT - pB;
+    const cv = canvasRef.current;
+    if (!cv || data.length < 2) return;
+    const ctx = cv.getContext('2d')!
+    const { width: W, height: H, dpr } = size
+    if (W <= 0 || H <= 0) return
+
+    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const pL = 40, pR = 10, pT = 10, pB = 24, cW = W - pL - pR, cH = H - pT - pB;
     ctx.clearRect(0, 0, W, H);
     ctx.strokeStyle = '#1a1a1e'; ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) { const y = pT + (cH / 4) * i; ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(W - pR, y); ctx.stroke(); }
@@ -37,8 +45,9 @@ function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[];
     ctx.beginPath(); ctx.arc(lx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
     ctx.beginPath(); ctx.arc(lx, cy, 7, 0, Math.PI * 2); ctx.strokeStyle = color + '40'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = color; ctx.font = 'bold 11px JetBrains Mono,monospace'; ctx.textAlign = 'right'; ctx.fillText(lv.toFixed(1), W - pR - 2, cy - 8);
-  }, [data, color, warn, crit]);
-  return <canvas ref={ref} style={{ display: 'block', width: '100%', height: '100%' }} />;
+  }, [data, color, warn, crit, size]);
+
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }}><canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} /></div>;
 }
 
 // ── Big Number ──
@@ -70,13 +79,17 @@ function GaugeChart({ value, min, max, warn, crit, color: rawColor, decimals, un
   value: number; min: number; max: number; warn: number; crit: number; color: string; decimals: number; unit: string;
 }) {
   const color = rawColor.replace(/"/g, '');
-  const ref = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const size = useCanvasSize(containerRef)
 
   useEffect(() => {
-    const cv = ref.current; if (!cv) return;
-    const ctx = cv.getContext('2d')!, dpr = devicePixelRatio || 1, rect = cv.getBoundingClientRect();
-    cv.width = rect.width * dpr; cv.height = rect.height * dpr; ctx.scale(dpr, dpr);
-    const W = rect.width, H = rect.height;
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d')!
+    const { width: W, height: H, dpr } = size
+    if (W <= 0 || H <= 0) return
+
+    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cx = W / 2, cy = H * 0.78;
     const r = Math.min(W, H) * 0.38;
     ctx.clearRect(0, 0, W, H);
@@ -164,9 +177,9 @@ function GaugeChart({ value, min, max, warn, crit, color: rawColor, decimals, un
     ctx.textAlign = 'center';
     ctx.fillText(min.toFixed(0), cx - r - 4, cy + 14);
     ctx.fillText(max.toFixed(0), cx + r + 4, cy + 14);
-  }, [value, min, max, warn, crit, color, decimals, unit]);
+  }, [value, min, max, warn, crit, color, decimals, unit, size]);
 
-  return <canvas ref={ref} style={{ display: 'block', width: '100%', height: '100%' }} />;
+  return <div ref={containerRef} style={{ width: '100%', height: '100%' }}><canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} /></div>;
 }
 
 // ── Image Card ──

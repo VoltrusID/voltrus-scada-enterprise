@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { SensorConfig, SensorData, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
+import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
 import { DashboardSettings } from './DashboardSettings'
 import { SensorDetail } from './SensorDetail'
@@ -10,7 +10,6 @@ import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
 import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
-import { ScreenLayouts as ScreenLayoutsType } from './types'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
@@ -20,9 +19,11 @@ import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
+import { useDashboardSystemInfo } from './store/dashboardStore'
+import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 
-export default function App() {
+function AppInner() {
   const queryClient = useQueryClient()
 
   // ── Auth state ───────────────────────────────────────────────────
@@ -108,11 +109,10 @@ export default function App() {
   const addSensorToScreenMut = useAddSensorToScreen()
   const removeSensorFromScreenMut = useRemoveSensorFromScreen()
 
-  // ── Dashboard data hook ──────────────────────────────────────────
-  const {
-    dataMap, currentValues, historyMap, historyReady, sseConnected, systemInfo,
-    chartDataFor, detailDataFor,
-  } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg, turbo)
+  // ── Dashboard data hook (now store-backed) ───────────────────────
+  const { historyReady, sseConnected, systemInfo } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg, turbo)
+  const storeSystemInfo = useDashboardSystemInfo()
+  const effectiveSystemInfo = systemInfo ?? storeSystemInfo
 
   // ── Derived values ───────────────────────────────────────────────
   const isAdmin = authRole === 'admin'
@@ -369,9 +369,9 @@ export default function App() {
 
         {selectedSensor != null ? (() => {
           const s = sensors.find(x => x.id === selectedSensor)
-          return s ? <SensorDetail sensor={s} data={detailDataFor(selectedSensor)} currentValue={currentValues[selectedSensor]} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} getDataFor={detailDataFor} currentValues={currentValues} /> : null
+          return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} /> : null
         })() : (<>
-          {mode === 'system' && <SystemPanel systemInfo={systemInfo} />}
+          {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
           <MainContent
             viewMode={viewMode} mode={mode}
             screenSensors={screenSensors}
@@ -382,7 +382,6 @@ export default function App() {
             editingId={editingId}
             setEditingId={setEditingId}
             setSelectedSensor={setSelectedSensor}
-            chartDataFor={chartDataFor}
             onLayoutChange={handleLayoutChange}
             onCanvasLayoutChange={handleCanvasLayoutChange}
             onSave={handleSave}
@@ -395,7 +394,6 @@ export default function App() {
             twinCamera={twinCamera}
             twinConnections={twinConnections}
             sensors={sensors}
-            currentValues={currentValues}
             saveScadaEquipmentMut={saveScadaEquipmentMut}
             saveScadaConnectionsMut={saveScadaConnectionsMut}
             saveTwinLayoutMut={saveTwinLayoutMut}
@@ -416,7 +414,16 @@ export default function App() {
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
       </div>
 
-      <Footer sseConnected={sseConnected} />
+      <Footer />
     </div>
+  )
+}
+
+export default function App() {
+  const storeRef = useRef(createDashboardStore())
+  return (
+    <DashboardStoreProvider value={storeRef.current}>
+      <AppInner />
+    </DashboardStoreProvider>
   )
 }
