@@ -409,12 +409,16 @@ function AppInner() {
         {selectedSensor != null && (
           <div style={{
             position: 'absolute',
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             zIndex: 2,
             display: 'flex',
             flexDirection: 'column',
             padding: '0 20px 20px',
-            overflow: 'hidden',
+            overflow: 'auto',
+            background: 'var(--bg)',
           }}>
             {(() => {
               const s = sensors.find(x => x.id === selectedSensor)
