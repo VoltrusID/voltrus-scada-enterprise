@@ -7,6 +7,7 @@ export {
   useUpdateSensor,
   useDeleteSensor,
   useAddSensor,
+  useReorderSensors,
 } from './sensors'
 
 export {
