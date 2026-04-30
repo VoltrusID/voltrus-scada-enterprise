@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { SensorConfig } from './types';
 import { stColor, btnStyle, safeMinMax, displayShortcut } from './styles';
-import { DetailChart, OverlaySeries } from './DetailChart';
+import { TvDetailChart, OverlaySeries } from './TvDetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
 import { useDetailData, useSensorCurrentValue, useDashboardSelector } from './store/dashboardStore';
 
@@ -182,7 +182,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
             </div>
           </div>
           <div style={{ flex: 1, minHeight: 0 }}>
-            <DetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} pointWidth={pointWidth} />
+            <TvDetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} pointWidth={pointWidth} />
           </div>
         </div>
     </div>
