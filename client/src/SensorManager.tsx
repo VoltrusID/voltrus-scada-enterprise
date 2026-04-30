@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SensorConfig, SOURCE_TYPES, CHART_TYPES, SOURCE_CATEGORY } from './types';
-import { inputStyle, monoInputStyle, btnStyle, parseConfig } from './styles';
+import { inputStyle, monoInputStyle, btnStyle, parseConfig, normalizeKeyEvent, displayShortcut } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
 import { useUpdateSensor, useReorderSensors } from './queries';
 
@@ -28,6 +28,62 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: '0', fontSize: 12, borderBottom: '1px solid var(--border)',
 };
+
+function ShortcutCell({ shortcut, onSet, onClear }: { shortcut: string | null; onSet: (s: string) => void; onClear: () => void }) {
+  const [recording, setRecording] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') { setRecording(false); return; }
+      if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+      onSet(normalizeKeyEvent(e));
+      setRecording(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [recording, onSet]);
+
+  // Stop recording on outside click
+  useEffect(() => {
+    if (!recording) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setRecording(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [recording]);
+
+  return (
+    <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px', minWidth: 80 }} onMouseDown={e => e.stopPropagation()}>
+      {shortcut ? (
+        <kbd style={{
+          fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 600,
+          padding: '2px 5px', borderRadius: 3, background: 'var(--bg)',
+          border: '1px solid var(--border)', color: 'var(--cyan)',
+        }}>{displayShortcut(shortcut)}</kbd>
+      ) : (
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>—</span>
+      )}
+      <button onClick={() => setRecording(true)} style={{
+        padding: '1px 5px', borderRadius: 3, fontSize: 9, cursor: 'pointer',
+        border: recording ? '1px solid var(--cyan)' : '1px solid var(--border)',
+        background: recording ? 'rgba(34,197,94,.1)' : 'transparent',
+        color: recording ? 'var(--cyan)' : 'var(--muted)',
+        whiteSpace: 'nowrap',
+      }}>{recording ? '...' : 'rec'}</button>
+      {shortcut && !recording && (
+        <button onClick={onClear} style={{
+          padding: '1px 4px', borderRadius: 3, fontSize: 9, cursor: 'pointer',
+          border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)',
+        }}>x</button>
+      )}
+    </div>
+  );
+}
 
 export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, embedded }: {
   sensors: SensorConfig[]; onSave: (s: SensorConfig, shortcut?: string | null) => void; onDelete: (id: number) => void;
@@ -126,7 +182,6 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         const reordered = [...currentIds];
         reordered.splice(fromIdx, 1);
         reordered.splice(toIdx, 0, dragId);
-        // Send full sensors order (including unfiltered ones)
         const unfilteredIds = sensors.filter(s => !filtered.includes(s)).map(s => s.id);
         const newOrder = [...reordered, ...unfilteredIds];
         reorderMut.mutate(newOrder);
@@ -215,6 +270,13 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
             </optgroup>
           </select>
         </td>
+        <td style={tdStyle}>
+          <ShortcutCell
+            shortcut={shortcuts[s.id] ?? null}
+            onSet={sc => onSave(s, sc)}
+            onClear={() => onSave(s, null)}
+          />
+        </td>
         <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
           <button onClick={e => startConfigEdit(s, e.currentTarget)} style={{ padding: '2px 8px', borderRadius: 3, border: '1px solid var(--border)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>cfg</button>
         </td>
@@ -258,6 +320,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
           </select>
         </td>
         <td style={tdStyle} />
+        <td style={tdStyle} />
         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
           <div style={{ display: 'flex', gap: 3 }}>
             <button onClick={commitNewRow} style={{ padding: '2px 8px', borderRadius: 3, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green)', cursor: 'pointer', fontSize: 10 }}>ok</button>
@@ -278,7 +341,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1200 }}>
           <colgroup>
             <col style={{ width: 40 }} />
             <col style={{ width: 140 }} />
@@ -293,6 +356,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
             <col style={{ width: 90 }} />
             <col style={{ width: 40 }} />
             <col style={{ width: 90 }} />
+            <col style={{ width: 100 }} />
             <col style={{ width: 60 }} />
             <col style={{ width: 90 }} />
           </colgroup>
@@ -311,6 +375,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
               <th style={thStyle}>chart</th>
               <th style={thStyle}>sort</th>
               <th style={thStyle}>source</th>
+              <th style={thStyle}>hotkey</th>
               <th style={thStyle}>cfg</th>
               <th style={thStyle}></th>
             </tr>
@@ -363,7 +428,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column', padding: 24 }}>
-      <div style={{ maxWidth: 1400, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
