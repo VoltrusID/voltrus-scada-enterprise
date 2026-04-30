@@ -177,7 +177,11 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
     }
   }, [data, color, warn, crit, unit, validOverlays, size, pointWidth])
 
-  // Scroll handler — triggers redraw
+  // Track whether user is manually scrolling (not at end)
+  const isFollowingTail = useRef(true)
+  const prevPointWidth = useRef(pointWidth)
+
+  // Scroll handler — triggers redraw + tracks tail-follow state
   useEffect(() => {
     const scrollEl = scrollRef.current
     if (!scrollEl || pointWidth <= 0) return
@@ -185,8 +189,9 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
     const onScroll = () => {
       if (raf) cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        // Force redraw by updating a ref or state; since size doesn't change on scroll,
-        // we need another mechanism. We'll use a scrollVersion state.
+        if (!scrollEl) return
+        const nearEnd = scrollEl.scrollWidth - scrollEl.scrollLeft - scrollEl.clientWidth < 50
+        isFollowingTail.current = nearEnd
         setScrollVersion(v => v + 1)
       })
     }
@@ -197,15 +202,30 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
     }
   }, [pointWidth])
 
-  // Auto-scroll to end when density changes
+  // Auto-scroll to end on density change (pointWidth transition)
+  // Use double rAF to ensure browser has laid out the new virtual width
   useEffect(() => {
-    if (pointWidth > 0 && scrollRef.current) {
+    if (pointWidth > 0 && scrollRef.current && prevPointWidth.current !== pointWidth) {
+      prevPointWidth.current = pointWidth
+      isFollowingTail.current = true
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!scrollRef.current) return
+          scrollRef.current.scrollLeft = scrollRef.current.scrollWidth - scrollRef.current.clientWidth
+        })
+      })
+    }
+  }, [pointWidth])
+
+  // Follow tail on data updates — only if user was already near the end
+  useEffect(() => {
+    if (pointWidth > 0 && scrollRef.current && isFollowingTail.current) {
       requestAnimationFrame(() => {
         if (!scrollRef.current) return
         scrollRef.current.scrollLeft = scrollRef.current.scrollWidth - scrollRef.current.clientWidth
       })
     }
-  }, [pointWidth, data.length])
+  }, [data.length, pointWidth])
 
   const [scrollVersion, setScrollVersion] = useState(0)
 

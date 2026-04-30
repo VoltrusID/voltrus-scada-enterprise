@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import type { SensorData, SystemInfo } from './types'
 
 interface SSEMessage {
@@ -6,17 +6,15 @@ interface SSEMessage {
   system?: SystemInfo
 }
 
-interface SSEState {
-  sensors: SensorData[] | null
-  system: SystemInfo | null
-  connected: boolean
-}
-
 const FLUSH_INTERVAL_MS = 1000 // batch updates to 1Hz max
 const STALL_TIMEOUT_MS = 5000  // reconnect if no message for 5s
 
-export function useSSEData(enabled: boolean, turbo: boolean) {
-  const [state, setState] = useState<SSEState>({ sensors: null, system: null, connected: false })
+export function useSSEData(
+  enabled: boolean,
+  turbo: boolean,
+  onBatch: (sensors: SensorData[], system: SystemInfo | null) => void,
+  onConnected: (connected: boolean) => void,
+) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const bufferRef = useRef<SensorData[] | null>(null)
@@ -28,14 +26,19 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
   const turboRef = useRef(turbo)
   turboRef.current = turbo
 
+  // Keep callbacks fresh without triggering effect re-runs
+  const onBatchRef = useRef(onBatch)
+  onBatchRef.current = onBatch
+  const onConnectedRef = useRef(onConnected)
+  onConnectedRef.current = onConnected
+
   const flush = useCallback(() => {
     const batch = bufferRef.current
     if (batch && batch.length > 0) {
-      setState({ sensors: batch, system: systemRef.current, connected: true })
+      onBatchRef.current(batch, systemRef.current)
       bufferRef.current = null
     } else if (systemRef.current) {
-      // Even if no new sensors, system info might have updated
-      setState(s => (s.system !== systemRef.current ? { ...s, system: systemRef.current, connected: true } : s))
+      onBatchRef.current([], systemRef.current)
     }
     flushTimerRef.current = null
   }, [])
@@ -57,7 +60,6 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
   const connect = useCallback(() => {
     if (!enabled) return
 
-    // Clean up previous connection
     teardown()
     const abort = new AbortController()
     abortRef.current = abort
@@ -68,7 +70,7 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
 
     evtSource.onopen = () => {
       if (abort.signal.aborted) { evtSource.close(); return }
-      setState(s => ({ ...s, connected: true }))
+      onConnectedRef.current(true)
     }
 
     evtSource.onmessage = (e) => {
@@ -87,7 +89,6 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
           systemRef.current = parsed.system
         }
         if (turboRef.current) {
-          // Immediate flush — render at SSE rate
           if (flushTimerRef.current) {
             clearTimeout(flushTimerRef.current)
             flushTimerRef.current = null
@@ -102,25 +103,21 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
     evtSource.onerror = () => {
       evtSource.close()
       if (!abort.signal.aborted) {
-        setState(s => ({ ...s, connected: false }))
-        // Flush any pending buffered data before reconnect
+        onConnectedRef.current(false)
         flush()
-        // Reconnect after 2s
         reconnectTimer.current = setTimeout(connect, 2000)
       }
     }
 
-    // Stall watchdog: if no message arrives within STALL_TIMEOUT_MS, force reconnect
     stallTimerRef.current = setInterval(() => {
       if (abort.signal.aborted) return
       if (Date.now() - lastMessageAtRef.current > STALL_TIMEOUT_MS) {
-        // Connection is hung — tear down and reconnect
         evtSource.close()
-        setState(s => ({ ...s, connected: false }))
+        onConnectedRef.current(false)
         flush()
         reconnectTimer.current = setTimeout(connect, 1000)
       }
-    }, 2000) // check every 2 seconds
+    }, 2000)
   }, [enabled, scheduleFlush, flush, teardown])
 
   useEffect(() => {
@@ -129,7 +126,7 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
       bufferRef.current = null
       systemRef.current = null
-      setState({ sensors: null, system: null, connected: false })
+      onConnectedRef.current(false)
       return
     }
     connect()
@@ -140,6 +137,4 @@ export function useSSEData(enabled: boolean, turbo: boolean) {
       systemRef.current = null
     }
   }, [enabled, connect, teardown])
-
-  return state
 }

@@ -110,7 +110,7 @@ function AppInner() {
   const removeSensorFromScreenMut = useRemoveSensorFromScreen()
 
   // ── Dashboard data hook (now store-backed) ───────────────────────
-  const { historyReady, sseConnected, systemInfo } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg, turbo)
+  const { systemInfo } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg, turbo)
   const storeSystemInfo = useDashboardSystemInfo()
   const effectiveSystemInfo = systemInfo ?? storeSystemInfo
 
