@@ -68,6 +68,7 @@ export function MainContent({
         gap={gap}
         editingId={editingId}
         setEditingId={setEditingId}
+        setSelectedSensor={setSelectedSensor}
         loadSensorsForScreen={loadSensorsForScreen}
         onLayoutChange={onLayoutChange}
         onSave={onSave}
