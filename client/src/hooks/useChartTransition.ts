@@ -18,18 +18,11 @@ export interface TransitionState {
 function computeDetailRect(): DOMRect {
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const width = Math.min(1200, vw - 80)
-  const height = Math.min(vh - 120, vh - 40)
+  const width = Math.max(320, Math.min(1200, vw - 80))
+  const height = Math.max(200, vh - 120)
   const left = (vw - width) / 2
   const top = Math.max(20, (vh - height) / 2 - 20)
-  return {
-    left, top, width, height,
-    right: left + width,
-    bottom: top + height,
-    x: left,
-    y: top,
-    toJSON() { return { left, top, width, height } },
-  } as DOMRect
+  return new DOMRect(left, top, width, height)
 }
 
 export function useChartTransition() {
