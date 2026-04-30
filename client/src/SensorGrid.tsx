@@ -77,7 +77,6 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                 shortcut={shortcuts[s.id]}
                 loadSensorsForScreen={loadSensorsForScreen}
                 setEditingId={setEditingId}
-                setSelectedSensor={setSelectedSensor}
                 showDragHandle={true}
                 mode={mode}
                 onClick={e => {

@@ -13,7 +13,6 @@ interface Props {
   shortcut: string | undefined
   loadSensorsForScreen: () => void
   setEditingId: (id: number | null) => void
-  setSelectedSensor: (id: number | null) => void
   showDragHandle?: boolean
   selected?: boolean
   mode: 'live' | 'history' | 'system'
@@ -22,7 +21,7 @@ interface Props {
 
 export const SensorCard = React.memo(function SensorCard({
   sensor: s, editMode, activeScreen, editingId,
-  shortcut, loadSensorsForScreen, setEditingId, setSelectedSensor,
+  shortcut, loadSensorsForScreen, setEditingId,
   showDragHandle, selected, mode, onClick,
 }: Props) {
   const cv = useSensorCurrentValue(s.id)
@@ -47,6 +46,7 @@ export const SensorCard = React.memo(function SensorCard({
         flexDirection: 'column',
         ...(selected ? { boxShadow: '0 0 0 2px var(--cyan)' } : {}),
       }}
+      data-sensor-id={s.id}
       onClick={onClick}
     >
       {!hideStatus && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px' }}>
