@@ -59,14 +59,15 @@ jobs:
           fi
 
           echo "==> Downloading release ${VERSION}..."
-          gh release download "${VERSION}" --repo "${REPO}" --clobber
+          ARCHIVE="voltrus-lite-${VERSION}-linux-x86_64.tar.gz"
+          gh release download "${VERSION}" --repo "${REPO}" --pattern "${ARCHIVE}" --clobber
 
           echo "==> Stopping services..."
           for svc in "${SERVICES[@]}"; do sudo systemctl stop "$svc" || true; done
           sleep 1
 
           echo "==> Extracting to ${INSTALL_DIR}..."
-          sudo tar -xzf ~/voltrus-lite-rust-service-linux-x86_64.tar.gz -C "${INSTALL_DIR}/" --overwrite
+          sudo tar -xzf "${ARCHIVE}" -C "${INSTALL_DIR}/" --overwrite
           sudo chmod +x "${INSTALL_DIR}/voltrus-lite-rust-service" "${INSTALL_DIR}/modbus-sim"
 
           echo "==> Starting services..."
@@ -84,5 +85,5 @@ jobs:
             fi
           done
           echo "==> Deploy complete!"
-          rm -f ~/voltrus-lite-rust-service-linux-x86_64.tar.gz
+          rm -f "${ARCHIVE}"
           SCRIPT
