@@ -17,7 +17,6 @@ interface Props {
   editingId: number | null
   setEditingId: (id: number | null) => void
   setSelectedSensor?: (id: number | null) => void
-  onCardClick?: (id: number, el: HTMLElement) => void
   loadSensorsForScreen: () => void
   onLayoutChange: (currentLayout: any[], allLayouts: { [bp: string]: any[] }) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
@@ -27,7 +26,7 @@ interface Props {
   mode: 'live' | 'history' | 'system'
 }
 
-export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor, onCardClick, loadSensorsForScreen, onLayoutChange, onSave, onDelete, forcedBreakpoint, shortcuts, mode }: Props) {
+export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor, loadSensorsForScreen, onLayoutChange, onSave, onDelete, forcedBreakpoint, shortcuts, mode }: Props) {
   const { width: measuredWidth, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 })
   const didDrag = useRef(false)
 
@@ -83,7 +82,6 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                 onClick={e => {
                   if (didDrag.current) { didDrag.current = false; return; }
                   if (editMode) { e.stopPropagation(); setEditingId(editingId === s.id ? null : s.id); }
-                  else if (onCardClick) { onCardClick(s.id, e.currentTarget as HTMLElement); }
                   else { setSelectedSensor?.(s.id); }
                 }}
               />

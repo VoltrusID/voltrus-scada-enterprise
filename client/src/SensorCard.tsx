@@ -46,7 +46,6 @@ export const SensorCard = React.memo(function SensorCard({
         flexDirection: 'column',
         ...(selected ? { boxShadow: '0 0 0 2px var(--cyan)' } : {}),
       }}
-      data-sensor-id={s.id}
       onClick={onClick}
     >
       {!hideStatus && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px' }}>

@@ -20,7 +20,6 @@ interface Props {
   editingId: number | null
   setEditingId: (id: number | null) => void
   setSelectedSensor: (id: number | null) => void
-  onCardClick?: (id: number, el: HTMLElement) => void
   onLayoutChange: (current: any[], all: { [bp: string]: any[] }) => void
   onCanvasLayoutChange: (items: CanvasLayoutItem[]) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
@@ -43,7 +42,7 @@ interface Props {
 
 export function MainContent({
   viewMode, mode, screenSensors, effectiveLayouts, canvasLayouts,
-  editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor, onCardClick,
+  editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor,
   onLayoutChange, onCanvasLayoutChange, onSave, onDelete,
   forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections,
   twinLayouts, twinCamera, twinConnections, sensors,
@@ -69,7 +68,6 @@ export function MainContent({
         gap={gap}
         editingId={editingId}
         setEditingId={setEditingId}
-        onCardClick={onCardClick}
         loadSensorsForScreen={loadSensorsForScreen}
         onLayoutChange={onLayoutChange}
         onSave={onSave}

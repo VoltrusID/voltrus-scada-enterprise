@@ -1,6 +1,4 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { useChartTransition } from './hooks/useChartTransition'
-import { ChartTransitionOverlay } from './components/ChartTransitionOverlay'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
@@ -27,7 +25,6 @@ import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, u
 
 function AppInner() {
   const queryClient = useQueryClient()
-  const { state: transition, start: startTransition, reverse: reverseTransition } = useChartTransition()
 
   // ── Auth state ───────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false)
@@ -64,13 +61,6 @@ function AppInner() {
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
-
-  // ── Auto-clear selectedSensor when transition ends ───────────────
-  useEffect(() => {
-    if (transition.phase === 'idle' && selectedSensor != null) {
-      setSelectedSensor(null)
-    }
-  }, [transition.phase, selectedSensor])
 
   // ── URL sync ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -216,16 +206,6 @@ function AppInner() {
   const handleLogout = async () => { await fetch('/api/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user') }
 
   // ── Handlers ─────────────────────────────────────────────────────
-  const handleCardClick = useCallback((id: number, el: HTMLElement) => {
-    startTransition(id, el)
-    setSelectedSensor(id)
-  }, [startTransition])
-
-  const handleDetailBack = useCallback(() => {
-    if (selectedSensor != null) {
-      reverseTransition(selectedSensor)
-    }
-  }, [selectedSensor, reverseTransition])
 
   const handleSaveBranding = (settings: BrandingSettings) => saveBrandingMut.mutate(settings)
 
@@ -367,39 +347,31 @@ function AppInner() {
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
       />
 
-      <div style={{ flex: 1, overflow: transition.phase !== 'idle' ? 'hidden' : 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        {/* Tabs — hidden only when transition is fully settled */}
-        {transition.phase !== 'settled' && (
-          <>
-            <ScreenTabs
-              mode={mode} activeScreen={activeScreen} screens={screens}
-              effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
-              onTabClick={(id) => { setActiveScreen(id); if (mode === 'system') setMode('live') }}
-              onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
-              onRenameScreen={handleRenameScreen}
-              onDeleteScreen={handleDeleteScreen}
-              onAddScreen={handleAddScreen}
-              isAdmin={isAdmin}
-              onToggleEditMode={handleToggleEditMode}
-              editLabel={editMode ? 'Done' : 'Edit'}
-              onAddSource={() => setShowAddDialog(true)}
-              canAddSource={activeScreen !== 'all'}
-              onAutoArrange={handleAutoArrange}
-            />
+      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <ScreenTabs
+          mode={mode} activeScreen={activeScreen} screens={screens}
+          effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
+          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system') setMode('live') }}
+          onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
+          onRenameScreen={handleRenameScreen}
+          onDeleteScreen={handleDeleteScreen}
+          onAddScreen={handleAddScreen}
+          isAdmin={isAdmin}
+          onToggleEditMode={handleToggleEditMode}
+          editLabel={editMode ? 'Done' : 'Edit'}
+          onAddSource={() => setShowAddDialog(true)}
+          canAddSource={activeScreen !== 'all'}
+          onAutoArrange={handleAutoArrange}
+        />
 
-            {editMode && (
-              <LayoutBreakpointSelector layoutBreakpoint={layoutBreakpoint} onChange={setLayoutBreakpoint} />
-            )}
-          </>
+        {editMode && (
+          <LayoutBreakpointSelector layoutBreakpoint={layoutBreakpoint} onChange={setLayoutBreakpoint} />
         )}
 
-        {/* Grid content — always mounted so card DOM exists for reverse lookup */}
         <div style={{
-          visibility: transition.phase === 'settled' ? 'hidden' : 'visible',
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          overflow: transition.phase === 'idle' ? 'auto' : 'hidden',
         }}>
           {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
           <MainContent
@@ -412,7 +384,6 @@ function AppInner() {
             editingId={editingId}
             setEditingId={setEditingId}
             setSelectedSensor={setSelectedSensor}
-            onCardClick={handleCardClick}
             onLayoutChange={handleLayoutChange}
             onCanvasLayoutChange={handleCanvasLayoutChange}
             onSave={handleSave}
@@ -440,19 +411,19 @@ function AppInner() {
             position: 'absolute',
             inset: 0,
             zIndex: 2,
-            display: transition.phase === 'animating-forward' || transition.phase === 'capturing' ? 'none' : 'flex',
+            display: 'flex',
             flexDirection: 'column',
             padding: '0 20px 20px',
             overflow: 'hidden',
           }}>
             {(() => {
               const s = sensors.find(x => x.id === selectedSensor)
-              return s ? <SensorDetail sensor={s} onBack={handleDetailBack} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} /> : null
+              return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} /> : null
             })()}
           </div>
         )}
 
-        <ChartTransitionOverlay state={transition} />
+
 
         {showDashSettings && <DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted) }} />}
         {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdmin} />}
