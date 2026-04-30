@@ -8,7 +8,9 @@ interface Props {
 export function ChartTransitionOverlay({ state }: Props) {
   const { phase, fromRect, toRect } = state
 
-  const isActive = phase === 'animating-forward' || phase === 'animating-back' || phase === 'capturing' || phase === 'capturing-back'
+  const isAnimating = phase === 'animating-forward' || phase === 'animating-back'
+  const isCapturing = phase === 'capturing' || phase === 'capturing-back'
+  const isActive = isAnimating || isCapturing
   const showClone = phase !== 'idle' && phase !== 'settled' && fromRect != null
 
   const cloneStyle = useMemo((): React.CSSProperties => {
@@ -72,6 +74,7 @@ export function ChartTransitionOverlay({ state }: Props) {
     return { display: 'none' }
   }, [phase, fromRect, toRect, showClone])
 
+  const backdropDuration = phase === 'animating-back' ? REVERSE_DURATION : FORWARD_DURATION
   const backdropStyle: React.CSSProperties = {
     position: 'fixed',
     inset: 0,
@@ -79,8 +82,8 @@ export function ChartTransitionOverlay({ state }: Props) {
     background: isActive ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)',
     backdropFilter: isActive ? 'blur(8px)' : 'blur(0px)',
     WebkitBackdropFilter: isActive ? 'blur(8px)' : 'blur(0px)',
-    transition: `background ${FORWARD_DURATION}ms ease, backdrop-filter ${FORWARD_DURATION}ms ease`,
-    pointerEvents: isActive ? 'auto' : 'none',
+    transition: `background ${backdropDuration}ms ease, backdrop-filter ${backdropDuration}ms ease`,
+    pointerEvents: isAnimating ? 'auto' : 'none',
   }
 
   if (phase === 'idle') return null
