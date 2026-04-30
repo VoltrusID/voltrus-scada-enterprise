@@ -15,6 +15,9 @@ export interface TransitionState {
   toRect: DOMRect | null
 }
 
+export const FORWARD_DURATION = 400
+export const REVERSE_DURATION = 350
+
 function computeDetailRect(): DOMRect {
   const vw = window.innerWidth
   const vh = window.innerHeight
@@ -65,7 +68,7 @@ export function useChartTransition() {
         setState(prev => ({ ...prev, phase: 'animating-forward' }))
         timerRef.current = setTimeout(() => {
           setState(prev => ({ ...prev, phase: 'settled' }))
-        }, 400)
+        }, FORWARD_DURATION)
       })
     })
   }, [clearTimers])
@@ -79,8 +82,9 @@ export function useChartTransition() {
       return
     }
 
-    const cardEl = document.querySelector(`[data-sensor-id="${sensorId}"]`) as HTMLElement | null
-    const cardRect = cardEl?.getBoundingClientRect() ?? null
+    const cardEl = document.querySelector(`[data-sensor-id="${sensorId}"]`)
+    const rawRect = cardEl?.getBoundingClientRect()
+    const cardRect = rawRect && rawRect.width > 0 && rawRect.height > 0 ? rawRect : null
     const detailRect = computeDetailRect()
 
     setState({
@@ -95,7 +99,7 @@ export function useChartTransition() {
         setState(prev => ({ ...prev, phase: 'animating-back' }))
         timerRef.current = setTimeout(() => {
           setState({ phase: 'idle', sensorId: null, fromRect: null, toRect: null })
-        }, 350)
+        }, REVERSE_DURATION)
       })
     })
   }, [clearTimers])
