@@ -43,57 +43,57 @@ function createDashboardStore() {
     return () => listeners.delete(listener)
   }
 
-  // Batch-friendly updates: merge sensor data without replacing entire maps
+  // Properly immutable merge — returns new state only when data actually changed
   const mergeSensorData = (updates: { id: number | string; points: DataPoint[]; value: SensorData }[]) => {
     if (updates.length === 0) return
     setState(prev => {
-      const newDataMap = prev.dataMap
-      const newValues = prev.currentValues
-      let dataChanged = false
-      let valuesChanged = false
+      let nextDataMap: Record<string, DataPoint[]> | undefined
+      let nextValues: Record<string, SensorData> | undefined
 
       for (const { id, points, value } of updates) {
         const k = String(id)
-        if (points !== newDataMap[k]) {
-          if (!dataChanged) {
-            // shallow clone on first change
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ;(prev as any).dataMap = { ...newDataMap }
-            dataChanged = true
-          }
-          ;(state as any).dataMap[k] = points
+        const existingPoints = nextDataMap?.[k] ?? prev.dataMap[k]
+        if (points !== existingPoints) {
+          if (!nextDataMap) nextDataMap = { ...prev.dataMap }
+          nextDataMap[k] = points
         }
-        if (value !== newValues[k]) {
-          if (!valuesChanged) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            ;(prev as any).currentValues = { ...newValues }
-            valuesChanged = true
-          }
-          ;(state as any).currentValues[k] = value
+        const existingValue = nextValues?.[k] ?? prev.currentValues[k]
+        if (value !== existingValue) {
+          if (!nextValues) nextValues = { ...prev.currentValues }
+          nextValues[k] = value
         }
       }
-      return prev
+
+      if (!nextDataMap && !nextValues) return prev
+      return {
+        ...prev,
+        ...(nextDataMap ? { dataMap: nextDataMap } : {}),
+        ...(nextValues ? { currentValues: nextValues } : {}),
+      }
     })
   }
 
   const setHistoryMap = (map: Record<string, DataPoint[]> | null) => {
-    setState(prev => ({ ...prev, historyMap: map }))
+    setState(prev => prev.historyMap === map ? prev : { ...prev, historyMap: map })
   }
 
   const setHistoryReady = (ready: boolean) => {
-    setState(prev => ({ ...prev, historyReady: ready }))
+    setState(prev => prev.historyReady === ready ? prev : { ...prev, historyReady: ready })
   }
 
   const setSseConnected = (connected: boolean) => {
-    setState(prev => ({ ...prev, sseConnected: connected }))
+    setState(prev => prev.sseConnected === connected ? prev : { ...prev, sseConnected: connected })
   }
 
   const setSystemInfo = (info: DashboardState['systemInfo']) => {
-    setState(prev => ({ ...prev, systemInfo: info }))
+    setState(prev => prev.systemInfo === info ? prev : { ...prev, systemInfo: info })
   }
 
   const clearData = () => {
-    setState(() => initialState)
+    setState(prev => {
+      const empty = Object.keys(prev.dataMap).length === 0 && Object.keys(prev.currentValues).length === 0
+      return empty ? prev : initialState
+    })
   }
 
   return {
@@ -123,7 +123,6 @@ function useStore() {
 
 // Generic selector hook using useSyncExternalStore
 // CRITICAL: selectors must return stable references when data hasn't changed.
-// Never create new arrays/objects inside the selector unless they are memoized.
 export function useDashboardSelector<T>(selector: (state: DashboardState) => T): T {
   const store = useStore()
   const selectorRef = useRef(selector)
@@ -180,7 +179,6 @@ export function useDetailData(sensorId: number | string, mode: 'live' | 'history
 }
 
 // Convenience hook that maps DataPoint[] → number[] with stable memoization.
-// Use this in components that need number arrays for charting.
 export function useChartValues(sensorId: number | string, mode: 'live' | 'history'): number[] {
   const raw = useChartData(sensorId, mode)
   return useMemo(() => raw.map(d => d.value), [raw])
