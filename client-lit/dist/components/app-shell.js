@@ -38,6 +38,7 @@ let AppShell = class AppShell extends LitElement {
         this._currentValues = {};
         this._alerts = 0;
         this._branding = { title: 'Voltrus Lite', subtitle: 'Industrial monitoring', logo: '' };
+        this._version = '';
         this._editMode = false;
         this._dialog = null;
         this._authRole = 'user';
@@ -165,6 +166,7 @@ let AppShell = class AppShell extends LitElement {
         this._loadShortcuts();
         this._pollAlarms();
         this._pollSystem();
+        this._fetchVersion();
         document.addEventListener('keydown', this._onKeyDown);
     }
     disconnectedCallback() {
@@ -229,6 +231,14 @@ let AppShell = class AppShell extends LitElement {
         };
         check();
         setInterval(check, 30000);
+    }
+    async _fetchVersion() {
+        try {
+            const res = await fetch(`${window.location.origin}/api/version`);
+            const data = await res.json();
+            this._version = data.version || '';
+        }
+        catch { /* ignore */ }
     }
     _setScreen(id) {
         this._activeScreen = id;
@@ -390,7 +400,7 @@ let AppShell = class AppShell extends LitElement {
         <div class="right">
           <span>${this._allSensors.length} sensors</span>
           <span>${this._screens.length} screens</span>
-          <span>v1.0.0-lit</span>
+          ${this._version ? html `<span>v${this._version}</span>` : ''}
         </div>
       </div>
 
@@ -462,6 +472,9 @@ __decorate([
 __decorate([
     state()
 ], AppShell.prototype, "_branding", void 0);
+__decorate([
+    state()
+], AppShell.prototype, "_version", void 0);
 __decorate([
     state()
 ], AppShell.prototype, "_editMode", void 0);

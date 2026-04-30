@@ -28,6 +28,7 @@ export declare class AppShell extends LitElement {
     private _currentValues;
     private _alerts;
     private _branding;
+    private _version;
     private _editMode;
     private _dialog;
     private _authRole;
@@ -41,6 +42,7 @@ export declare class AppShell extends LitElement {
     private _loadShortcuts;
     private _pollAlarms;
     private _pollSystem;
+    private _fetchVersion;
     private _setScreen;
     private _setView;
     private _handleLogout;
