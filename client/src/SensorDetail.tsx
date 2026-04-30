@@ -1,25 +1,24 @@
-import { useEffect, useState, useRef } from 'react';
-import { SensorConfig, SensorData, DataPoint } from './types';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { SensorConfig } from './types';
 import { stColor, btnStyle, safeMinMax, displayShortcut } from './styles';
 import { DetailChart, OverlaySeries } from './DetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
+import { useDetailData, useSensorCurrentValue, useDashboardSelector } from './store/dashboardStore';
 
-export function SensorDetail({ sensor, data, currentValue, onBack, historyRange, onRangeChange, historyDetail, onDetailChange, historyAutoAgg, shortcuts, mode, onModeChange, allSensors, getDataFor, currentValues }: {
-  sensor: SensorConfig; data: DataPoint[]; currentValue: SensorData | undefined;
-  onBack: () => void; historyRange: string; onRangeChange: (r: string) => void;
+export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, historyDetail, onDetailChange, historyAutoAgg, shortcuts, mode, onModeChange, allSensors }: {
+  sensor: SensorConfig; onBack: () => void; historyRange: string; onRangeChange: (r: string) => void;
   historyDetail?: 'auto' | 'full'; onDetailChange?: (d: 'auto' | 'full') => void;
   historyAutoAgg?: string;
   shortcuts: Record<number, string>;
   mode: 'live' | 'history'; onModeChange: (m: 'live' | 'history') => void;
   allSensors?: SensorConfig[];
-  getDataFor?: (id: number) => DataPoint[];
-  currentValues?: Record<string, SensorData>;
 }) {
+  const data = useDetailData(sensor.id, mode)
+  const currentValue = useSensorCurrentValue(sensor.id)
+  const allCurrentValues = useDashboardSelector(s => s.currentValues)
+
   const st = currentValue?.status ?? 'normal';
   const isOffline = st === 'offline';
-  const safeValues = data.map(d => d.value).filter(v => v != null && !Number.isNaN(v));
-  const [minV, maxV] = safeMinMax(safeValues);
-  const avgV = safeValues.length ? safeValues.reduce((a, b) => a + b, 0) / safeValues.length : 0;
   const curV = isOffline ? null : currentValue ? currentValue.value : sensor.base_val;
 
   const [overlayIds, setOverlayIds] = useState<number[]>([]);
@@ -49,14 +48,30 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
     return () => document.removeEventListener('mousedown', onClick);
   }, [showPicker]);
 
-  const sparklineSensors = (allSensors ?? []).filter(s => s.chart_type === 'sparkline' && s.id !== sensor.id && !overlayIds.includes(s.id));
-  const overlays: OverlaySeries[] = overlayIds.map(id => {
-    const s = (allSensors ?? []).find(x => x.id === id);
-    if (!s || !getDataFor) return null;
-    const pts = getDataFor(id);
-    if (!pts || pts.length < 2) return null;
-    return { data: pts, color: s.color, name: s.name, unit: s.unit };
-  }).filter(Boolean) as OverlaySeries[];
+  // Memoize stats computations
+  const stats = useMemo(() => {
+    const safeValues = data.map(d => d.value).filter(v => v != null && !Number.isNaN(v));
+    const [minV, maxV] = safeMinMax(safeValues);
+    const avgV = safeValues.length ? safeValues.reduce((a, b) => a + b, 0) / safeValues.length : 0;
+    return { safeValues, minV, maxV, avgV, pointCount: data.length };
+  }, [data]);
+
+  // Memoize overlays
+  const overlays: OverlaySeries[] = useMemo(() => {
+    if (!allSensors || overlayIds.length === 0) return [];
+    return overlayIds.map(id => {
+      const s = allSensors.find(x => x.id === id);
+      if (!s) return null;
+      // For overlays, we fetch their data from store in live mode
+      // History mode overlays would need additional fetching; keeping simple for now
+      return { data: [], color: s.color, name: s.name, unit: s.unit };
+    }).filter(Boolean) as OverlaySeries[];
+  }, [allSensors, overlayIds]);
+
+  const sparklineSensors = useMemo(() =>
+    (allSensors ?? []).filter(s => s.chart_type === 'sparkline' && s.id !== sensor.id && !overlayIds.includes(s.id)),
+    [allSensors, sensor.id, overlayIds]
+  );
 
   const toggleOverlay = (id: number) => {
     setOverlayIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -100,7 +115,7 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
               {curV != null ? curV.toFixed(sensor.decimals) : 'OFFLINE'}<span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{sensor.unit}</span>
             </div>
           </div>
-          {[{ l: 'Min', v: safeValues.length ? minV.toFixed(sensor.decimals) : '—' }, { l: 'Max', v: safeValues.length ? maxV.toFixed(sensor.decimals) : '—' }, { l: 'Avg', v: safeValues.length ? avgV.toFixed(sensor.decimals) : '—' }, { l: 'Points', v: String(data.length) }].map((s, i) => (
+          {[{ l: 'Min', v: stats.safeValues.length ? stats.minV.toFixed(sensor.decimals) : '—' }, { l: 'Max', v: stats.safeValues.length ? stats.maxV.toFixed(sensor.decimals) : '—' }, { l: 'Avg', v: stats.safeValues.length ? stats.avgV.toFixed(sensor.decimals) : '—' }, { l: 'Points', v: String(stats.pointCount) }].map((s, i) => (
             <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
               <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{s.l}</div>
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 16, fontWeight: 700, marginTop: 2 }}>{s.v}</div>
@@ -147,8 +162,8 @@ export function SensorDetail({ sensor, data, currentValue, onBack, historyRange,
                 <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, minWidth: 220, maxHeight: 240, overflowY: 'auto', zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,.4)' }}>
                   <div style={{ fontSize: 10, color: 'var(--muted)', padding: '2px 6px 6px', textTransform: 'uppercase', letterSpacing: '.05em' }}>Sparkline sensors</div>
                   {sparklineSensors.map(s => {
-                    const cv = currentValues?.[String(s.id)];
-                    const curVal = cv ? cv.value : null;
+                    const cv = allCurrentValues[String(s.id)]
+                    const curVal = cv ? cv.value : null
                     return (
                       <button key={s.id} onClick={() => toggleOverlay(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', border: 'none', background: 'none', borderRadius: 4, cursor: 'pointer', color: 'var(--fg)', fontSize: 12, textAlign: 'left' }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.05)')}

@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react'
 import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from 'react-grid-layout'
-import { SensorConfig, SensorData, ScreenLayouts } from './types'
+import { SensorConfig, ScreenLayouts } from './types'
 import { EditPanel } from './EditPanel'
 import { SensorCard } from './SensorCard'
 
@@ -15,19 +15,18 @@ interface Props {
   activeScreen: string
   gap: number
   editingId: number | null
-  currentValues: Record<string, SensorData>
   setEditingId: (id: number | null) => void
   setSelectedSensor: (id: number | null) => void
-  chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   onLayoutChange: (currentLayout: any[], allLayouts: { [bp: string]: any[] }) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
   onDelete: (id: number) => void
   forcedBreakpoint: string | null
   shortcuts: Record<number, string>
+  mode: 'live' | 'history' | 'system'
 }
 
-export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScreen, gap, editingId, currentValues, setEditingId, setSelectedSensor, chartDataFor, loadSensorsForScreen, onLayoutChange, onSave, onDelete, forcedBreakpoint, shortcuts }: Props) {
+export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor, loadSensorsForScreen, onLayoutChange, onSave, onDelete, forcedBreakpoint, shortcuts, mode }: Props) {
   const { width: measuredWidth, containerRef, mounted } = useContainerWidth({ initialWidth: 1200 })
   const didDrag = useRef(false)
 
@@ -47,11 +46,14 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
 
   const ready = screenSensors.length > 0 && (screenLayouts.lg.length > 0 || screenLayouts.md.length > 0 || screenLayouts.sm.length > 0)
 
+  // Stable key that only changes when sensor set changes (not on every data tick)
+  const stableKey = screenSensors.map(s => s.id).sort((a, b) => a - b).join(',')
+
   return (
     <div ref={containerRef} style={{ maxWidth: '100%' }}>
       {mounted && ready && (
         <ResponsiveGridLayout
-          key={screenSensors.map(s => s.id).join(',')}
+          key={stableKey}
           width={width}
           layouts={screenLayouts as any}
           breakpoints={BREAKPOINTS}
@@ -72,13 +74,12 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
                 editMode={editMode}
                 activeScreen={activeScreen}
                 editingId={editingId}
-                currentValue={currentValues[String(s.id)]}
                 shortcut={shortcuts[s.id]}
-                chartDataFor={chartDataFor}
                 loadSensorsForScreen={loadSensorsForScreen}
                 setEditingId={setEditingId}
                 setSelectedSensor={setSelectedSensor}
                 showDragHandle={true}
+                mode={mode}
                 onClick={e => {
                   if (didDrag.current) { didDrag.current = false; return; }
                   if (editMode) { e.stopPropagation(); setEditingId(editingId === s.id ? null : s.id); }

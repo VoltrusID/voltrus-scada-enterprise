@@ -10,6 +10,7 @@ import { ConnectionLines } from './twin/ConnectionLines'
 import { EquipmentLabel } from './twin/EquipmentLabel'
 import { EquipmentPalette } from './twin/EquipmentPalette'
 import { DEFAULT_EQUIPMENT } from './twin/defaults'
+import { useDashboardSelector } from './store/dashboardStore'
 
 interface FlowConnection {
   from: string
@@ -18,7 +19,6 @@ interface FlowConnection {
 
 interface Props {
   sensors: SensorConfig[]
-  currentValues: Record<string, SensorData>
   activeScreen: string
   twinLayouts: any[]
   twinCamera?: { x: number; y: number; z: number }
@@ -139,7 +139,8 @@ function DraggableEquipment({ equipment, onDragEnd, onRotate, onClick, sensors, 
   )
 }
 
-export function DigitalTwinView({ sensors, currentValues, activeScreen, twinLayouts, twinCamera, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections, onSaveCamera }: Props) {
+export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections, onSaveCamera }: Props) {
+  const currentValues = useDashboardSelector(s => s.currentValues)
   const [equipment, setEquipment] = useState<TwinEquipment[]>(DEFAULT_EQUIPMENT.map(e => ({ ...e })))
   const [twinEditMode, setTwinEditMode] = useState(false)
   const [bindingEquipmentId, setBindingEquipmentId] = useState<string | null>(null)

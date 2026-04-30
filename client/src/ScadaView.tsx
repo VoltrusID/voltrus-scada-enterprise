@@ -1,14 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
-import type { ScadaEquipmentItem, ScadaConnectionItem, ScadaEquipmentType, SensorConfig, SensorData } from './types'
+import type { ScadaEquipmentItem, ScadaConnectionItem, ScadaEquipmentType, SensorConfig } from './types'
 import { DEFAULT_SIZES } from './scada/defaults'
 import { ScadaCanvas } from './scada/ScadaCanvas'
 import { ScadaEditToolbar } from './scada/ScadaEditToolbar'
 import { ScadaPalette } from './scada/ScadaPalette'
 import { ScadaEditPanel } from './scada/ScadaEditPanel'
+import { useDashboardSelector } from './store/dashboardStore'
 
 interface Props {
   sensors: SensorConfig[]
-  currentValues: Record<string, SensorData>
   activeScreen: string
   scadaEquipment: ScadaEquipmentItem[]
   scadaConnections: ScadaConnectionItem[]
@@ -18,9 +18,10 @@ interface Props {
 }
 
 export const ScadaView: React.FC<Props> = ({
-  sensors, currentValues, activeScreen, scadaEquipment: serverEquipment, scadaConnections: serverConnections,
+  sensors, activeScreen, scadaEquipment: serverEquipment, scadaConnections: serverConnections,
   onSaveEquipment, onSaveConnections, onSensorClick,
 }) => {
+  const currentValues = useDashboardSelector(s => s.currentValues)
   const [editMode, setEditMode] = useState(false)
   const [activeTool, setActiveTool] = useState<'select' | 'connect' | 'delete'>('select')
   const [selectedId, setSelectedId] = useState<string | null>(null)

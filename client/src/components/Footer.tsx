@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useSseConnected } from '../store/dashboardStore'
 
-interface Props {
-  sseConnected: boolean
-}
-
-export function Footer({ sseConnected }: Props) {
+export function Footer() {
+  const sseConnected = useSseConnected()
   const [version, setVersion] = useState('')
   useEffect(() => {
     fetch('/api/version').then(r => r.json()).then(d => setVersion(d.version)).catch(() => {})

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, Fragment } from 'react'
 import { Rnd } from 'react-rnd'
-import { SensorConfig, SensorData, CanvasLayoutItem } from './types'
+import { SensorConfig, CanvasLayoutItem } from './types'
 import { SensorCard } from './SensorCard'
 import { EditPanel } from './EditPanel'
 import { AlignmentToolbar, type AlignOp } from './AlignmentToolbar'
@@ -11,15 +11,14 @@ interface Props {
   editMode: boolean
   activeScreen: string
   editingId: number | null
-  currentValues: Record<string, SensorData>
   setEditingId: (id: number | null) => void
   setSelectedSensor: (id: number | null) => void
-  chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   onLayoutChange: (items: CanvasLayoutItem[]) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
   onDelete: (id: number) => void
   shortcuts: Record<number, string>
+  mode: 'live' | 'history' | 'system'
 }
 
 const DEFAULT_W = 300
@@ -39,8 +38,8 @@ function generateDefaultPositions(sensors: SensorConfig[]): CanvasLayoutItem[] {
 
 export function CanvasView({
   screenSensors, canvasLayouts, editMode, activeScreen,
-  editingId, currentValues, setEditingId, setSelectedSensor,
-  chartDataFor, loadSensorsForScreen, onLayoutChange, onSave, onDelete, shortcuts,
+  editingId, setEditingId, setSelectedSensor,
+  loadSensorsForScreen, onLayoutChange, onSave, onDelete, shortcuts, mode,
 }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [zCounter, setZCounter] = useState(100)
@@ -218,14 +217,13 @@ export function CanvasView({
                   editMode={editMode}
                   activeScreen={activeScreen}
                   editingId={editingId}
-                  currentValue={currentValues[String(s.id)]}
                   shortcut={shortcuts[s.id]}
-                  chartDataFor={chartDataFor}
                   loadSensorsForScreen={loadSensorsForScreen}
                   setEditingId={setEditingId}
                   setSelectedSensor={setSelectedSensor}
                   showDragHandle={true}
                   selected={selectedIds.has(s.id)}
+                  mode={mode}
                   onClick={e => { e.stopPropagation(); handleCardClick(s.id, e) }}
                 />
               </Rnd>

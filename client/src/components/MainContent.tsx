@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorGrid } from '../SensorGrid'
 import { CanvasView } from '../CanvasView'
-import { ScreenLayouts, CanvasLayoutItem, SensorConfig, SensorData, DataPoint } from '../types'
+import { ScreenLayouts, CanvasLayoutItem, SensorConfig } from '../types'
 import type { LayoutItem } from '../types'
 
 const DigitalTwinView = lazy(() => import('../DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
@@ -20,7 +20,6 @@ interface Props {
   editingId: number | null
   setEditingId: (id: number | null) => void
   setSelectedSensor: (id: number | null) => void
-  chartDataFor: (id: number) => number[]
   onLayoutChange: (current: any[], all: { [bp: string]: any[] }) => void
   onCanvasLayoutChange: (items: CanvasLayoutItem[]) => void
   onSave: (s: SensorConfig, shortcut?: string | null) => void
@@ -33,7 +32,6 @@ interface Props {
   twinCamera: any
   twinConnections: any[]
   sensors: SensorConfig[]
-  currentValues: Record<string, SensorData>
   saveScadaEquipmentMut: any
   saveScadaConnectionsMut: any
   saveTwinLayoutMut: any
@@ -45,9 +43,9 @@ interface Props {
 export function MainContent({
   viewMode, mode, screenSensors, effectiveLayouts, canvasLayouts,
   editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor,
-  chartDataFor, onLayoutChange, onCanvasLayoutChange, onSave, onDelete,
+  onLayoutChange, onCanvasLayoutChange, onSave, onDelete,
   forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections,
-  twinLayouts, twinCamera, twinConnections, sensors, currentValues,
+  twinLayouts, twinCamera, twinConnections, sensors,
   saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
   saveTwinConnectionsMut, updateSensorMut, fetchOk,
 }: Props) {
@@ -69,16 +67,15 @@ export function MainContent({
         activeScreen={activeScreen}
         gap={gap}
         editingId={editingId}
-        currentValues={currentValues}
         setEditingId={setEditingId}
         setSelectedSensor={setSelectedSensor}
-        chartDataFor={chartDataFor}
         loadSensorsForScreen={loadSensorsForScreen}
         onLayoutChange={onLayoutChange}
         onSave={onSave}
         onDelete={onDelete}
         forcedBreakpoint={forcedBreakpoint}
         shortcuts={shortcuts}
+        mode={mode}
       />
     )
   }
@@ -91,15 +88,14 @@ export function MainContent({
         editMode={editMode}
         activeScreen={activeScreen}
         editingId={editingId}
-        currentValues={currentValues}
         setEditingId={setEditingId}
         setSelectedSensor={setSelectedSensor}
-        chartDataFor={chartDataFor}
         loadSensorsForScreen={loadSensorsForScreen}
         onLayoutChange={onCanvasLayoutChange}
         onSave={onSave}
         onDelete={onDelete}
         shortcuts={shortcuts}
+        mode={mode}
       />
     )
   }
@@ -109,7 +105,6 @@ export function MainContent({
       <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 2D View...</div>}>
         <ScadaView
           sensors={screenSensors}
-          currentValues={currentValues}
           activeScreen={activeScreen}
           scadaEquipment={scadaEquipment}
           scadaConnections={scadaConnections}
@@ -125,7 +120,6 @@ export function MainContent({
     <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 3D View...</div>}>
       <DigitalTwinView
         sensors={screenSensors}
-        currentValues={currentValues}
         activeScreen={activeScreen}
         twinLayouts={twinLayouts}
         twinCamera={twinCamera}

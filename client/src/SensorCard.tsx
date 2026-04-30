@@ -1,30 +1,33 @@
 import React, { useMemo } from 'react'
-import { SensorConfig, SensorData, SOURCE_CATEGORY } from './types'
+import { SensorConfig, SOURCE_CATEGORY } from './types'
 import { Chart } from './Chart'
 import { stColor } from './styles'
 import { parseConfig } from './styles'
+import { useSensorCurrentValue, useChartData } from './store/dashboardStore'
 
 interface Props {
   sensor: SensorConfig
   editMode: boolean
   activeScreen: string
   editingId: number | null
-  currentValue: SensorData | undefined
   shortcut: string | undefined
-  chartDataFor: (id: number) => number[]
   loadSensorsForScreen: () => void
   setEditingId: (id: number | null) => void
   setSelectedSensor: (id: number | null) => void
   showDragHandle?: boolean
   selected?: boolean
+  mode: 'live' | 'history' | 'system'
   onClick?: (e: React.MouseEvent) => void
 }
 
 export const SensorCard = React.memo(function SensorCard({
-  sensor: s, editMode, activeScreen, editingId, currentValue: cv,
-  shortcut, chartDataFor, loadSensorsForScreen, setEditingId, setSelectedSensor,
-  showDragHandle, selected, onClick,
+  sensor: s, editMode, activeScreen, editingId,
+  shortcut, loadSensorsForScreen, setEditingId, setSelectedSensor,
+  showDragHandle, selected, mode, onClick,
 }: Props) {
+  const cv = useSensorCurrentValue(s.id)
+  const chartData = useChartData(s.id, mode === 'history' ? 'history' : 'live')
+
   const st = cv?.status ?? 'normal';
   const ct = s.chart_type || 'sparkline';
   const hideStatus = ct === 'image' || ct === 'text';
@@ -99,7 +102,7 @@ export const SensorCard = React.memo(function SensorCard({
       <div style={{ flex: 1, minHeight: 0 }}>
         <Chart
           chartType={s.chart_type || 'sparkline'}
-          data={chartDataFor(s.id)}
+          data={chartData}
           color={s.color}
           warn={s.warn_val}
           crit={s.crit_val}
@@ -122,10 +125,6 @@ export const SensorCard = React.memo(function SensorCard({
   if (prev.selected !== next.selected) return false
   if (prev.shortcut !== next.shortcut) return false
   if (prev.showDragHandle !== next.showDragHandle) return false
-  // Shallow compare currentValue
-  const a = prev.currentValue
-  const b = next.currentValue
-  if (a === b) return true
-  if (!a || !b) return false
-  return a.value === b.value && a.warn === b.warn && a.crit === b.crit && a.source_type === b.source_type
+  if (prev.mode !== next.mode) return false
+  return true
 })
