@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useCallback, useSyncExternalStore } from 'react'
+import { createContext, useContext, useRef, useCallback, useSyncExternalStore, useMemo } from 'react'
 import type { DataPoint, SensorData } from '../types'
 
 interface DashboardState {
@@ -18,6 +18,9 @@ const initialState: DashboardState = {
   sseConnected: false,
   systemInfo: null,
 }
+
+// Stable empty array fallback to avoid useSyncExternalStore infinite loops
+const EMPTY_DATA: DataPoint[] = []
 
 type Listener = () => void
 
@@ -119,6 +122,8 @@ function useStore() {
 }
 
 // Generic selector hook using useSyncExternalStore
+// CRITICAL: selectors must return stable references when data hasn't changed.
+// Never create new arrays/objects inside the selector unless they are memoized.
 export function useDashboardSelector<T>(selector: (state: DashboardState) => T): T {
   const store = useStore()
   const selectorRef = useRef(selector)
@@ -130,10 +135,10 @@ export function useDashboardSelector<T>(selector: (state: DashboardState) => T):
   return useSyncExternalStore(store.subscribe, getSnapshot, getServerSnapshot)
 }
 
-// Public API
+// Public API — all return stable references for useSyncExternalStore compatibility
 export function useSensorDataPoints(sensorId: number | string): DataPoint[] {
   const k = String(sensorId)
-  return useDashboardSelector(s => s.dataMap[k] ?? [])
+  return useDashboardSelector(s => s.dataMap[k] ?? EMPTY_DATA)
 }
 
 export function useSensorCurrentValue(sensorId: number | string): SensorData | undefined {
@@ -154,13 +159,13 @@ export function useSseConnected(): boolean {
   return useDashboardSelector(s => s.sseConnected)
 }
 
-export function useChartData(sensorId: number | string, mode: 'live' | 'history'): number[] {
+export function useChartData(sensorId: number | string, mode: 'live' | 'history'): DataPoint[] {
   const k = String(sensorId)
   return useDashboardSelector(s => {
     if (mode === 'history' && s.historyMap && s.historyMap[k]) {
-      return s.historyMap[k].map(d => d.value)
+      return s.historyMap[k]
     }
-    return (s.dataMap[k] ?? []).map(d => d.value)
+    return s.dataMap[k] ?? EMPTY_DATA
   })
 }
 
@@ -170,8 +175,15 @@ export function useDetailData(sensorId: number | string, mode: 'live' | 'history
     if (mode === 'history' && s.historyMap && s.historyMap[k]) {
       return s.historyMap[k]
     }
-    return s.dataMap[k] ?? []
+    return s.dataMap[k] ?? EMPTY_DATA
   })
+}
+
+// Convenience hook that maps DataPoint[] → number[] with stable memoization.
+// Use this in components that need number arrays for charting.
+export function useChartValues(sensorId: number | string, mode: 'live' | 'history'): number[] {
+  const raw = useChartData(sensorId, mode)
+  return useMemo(() => raw.map(d => d.value), [raw])
 }
 
 export function useDashboardStoreActions() {

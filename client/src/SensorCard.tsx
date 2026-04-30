@@ -3,7 +3,7 @@ import { SensorConfig, SOURCE_CATEGORY } from './types'
 import { Chart } from './Chart'
 import { stColor } from './styles'
 import { parseConfig } from './styles'
-import { useSensorCurrentValue, useChartData } from './store/dashboardStore'
+import { useSensorCurrentValue, useChartValues } from './store/dashboardStore'
 
 interface Props {
   sensor: SensorConfig
@@ -26,7 +26,7 @@ export const SensorCard = React.memo(function SensorCard({
   showDragHandle, selected, mode, onClick,
 }: Props) {
   const cv = useSensorCurrentValue(s.id)
-  const chartData = useChartData(s.id, mode === 'history' ? 'history' : 'live')
+  const chartData = useChartValues(s.id, mode === 'history' ? 'history' : 'live')
 
   const st = cv?.status ?? 'normal';
   const ct = s.chart_type || 'sparkline';
