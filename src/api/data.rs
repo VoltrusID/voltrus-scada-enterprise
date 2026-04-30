@@ -30,11 +30,15 @@ pub(crate) fn evaluate_data_sources(
                     Some(m) => {
                         if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&ds.source_config) {
                             if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
-                                match expression::evaluate(expr_str, m) {
-                                    Ok(val) => val,
-                                    Err(e) => {
-                                        tracing::warn!("Expression eval error for {}: {e}", ds.key);
-                                        f64::NAN
+                                if expr_str.is_empty() {
+                                    m.get(&ds.key).copied().unwrap_or(f64::NAN)
+                                } else {
+                                    match expression::evaluate(expr_str, m) {
+                                        Ok(val) => val,
+                                        Err(e) => {
+                                            tracing::warn!("Expression eval error for {}: {e}", ds.key);
+                                            f64::NAN
+                                        }
                                     }
                                 }
                             } else {
@@ -158,7 +162,7 @@ pub async fn get_history(
             // Check if there's an expression to evaluate
             let expr: Option<String> = serde_json::from_str::<serde_json::Value>(&data_source.source_config)
                 .ok()
-                .and_then(|cfg| cfg.get("expression").and_then(|v| v.as_str()).map(|s| s.to_string()));
+                .and_then(|cfg| cfg.get("expression").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()));
 
             if let Some(ref expr_str) = expr {
                 // Expression-based: evaluate at each timestamp
