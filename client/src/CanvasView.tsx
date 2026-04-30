@@ -220,7 +220,6 @@ export function CanvasView({
                   shortcut={shortcuts[s.id]}
                   loadSensorsForScreen={loadSensorsForScreen}
                   setEditingId={setEditingId}
-                  setSelectedSensor={setSelectedSensor}
                   showDragHandle={true}
                   selected={selectedIds.has(s.id)}
                   mode={mode}
