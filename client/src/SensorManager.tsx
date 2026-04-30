@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { SensorConfig, SOURCE_TYPES, CHART_TYPES, SOURCE_CATEGORY } from './types';
 import { inputStyle, monoInputStyle, btnStyle, parseConfig } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
-import { useUpdateSensor } from './queries';
+import { useUpdateSensor, useReorderSensors } from './queries';
 
 const CELL: React.CSSProperties = {
   background: 'transparent',
@@ -18,13 +18,6 @@ const CELL: React.CSSProperties = {
 };
 const CELL_MONO: React.CSSProperties = { ...CELL, fontFamily: "'JetBrains Mono',monospace" };
 const CELL_NUM: React.CSSProperties = { ...CELL_MONO, textAlign: 'right' };
-
-const COL_WIDTHS = {
-  color: 40, name: 140, key: 120, unit: 60,
-  min_val: 64, max_val: 64, warn_val: 64, crit_val: 64, base_val: 64,
-  decimals: 40, chart_type: 90, sort_order: 40,
-  source_type: 90, source_config: 60, actions: 90,
-} as const;
 
 const thStyle: React.CSSProperties = {
   textAlign: 'left', padding: '6px 6px', fontSize: 10, color: 'var(--muted)',
@@ -44,7 +37,10 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
   const [filter, setFilter] = useState('');
   const [newRow, setNewRow] = useState<Partial<SensorConfig> & { source_config_obj?: Record<string, any> } | null>(null);
   const [configPopover, setConfigPopover] = useState<{ id: number; srcType: string; config: Record<string, any>; rect: DOMRect } | null>(null);
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<number | null>(null);
   const updateMut = useUpdateSensor();
+  const reorderMut = useReorderSensors();
   const configRef = useRef<HTMLDivElement>(null);
 
   const filtered = sensors.filter(s => s.name.toLowerCase().includes(filter) || s.key.toLowerCase().includes(filter));
@@ -115,6 +111,31 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
     setNewRow({ ...newRow, [field]: value });
   };
 
+  // Drag-and-drop reorder
+  const handleDragStart = (id: number) => setDragId(id);
+  const handleDragOver = (e: React.DragEvent, id: number) => {
+    e.preventDefault();
+    if (dragId !== null && dragId !== id) setDropTargetId(id);
+  };
+  const handleDragEnd = () => {
+    if (dragId !== null && dropTargetId !== null && dragId !== dropTargetId) {
+      const currentIds = filtered.map(s => s.id);
+      const fromIdx = currentIds.indexOf(dragId);
+      const toIdx = currentIds.indexOf(dropTargetId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        const reordered = [...currentIds];
+        reordered.splice(fromIdx, 1);
+        reordered.splice(toIdx, 0, dragId);
+        // Send full sensors order (including unfiltered ones)
+        const unfilteredIds = sensors.filter(s => !filtered.includes(s)).map(s => s.id);
+        const newOrder = [...reordered, ...unfilteredIds];
+        reorderMut.mutate(newOrder);
+      }
+    }
+    setDragId(null);
+    setDropTargetId(null);
+  };
+
   const numField = (sensor: SensorConfig, field: keyof SensorConfig) => (
     <input
       key={`${sensor.id}-${field}-${sensor[field]}`}
@@ -131,60 +152,81 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
     />
   );
 
-  const renderRow = (s: SensorConfig) => (
-    <tr key={s.id} style={{ opacity: updateMut.isPending && updateMut.variables?.id === s.id ? 0.6 : 1 }}>
-      <td style={tdStyle}>
-        <input type="color" value={s.color} onChange={e => updateField(s, 'color', e.target.value)} style={{ width: 28, height: 24, padding: 1, border: 'none', background: 'transparent', cursor: 'pointer' }} />
-      </td>
-      <td style={tdStyle}>
-        <input key={`name-${s.id}-${s.name}`} defaultValue={s.name} onBlur={e => { if (e.target.value !== s.name) updateField(s, 'name', e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={CELL} />
-      </td>
-      <td style={tdStyle}>
-        <input key={`key-${s.id}-${s.key}`} defaultValue={s.key} onBlur={e => { if (e.target.value !== s.key) updateField(s, 'key', e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={CELL_MONO} />
-      </td>
-      <td style={tdStyle}>
-        <input key={`unit-${s.id}-${s.unit}`} defaultValue={s.unit} onBlur={e => { if (e.target.value !== s.unit) updateField(s, 'unit', e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={CELL} />
-      </td>
-      <td style={tdStyle}>{numField(s, 'min_val')}</td>
-      <td style={tdStyle}>{numField(s, 'max_val')}</td>
-      <td style={tdStyle}>{numField(s, 'warn_val')}</td>
-      <td style={tdStyle}>{numField(s, 'crit_val')}</td>
-      <td style={tdStyle}>{numField(s, 'base_val')}</td>
-      <td style={tdStyle}>{numField(s, 'decimals')}</td>
-      <td style={tdStyle}>
-        <select value={s.chart_type || 'sparkline'} onChange={e => updateField(s, 'chart_type', e.target.value)} style={{ ...CELL, cursor: 'pointer' }}>
-          {CHART_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </td>
-      <td style={tdStyle}>{numField(s, 'sort_order')}</td>
-      <td style={tdStyle}>
-        <select value={s.source_type} onChange={e => {
-          const newType = e.target.value;
-          onSave({ ...s, source_type: newType, source_config: '{}' });
-        }} style={{ ...CELL, cursor: 'pointer', color: SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--fg)', fontSize: 11 }}>
-          <optgroup label="Real">
-            <option value="modbus">modbus</option>
-          </optgroup>
-          <optgroup label="Simulate">
-            {SOURCE_TYPES.filter(t => !['modbus','api','none'].includes(t)).map(t => <option key={t} value={t}>{t}</option>)}
-          </optgroup>
-          <optgroup label="Other">
-            <option value="api">api</option>
-            <option value="none">none</option>
-          </optgroup>
-        </select>
-      </td>
-      <td style={tdStyle}>
-        <button onClick={e => startConfigEdit(s, e.currentTarget)} style={{ padding: '2px 8px', borderRadius: 3, border: '1px solid var(--border)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>cfg</button>
-      </td>
-      <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', gap: 3 }}>
-          <button onClick={() => onDuplicate(s)} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>dup</button>
-          <button onClick={() => { if (confirm(`Delete ${s.name}?`)) onDelete(s.id); }} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 10 }}>del</button>
-        </div>
-      </td>
-    </tr>
-  );
+  const renderRow = (s: SensorConfig) => {
+    const isDragOver = dropTargetId === s.id && dragId !== s.id;
+    const isDragging = dragId === s.id;
+    return (
+      <tr
+        key={s.id}
+        draggable
+        onDragStart={() => handleDragStart(s.id)}
+        onDragOver={e => handleDragOver(e, s.id)}
+        onDragEnd={handleDragEnd}
+        onDragLeave={() => { if (dropTargetId === s.id) setDropTargetId(null); }}
+        onMouseEnter={e => { if (!isDragging && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(139,92,246,.04)'; }}
+        onMouseLeave={e => { if (!isDragging && !isDragOver) (e.currentTarget as HTMLElement).style.background = ''; }}
+        style={{
+          opacity: isDragging ? 0.4 : (updateMut.isPending && updateMut.variables?.id === s.id ? 0.6 : 1),
+          cursor: 'grab',
+          borderTop: isDragOver ? '2px solid var(--cyan)' : undefined,
+          borderBottom: isDragOver ? 'none' : undefined,
+          background: isDragOver ? 'rgba(34,197,94,.05)' : undefined,
+          transition: 'background .15s, opacity .15s',
+        }}
+      >
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <input type="color" value={s.color} onChange={e => updateField(s, 'color', e.target.value)} style={{ width: 28, height: 24, padding: 1, border: 'none', background: 'transparent', cursor: 'pointer' }} />
+        </td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <input key={`name-${s.id}-${s.name}`} defaultValue={s.name} onBlur={e => { if (e.target.value !== s.name) updateField(s, 'name', e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={CELL} />
+        </td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <input key={`key-${s.id}-${s.key}`} defaultValue={s.key} onBlur={e => { if (e.target.value !== s.key) updateField(s, 'key', e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={CELL_MONO} />
+        </td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <input key={`unit-${s.id}-${s.unit}`} defaultValue={s.unit} onBlur={e => { if (e.target.value !== s.unit) updateField(s, 'unit', e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} style={CELL} />
+        </td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'min_val')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'max_val')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'warn_val')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'crit_val')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'base_val')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'decimals')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <select value={s.chart_type || 'sparkline'} onChange={e => updateField(s, 'chart_type', e.target.value)} style={{ ...CELL, cursor: 'pointer' }}>
+            {CHART_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>{numField(s, 'sort_order')}</td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <select value={s.source_type} onChange={e => {
+            const newType = e.target.value;
+            onSave({ ...s, source_type: newType, source_config: '{}' });
+          }} style={{ ...CELL, cursor: 'pointer', color: SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--fg)', fontSize: 11 }}>
+            <optgroup label="Real">
+              <option value="modbus">modbus</option>
+            </optgroup>
+            <optgroup label="Simulate">
+              {SOURCE_TYPES.filter(t => !['modbus','api','none'].includes(t)).map(t => <option key={t} value={t}>{t}</option>)}
+            </optgroup>
+            <optgroup label="Other">
+              <option value="api">api</option>
+              <option value="none">none</option>
+            </optgroup>
+          </select>
+        </td>
+        <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
+          <button onClick={e => startConfigEdit(s, e.currentTarget)} style={{ padding: '2px 8px', borderRadius: 3, border: '1px solid var(--border)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>cfg</button>
+        </td>
+        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }} onMouseDown={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', gap: 3 }}>
+            <button onClick={() => onDuplicate(s)} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>dup</button>
+            <button onClick={() => { if (confirm(`Delete ${s.name}?`)) onDelete(s.id); }} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 10 }}>del</button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   const renderNewRow = () => {
     if (!newRow) return null;
@@ -226,46 +268,6 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
     );
   };
 
-  const columns = (
-    <colgroup>
-      <col style={{ width: COL_WIDTHS.color }} />
-      <col style={{ width: COL_WIDTHS.name }} />
-      <col style={{ width: COL_WIDTHS.key }} />
-      <col style={{ width: COL_WIDTHS.unit }} />
-      <col style={{ width: COL_WIDTHS.min_val }} />
-      <col style={{ width: COL_WIDTHS.max_val }} />
-      <col style={{ width: COL_WIDTHS.warn_val }} />
-      <col style={{ width: COL_WIDTHS.crit_val }} />
-      <col style={{ width: COL_WIDTHS.base_val }} />
-      <col style={{ width: COL_WIDTHS.decimals }} />
-      <col style={{ width: COL_WIDTHS.chart_type }} />
-      <col style={{ width: COL_WIDTHS.sort_order }} />
-      <col style={{ width: COL_WIDTHS.source_type }} />
-      <col style={{ width: COL_WIDTHS.source_config }} />
-      <col style={{ width: COL_WIDTHS.actions }} />
-    </colgroup>
-  );
-
-  const headerRow = (
-    <tr>
-      <th style={thStyle}></th>
-      <th style={thStyle}>name</th>
-      <th style={thStyle}>key</th>
-      <th style={thStyle}>unit</th>
-      <th style={thStyle}>min</th>
-      <th style={thStyle}>max</th>
-      <th style={thStyle}>warn</th>
-      <th style={thStyle}>crit</th>
-      <th style={thStyle}>base</th>
-      <th style={thStyle}>dec</th>
-      <th style={thStyle}>chart</th>
-      <th style={thStyle}>sort</th>
-      <th style={thStyle}>source</th>
-      <th style={thStyle}>cfg</th>
-      <th style={thStyle}></th>
-    </tr>
-  );
-
   const tableContent = (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
@@ -277,8 +279,42 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
-          {columns}
-          <thead>{headerRow}</thead>
+          <colgroup>
+            <col style={{ width: 40 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 60 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 40 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 40 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 60 }} />
+            <col style={{ width: 90 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={thStyle}></th>
+              <th style={thStyle}>name</th>
+              <th style={thStyle}>key</th>
+              <th style={thStyle}>unit</th>
+              <th style={thStyle}>min</th>
+              <th style={thStyle}>max</th>
+              <th style={thStyle}>warn</th>
+              <th style={thStyle}>crit</th>
+              <th style={thStyle}>base</th>
+              <th style={thStyle}>dec</th>
+              <th style={thStyle}>chart</th>
+              <th style={thStyle}>sort</th>
+              <th style={thStyle}>source</th>
+              <th style={thStyle}>cfg</th>
+              <th style={thStyle}></th>
+            </tr>
+          </thead>
           <tbody>
             {renderNewRow()}
             {filtered.map(s => renderRow(s))}

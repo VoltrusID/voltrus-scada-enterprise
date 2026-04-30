@@ -70,3 +70,20 @@ export function useAddSensor() {
     },
   })
 }
+
+export function useReorderSensors() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (order: number[]) => {
+      await fetchOk('/api/data-sources/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.sensors })
+      qc.invalidateQueries({ queryKey: ['screenDataSources'] })
+    },
+  })
+}
