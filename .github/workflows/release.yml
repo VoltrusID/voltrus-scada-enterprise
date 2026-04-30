@@ -104,86 +104,6 @@ jobs:
           name: linux-x86_64
           path: voltrus-lite-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz
 
-  # ── Linux ARM64 ────────────────────────────────────────────
-  build-linux-arm64:
-    needs: check-version
-    if: needs.check-version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: |
-            client/package-lock.json
-            client-lit/package-lock.json
-
-      - name: Build frontend (React)
-        run: |
-          cd client
-          npm ci
-          npm run build
-          mkdir -p ../static
-          cp -r dist/* ../static/
-
-      - name: Build frontend (Lit)
-        run: |
-          cd client-lit
-          npm ci
-          npm run build
-          mkdir -p ../client-lit-dist/dist
-          cp index.html ../client-lit-dist/
-          cp dist/bundle.js ../client-lit-dist/dist/
-          cp -r public/* ../client-lit-dist/ 2>/dev/null || true
-
-      - name: Install ARM64 musl target
-        run: rustup target add aarch64-unknown-linux-musl
-
-      - name: Install cross-compilation tools
-        run: sudo apt-get update && sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
-
-      - name: Set up cross-compilation config
-        run: |
-          mkdir -p .cargo
-          cat > .cargo/config.toml <<'EOF'
-          [target.aarch64-unknown-linux-musl]
-          linker = "aarch64-linux-gnu-gcc"
-          rustflags = ["-C", "target-feature=+crt-static"]
-          EOF
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: musl-arm64-v2
-
-      - name: Build release binary
-        env:
-          CC_aarch64_unknown_linux_musl: aarch64-linux-gnu-gcc
-          CFLAGS_aarch64_unknown_linux_musl: "-D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_FORTIFY_SOURCE=0 -static"
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
-        run: cargo build --release --target aarch64-unknown-linux-musl --bin voltrus-lite-rust-service
-
-      - name: Strip binary
-        run: aarch64-linux-gnu-strip target/aarch64-unknown-linux-musl/release/voltrus-lite-rust-service || true
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          cp target/aarch64-unknown-linux-musl/release/voltrus-lite-rust-service dist/
-          cp config.yaml dist/config.yaml.example
-          cp -r static dist/static
-          mv client-lit-dist dist/client-lit
-          tar -czf voltrus-lite-${{ needs.check-version.outputs.version }}-linux-arm64.tar.gz -C dist .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-arm64
-          path: voltrus-lite-${{ needs.check-version.outputs.version }}-linux-arm64.tar.gz
-
   # ── Windows x86_64 ─────────────────────────────────────────
   build-windows:
     needs: check-version
@@ -244,7 +164,7 @@ jobs:
 
   # ── Release + R2 Upload ────────────────────────────────────
   release:
-    needs: [check-version, build-linux-x86_64, build-linux-arm64, build-windows]
+    needs: [check-version, build-linux-x86_64, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -257,10 +177,6 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: linux-arm64
-
-      - uses: actions/download-artifact@v4
-        with:
           name: windows-x86_64
 
       - name: Create GitHub Release
@@ -270,7 +186,6 @@ jobs:
           name: ${{ env.VERSION }}
           files: |
             voltrus-lite-${{ env.VERSION }}-linux-x86_64.tar.gz
-            voltrus-lite-${{ env.VERSION }}-linux-arm64.tar.gz
             voltrus-lite-${{ env.VERSION }}-windows-x86_64.zip
           generate_release_notes: true
 
@@ -293,7 +208,6 @@ jobs:
           }
 
           upload_file "voltrus-lite-${{ env.VERSION }}-linux-x86_64.tar.gz" "voltrus-lite-${{ env.VERSION }}-linux-x86_64.tar.gz"
-          upload_file "voltrus-lite-${{ env.VERSION }}-linux-arm64.tar.gz" "voltrus-lite-${{ env.VERSION }}-linux-arm64.tar.gz"
           upload_file "voltrus-lite-${{ env.VERSION }}-windows-x86_64.zip" "voltrus-lite-${{ env.VERSION }}-windows-x86_64.zip"
 
           echo "All files uploaded to R2 successfully."
