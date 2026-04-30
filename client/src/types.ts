@@ -134,7 +134,10 @@ export interface ModbusRegister {
 
 // ── SCADA 2D view types ──
 
-export type ScadaEquipmentType = 'solar_panel' | 'inverter' | 'gateway' | 'transformer' | 'battery' | 'meter' | 'circuit_breaker'
+export type ScadaEquipmentType =
+  | 'solar_panel' | 'inverter' | 'gateway' | 'transformer' | 'battery' | 'meter' | 'circuit_breaker'
+  | 'busbar' | 'isolator' | 'earth' | 'fuse' | 'capacitor' | 'generator' | 'motor'
+  | 'surge_arrester' | 'current_transformer' | 'voltage_transformer' | 'contactor' | 'relay' | 'load'
 export type ScadaConnectionType = 'power' | 'data' | 'flow'
 
 export const SCADA_EQUIPMENT_TYPES: { value: ScadaEquipmentType; label: string; defaultWidth: number; defaultHeight: number }[] = [
@@ -145,6 +148,19 @@ export const SCADA_EQUIPMENT_TYPES: { value: ScadaEquipmentType; label: string; 
   { value: 'battery', label: 'Battery', defaultWidth: 70, defaultHeight: 80 },
   { value: 'meter', label: 'Meter', defaultWidth: 60, defaultHeight: 60 },
   { value: 'circuit_breaker', label: 'Circuit Breaker', defaultWidth: 60, defaultHeight: 70 },
+  { value: 'busbar', label: 'Busbar', defaultWidth: 120, defaultHeight: 30 },
+  { value: 'isolator', label: 'Isolator', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'earth', label: 'Earth / Ground', defaultWidth: 40, defaultHeight: 60 },
+  { value: 'fuse', label: 'Fuse', defaultWidth: 60, defaultHeight: 50 },
+  { value: 'capacitor', label: 'Capacitor Bank', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'generator', label: 'Generator', defaultWidth: 70, defaultHeight: 70 },
+  { value: 'motor', label: 'Motor / Load', defaultWidth: 70, defaultHeight: 70 },
+  { value: 'surge_arrester', label: 'Surge Arrester', defaultWidth: 50, defaultHeight: 70 },
+  { value: 'current_transformer', label: 'CT', defaultWidth: 60, defaultHeight: 50 },
+  { value: 'voltage_transformer', label: 'PT / VT', defaultWidth: 60, defaultHeight: 50 },
+  { value: 'contactor', label: 'Contactor', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'relay', label: 'Relay', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'load', label: 'Load / Resistor', defaultWidth: 60, defaultHeight: 60 },
 ]
 
 export interface ScadaEquipmentItem {
