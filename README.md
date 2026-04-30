@@ -98,8 +98,8 @@ Data storage is automatic and tiered — no manual archiving, no database admini
 - **Historical charting** — switch any view to History mode to see time-series data. Select from presets (30m, 1h, 6h, 1d, 7d, 30d) or custom ranges.
 - **Aggregation options** — sampling or averaging for large time ranges to keep charts readable.
 - **Full detail mode** — bypass aggregation to see every single data point.
-- **Detail view per sensor** — click any sensor to see a dedicated detail chart with time range controls.
-- **Multi-sensor overlay** — compare multiple sensors on the same detail chart.
+- **Professional detail chart** — click any sensor to open a battle-tested, interactive time-series chart with pan, zoom, crosshair tooltips, and time range controls. All the analytical depth you need, without leaving the dashboard.
+- **Multi-sensor overlay** — compare multiple sensors on the same professional chart with distinct colors and independent scales.
 
 ### It Has System Monitoring
 
