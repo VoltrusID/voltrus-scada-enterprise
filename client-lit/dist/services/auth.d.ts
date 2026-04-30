@@ -1,7 +1,3 @@
-/**
- * Auth manager using EventTarget for reactive state.
- * No external dependencies. Cookies handled automatically by fetch.
- */
 export interface AuthState {
     authed: boolean;
     role: string;
