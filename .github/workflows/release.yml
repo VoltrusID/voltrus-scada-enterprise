@@ -143,14 +143,18 @@ jobs:
         run: rustup target add aarch64-unknown-linux-musl
 
       - name: Install cross-compilation tools
-        run: sudo apt-get update && sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+        run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools gcc-aarch64-linux-gnu
+          curl -L https://musl.cc/aarch64-linux-musl-cross.tgz -o /tmp/musl-cross.tgz
+          sudo tar -xzf /tmp/musl-cross.tgz -C /opt
+          echo "/opt/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
 
       - name: Set up cross-compilation config
         run: |
           mkdir -p .cargo
           cat > .cargo/config.toml <<'EOF'
           [target.aarch64-unknown-linux-musl]
-          linker = "aarch64-linux-gnu-gcc"
+          linker = "aarch64-linux-musl-gcc"
           rustflags = ["-C", "target-feature=+crt-static"]
           EOF
 
@@ -160,6 +164,9 @@ jobs:
           key: musl-arm64
 
       - name: Build release binary
+        env:
+          CC_aarch64_unknown_linux_musl: aarch64-linux-musl-gcc
+          CFLAGS_aarch64_unknown_linux_musl: "-static"
         run: cargo build --release --target aarch64-unknown-linux-musl --bin voltrus-lite-rust-service
 
       - name: Strip binary
