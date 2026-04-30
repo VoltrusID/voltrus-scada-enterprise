@@ -346,25 +346,29 @@ function AppInner() {
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
       />
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
-        <ScreenTabs
-          mode={mode} activeScreen={activeScreen} screens={screens}
-          effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
-          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system') setMode('live') }}
-          onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
-          onRenameScreen={handleRenameScreen}
-          onDeleteScreen={handleDeleteScreen}
-          onAddScreen={handleAddScreen}
-          isAdmin={isAdmin}
-          onToggleEditMode={handleToggleEditMode}
-          editLabel={editMode ? 'Done' : 'Edit'}
-          onAddSource={() => setShowAddDialog(true)}
-          canAddSource={activeScreen !== 'all'}
-          onAutoArrange={handleAutoArrange}
-        />
+      <div style={{ flex: 1, overflow: selectedSensor != null ? 'hidden' : 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column' }}>
+        {selectedSensor == null && (
+          <>
+            <ScreenTabs
+              mode={mode} activeScreen={activeScreen} screens={screens}
+              effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
+              onTabClick={(id) => { setActiveScreen(id); if (mode === 'system') setMode('live') }}
+              onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
+              onRenameScreen={handleRenameScreen}
+              onDeleteScreen={handleDeleteScreen}
+              onAddScreen={handleAddScreen}
+              isAdmin={isAdmin}
+              onToggleEditMode={handleToggleEditMode}
+              editLabel={editMode ? 'Done' : 'Edit'}
+              onAddSource={() => setShowAddDialog(true)}
+              canAddSource={activeScreen !== 'all'}
+              onAutoArrange={handleAutoArrange}
+            />
 
-        {editMode && (
-          <LayoutBreakpointSelector layoutBreakpoint={layoutBreakpoint} onChange={setLayoutBreakpoint} />
+            {editMode && (
+              <LayoutBreakpointSelector layoutBreakpoint={layoutBreakpoint} onChange={setLayoutBreakpoint} />
+            )}
+          </>
         )}
 
         {selectedSensor != null ? (() => {
