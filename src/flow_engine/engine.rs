@@ -19,30 +19,27 @@ pub struct FlowEngine {
     state: Arc<FlowState>,
     storage: Storage,
     cache: DeviceCache,
-    snapshot_rx: broadcast::Receiver<crate::models::DeviceSnapshot>,
 }
 
 impl FlowEngine {
     pub fn new(
         storage: Storage,
         cache: DeviceCache,
-        snapshot_rx: broadcast::Receiver<crate::models::DeviceSnapshot>,
     ) -> Self {
         Self {
             flows: Arc::new(RwLock::new(HashMap::new())),
             state: Arc::new(FlowState::new()),
             storage,
             cache,
-            snapshot_rx,
         }
     }
 
-    pub async fn spawn(self) {
+    pub async fn spawn(&self) {
         let flows = self.flows.clone();
         let state = self.state.clone();
         let storage = self.storage.clone();
         let cache = self.cache.clone();
-        let mut rx = self.snapshot_rx;
+        let mut rx = self.cache.subscribe();
 
         // Spawn timer flows task
         {
