@@ -1,0 +1,15 @@
+{
+  "name": "voltrus-license-activate",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.1.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
