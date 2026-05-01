@@ -11,7 +11,7 @@ const API_BASE = window.location.origin;
  */
 class DataManager extends EventTarget {
   private _es: EventSource | null = null;
-  private _url = `${API_BASE}/api/stream`;
+  private _url = `${API_BASE}/api/v1/stream`;
 
   connect() {
     if (this._es) return;
@@ -47,7 +47,7 @@ async function doRefresh(): Promise<boolean> {
   }
   refreshing = (async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/auth/refresh`, {
+      const r = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
       })
@@ -81,7 +81,7 @@ async function fetchWithRefresh(
  * Fetch wrapper for REST API calls.
  */
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetchWithRefresh(`${API_BASE}/api${path}`, {
+  const res = await fetchWithRefresh(`${API_BASE}/api/v1${path}`, {
     headers: { 'Content-Type': 'application/json', ...((init?.headers as Record<string, string>) ?? {}) },
     ...init,
   });

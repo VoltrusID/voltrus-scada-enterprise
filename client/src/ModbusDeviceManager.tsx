@@ -31,7 +31,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const tdStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 13, borderBottom: '1px solid var(--border)' };
 
   const handleDup = async (d: ModbusDevice) => {
-    const res = await fetch(`/api/modbus-devices/${d.id}`)
+    const res = await fetch(`/api/v1/modbus-devices/${d.id}`)
     if (res.ok) {
       const data = await res.json()
       setDupDevice({ ...d, registers: data.registers })
@@ -56,7 +56,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   }
 
   const handleEdit = async (d: ModbusDevice) => {
-    const res = await fetch(`/api/modbus-devices/${d.id}`)
+    const res = await fetch(`/api/v1/modbus-devices/${d.id}`)
     if (res.ok) {
       const data = await res.json()
       setEditDevice({ ...d, registers: data.registers })

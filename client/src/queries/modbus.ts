@@ -6,7 +6,7 @@ import { fetchJson, fetchOk } from './fetch'
 export function useModbusDevices(enabled = true) {
   return useQuery({
     queryKey: queryKeys.modbusDevices,
-    queryFn: () => fetchJson<ModbusDevice[]>('/api/modbus-devices'),
+    queryFn: () => fetchJson<ModbusDevice[]>('/api/v1/modbus-devices'),
     enabled,
   })
 }
@@ -15,7 +15,7 @@ export function useModbusDevice(id: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.modbusDevice(id),
     queryFn: async () => {
-      const r = await fetchJson<{ device: ModbusDevice; registers: ModbusRegister[] }>(`/api/modbus-devices/${id}`)
+      const r = await fetchJson<{ device: ModbusDevice; registers: ModbusRegister[] }>(`/api/v1/modbus-devices/${id}`)
       return r
     },
     enabled: enabled && !!id,
@@ -26,7 +26,7 @@ export function useModbusRegisters(deviceId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.modbusRegisters(deviceId),
     queryFn: async () => {
-      const r = await fetchJson<{ device: ModbusDevice; registers: ModbusRegister[] }>(`/api/modbus-devices/${deviceId}`)
+      const r = await fetchJson<{ device: ModbusDevice; registers: ModbusRegister[] }>(`/api/v1/modbus-devices/${deviceId}`)
       return r.registers
     },
     enabled: enabled && !!deviceId,
@@ -36,7 +36,7 @@ export function useModbusRegisters(deviceId: string, enabled = true) {
 export function useModbusPollerStatus(enabled = true) {
   return useQuery({
     queryKey: queryKeys.modbusStatus,
-    queryFn: () => fetchJson<{ device_id: string; running: boolean; status: string }[]>('/api/modbus-devices/status'),
+    queryFn: () => fetchJson<{ device_id: string; running: boolean; status: string }[]>('/api/v1/modbus-devices/status'),
     enabled,
     refetchInterval: 5_000,
     staleTime: 4_000,
@@ -47,7 +47,7 @@ export function useCreateModbusDevice() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (device: Partial<ModbusDevice> & { registers?: Partial<ModbusRegister>[] }) => {
-      const res = await fetchOk('/api/modbus-devices', {
+      const res = await fetchOk('/api/v1/modbus-devices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(device),
@@ -65,7 +65,7 @@ export function useUpdateModbusDevice() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...fields }: { id: string } & Record<string, any>) => {
-      await fetchOk(`/api/modbus-devices/${id}`, {
+      await fetchOk(`/api/v1/modbus-devices/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
@@ -82,7 +82,7 @@ export function useDeleteModbusDevice() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetchOk(`/api/modbus-devices/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/v1/modbus-devices/${id}`, { method: 'DELETE' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.modbusDevices })
@@ -95,7 +95,7 @@ export function useReplaceModbusRegisters() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ deviceId, registers }: { deviceId: string; registers: Partial<ModbusRegister>[] }) => {
-      await fetchOk(`/api/modbus-devices/${deviceId}/registers`, {
+      await fetchOk(`/api/v1/modbus-devices/${deviceId}/registers`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registers }),
@@ -112,7 +112,7 @@ export function useRestartModbusPoller() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetchOk(`/api/modbus-devices/${id}/restart`, { method: 'POST' })
+      await fetchOk(`/api/v1/modbus-devices/${id}/restart`, { method: 'POST' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.modbusStatus })
@@ -138,7 +138,7 @@ export function useScanModbusRegisters() {
       endianness: string; register_area: string
       scan_delay_ms: number
     }) => {
-      const res = await fetchOk('/api/modbus-devices/scan', {
+      const res = await fetchOk('/api/v1/modbus-devices/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),

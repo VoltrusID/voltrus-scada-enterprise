@@ -6,7 +6,7 @@ import { fetchJson, fetchOk } from './fetch'
 export function useBranding() {
   return useQuery({
     queryKey: queryKeys.branding,
-    queryFn: () => fetchJson<BrandingSettings>('/api/settings/branding'),
+    queryFn: () => fetchJson<BrandingSettings>('/api/v1/settings/branding'),
   })
 }
 
@@ -14,7 +14,7 @@ export function useSaveBranding() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (settings: BrandingSettings) => {
-      await fetchOk('/api/settings/branding', {
+      await fetchOk('/api/v1/settings/branding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),

@@ -106,59 +106,59 @@ pub fn create_router(state: AppState) -> Router {
 
     // Public routes (no auth required)
     let public = Router::new()
-        .route("/api/health", get(system::get_health))
-        .route("/api/auth/login", post(auth::login))
-        .route("/api/auth/refresh", post(auth::refresh_token))
-        .route("/api/auth/logout", post(auth::logout))
-        .route("/api/auth/me", get(auth::auth_me))
-        .route("/api/auth/csrf-token", get(auth::get_csrf_token))
-        .route("/api/settings/branding", get(settings::get_branding))
-        .route("/api/settings/alarm-cooldown", get(settings::get_alarm_cooldown));
+        .route("/api/v1/health", get(system::get_health))
+        .route("/api/v1/auth/login", post(auth::login))
+        .route("/api/v1/auth/refresh", post(auth::refresh_token))
+        .route("/api/v1/auth/logout", post(auth::logout))
+        .route("/api/v1/auth/me", get(auth::auth_me))
+        .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
+        .route("/api/v1/settings/branding", get(settings::get_branding))
+        .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown));
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
-        .route("/api/live", get(system::get_live))
-        .route("/api/stream", get(stream::stream))
-        .route("/api/system", get(system::get_system))
-        .route("/api/version", get(system::get_version))
-        .route("/api/auth/change-password", post(auth::change_password))
-        .route("/api/data", get(data::get_data))
-        .route("/api/history", get(data::get_history))
-        .route("/api/export/csv", get(data::export_csv))
-        .route("/api/screens", get(screens::list_screens))
-        .route("/api/screens/{id}/data-sources", get(screens::list_screen_sensors))
-        .route("/api/screens/{id}/layouts", get(layouts::get_layouts))
-        .route("/api/screens/{id}/twin-layouts", get(layouts::get_twin_layouts))
-        .route("/api/screens/{id}/twin-connections", get(layouts::get_twin_connections))
-        .route("/api/screens/{id}/canvas-layouts", get(layouts::get_canvas_layouts))
-        .route("/api/screens/{id}/scada-equipment", get(layouts::get_scada_equipment))
-        .route("/api/screens/{id}/scada-connections", get(layouts::get_scada_connections))
-        .route("/api/data-sources", get(data_sources::list_data_sources))
+        .route("/api/v1/live", get(system::get_live))
+        .route("/api/v1/stream", get(stream::stream))
+        .route("/api/v1/system", get(system::get_system))
+        .route("/api/v1/version", get(system::get_version))
+        .route("/api/v1/auth/change-password", post(auth::change_password))
+        .route("/api/v1/data", get(data::get_data))
+        .route("/api/v1/history", get(data::get_history))
+        .route("/api/v1/export/csv", get(data::export_csv))
+        .route("/api/v1/screens", get(screens::list_screens))
+        .route("/api/v1/screens/{id}/data-sources", get(screens::list_screen_sensors))
+        .route("/api/v1/screens/{id}/layouts", get(layouts::get_layouts))
+        .route("/api/v1/screens/{id}/twin-layouts", get(layouts::get_twin_layouts))
+        .route("/api/v1/screens/{id}/twin-connections", get(layouts::get_twin_connections))
+        .route("/api/v1/screens/{id}/canvas-layouts", get(layouts::get_canvas_layouts))
+        .route("/api/v1/screens/{id}/scada-equipment", get(layouts::get_scada_equipment))
+        .route("/api/v1/screens/{id}/scada-connections", get(layouts::get_scada_connections))
+        .route("/api/v1/data-sources", get(data_sources::list_data_sources))
         .route(
-            "/api/shortcuts",
+            "/api/v1/shortcuts",
             get(shortcuts::get_shortcuts).put(shortcuts::save_shortcuts),
         )
         .route(
-            "/api/nav-shortcuts",
+            "/api/v1/nav-shortcuts",
             get(shortcuts::get_nav_shortcuts).put(shortcuts::save_nav_shortcuts),
         )
         .route(
-            "/api/alarms",
+            "/api/v1/alarms",
             get(alarms::list_alarms).post(alarms::acknowledge_all),
         )
-        .route("/api/alarms/active/count", get(alarms::active_alarm_count))
+        .route("/api/v1/alarms/active/count", get(alarms::active_alarm_count))
         .route(
-            "/api/alarms/{id}/acknowledge",
+            "/api/v1/alarms/{id}/acknowledge",
             post(alarms::acknowledge_alarm),
         )
         .route(
-            "/api/push/subscribe",
+            "/api/v1/push/subscribe",
             post(push::subscribe).delete(push::unsubscribe),
         )
-        .route("/api/modbus-devices", get(modbus_devices::list_modbus_devices))
-        .route("/api/modbus-devices/status", get(modbus_devices::get_poller_statuses))
+        .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
+        .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
         .route(
-            "/api/modbus-devices/{id}",
+            "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
         )
         .layer(middleware::from_fn_with_state(
@@ -168,45 +168,45 @@ pub fn create_router(state: AppState) -> Router {
 
     // Admin-only routes (authenticated + admin role required)
     let admin_protected = Router::new()
-        .route("/api/seed", post(auth::seed))
-        .route("/api/settings/branding", put(settings::update_branding))
-        .route("/api/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
-        .route("/api/screens", post(screens::create_screen))
-        .route("/api/screens/{id}", put(screens::update_screen).delete(screens::delete_screen))
-        .route("/api/screens/{id}/data-sources", post(screens::add_screen_sensor))
+        .route("/api/v1/seed", post(auth::seed))
+        .route("/api/v1/settings/branding", put(settings::update_branding))
+        .route("/api/v1/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
+        .route("/api/v1/screens", post(screens::create_screen))
+        .route("/api/v1/screens/{id}", put(screens::update_screen).delete(screens::delete_screen))
+        .route("/api/v1/screens/{id}/data-sources", post(screens::add_screen_sensor))
         .route(
-            "/api/screens/{id}/data-sources/{data_source_id}",
+            "/api/v1/screens/{id}/data-sources/{data_source_id}",
             put(screens::update_screen_sensor).delete(screens::remove_screen_sensor),
         )
-        .route("/api/screens/{id}/layouts", put(layouts::save_layouts))
-        .route("/api/screens/{id}/twin-layouts", put(layouts::save_twin_layouts))
-        .route("/api/screens/{id}/twin-connections", put(layouts::save_twin_connections))
-        .route("/api/screens/{id}/twin-camera", put(layouts::save_twin_camera))
-        .route("/api/screens/{id}/canvas-layouts", put(layouts::save_canvas_layouts))
-        .route("/api/screens/{id}/scada-equipment", put(layouts::save_scada_equipment))
-        .route("/api/screens/{id}/scada-connections", put(layouts::save_scada_connections))
-        .route("/api/data-sources", post(data_sources::create_data_source))
-        .route("/api/data-sources/reorder", patch(data_sources::reorder_data_sources))
+        .route("/api/v1/screens/{id}/layouts", put(layouts::save_layouts))
+        .route("/api/v1/screens/{id}/twin-layouts", put(layouts::save_twin_layouts))
+        .route("/api/v1/screens/{id}/twin-connections", put(layouts::save_twin_connections))
+        .route("/api/v1/screens/{id}/twin-camera", put(layouts::save_twin_camera))
+        .route("/api/v1/screens/{id}/canvas-layouts", put(layouts::save_canvas_layouts))
+        .route("/api/v1/screens/{id}/scada-equipment", put(layouts::save_scada_equipment))
+        .route("/api/v1/screens/{id}/scada-connections", put(layouts::save_scada_connections))
+        .route("/api/v1/data-sources", post(data_sources::create_data_source))
+        .route("/api/v1/data-sources/reorder", patch(data_sources::reorder_data_sources))
         .route(
-            "/api/data-sources/{id}",
+            "/api/v1/data-sources/{id}",
             put(data_sources::update_data_source).delete(data_sources::delete_data_source),
         )
-        .route("/api/modbus-devices", post(modbus_devices::create_modbus_device))
-        .route("/api/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
+        .route("/api/v1/modbus-devices", post(modbus_devices::create_modbus_device))
+        .route("/api/v1/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
         .route(
-            "/api/modbus-devices/{id}",
+            "/api/v1/modbus-devices/{id}",
             put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),
         )
-        .route("/api/modbus-devices/{id}/registers", put(modbus_devices::replace_registers))
-        .route("/api/modbus-devices/{id}/restart", post(modbus_devices::restart_poller))
-        .route("/api/users", get(auth::list_users).post(auth::create_user_handler))
-        .route("/api/users/{id}", put(auth::update_user_handler).delete(auth::delete_user_handler))
-        .route("/api/flows", get(flows::list_flows).post(flows::create_flow))
-        .route("/api/flows/{id}", get(flows::get_flow).put(flows::update_flow).delete(flows::delete_flow))
-        .route("/api/flows/{id}/start", post(flows::start_flow))
-        .route("/api/flows/{id}/stop", post(flows::stop_flow))
-        .route("/api/flows/{id}/test", post(flows::test_flow))
-        .route("/api/flows/{id}/runs", get(flows::list_flow_runs))
+        .route("/api/v1/modbus-devices/{id}/registers", put(modbus_devices::replace_registers))
+        .route("/api/v1/modbus-devices/{id}/restart", post(modbus_devices::restart_poller))
+        .route("/api/v1/users", get(auth::list_users).post(auth::create_user_handler))
+        .route("/api/v1/users/{id}", put(auth::update_user_handler).delete(auth::delete_user_handler))
+        .route("/api/v1/flows", get(flows::list_flows).post(flows::create_flow))
+        .route("/api/v1/flows/{id}", get(flows::get_flow).put(flows::update_flow).delete(flows::delete_flow))
+        .route("/api/v1/flows/{id}/start", post(flows::start_flow))
+        .route("/api/v1/flows/{id}/stop", post(flows::stop_flow))
+        .route("/api/v1/flows/{id}/test", post(flows::test_flow))
+        .route("/api/v1/flows/{id}/runs", get(flows::list_flow_runs))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -225,7 +225,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
-        .route("/api/{*path}", get(api_not_found))
+        .route("/api/v1/{*path}", get(api_not_found))
         .layer(cors)
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB body limit
         .layer(middleware::from_fn_with_state(
@@ -402,7 +402,7 @@ mod tests {
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/live")
+                    .uri("/api/v1/live")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -418,7 +418,7 @@ mod tests {
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/health")
+                    .uri("/api/v1/health")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -440,7 +440,7 @@ mod tests {
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/auth/me")
+                    .uri("/api/v1/auth/me")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -463,7 +463,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/seed")
+                    .uri("/api/v1/seed")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -495,7 +495,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/health")
+                    .uri("/api/v1/health")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -517,7 +517,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/auth/login")
+                    .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
                     .body(Body::from(serde_json::to_string(&login_body).unwrap()))
                     .unwrap(),
@@ -561,7 +561,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/auth/login")
+                    .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
                     .body(Body::from(serde_json::to_string(&login_body).unwrap()))
                     .unwrap(),
@@ -614,7 +614,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/auth/login")
+                    .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
                     .body(Body::from(serde_json::to_string(&login_body).unwrap()))
                     .unwrap(),
@@ -631,7 +631,7 @@ mod tests {
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/settings/branding")
+                    .uri("/api/v1/settings/branding")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -654,7 +654,7 @@ mod tests {
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/system")
+                    .uri("/api/v1/system")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -698,7 +698,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/auth/login")
+                    .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
                     .body(Body::from(serde_json::to_string(&login_body).unwrap()))
                     .unwrap(),
@@ -713,7 +713,7 @@ mod tests {
         let resp = app
             .oneshot(
                 Request::builder()
-                    .uri("/api/system")
+                    .uri("/api/v1/system")
                     .header("cookie", format!("voltrus_token={}", cookie_val))
                     .body(Body::empty())
                     .unwrap(),
@@ -758,7 +758,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/auth/login")
+                    .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
                     .body(Body::from(serde_json::to_string(&login_body).unwrap()))
                     .unwrap(),
@@ -787,7 +787,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/flows")
+                    .uri("/api/v1/flows")
                     .header("content-type", "application/json")
                     .header("cookie", format!("voltrus_token={}", cookie_val))
                     .body(Body::from(serde_json::to_string(&flow).unwrap()))
@@ -803,7 +803,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/flows/test_flow")
+                    .uri("/api/v1/flows/test_flow")
                     .header("cookie", format!("voltrus_token={}", cookie_val))
                     .body(Body::empty())
                     .unwrap(),
@@ -827,7 +827,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/api/flows/test_flow/test")
+                    .uri("/api/v1/flows/test_flow/test")
                     .header("content-type", "application/json")
                     .header("cookie", format!("voltrus_token={}", cookie_val))
                     .body(Body::from(serde_json::to_string(&test_payload).unwrap()))
@@ -850,7 +850,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri("/api/flows/test_flow")
+                    .uri("/api/v1/flows/test_flow")
                     .header("cookie", format!("voltrus_token={}", cookie_val))
                     .body(Body::empty())
                     .unwrap(),

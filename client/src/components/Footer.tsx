@@ -5,7 +5,7 @@ export function Footer() {
   const sseConnected = useSseConnected()
   const [version, setVersion] = useState('')
   useEffect(() => {
-    fetch('/api/version').then(r => r.json()).then(d => setVersion(d.version)).catch(() => {})
+    fetch('/api/v1/version').then(r => r.json()).then(d => setVersion(d.version)).catch(() => {})
   }, [])
 
   return (

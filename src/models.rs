@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub oidc_role_claim: String,
     #[serde(default)]
     pub oidc_admin_role: String,
+    #[serde(default)]
+    pub db_encryption_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

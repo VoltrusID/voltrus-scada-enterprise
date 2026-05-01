@@ -64,7 +64,7 @@ export function useSSEData(
     const abort = new AbortController()
     abortRef.current = abort
 
-    const evtSource = new EventSource('/api/stream')
+    const evtSource = new EventSource('/api/v1/stream')
     evtSourceRef.current = evtSource
     lastMessageAtRef.current = Date.now()
 

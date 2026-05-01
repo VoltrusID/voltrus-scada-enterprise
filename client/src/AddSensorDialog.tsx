@@ -13,7 +13,7 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
   const [srcConfig, setSrcConfig] = useState<Record<string, any>>({});
 
   const addExisting = async (sensorId: number) => {
-    await fetch(`/api/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: sensorId }) });
+    await fetch(`/api/v1/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: sensorId }) });
     onDone();
   };
 
@@ -23,9 +23,9 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
       payload.device_id = srcConfig.modbus_device_id;
       payload.key = srcConfig.modbus_register_name || payload.key;
     }
-    const res = await fetch('/api/data-sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = await fetch('/api/v1/data-sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const { id } = await res.json();
-    await fetch(`/api/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: id }) });
+    await fetch(`/api/v1/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: id }) });
     onDone();
   };
 

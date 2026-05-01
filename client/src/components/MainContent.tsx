@@ -147,7 +147,7 @@ export function MainContent({
         }}
         onSaveCamera={(camera: any) => {
           const actualId = activeScreen === 'all' ? '__overview' : activeScreen
-          fetchOk(`/api/screens/${actualId}/twin-camera`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(camera) })
+          fetchOk(`/api/v1/screens/${actualId}/twin-camera`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(camera) })
         }}
       />
     </Suspense>

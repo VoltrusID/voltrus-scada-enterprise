@@ -6,7 +6,7 @@ export function useTwinLayouts(screenId: string, enabled: boolean) {
   const actualId = screenId === 'all' ? '__overview' : screenId
   return useQuery({
     queryKey: queryKeys.twinLayouts(screenId),
-    queryFn: () => fetchJson<{ items: any[]; camera: { x: number; y: number; z: number } }>(`/api/screens/${actualId}/twin-layouts`),
+    queryFn: () => fetchJson<{ items: any[]; camera: { x: number; y: number; z: number } }>(`/api/v1/screens/${actualId}/twin-layouts`),
     enabled,
   })
 }
@@ -15,7 +15,7 @@ export function useTwinConnections(screenId: string, enabled: boolean) {
   const actualId = screenId === 'all' ? '__overview' : screenId
   return useQuery({
     queryKey: queryKeys.twinConnections(screenId),
-    queryFn: () => fetchJson<{ from_id: string; to_id: string }[]>(`/api/screens/${actualId}/twin-connections`),
+    queryFn: () => fetchJson<{ from_id: string; to_id: string }[]>(`/api/v1/screens/${actualId}/twin-connections`),
     enabled,
   })
 }
@@ -25,7 +25,7 @@ export function useSaveTwinLayout() {
   return useMutation({
     mutationFn: async ({ screenId, items }: { screenId: string; items: any[] }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetchOk(`/api/screens/${actualId}/twin-layouts`, {
+      await fetchOk(`/api/v1/screens/${actualId}/twin-layouts`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(items),
@@ -42,7 +42,7 @@ export function useSaveTwinConnections() {
   return useMutation({
     mutationFn: async ({ screenId, connections }: { screenId: string; connections: { from_id: string; to_id: string }[] }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetchOk(`/api/screens/${actualId}/twin-connections`, {
+      await fetchOk(`/api/v1/screens/${actualId}/twin-connections`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(connections),

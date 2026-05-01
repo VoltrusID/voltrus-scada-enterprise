@@ -7,7 +7,7 @@ import { fetchJson, fetchOk } from './fetch'
 export function useSensors(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.sensors,
-    queryFn: () => fetchJson<SensorConfig[]>('/api/data-sources'),
+    queryFn: () => fetchJson<SensorConfig[]>('/api/v1/data-sources'),
     enabled,
   })
 }
@@ -16,7 +16,7 @@ export function useScreenSensors(screenId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.screenSensors(screenId),
     queryFn: () => fetchJson<SensorConfig[]>(
-      screenId === 'all' ? '/api/data-sources' : `/api/screens/${screenId}/data-sources`
+      screenId === 'all' ? '/api/v1/data-sources' : `/api/v1/screens/${screenId}/data-sources`
     ),
     enabled,
     placeholderData: keepPreviousData,
@@ -27,7 +27,7 @@ export function useUpdateSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (s: SensorConfig) => {
-      await fetchOk(`/api/data-sources/${s.id}`, {
+      await fetchOk(`/api/v1/data-sources/${s.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(s),
@@ -45,7 +45,7 @@ export function useDeleteSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      await fetchOk(`/api/data-sources/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/v1/data-sources/${id}`, { method: 'DELETE' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.sensors })
@@ -58,7 +58,7 @@ export function useAddSensor() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (form: Partial<SensorConfig>) => {
-      const res = await fetchOk('/api/data-sources', {
+      const res = await fetchOk('/api/v1/data-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -75,7 +75,7 @@ export function useReorderSensors() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (order: number[]) => {
-      await fetchOk('/api/data-sources/reorder', {
+      await fetchOk('/api/v1/data-sources/reorder', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order }),

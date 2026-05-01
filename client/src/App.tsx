@@ -195,17 +195,17 @@ function AppInner() {
 
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthLoading(false) }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthLoading(false) })
+    fetch('/api/v1/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthLoading(false) }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthLoading(false) })
   }, [])
 
   const handleLogin = async (username: string, password: string) => {
     setLoginError('')
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
+    const r = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
     if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user'); setMustChangePassword(!!d.must_change_password) }
     else { const d = await r.json(); setLoginError(d.error || 'Login failed') }
   }
 
-  const handleLogout = async () => { await fetch('/api/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user') }
+  const handleLogout = async () => { await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user') }
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -329,7 +329,7 @@ function AppInner() {
 
   if (mustChangePassword) {
     const handleChangePassword = async (newPassword: string) => {
-      const r = await fetch('/api/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
+      const r = await fetch('/api/v1/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
       if (r.ok) setMustChangePassword(false)
       else { const d = await r.json(); alert(d.error || 'Failed to change password') }
     }

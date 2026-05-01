@@ -63,7 +63,7 @@ export function useDashboardData(
   useEffect(() => {
     if (!authed || sensors.length === 0 || initialLoadDone.current) return
     initialLoadDone.current = true
-    fetch('/api/history?range=30m').then(r => r.json()).then(result => {
+    fetch('/api/v1/history?range=30m').then(r => r.json()).then(result => {
       if (!result.data) return
       const expanded = expandCompactData(result.data)
       const updates: { id: string; points: DataPoint[]; value: SensorData }[] = []
@@ -95,7 +95,7 @@ export function useDashboardData(
     const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`
     const detailParam = historyDetail === 'full' ? '&detail=full' : ''
     const aggParam = historyDetail === 'auto' ? `&agg=${historyAutoAgg}` : ''
-    fetch(`/api/history?range=${historyRange}${dp}${detailParam}${aggParam}`).then(r => r.json()).then(result => {
+    fetch(`/api/v1/history?range=${historyRange}${dp}${detailParam}${aggParam}`).then(r => r.json()).then(result => {
       if (!result.data) return
       const expanded = expandCompactData(result.data)
       const remapped: Record<string, DataPoint[]> = {}
