@@ -31,6 +31,7 @@ function AppInner() {
   const [authRole, setAuthRole] = useState<string>('user')
   const [authLoading, setAuthLoading] = useState(true)
   const [loginError, setLoginError] = useState('')
+  const [mustChangePassword, setMustChangePassword] = useState(false)
 
   // ── UI state ─────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false)
@@ -199,7 +200,7 @@ function AppInner() {
   const handleLogin = async (username: string, password: string) => {
     setLoginError('')
     const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user') }
+    if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user'); setMustChangePassword(!!d.must_change_password) }
     else { const d = await r.json(); setLoginError(d.error || 'Login failed') }
   }
 
@@ -324,6 +325,25 @@ function AppInner() {
   // ── Render gates ─────────────────────────────────────────────────
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
+
+  if (mustChangePassword) {
+    const handleChangePassword = async (newPassword: string) => {
+      const r = await fetch('/api/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
+      if (r.ok) setMustChangePassword(false)
+      else { const d = await r.json(); alert(d.error || 'Failed to change password') }
+    }
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'Inter,sans-serif' }}>
+        <form onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const pw = fd.get('pw') as string; const pw2 = fd.get('pw2') as string; if (pw !== pw2) { alert('Passwords do not match'); return } if (pw.length < 8) { alert('Password must be at least 8 characters'); return } handleChangePassword(pw) }} style={{ background: 'var(--card)', borderRadius: 12, padding: 32, width: 360, display: 'flex', flexDirection: 'column', gap: 16, border: '1px solid var(--border)' }}>
+          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--fg)' }}>Change Your Password</h2>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>You must set a new password before continuing.</p>
+          <input name="pw" type="password" placeholder="New password (min 8 chars)" required minLength={8} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 14 }} />
+          <input name="pw2" type="password" placeholder="Confirm new password" required style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 14 }} />
+          <button type="submit" style={{ padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Change Password</button>
+        </form>
+      </div>
+    )
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

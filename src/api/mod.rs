@@ -46,6 +46,8 @@ pub struct AppState {
     pub jwks_manager: JwksManager,
     pub retention_config: crate::models::RetentionConfig,
     pub flow_engine: Option<Arc<crate::flow_engine::engine::FlowEngine>>,
+    pub login_rate_limiter: crate::security::LoginRateLimiter,
+    pub audit_logger: crate::security::AuditLogger,
 }
 
 #[derive(Debug)]
@@ -68,6 +70,7 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
 }
 
 pub fn create_router(state: AppState) -> Router {
+    // Build CORS layer only for API routes — static assets should not have CORS headers
     let cors = match &state.cors_origin {
         Some(origin) => {
             let origins: Vec<HeaderValue> = origin
@@ -77,36 +80,35 @@ pub fn create_router(state: AppState) -> Router {
             CorsLayer::new()
                 .allow_origin(origins)
                 .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
-                .allow_headers([CONTENT_TYPE])
+                .allow_headers([CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION])
                 .allow_credentials(true)
         }
-        None => CorsLayer::new()
-            .allow_origin([
-                "http://localhost:5173".parse().unwrap(),
-                "http://localhost:5174".parse().unwrap(),
-                "http://127.0.0.1:5173".parse().unwrap(),
-                "http://127.0.0.1:5174".parse().unwrap(),
-            ])
-            .allow_methods([
-                Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE,
-            ])
-            .allow_headers([
-                CONTENT_TYPE,
-                header::ACCEPT,
-                header::AUTHORIZATION,
-                header::COOKIE,
-                header::SET_COOKIE,
-            ])
-            .allow_credentials(true),
+        None => {
+            // In production, cors_origin MUST be configured. This default only allows
+            // local development origins and does NOT allow credentials.
+            CorsLayer::new()
+                .allow_origin([
+                    "http://localhost:5173".parse().unwrap(),
+                    "http://localhost:5174".parse().unwrap(),
+                    "http://127.0.0.1:5173".parse().unwrap(),
+                    "http://127.0.0.1:5174".parse().unwrap(),
+                ])
+                .allow_methods([
+                    Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE,
+                ])
+                .allow_headers([CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION])
+                // NOTE: allow_credentials is intentionally FALSE when no explicit origin is set
+                // to prevent credential leakage to arbitrary origins.
+        }
     };
 
     // Public routes (no auth required)
     let public = Router::new()
         .route("/api/health", get(system::get_health))
-        .route("/api/version", get(system::get_version))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
+        .route("/api/auth/csrf-token", get(auth::get_csrf_token))
         .route("/api/settings/branding", get(settings::get_branding))
         .route("/api/settings/alarm-cooldown", get(settings::get_alarm_cooldown));
 
@@ -115,6 +117,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/live", get(system::get_live))
         .route("/api/stream", get(stream::stream))
         .route("/api/system", get(system::get_system))
+        .route("/api/version", get(system::get_version))
         .route("/api/auth/change-password", post(auth::change_password))
         .route("/api/data", get(data::get_data))
         .route("/api/history", get(data::get_history))
@@ -207,10 +210,17 @@ pub fn create_router(state: AppState) -> Router {
             cookie_auth_middleware,
         ));
 
-    Router::new()
+    // API router with CORS, rate limiting, and security headers
+    let api_router = Router::new()
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
+        .layer(cors)
+        .layer(middleware::from_fn(crate::security::security_headers_middleware))
+        .layer(middleware::from_fn(crate::security::strip_forwarded_host_middleware));
+
+    // Static file serving WITHOUT CORS headers
+    let static_router = Router::new()
         .nest_service(
             "/lit",
             ServeDir::new("client-lit").fallback(ServeFile::new("client-lit/index.html")),
@@ -218,7 +228,14 @@ pub fn create_router(state: AppState) -> Router {
         .fallback_service(
             ServeDir::new("static").fallback(ServeFile::new("static/index.html")),
         )
-        .layer(cors)
+        .layer(middleware::from_fn(crate::security::block_source_maps_middleware))
+        .layer(middleware::from_fn(crate::security::limit_range_requests_middleware))
+        .layer(middleware::from_fn(crate::security::security_headers_middleware))
+        .layer(middleware::from_fn(crate::security::strip_forwarded_host_middleware));
+
+    Router::new()
+        .merge(api_router)
+        .merge(static_router)
         .with_state(state)
 }
 
@@ -334,6 +351,8 @@ mod tests {
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
         };
         create_router(state)
     }
@@ -425,7 +444,7 @@ mod tests {
 
     async fn seed_and_get_cookie(app: &Router) -> String {
         // Seed directly via storage (bypass HTTP)
-        let state = app
+        let _state = app
             .clone()
             .oneshot(
                 Request::builder()
@@ -441,7 +460,8 @@ mod tests {
         // after obtaining a token through direct storage seeding
         // Simplified: use a separate test helper
         let storage = Storage::new_in_memory().unwrap();
-        storage.seed_database().await.unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         // Login
         let login_body = serde_json::json!({"username": "admin", "password": "admin"});
@@ -477,7 +497,8 @@ mod tests {
     #[tokio::test]
     async fn test_login_with_seeded_user() {
         let storage = Storage::new_in_memory().unwrap();
-        storage.seed_database().await.unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
         let poller_manager = PollerManager::new(cache.clone());
@@ -493,10 +514,12 @@ mod tests {
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
         };
         let app = create_router(state);
 
-        // Login with admin/admin (default seeded credentials)
+        // Login with admin/admin
         let login_body = serde_json::json!({"username": "admin", "password": "admin"});
         let resp = app
             .oneshot(
@@ -532,7 +555,8 @@ mod tests {
     #[tokio::test]
     async fn test_login_invalid_credentials() {
         let storage = Storage::new_in_memory().unwrap();
-        storage.seed_database().await.unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
         let poller_manager = PollerManager::new(cache.clone());
@@ -548,6 +572,8 @@ mod tests {
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
         };
         let app = create_router(state);
 
@@ -609,7 +635,8 @@ mod tests {
     #[tokio::test]
     async fn test_full_auth_flow() {
         let storage = Storage::new_in_memory().unwrap();
-        storage.seed_database().await.unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
         let poller_manager = PollerManager::new(cache.clone());
@@ -625,6 +652,8 @@ mod tests {
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
         };
         let app = create_router(state);
 
@@ -695,6 +724,8 @@ mod tests {
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
         };
         let app = create_router(state);
 

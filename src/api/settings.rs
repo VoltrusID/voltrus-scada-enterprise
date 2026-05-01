@@ -1,9 +1,9 @@
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
-use super::{AppState, AppError};
+use super::{AppState, AppError, AuthUser};
 
 /// GET /api/settings/branding — get branding settings with defaults
 pub async fn get_branding(
@@ -37,20 +37,31 @@ pub async fn get_branding(
 /// PUT /api/settings/branding — update branding settings
 pub async fn update_branding(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     if let Some(title) = body.get("title").and_then(|v| v.as_str()) {
-        state.storage.upsert_setting("brand_title", title).await?;
+        let sanitized = crate::security::sanitize_brand_input(title);
+        state.storage.upsert_setting("brand_title", &sanitized).await?;
     }
     if let Some(subtitle) = body.get("subtitle").and_then(|v| v.as_str()) {
+        let sanitized = crate::security::sanitize_brand_input(subtitle);
         state
             .storage
-            .upsert_setting("brand_subtitle", subtitle)
+            .upsert_setting("brand_subtitle", &sanitized)
             .await?;
     }
     if let Some(logo) = body.get("logo").and_then(|v| v.as_str()) {
-        state.storage.upsert_setting("brand_logo", logo).await?;
+        let sanitized = crate::security::sanitize_logo_input(logo);
+        state.storage.upsert_setting("brand_logo", &sanitized).await?;
     }
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_branding".to_string(),
+        username: auth.username.clone(),
+        resource: "settings:branding".to_string(),
+        details: None,
+    });
 
     Ok(Json(json!({"ok": true})))
 }
@@ -71,6 +82,7 @@ pub async fn get_alarm_cooldown(
 /// PUT /api/settings/alarm-cooldown — set alarm cooldown in seconds
 pub async fn update_alarm_cooldown(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let secs = body
@@ -79,5 +91,13 @@ pub async fn update_alarm_cooldown(
         .unwrap_or(300);
     let clamped = secs.clamp(0, 86400);
     state.storage.upsert_setting("alarm_cooldown_secs", &clamped.to_string()).await?;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_alarm_cooldown".to_string(),
+        username: auth.username.clone(),
+        resource: "settings:alarm-cooldown".to_string(),
+        details: Some(format!("secs={}", clamped)),
+    });
+
     Ok(Json(json!({"ok": true, "secs": clamped})))
 }

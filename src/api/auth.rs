@@ -97,16 +97,35 @@ pub async fn login(
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    // Rate limiting by username
+    let rate_key = format!("login:{}", body.username);
+    if !state.login_rate_limiter.is_allowed(&rate_key) {
+        return Ok((
+            jar,
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({"error": "Too many login attempts. Please try again later."})),
+            ),
+        )
+            .into_response());
+    }
+
     let user = state.storage.get_user_by_username(&body.username).await?;
     let user = match user {
         Some(u) => u,
         None => {
+            state.login_rate_limiter.record_attempt(&rate_key);
             return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
         }
     };
     if !verify_password(&body.password, &user.password_hash) {
+        state.login_rate_limiter.record_attempt(&rate_key);
         return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
     }
+
+    // Successful login — clear rate limit attempts for this user
+    state.login_rate_limiter.cleanup();
+
     let secret = &state.auth_secret;
     let token = create_token(&body.username, &user.role, secret);
     let cookie = axum_extra::extract::cookie::Cookie::build((
@@ -145,6 +164,23 @@ pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl Into
     }
 }
 
+pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+    let token = jar
+        .get("voltrus_token")
+        .map(|c| c.value())
+        .unwrap_or("");
+    if token.is_empty() {
+        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response();
+    }
+    match verify_token(token, &state.auth_secret) {
+        Some(_claims) => {
+            let csrf = crate::security::generate_csrf_token();
+            Json(json!({"csrf_token": csrf})).into_response()
+        }
+        None => (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response(),
+    }
+}
+
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     state.storage.seed_database().await?;
     Ok(Json(json!({"ok": true})))
@@ -174,6 +210,7 @@ pub async fn list_users(State(state): State<AppState>) -> Result<impl IntoRespon
 
 pub async fn create_user_handler(
     State(state): State<AppState>,
+    Extension(auth): Extension<super::AuthUser>,
     Json(body): Json<CreateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if body.username.is_empty() || body.password.is_empty() {
@@ -187,6 +224,14 @@ pub async fn create_user_handler(
     }
     let password_hash = hash_password(&body.password);
     let id = state.storage.create_user(&body.username, &password_hash, "", &body.role).await?;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "create_user".to_string(),
+        username: auth.username.clone(),
+        resource: format!("user:{}", body.username),
+        details: Some(format!("role={}", body.role)),
+    });
+
     Ok(Json(json!({"ok": true, "id": id})).into_response())
 }
 
@@ -198,11 +243,13 @@ pub async fn update_user_handler(
 ) -> Result<impl IntoResponse, AppError> {
     let user = state.storage.get_user_by_id(id).await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+    let mut details = Vec::new();
     if let Some(role) = body.role {
         if role != "admin" && role != "user" {
             return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role must be 'admin' or 'user'"}))).into_response());
         }
         state.storage.update_user_role(id, &role).await?;
+        details.push(format!("role={}", role));
     }
     if let Some(password) = body.password {
         if password.is_empty() {
@@ -210,7 +257,16 @@ pub async fn update_user_handler(
         }
         let hash = hash_password(&password);
         state.storage.update_user_password(id, &hash).await?;
+        details.push("password_changed".to_string());
     }
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_user".to_string(),
+        username: auth.username.clone(),
+        resource: format!("user:{}", user.username),
+        details: Some(details.join(",")),
+    });
+
     Ok(Json(json!({"ok": true})).into_response())
 }
 
@@ -225,6 +281,14 @@ pub async fn delete_user_handler(
         return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "cannot delete yourself"}))).into_response());
     }
     state.storage.delete_user(id).await?;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "delete_user".to_string(),
+        username: auth.username.clone(),
+        resource: format!("user:{}", user.username),
+        details: None,
+    });
+
     Ok(Json(json!({"ok": true})).into_response())
 }
 

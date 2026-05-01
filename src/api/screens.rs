@@ -1,11 +1,11 @@
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
 use crate::models::*;
-use super::{AppError, AppState};
+use super::{AppError, AppState, AuthUser};
 
 /// GET /api/screens — list all screens (devices)
 pub async fn list_screens(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
@@ -16,6 +16,7 @@ pub async fn list_screens(State(state): State<AppState>) -> Result<impl IntoResp
 /// POST /api/screens — create a new screen
 pub async fn create_screen(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let name = body["name"]
@@ -51,11 +52,18 @@ pub async fn create_screen(
         .await?;
 
     let device = Device {
-        id,
-        name,
+        id: id.clone(),
+        name: name.clone(),
         device_type: "screen".to_string(),
         sort_order: max_sort + 1,
     };
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "create_screen".to_string(),
+        username: auth.username.clone(),
+        resource: format!("screen:{}", id),
+        details: Some(format!("name={}", name)),
+    });
 
     Ok((StatusCode::CREATED, Json(device)))
 }
@@ -63,6 +71,7 @@ pub async fn create_screen(
 /// PUT /api/screens/{id} — update a screen
 pub async fn update_screen(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -74,12 +83,20 @@ pub async fn update_screen(
         .update_device(&id, name, sort_order)
         .await?;
 
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_screen".to_string(),
+        username: auth.username.clone(),
+        resource: format!("screen:{}", id),
+        details: None,
+    });
+
     Ok(Json(json!({"ok": true})))
 }
 
 /// DELETE /api/screens/{id} — delete a screen and its data source associations
 pub async fn delete_screen(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     // Delete screen_data_sources first
@@ -88,6 +105,13 @@ pub async fn delete_screen(
         .delete_screen_data_sources_by_screen(&id)
         .await?;
     state.storage.delete_device(&id).await?;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "delete_screen".to_string(),
+        username: auth.username.clone(),
+        resource: format!("screen:{}", id),
+        details: None,
+    });
 
     Ok(Json(json!({"ok": true})))
 }
