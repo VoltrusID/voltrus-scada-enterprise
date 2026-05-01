@@ -11,6 +11,7 @@ mod retention;
 mod security;
 mod storage;
 mod timeutil;
+mod license;
 
 use api::AppState;
 use cache::DeviceCache;
