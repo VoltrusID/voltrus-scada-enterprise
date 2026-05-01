@@ -2,6 +2,7 @@
 name = "voltrus-lite-rust-service"
 version = "0.17.4"
 edition = "2024"
+license = "MIT"
 
 [[bin]]
 name = "voltrus-lite-rust-service"
