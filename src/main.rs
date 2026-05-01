@@ -66,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
                     fingerprint_mac: fingerprint.mac,
                     fingerprint_machine_id: fingerprint.machine_id,
                     activated_at: activation.issued_at,
-                    expires_at: Some(activation.expires_at),
+                    expires_at: activation.expires_at,
                 };
                 storage.store_license_activation(&row).await?;
                 println!("License activated successfully: {}", activation.license_key);

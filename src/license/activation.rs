@@ -18,7 +18,7 @@ pub struct LicenseActivation {
     pub license_key: String,
     pub fingerprint_hash: String,
     pub issued_at: String,
-    pub expires_at: String,
+    pub expires_at: Option<String>,
     pub signature: String,
 }
 
@@ -28,7 +28,7 @@ struct ActivationPayload {
     license_key: String,
     fingerprint_hash: String,
     issued_at: String,
-    expires_at: String,
+    expires_at: Option<String>,
 }
 
 pub fn verify_activation_signature(data: &[u8]) -> anyhow::Result<LicenseActivation> {
@@ -57,12 +57,15 @@ pub fn verify_activation_signature(data: &[u8]) -> anyhow::Result<LicenseActivat
     verifying_key.verify(&payload_json, &signature)
         .map_err(|_| anyhow::anyhow!("Invalid activation signature"))?;
 
-    let expires = time::OffsetDateTime::parse(
-        &activation.expires_at,
-        &time::format_description::well_known::Rfc3339
-    ).map_err(|e| anyhow::anyhow!("Invalid expiry date: {}", e))?;
-    if time::OffsetDateTime::now_utc() > expires {
-        anyhow::bail!("License expired on {}", activation.expires_at);
+    // Only check expiry for non-perpetual licenses (expires_at is Some)
+    if let Some(ref expires_at) = activation.expires_at {
+        let expires = time::OffsetDateTime::parse(
+            expires_at,
+            &time::format_description::well_known::Rfc3339
+        ).map_err(|e| anyhow::anyhow!("Invalid expiry date: {}", e))?;
+        if time::OffsetDateTime::now_utc() > expires {
+            anyhow::bail!("License expired on {}", expires_at);
+        }
     }
 
     Ok(activation)

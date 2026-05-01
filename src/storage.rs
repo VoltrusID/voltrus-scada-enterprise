@@ -2689,7 +2689,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT license_key, fingerprint_hash, activation_blob, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activated_at, expires_at FROM license_activation LIMIT 1")
+                .prepare("SELECT license_key, fingerprint_hash, activation_blob, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activated_at, expires_at FROM license_activation ORDER BY id DESC LIMIT 1")
                 .context("Prepare failed")?;
             let result = stmt.query_row([], |row| {
                 Ok(crate::models::LicenseActivationRow {
@@ -2714,8 +2714,10 @@ impl Storage {
         let row = row.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
+            // Clear any existing activation first — only one license can be active at a time
+            let _ = conn.execute("DELETE FROM license_activation", []);
             conn.execute(
-                "INSERT OR REPLACE INTO license_activation (license_key, fingerprint_hash, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activation_blob, activated_at, expires_at)
+                "INSERT INTO license_activation (license_key, fingerprint_hash, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activation_blob, activated_at, expires_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 rusqlite::params![
                     row.license_key,

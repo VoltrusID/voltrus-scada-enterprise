@@ -416,8 +416,10 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
-            license_status: crate::license::LicenseStatus::Unactivated {
-                message: "test".to_string(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
             },
         };
         create_router(state)
@@ -587,8 +589,10 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
-            license_status: crate::license::LicenseStatus::Unactivated {
-                message: "test".to_string(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
             },
         };
         let app = create_router(state);
@@ -645,8 +649,10 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
-            license_status: crate::license::LicenseStatus::Unactivated {
-                message: "test".to_string(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
             },
         };
         let app = create_router(state);
@@ -730,8 +736,10 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
-            license_status: crate::license::LicenseStatus::Unactivated {
-                message: "test".to_string(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
             },
         };
         let app = create_router(state);
@@ -793,8 +801,10 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
-            license_status: crate::license::LicenseStatus::Unactivated {
-                message: "test".to_string(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
             },
         };
         let app = create_router(state);
