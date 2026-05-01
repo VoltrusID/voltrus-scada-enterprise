@@ -800,3 +800,17 @@ mod tests {
         assert_eq!(back, dp);
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct LicenseActivationRow {
+    pub license_key: String,
+    pub fingerprint_hash: String,
+    pub activation_blob: Vec<u8>,
+    pub fingerprint_hostname: String,
+    pub fingerprint_cpu: String,
+    pub fingerprint_disk_serial: String,
+    pub fingerprint_mac: String,
+    pub fingerprint_machine_id: String,
+    pub activated_at: String,
+    pub expires_at: Option<String>,
+}
