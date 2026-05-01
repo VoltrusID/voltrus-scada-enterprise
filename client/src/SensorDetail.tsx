@@ -10,7 +10,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
   historyDetail?: 'auto' | 'full'; onDetailChange?: (d: 'auto' | 'full') => void;
   historyAutoAgg?: string;
   shortcuts: Record<number, string>;
-  mode: 'live' | 'history'; onModeChange: (m: 'live' | 'history') => void;
+  mode: 'live' | 'history' | 'flows'; onModeChange: (m: 'live' | 'history' | 'flows') => void;
   allSensors?: SensorConfig[];
 }) {
   const data = useDetailData(sensor.id, mode)

@@ -168,7 +168,7 @@ export function useChartData(sensorId: number | string, mode: 'live' | 'history'
   })
 }
 
-export function useDetailData(sensorId: number | string, mode: 'live' | 'history'): DataPoint[] {
+export function useDetailData(sensorId: number | string, mode: 'live' | 'history' | 'flows'): DataPoint[] {
   const k = String(sensorId)
   return useDashboardSelector(s => {
     if (mode === 'history' && s.historyMap && s.historyMap[k]) {

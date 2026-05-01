@@ -2,13 +2,14 @@ import { btnStyle, tabStyle, displayShortcut } from '../styles'
 import type { Screen } from '../types'
 
 interface Props {
-  mode: 'live' | 'history' | 'system'
+  mode: 'live' | 'history' | 'system' | 'flows'
   activeScreen: string
   screens: Screen[]
   effectiveNavShortcuts: Record<string, string>
   editMode: boolean
   onTabClick: (screenId: string) => void
   onSystemClick: () => void
+  onFlowsClick: () => void
   onRenameScreen: (id: string, name: string) => void
   onDeleteScreen: (id: string, name: string) => void
   onAddScreen: () => void
@@ -22,7 +23,7 @@ interface Props {
 
 export function ScreenTabs({
   mode, activeScreen, screens, effectiveNavShortcuts,
-  editMode, onTabClick, onSystemClick,
+  editMode, onTabClick, onSystemClick, onFlowsClick,
   onRenameScreen, onDeleteScreen, onAddScreen,
   isAdmin, onToggleEditMode, editLabel, onAddSource, canAddSource,
   onAutoArrange,
@@ -42,6 +43,11 @@ export function ScreenTabs({
         </div>
       ))}
       {editMode && <button onClick={onAddScreen} style={{ ...tabStyle(false), color: 'var(--green)' }}>+</button>}
+      <button style={{
+        ...tabStyle(mode === 'flows'),
+        color: mode === 'flows' ? '#f59e0b' : 'var(--muted)',
+        borderBottom: mode === 'flows' ? '2px solid #f59e0b' : '2px solid transparent',
+      }} onClick={onFlowsClick}>Flows</button>
       <button style={{
         ...tabStyle(mode === 'system'),
         color: mode === 'system' ? '#a78bfa' : 'var(--muted)',

@@ -14,7 +14,7 @@ interface Props {
   showShortcutsPanel: boolean
   onToggleShortcutsPanel: () => void
   shortcutsPanel: React.ReactNode
-  mode: 'live' | 'history' | 'system'
+  mode: 'live' | 'history' | 'system' | 'flows'
   onModeChange: (mode: 'live' | 'history') => void
   historyRange: string
   onHistoryRangeChange: (range: string) => void
