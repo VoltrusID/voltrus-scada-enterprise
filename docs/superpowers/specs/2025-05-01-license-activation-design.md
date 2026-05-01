@@ -46,7 +46,7 @@
 1. Admin installs Voltrus on an air-gapped server and runs `./voltrus-lite --generate-request <license-key>`.
 2. The app computes a hardware fingerprint, bundles it with the license key, and writes `license-request.bin`.
 3. Admin copies `license-request.bin` to a laptop with internet access.
-4. The admin uploads the file to `https://activate.voltrus.io` (Cloudflare Worker).
+4. The admin uploads the file to `https://activate.voltrus.id` (Cloudflare Worker).
 5. The Worker validates the Polar.sh license key, checks if it is already bound to a different fingerprint, and signs an activation token with Ed25519.
 6. The Worker returns `license-activation.bin`.
 7. The admin copies it back to the air-gapped server.
@@ -168,7 +168,10 @@ Accepts a `multipart/form-data` upload containing the `license-request.bin` file
    - Must be active.
    - Must not be expired.
    - Must not be revoked.
-4. Query Cloudflare KV for an existing binding: `license_key → fingerprint_hash`.
+4. Query Cloudflare D1 for an existing binding:
+   ```sql
+   SELECT fingerprint_hash FROM license_bindings WHERE license_key = ?
+   ```
    - **Same fingerprint:** Return the cached activation (idempotent).
    - **Different fingerprint:** Return a `403` error with a support message.
    - **No binding:** Proceed to activation.
@@ -176,7 +179,14 @@ Accepts a `multipart/form-data` upload containing the `license-request.bin` file
    - Set `issued_at` to now.
    - Set `expires_at` to the Polar.sh license expiry date.
    - Sign with the Worker's Ed25519 private key.
-6. Store the new binding in KV: `license_key → fingerprint_hash`.
+6. Store the new binding in D1:
+   ```sql
+   INSERT INTO license_bindings (license_key, fingerprint_hash, activated_at, customer_email)
+   VALUES (?, ?, datetime('now'), ?)
+   ON CONFLICT(license_key) DO UPDATE SET
+     fingerprint_hash = excluded.fingerprint_hash,
+     activated_at = excluded.activated_at
+   ```
 7. Return the base64-encoded activation blob.
 
 ### Environment Variables / Secrets
@@ -185,17 +195,38 @@ Accepts a `multipart/form-data` upload containing the `license-request.bin` file
 |------|------|-------------|
 | `POLAR_API_KEY` | Secret | Polar.sh API key for license validation. |
 | `ED25519_PRIVATE_KEY` | Secret | Base64-encoded Ed25519 private key for signing activations. |
-| `KV_NAMESPACE` | Binding | Cloudflare KV namespace for storing license-to-fingerprint mappings. |
+| `D1_DATABASE` | Binding | Cloudflare D1 database for storing license-to-fingerprint mappings and admin panel data. |
 
-### Optional: License Transfer
+### Support Admin Panel
 
-A `POST /deactivate` endpoint can be added for support use:
+A lightweight HTML admin panel served at `https://activate.voltrus.id/admin` (protected by HTTP Basic Auth or a simple bearer token).
 
-- Accepts a Polar.sh license key (validated via API).
-- Deletes the KV binding for that key.
-- Allows the customer to reactivate on a new server.
+**Features:**
+- View all license bindings (license key, fingerprint hash, activated_at, customer_email).
+- Search by license key or customer email.
+- **Transfer license:** Delete a binding so the customer can reactivate on a new server.
+- **Revoke license:** Mark a binding as revoked (blocks future activations).
 
-This endpoint should be protected by a separate support token and is not exposed to end users.
+**D1 Schema:**
+```sql
+CREATE TABLE license_bindings (
+    license_key TEXT PRIMARY KEY,
+    fingerprint_hash TEXT NOT NULL,
+    activated_at TEXT NOT NULL,
+    customer_email TEXT,
+    revoked BOOLEAN DEFAULT FALSE
+);
+```
+
+### Optional: License Transfer API
+
+A `POST /admin/transfer` endpoint for the support panel:
+
+- Accepts a license key.
+- Deletes or updates the D1 binding for that key.
+- Returns a short transfer code the customer can use (optional).
+
+Protected by `ADMIN_TOKEN` secret.
 
 ---
 
@@ -277,7 +308,7 @@ When the license is missing or invalid, the React app renders a full-screen acti
 │                                         │
 │  Step 2: Copy license-request.bin to    │
 │          a PC with internet and upload  │
-│          it at https://activate.voltrus.io│
+│          it at https://activate.voltrus.id│
 │                                         │
 │  Step 3: Copy the returned              │
 │          license-activation.bin back    │
@@ -349,7 +380,7 @@ Or:
 | **Corrupted activation blob in DB** | Treat as unactivated; print error and instructions. |
 | **Importing activation for wrong fingerprint** | CLI prints error and refuses to import. |
 | **Importing activation with invalid signature** | CLI prints "Invalid activation file." and refuses to import. |
-| **Worker KV is down** | Worker returns `503`. User retries upload later. |
+| **Worker D1 is down** | Worker returns `503`. User retries upload later. |
 | **Polar.sh API is down** | Worker returns `503`. User retries upload later. |
 
 ---
@@ -363,11 +394,14 @@ Or:
 
 ---
 
-## 12. Open Questions
+## 12. Decisions Log
 
-1. **Worker domain name:** What is the final domain for the activation worker? (`activate.voltrus.io` is a placeholder.)
-2. **Support process for transfers:** Who handles manual license transfers? Should there be a simple admin panel or just email support?
-3. **Polar.sh webhook:** Should the Worker listen for Polar.sh webhooks (e.g., `subscription.cancelled`) to proactively revoke KV bindings?
+| Question | Decision |
+|----------|----------|
+| **Worker domain name** | `activate.voltrus.id` |
+| **Support process for transfers** | Small HTML admin panel at `/admin` with D1-backed license management |
+| **Polar.sh webhook** | Yes — Worker listens for Polar.sh webhooks (e.g., `subscription.cancelled`) and updates D1 `revoked` flag proactively |
+| **Storage backend** | Cloudflare D1 (not KV) — enables relational queries for the admin panel |
 
 ---
 
