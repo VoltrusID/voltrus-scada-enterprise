@@ -1,8 +1,0 @@
-name = "voltrus-license-activate"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "voltrus-licenses"
-database_id = "YOUR_D1_DATABASE_ID"
