@@ -6,7 +6,7 @@ import { fetchJson } from './fetch'
 export function useSystemInfo(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.systemInfo,
-    queryFn: () => fetchJson<any>('/api/system'),
+    queryFn: () => fetchJson<any>('/api/v1/system'),
     enabled,
     refetchInterval: 5_000,
     staleTime: 4_000,
@@ -18,7 +18,7 @@ export function useHistory(range: string, screenId: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.history(range, screenId),
     queryFn: async () => {
-      const result = await fetchJson<{ data: Record<string, any>; sensors: any[] }>(`/api/history?range=${range}${dp}`)
+      const result = await fetchJson<{ data: Record<string, any>; sensors: any[] }>(`/api/v1/history?range=${range}${dp}`)
       if (!result.data) return {}
       return expandCompactData(result.data)
     },

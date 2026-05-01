@@ -91,14 +91,14 @@ export class AlarmPanel extends LitElement {
 
   private async _ack(id: number) {
     try {
-      await fetch(`http://localhost:3100/api/alarms/${id}/acknowledge`, { method: 'POST', credentials: 'include' });
+      await fetch(`http://localhost:3100/api/v1/alarms/${id}/acknowledge`, { method: 'POST', credentials: 'include' });
       this._loadAlarms();
     } catch { /* ignore */ }
   }
 
   private async _ackAll() {
     try {
-      await fetch('http://localhost:3100/api/alarms', { method: 'POST', credentials: 'include' });
+      await fetch('http://localhost:3100/api/v1/alarms', { method: 'POST', credentials: 'include' });
       this._loadAlarms();
     } catch { /* ignore */ }
   }

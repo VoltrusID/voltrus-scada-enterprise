@@ -19,8 +19,25 @@ pub struct Storage {
 
 impl Storage {
     pub fn new(path: &str) -> Result<Self> {
+        Self::new_with_key(path, None)
+    }
+
+    pub fn new_with_key(path: &str, encryption_key: Option<&str>) -> Result<Self> {
         let conn = Connection::open(path)
             .with_context(|| format!("Failed to open database: {path}"))?;
+
+        // Apply SQLCipher encryption key if provided
+        if let Some(key) = encryption_key {
+            if let Err(e) = conn.execute_batch(&format!("PRAGMA key = '{}';", key.replace("'", "''"))) {
+                tracing::warn!(
+                    "Failed to set database encryption key (SQLCipher not available?): {}. Continuing without encryption.",
+                    e
+                );
+            } else {
+                tracing::info!("Database encryption key applied successfully");
+            }
+        }
+
         init_schema(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),

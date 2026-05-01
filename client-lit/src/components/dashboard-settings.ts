@@ -112,7 +112,7 @@ export class DashboardSettings extends LitElement {
 
   private async _saveBranding() {
     try {
-      await fetchOk('/api/settings/branding', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._branding) });
+      await fetchOk('/api/v1/settings/branding', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._branding) });
       store.setBranding(this._branding);
     } catch { /* ignore */ }
   }
@@ -120,8 +120,8 @@ export class DashboardSettings extends LitElement {
   private async _saveShortcuts() {
     this._saving = true;
     try {
-      await fetchOk('/api/shortcuts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._shortcuts) });
-      await fetchOk('/api/nav-shortcuts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._navShortcuts) });
+      await fetchOk('/api/v1/shortcuts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._shortcuts) });
+      await fetchOk('/api/v1/nav-shortcuts', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._navShortcuts) });
       store.setShortcuts(this._shortcuts);
       store.setNavShortcuts(this._navShortcuts);
     } catch { /* ignore */ }

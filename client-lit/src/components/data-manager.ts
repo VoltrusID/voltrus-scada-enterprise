@@ -106,7 +106,7 @@ export class DataManager extends LitElement {
   private async _saveSensor(e: CustomEvent<SensorConfig>) {
     const s = e.detail;
     try {
-      await fetchOk(`/api/data-sources/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
+      await fetchOk(`/api/v1/data-sources/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
       this._editingId = null;
       this._loadSensors();
     } catch { /* ignore */ }
@@ -115,7 +115,7 @@ export class DataManager extends LitElement {
   private async _deleteSensor(id: number) {
     if (!confirm('Delete this sensor?')) return;
     try {
-      await fetchOk(`/api/data-sources/${id}`, { method: 'DELETE' });
+      await fetchOk(`/api/v1/data-sources/${id}`, { method: 'DELETE' });
       this._editingId = null;
       this._loadSensors();
     } catch { /* ignore */ }
@@ -123,7 +123,7 @@ export class DataManager extends LitElement {
 
   private async _duplicateSensor(s: SensorConfig) {
     try {
-      await fetchOk('/api/data-sources', {
+      await fetchOk('/api/v1/data-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,12 +139,12 @@ export class DataManager extends LitElement {
 
   private async _deleteUser(id: number) {
     if (!confirm('Delete this user?')) return;
-    try { await fetchOk(`/api/users/${id}`, { method: 'DELETE' }); this._loadUsers(); } catch { /* ignore */ }
+    try { await fetchOk(`/api/v1/users/${id}`, { method: 'DELETE' }); this._loadUsers(); } catch { /* ignore */ }
   }
 
   private async _deleteModbus(id: string) {
     if (!confirm('Delete this Modbus device?')) return;
-    try { await fetchOk(`/api/modbus-devices/${id}`, { method: 'DELETE' }); this._loadModbus(); } catch { /* ignore */ }
+    try { await fetchOk(`/api/v1/modbus-devices/${id}`, { method: 'DELETE' }); this._loadModbus(); } catch { /* ignore */ }
   }
 
   private _close() {

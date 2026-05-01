@@ -7,7 +7,7 @@ export function useScadaEquipment(screenId: string, enabled: boolean) {
   const actualId = screenId === 'all' ? '__overview' : screenId
   return useQuery({
     queryKey: queryKeys.scadaEquipment(screenId),
-    queryFn: () => fetchJson<{ items: ScadaEquipmentItem[] }>(`/api/screens/${actualId}/scada-equipment`).then(r => r.items),
+    queryFn: () => fetchJson<{ items: ScadaEquipmentItem[] }>(`/api/v1/screens/${actualId}/scada-equipment`).then(r => r.items),
     enabled,
   })
 }
@@ -16,7 +16,7 @@ export function useScadaConnections(screenId: string, enabled: boolean) {
   const actualId = screenId === 'all' ? '__overview' : screenId
   return useQuery({
     queryKey: queryKeys.scadaConnections(screenId),
-    queryFn: () => fetchJson<{ items: ScadaConnectionItem[] }>(`/api/screens/${actualId}/scada-connections`).then(r => r.items),
+    queryFn: () => fetchJson<{ items: ScadaConnectionItem[] }>(`/api/v1/screens/${actualId}/scada-connections`).then(r => r.items),
     enabled,
   })
 }
@@ -26,7 +26,7 @@ export function useSaveScadaEquipment() {
   return useMutation({
     mutationFn: async ({ screenId, items }: { screenId: string; items: ScadaEquipmentItem[] }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetchOk(`/api/screens/${actualId}/scada-equipment`, {
+      await fetchOk(`/api/v1/screens/${actualId}/scada-equipment`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
@@ -43,7 +43,7 @@ export function useSaveScadaConnections() {
   return useMutation({
     mutationFn: async ({ screenId, items }: { screenId: string; items: ScadaConnectionItem[] }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetchOk(`/api/screens/${actualId}/scada-connections`, {
+      await fetchOk(`/api/v1/screens/${actualId}/scada-connections`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),

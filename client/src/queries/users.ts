@@ -6,7 +6,7 @@ import { fetchJson, fetchOk } from './fetch'
 export function useUsers(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.users,
-    queryFn: () => fetchJson<UserItem[]>('/api/users'),
+    queryFn: () => fetchJson<UserItem[]>('/api/v1/users'),
     enabled,
   })
 }
@@ -15,7 +15,7 @@ export function useCreateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (user: { username: string; password: string; role: string }) => {
-      const res = await fetchOk('/api/users', {
+      const res = await fetchOk('/api/v1/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(user),
@@ -32,7 +32,7 @@ export function useUpdateUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...fields }: { id: number } & Record<string, any>) => {
-      await fetchOk(`/api/users/${id}`, {
+      await fetchOk(`/api/v1/users/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(fields),
@@ -48,7 +48,7 @@ export function useDeleteUser() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      await fetchOk(`/api/users/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/v1/users/${id}`, { method: 'DELETE' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.users })

@@ -6,7 +6,7 @@ import { fetchJson, fetchOk } from './fetch'
 export function useFlows(enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.flows,
-    queryFn: () => fetchJson<{ flows: Flow[] }>('/api/flows').then(r => r.flows),
+    queryFn: () => fetchJson<{ flows: Flow[] }>('/api/v1/flows').then(r => r.flows),
     enabled,
   })
 }
@@ -14,7 +14,7 @@ export function useFlows(enabled: boolean) {
 export function useFlow(id: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.flow(id),
-    queryFn: () => fetchJson<Flow>(`/api/flows/${id}`),
+    queryFn: () => fetchJson<Flow>(`/api/v1/flows/${id}`),
     enabled: enabled && !!id,
   })
 }
@@ -22,7 +22,7 @@ export function useFlow(id: string, enabled: boolean) {
 export function useFlowRuns(id: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.flowRuns(id),
-    queryFn: () => fetchJson<{ runs: FlowRun[] }>(`/api/flows/${id}/runs`).then(r => r.runs),
+    queryFn: () => fetchJson<{ runs: FlowRun[] }>(`/api/v1/flows/${id}/runs`).then(r => r.runs),
     enabled: enabled && !!id,
   })
 }
@@ -31,7 +31,7 @@ export function useCreateFlow() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (flow: Flow) => {
-      const r = await fetchOk('/api/flows', {
+      const r = await fetchOk('/api/v1/flows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(flow),
@@ -48,7 +48,7 @@ export function useUpdateFlow() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (flow: Flow) => {
-      await fetchOk(`/api/flows/${flow.id}`, {
+      await fetchOk(`/api/v1/flows/${flow.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(flow),
@@ -65,7 +65,7 @@ export function useDeleteFlow() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetchOk(`/api/flows/${id}`, { method: 'DELETE' })
+      await fetchOk(`/api/v1/flows/${id}`, { method: 'DELETE' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.flows })
@@ -77,7 +77,7 @@ export function useStartFlow() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetchOk(`/api/flows/${id}/start`, { method: 'POST' })
+      await fetchOk(`/api/v1/flows/${id}/start`, { method: 'POST' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.flows })
@@ -89,7 +89,7 @@ export function useStopFlow() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      await fetchOk(`/api/flows/${id}/stop`, { method: 'POST' })
+      await fetchOk(`/api/v1/flows/${id}/stop`, { method: 'POST' })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.flows })
@@ -100,7 +100,7 @@ export function useStopFlow() {
 export function useTestFlow() {
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, any> }) => {
-      const r = await fetchOk(`/api/flows/${id}/test`, {
+      const r = await fetchOk(`/api/v1/flows/${id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload }),

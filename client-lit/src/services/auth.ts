@@ -20,7 +20,7 @@ class AuthManager extends EventTarget {
 
   async check() {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/api/v1/auth/me`, { credentials: 'include' });
       const data = await res.json();
       this._set({ authed: data.authenticated === true, role: data.role || 'user', loading: false, error: '' });
     } catch {
@@ -31,7 +31,7 @@ class AuthManager extends EventTarget {
   async login(username: string, password: string) {
     this._set({ error: '' });
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -40,7 +40,7 @@ class AuthManager extends EventTarget {
       if (res.ok) {
         const data = await res.json();
         this._set({ authed: true, role: data.role || 'user', error: '', mustChangePassword: !!data.must_change_password });
-        fetch(`${API_BASE}/api/seed`, { method: 'POST', credentials: 'include' }).catch(() => {});
+        fetch(`${API_BASE}/api/v1/seed`, { method: 'POST', credentials: 'include' }).catch(() => {});
       } else {
         const data = await res.json().catch(() => ({}));
         this._set({ error: data.error || 'Login failed' });
@@ -52,7 +52,7 @@ class AuthManager extends EventTarget {
 
   async changePassword(newPassword: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+      const res = await fetch(`${API_BASE}/api/v1/auth/change-password`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +70,7 @@ class AuthManager extends EventTarget {
 
   async logout() {
     try {
-      await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+      await fetch(`${API_BASE}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' });
     } catch { /* ignore */ }
     this._set({ authed: false, role: 'user', error: '', mustChangePassword: false });
   }

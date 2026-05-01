@@ -144,7 +144,7 @@ export function SourceConfigFields({ sourceType, config, onChange }: { sourceTyp
     case 'none': return <div style={{ color: 'var(--muted)', fontSize: 12, padding: 8 }}>No data source. Use for image cards or static displays.</div>;
     case 'noise': return <label style={labelStyle}><span style={labelTextStyle}>Noise Amplitude</span><input type="number" step="any" value={config.noise_amplitude ?? 3} onChange={e => set('noise_amplitude', parseFloat(e.target.value))} style={monoInputStyle} /></label>;
     case 'api': return (<>
-      <label style={labelStyle}><span style={labelTextStyle}>URL</span><input type="text" value={config.url ?? ''} onChange={e => set('url', e.target.value)} style={inputStyle} placeholder="https://example.com/api/sensor" /></label>
+      <label style={labelStyle}><span style={labelTextStyle}>URL</span><input type="text" value={config.url ?? ''} onChange={e => set('url', e.target.value)} style={inputStyle} placeholder="https://example.com/api/v1/sensor" /></label>
       <label style={labelStyle}><span style={labelTextStyle}>JSON Path</span><input type="text" value={config.path ?? ''} onChange={e => set('path', e.target.value)} style={inputStyle} placeholder="data.value" /></label>
       <label style={labelStyle}><span style={labelTextStyle}>Method</span><select value={config.method ?? 'GET'} onChange={e => set('method', e.target.value)} style={inputStyle}><option value="GET">GET</option><option value="POST">POST</option></select></label>
       <label style={labelStyle}><span style={labelTextStyle}>Poll Interval (ms)</span><input type="number" step="1000" min="1000" value={config.poll_interval ?? 5000} onChange={e => set('poll_interval', parseInt(e.target.value))} style={monoInputStyle} /></label>

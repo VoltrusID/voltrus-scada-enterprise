@@ -7,7 +7,7 @@ export function useCanvasLayouts(screenId: string, enabled: boolean) {
   const actualId = screenId === 'all' ? '__overview' : screenId
   return useQuery({
     queryKey: queryKeys.canvasLayouts(screenId),
-    queryFn: () => fetchJson<CanvasLayoutItem[]>(`/api/screens/${actualId}/canvas-layouts`),
+    queryFn: () => fetchJson<CanvasLayoutItem[]>(`/api/v1/screens/${actualId}/canvas-layouts`),
     enabled,
   })
 }
@@ -17,7 +17,7 @@ export function useSaveCanvasLayout() {
   return useMutation({
     mutationFn: async ({ screenId, layouts }: { screenId: string; layouts: CanvasLayoutItem[] }) => {
       const actualId = screenId === 'all' ? '__overview' : screenId
-      await fetchOk(`/api/screens/${actualId}/canvas-layouts`, {
+      await fetchOk(`/api/v1/screens/${actualId}/canvas-layouts`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(layouts),

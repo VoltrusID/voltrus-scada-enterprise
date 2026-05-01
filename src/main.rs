@@ -40,7 +40,10 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let cache = DeviceCache::new();
-    let storage = Storage::new(&app_config.db_path)?;
+    let storage = Storage::new_with_key(
+        &app_config.db_path,
+        app_config.db_encryption_key.as_deref(),
+    )?;
 
     let flow_engine = crate::flow_engine::engine::FlowEngine::new(
         storage.clone(),

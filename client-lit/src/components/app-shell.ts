@@ -200,7 +200,7 @@ export class AppShell extends LitElement {
 
   private async _fetchVersion() {
     try {
-      const res = await fetch(`${window.location.origin}/api/version`);
+      const res = await fetch(`${window.location.origin}/api/v1/version`);
       const data = await res.json();
       this._version = data.version || '';
     } catch { /* ignore */ }
@@ -282,7 +282,7 @@ export class AppShell extends LitElement {
         this._activeScreen = res.id;
         await this._loadScreens();
       } else if (d.type === 'rename-screen') {
-        await fetchOk(`/api/screens/${this._activeScreen}`, { method: 'PUT', body: JSON.stringify({ name: value }) });
+        await fetchOk(`/api/v1/screens/${this._activeScreen}`, { method: 'PUT', body: JSON.stringify({ name: value }) });
         await this._loadScreens();
       }
     } catch { /* ignore */ }
@@ -293,7 +293,7 @@ export class AppShell extends LitElement {
     this._dialog = null;
     if (d?.type === 'delete-screen') {
       try {
-        await fetchOk(`/api/screens/${this._activeScreen}`, { method: 'DELETE' });
+        await fetchOk(`/api/v1/screens/${this._activeScreen}`, { method: 'DELETE' });
         this._activeScreen = 'all';
         await this._loadScreens();
       } catch { /* ignore */ }
