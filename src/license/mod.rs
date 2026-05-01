@@ -87,18 +87,24 @@ pub async fn verify_license(storage: &Storage) -> LicenseStatus {
         };
     }
 
-    let days_remaining = time::OffsetDateTime::parse(
-        &activation.expires_at,
-        &time::format_description::well_known::Rfc3339
-    ).ok().map(|exp| {
-        let now = time::OffsetDateTime::now_utc();
-        let duration = exp - now;
-        duration.whole_days().max(0)
-    });
+    let (expires_at, days_remaining) = match activation.expires_at {
+        Some(ref expires_at_str) => {
+            let days = time::OffsetDateTime::parse(
+                expires_at_str,
+                &time::format_description::well_known::Rfc3339
+            ).ok().map(|exp| {
+                let now = time::OffsetDateTime::now_utc();
+                let duration = exp - now;
+                duration.whole_days().max(0)
+            });
+            (Some(expires_at_str.clone()), days)
+        }
+        None => (None, None), // Perpetual license
+    };
 
     LicenseStatus::Valid {
         license_key: activation.license_key,
-        expires_at: Some(activation.expires_at),
+        expires_at,
         days_remaining,
     }
 }
