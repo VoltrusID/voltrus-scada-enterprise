@@ -235,6 +235,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let login_rate_limiter = crate::security::LoginRateLimiter::new();
+    let intrusion_detector = crate::security::IntrusionDetector::new();
     let (audit_logger, mut audit_rx) = crate::security::AuditLogger::new();
 
     // Spawn audit log consumer
@@ -268,6 +269,7 @@ async fn main() -> anyhow::Result<()> {
         flow_engine: Some(Arc::new(flow_engine)),
         login_rate_limiter,
         audit_logger,
+        intrusion_detector,
     };
 
     api::stream::spawn_sse_composer(cache, storage);

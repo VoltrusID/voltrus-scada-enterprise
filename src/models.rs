@@ -413,6 +413,10 @@ pub struct User {
     pub role: String,
     #[serde(default)]
     pub must_change_password: bool,
+    #[serde(skip_serializing)]
+    pub failed_attempts: i64,
+    #[serde(skip_serializing)]
+    pub locked_until: Option<i64>,
 }
 
 fn default_user_role() -> String {

@@ -9,11 +9,34 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::http::StatusCode;
 use serde_json::json;
+use rand::Rng as _;
+
+// ── Request ID ──
+
+pub fn generate_request_id() -> String {
+    let id: String = rand::rng()
+        .sample_iter(&rand::distr::Alphanumeric)
+        .take(16)
+        .map(char::from)
+        .collect();
+    id.to_lowercase()
+}
+
+/// Middleware that adds a unique X-Request-Id to every request for tracing.
+pub async fn request_id_middleware(req: Request, next: Next) -> Response {
+    let request_id = generate_request_id();
+    let mut response = next.run(req).await;
+    response
+        .headers_mut()
+        .insert("X-Request-Id", header::HeaderValue::from_str(&request_id).unwrap());
+    response
+}
 
 // ── Rate Limiter ──
 
 const LOGIN_MAX_ATTEMPTS: u32 = 5;
 const LOGIN_WINDOW_SECS: u64 = 60;
+const LOGIN_MAX_IP_ATTEMPTS: u32 = 10;
 
 #[derive(Clone)]
 pub struct LoginRateLimiter {
@@ -38,10 +61,31 @@ impl LoginRateLimiter {
         entries.len() < LOGIN_MAX_ATTEMPTS as usize
     }
 
+    pub fn is_ip_allowed(&self, ip: &str) -> bool {
+        let mut attempts = self.attempts.lock().unwrap();
+        let now = Instant::now();
+        let window = Duration::from_secs(LOGIN_WINDOW_SECS);
+
+        let key = format!("ip:{}", ip);
+        let entries = attempts.entry(key).or_default();
+        entries.retain(|t| now.duration_since(*t) < window);
+
+        entries.len() < LOGIN_MAX_IP_ATTEMPTS as usize
+    }
+
     pub fn record_attempt(&self, key: &str) {
         let mut attempts = self.attempts.lock().unwrap();
         let now = Instant::now();
         let entries = attempts.entry(key.to_string()).or_default();
+        entries.retain(|t| now.duration_since(*t) < Duration::from_secs(LOGIN_WINDOW_SECS));
+        entries.push(now);
+    }
+
+    pub fn record_ip_attempt(&self, ip: &str) {
+        let mut attempts = self.attempts.lock().unwrap();
+        let now = Instant::now();
+        let key = format!("ip:{}", ip);
+        let entries = attempts.entry(key).or_default();
         entries.retain(|t| now.duration_since(*t) < Duration::from_secs(LOGIN_WINDOW_SECS));
         entries.push(now);
     }
@@ -89,9 +133,49 @@ pub async fn login_rate_limit_middleware(
     next.run(req).await
 }
 
+// ── Intrusion Detection ──
+
+const SUSPICIOUS_401_THRESHOLD: u32 = 10;
+const SUSPICIOUS_WINDOW_SECS: u64 = 60;
+
+/// Tracks suspicious activity (e.g., repeated 401s) per IP for intrusion detection.
+#[derive(Clone)]
+pub struct IntrusionDetector {
+    suspicious_401s: Arc<Mutex<HashMap<String, Vec<Instant>>>>,
+}
+
+impl IntrusionDetector {
+    pub fn new() -> Self {
+        Self {
+            suspicious_401s: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn record_401(&self, ip: &str) {
+        let mut map = self.suspicious_401s.lock().unwrap();
+        let now = Instant::now();
+        let key = ip.to_string();
+        let entries = map.entry(key).or_default();
+        entries.retain(|t| now.duration_since(*t) < Duration::from_secs(SUSPICIOUS_WINDOW_SECS));
+        entries.push(now);
+
+        if entries.len() >= SUSPICIOUS_401_THRESHOLD as usize {
+            tracing::warn!("SECURITY ALERT: {} failed auth attempts from IP {} in {}s", entries.len(), ip, SUSPICIOUS_WINDOW_SECS);
+        }
+    }
+}
+
+impl Default for IntrusionDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ── Security Headers ──
 
 pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
+    let path = req.uri().path();
+    let is_api = path.starts_with("/api/");
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
 
@@ -146,11 +230,26 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
     );
 
     // HSTS - only in production (when not localhost)
-    // Note: The caller should conditionally apply this based on config
     headers.insert(
         "Strict-Transport-Security",
         header::HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
     );
+
+    // Cache control for API routes
+    if is_api {
+        headers.insert(
+            "Cache-Control",
+            header::HeaderValue::from_static("no-store, private, max-age=0, must-revalidate"),
+        );
+        headers.insert(
+            "Pragma",
+            header::HeaderValue::from_static("no-cache"),
+        );
+        headers.insert(
+            "Expires",
+            header::HeaderValue::from_static("0"),
+        );
+    }
 
     response
 }
@@ -274,8 +373,6 @@ fn strip_html_tags(input: &str) -> String {
 }
 
 // ── CSRF Token ──
-
-use rand::Rng;
 
 const CSRF_TOKEN_LENGTH: usize = 32;
 

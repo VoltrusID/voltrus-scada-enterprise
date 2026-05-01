@@ -97,33 +97,75 @@ pub async fn login(
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Rate limiting by username
-    let rate_key = format!("login:{}", body.username);
-    if !state.login_rate_limiter.is_allowed(&rate_key) {
+    let rate_key_user = format!("login:{}", body.username);
+
+    // Check username-based rate limit
+    if !state.login_rate_limiter.is_allowed(&rate_key_user) {
         return Ok((
-            jar,
-            (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({"error": "Too many login attempts. Please try again later."})),
-            ),
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error": "Too many login attempts. Please try again later."})),
         )
             .into_response());
     }
 
+    let start_time = std::time::Instant::now();
+    let target_duration = std::time::Duration::from_millis(300);
+
+    // Perform login logic
     let user = state.storage.get_user_by_username(&body.username).await?;
-    let user = match user {
-        Some(u) => u,
+    let (response_status, response_json, new_jar) = match user {
+        Some(user) => {
+            // Check account lockout
+            let now_secs = crate::timeutil::now_secs();
+            if let Some(locked_until) = user.locked_until {
+                if locked_until > now_secs {
+                    (StatusCode::FORBIDDEN, json!({"error": "Account locked. Please try again later."}), jar)
+                } else {
+                    check_password_and_login(state, body, user, jar, &rate_key_user, now_secs).await
+                }
+            } else {
+                check_password_and_login(state, body, user, jar, &rate_key_user, now_secs).await
+            }
+        }
         None => {
-            state.login_rate_limiter.record_attempt(&rate_key);
-            return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
+            state.login_rate_limiter.record_attempt(&rate_key_user);
+            (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar)
         }
     };
-    if !verify_password(&body.password, &user.password_hash) {
-        state.login_rate_limiter.record_attempt(&rate_key);
-        return Ok((jar, (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid credentials"})))).into_response());
+
+    // Timing attack mitigation: ensure response takes at least target_duration
+    let elapsed = start_time.elapsed();
+    if elapsed < target_duration {
+        tokio::time::sleep(target_duration - elapsed).await;
     }
 
-    // Successful login — clear rate limit attempts for this user
+    Ok((new_jar, (response_status, Json(response_json))).into_response())
+}
+
+async fn check_password_and_login(
+    state: AppState,
+    body: LoginRequest,
+    user: User,
+    jar: CookieJar,
+    rate_key_user: &str,
+    now_secs: i64,
+) -> (StatusCode, serde_json::Value, CookieJar) {
+    if !verify_password(&body.password, &user.password_hash) {
+        state.login_rate_limiter.record_attempt(rate_key_user);
+        let _ = state.storage.increment_failed_attempts(&body.username).await;
+
+        // Lock account after 10 failed attempts
+        if user.failed_attempts + 1 >= 10 {
+            let lock_until = now_secs + 900; // 15 minutes
+            let _ = state.storage.lock_account(&body.username, lock_until).await;
+            tracing::warn!("Account locked for user {} due to too many failed attempts", body.username);
+        }
+
+        return (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar);
+    }
+
+    // Successful login — reset failed attempts
+    let _ = state.storage.reset_failed_attempts(&body.username).await;
     state.login_rate_limiter.cleanup();
 
     let secret = &state.auth_secret;
@@ -139,7 +181,16 @@ pub async fn login(
     .path("/")
     .build();
     let jar = jar.add(cookie);
-    Ok((jar, Json(LoginResponse { ok: true, username: body.username, role: user.role.clone(), must_change_password: user.must_change_password })).into_response())
+    (
+        StatusCode::OK,
+        json!({
+            "ok": true,
+            "username": body.username,
+            "role": user.role,
+            "must_change_password": user.must_change_password,
+        }),
+        jar,
+    )
 }
 
 pub async fn logout(jar: CookieJar) -> impl IntoResponse {
