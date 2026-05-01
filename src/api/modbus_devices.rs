@@ -1,10 +1,10 @@
 use anyhow::Context;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
-use crate::api::{AppError, AppState};
+use crate::api::{AppError, AppState, AuthUser};
 use crate::models::{ModbusRegisterInput, ScanRegisterRequest, Endianness};
 
 pub async fn list_modbus_devices(
@@ -46,6 +46,7 @@ pub async fn get_modbus_device(
 
 pub async fn create_modbus_device(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let id = body["id"].as_str().unwrap_or("").to_string();
@@ -83,11 +84,19 @@ pub async fn create_modbus_device(
         state.poller_manager.start(dc.clone()).await;
     }
 
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "create_modbus_device".to_string(),
+        username: auth.username.clone(),
+        resource: format!("modbus_device:{}", id),
+        details: Some(format!("ip={}:{}", ip, port)),
+    });
+
     Ok((axum::http::StatusCode::CREATED, Json(json!({"ok": true, "id": id}))))
 }
 
 pub async fn update_modbus_device(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -114,15 +123,31 @@ pub async fn update_modbus_device(
         state.poller_manager.restart(dc.clone()).await;
     }
 
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_modbus_device".to_string(),
+        username: auth.username.clone(),
+        resource: format!("modbus_device:{}", id),
+        details: None,
+    });
+
     Ok(Json(json!({"ok": true})))
 }
 
 pub async fn delete_modbus_device(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     state.storage.delete_modbus_device(&id).await?;
     state.poller_manager.stop(&id).await;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "delete_modbus_device".to_string(),
+        username: auth.username.clone(),
+        resource: format!("modbus_device:{}", id),
+        details: None,
+    });
+
     Ok(Json(json!({"ok": true})))
 }
 

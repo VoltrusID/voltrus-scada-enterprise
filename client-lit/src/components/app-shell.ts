@@ -80,6 +80,7 @@ export class AppShell extends LitElement {
 
   @state() private _authed = false;
   @state() private _authLoading = true;
+  @state() private _mustChangePassword = false;
   @state() private _view: ViewName = 'grid';
   @state() private _activeScreen = 'all';
 
@@ -139,8 +140,20 @@ export class AppShell extends LitElement {
     this._authed = s.authed;
     this._authLoading = s.loading;
     this._authRole = s.role;
+    this._mustChangePassword = s.mustChangePassword;
     if (s.authed) { this._loadScreens(); this._loadAllSensors(); this._loadBranding(); this._loadShortcuts(); }
   };
+
+  private async _handleChangePassword(e: Event) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const pw = (form.querySelector('[name=pw]') as HTMLInputElement).value;
+    const pw2 = (form.querySelector('[name=pw2]') as HTMLInputElement).value;
+    if (pw !== pw2) { alert('Passwords do not match'); return; }
+    if (pw.length < 8) { alert('Password must be at least 8 characters'); return; }
+    const ok = await authManager.changePassword(pw);
+    if (!ok) alert('Failed to change password');
+  }
 
   private async _loadScreens() {
     try { this._screens = await api<Screen[]>('/screens'); } catch { this._screens = []; }
@@ -308,6 +321,20 @@ export class AppShell extends LitElement {
     }
     if (!this._authed) {
       return html`<vlt-login-screen></vlt-login-screen>`;
+    }
+
+    if (this._mustChangePassword) {
+      return html`
+        <div style="height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:Inter,sans-serif">
+          <form @submit="${this._handleChangePassword}" style="background:var(--card);border-radius:12px;padding:32px;width:360px;display:flex;flex-direction:column;gap:16px;border:1px solid var(--border)">
+            <h2 style="margin:0;font-size:18px;color:var(--fg)">Change Your Password</h2>
+            <p style="margin:0;font-size:13px;color:var(--muted)">You must set a new password before continuing.</p>
+            <input name="pw" type="password" placeholder="New password (min 8 chars)" required minlength="8" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:14px" />
+            <input name="pw2" type="password" placeholder="Confirm new password" required style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:14px" />
+            <button type="submit" style="padding:10px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;font-size:14px">Change Password</button>
+          </form>
+        </div>
+      `;
     }
 
     const selectedSensor = this._allSensors.find(s => s.id === this._selectedSensorId);

@@ -3,12 +3,13 @@ export interface AuthState {
   role: string;
   loading: boolean;
   error: string;
+  mustChangePassword: boolean;
 }
 
 const API_BASE = window.location.origin;
 
 class AuthManager extends EventTarget {
-  private _state: AuthState = { authed: false, role: 'user', loading: true, error: '' };
+  private _state: AuthState = { authed: false, role: 'user', loading: true, error: '', mustChangePassword: false };
 
   get state() { return { ...this._state }; }
 
@@ -38,7 +39,7 @@ class AuthManager extends EventTarget {
       });
       if (res.ok) {
         const data = await res.json();
-        this._set({ authed: true, role: data.role || 'user', error: '' });
+        this._set({ authed: true, role: data.role || 'user', error: '', mustChangePassword: !!data.must_change_password });
         fetch(`${API_BASE}/api/seed`, { method: 'POST', credentials: 'include' }).catch(() => {});
       } else {
         const data = await res.json().catch(() => ({}));
@@ -49,11 +50,29 @@ class AuthManager extends EventTarget {
     }
   }
 
+  async changePassword(newPassword: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_password: newPassword }),
+      });
+      if (res.ok) {
+        this._set({ mustChangePassword: false });
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   async logout() {
     try {
       await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     } catch { /* ignore */ }
-    this._set({ authed: false, role: 'user', error: '' });
+    this._set({ authed: false, role: 'user', error: '', mustChangePassword: false });
   }
 }
 

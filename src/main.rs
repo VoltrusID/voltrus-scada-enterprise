@@ -8,6 +8,7 @@ mod modbus;
 mod models;
 mod poller_manager;
 mod retention;
+mod security;
 mod storage;
 mod timeutil;
 
@@ -233,6 +234,26 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("OIDC enabled, issuer: {}", oidc_config.issuer);
     }
 
+    let login_rate_limiter = crate::security::LoginRateLimiter::new();
+    let (audit_logger, mut audit_rx) = crate::security::AuditLogger::new();
+
+    // Spawn audit log consumer
+    {
+        let storage = storage.clone();
+        tokio::spawn(async move {
+            while let Some(event) = audit_rx.recv().await {
+                if let Err(e) = storage.log_audit_event(
+                    &event.action,
+                    &event.username,
+                    &event.resource,
+                    event.details.as_deref(),
+                ).await {
+                    tracing::warn!("Failed to write audit log: {}", e);
+                }
+            }
+        });
+    }
+
     let state = AppState {
         cache: cache.clone(),
         storage: storage.clone(),
@@ -245,6 +266,8 @@ async fn main() -> anyhow::Result<()> {
         jwks_manager,
         retention_config: app_config.retention.clone(),
         flow_engine: Some(Arc::new(flow_engine)),
+        login_rate_limiter,
+        audit_logger,
     };
 
     api::stream::spawn_sse_composer(cache, storage);
