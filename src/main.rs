@@ -268,6 +268,7 @@ async fn main() -> anyhow::Result<()> {
         retention_config: app_config.retention.clone(),
         flow_engine: Some(Arc::new(flow_engine)),
         login_rate_limiter,
+        global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger,
         intrusion_detector,
     };
