@@ -21,7 +21,7 @@ use axum::{
     routing::{get, patch, post, put},
     Json, Router,
 };
-use axum::extract::Extension;
+use axum::extract::{ConnectInfo, Extension, DefaultBodyLimit};
 use axum_extra::extract::CookieJar;
 use serde_json::json;
 use tower_http::cors::CorsLayer;
@@ -48,6 +48,7 @@ pub struct AppState {
     pub flow_engine: Option<Arc<crate::flow_engine::engine::FlowEngine>>,
     pub login_rate_limiter: crate::security::LoginRateLimiter,
     pub audit_logger: crate::security::AuditLogger,
+    pub intrusion_detector: crate::security::IntrusionDetector,
 }
 
 #[derive(Debug)]
@@ -210,12 +211,22 @@ pub fn create_router(state: AppState) -> Router {
             cookie_auth_middleware,
         ));
 
-    // API router with CORS, rate limiting, and security headers
+    async fn api_not_found() -> impl IntoResponse {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "not found"})),
+        )
+    }
+
+    // API router with CORS, rate limiting, security headers, body limit
     let api_router = Router::new()
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
+        .route("/api/{*path}", get(api_not_found))
         .layer(cors)
+        .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB body limit
+        .layer(middleware::from_fn(crate::security::request_id_middleware))
         .layer(middleware::from_fn(crate::security::security_headers_middleware))
         .layer(middleware::from_fn(crate::security::strip_forwarded_host_middleware));
 
@@ -262,9 +273,16 @@ pub struct AuthUser {
 
 async fn cookie_auth_middleware(
     State(state): State<AppState>,
-    mut req: Request,
+    req: Request,
     next: Next,
 ) -> impl IntoResponse {
+    // Extract client IP if available (may not be present in test oneshot)
+    let client_ip = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>()
+        .map(|ci| ci.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let mut req = req;
+
     // Try Bearer token (OIDC) first
     if state.oidc_config.enabled {
         if let Some(auth_header) = req.headers().get("authorization") {
@@ -288,6 +306,7 @@ async fn cookie_auth_middleware(
         .map(|c| c.value())
         .unwrap_or("");
     if token.is_empty() {
+        state.intrusion_detector.record_401(&client_ip);
         return (
             StatusCode::UNAUTHORIZED,
             Json(json!({"error": "unauthorized"})),
@@ -302,11 +321,14 @@ async fn cookie_auth_middleware(
             });
             next.run(req).await
         }
-        None => (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({"error": "unauthorized"})),
-        )
-            .into_response(),
+        None => {
+            state.intrusion_detector.record_401(&client_ip);
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "unauthorized"})),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -353,6 +375,7 @@ mod tests {
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
         };
         create_router(state)
     }
@@ -516,6 +539,7 @@ mod tests {
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
         };
         let app = create_router(state);
 
@@ -574,6 +598,7 @@ mod tests {
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
         };
         let app = create_router(state);
 
@@ -654,6 +679,7 @@ mod tests {
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
         };
         let app = create_router(state);
 
@@ -726,6 +752,7 @@ mod tests {
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
         };
         let app = create_router(state);
 

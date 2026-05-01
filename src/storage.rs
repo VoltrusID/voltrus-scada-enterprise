@@ -337,7 +337,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user'), COALESCE(must_change_password, 0) FROM users WHERE username = ?1")
+                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user'), COALESCE(must_change_password, 0), COALESCE(failed_attempts, 0), locked_until FROM users WHERE username = ?1")
                 .context("Prepare failed")?;
             let mut rows = stmt
                 .query_map(rusqlite::params![username], |row| {
@@ -348,6 +348,8 @@ impl Storage {
                         salt: row.get(3)?,
                         role: row.get(4)?,
                         must_change_password: row.get(5)?,
+                        failed_attempts: row.get(6)?,
+                        locked_until: row.get(7)?,
                     })
                 })
                 .context("Query failed")?;
@@ -370,7 +372,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT INTO users (username, password_hash, salt, role) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO users (username, password_hash, salt, role, failed_attempts, locked_until) VALUES (?1, ?2, ?3, ?4, 0, NULL)",
                 rusqlite::params![username, password_hash, salt, role],
             )
             .context("Insert user failed")?;
@@ -385,7 +387,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user'), COALESCE(must_change_password, 0) FROM users ORDER BY id")
+                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user'), COALESCE(must_change_password, 0), COALESCE(failed_attempts, 0), locked_until FROM users ORDER BY id")
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map([], |row| {
@@ -396,6 +398,8 @@ impl Storage {
                         salt: row.get(3)?,
                         role: row.get(4)?,
                         must_change_password: row.get(5)?,
+                        failed_attempts: row.get(6)?,
+                        locked_until: row.get(7)?,
                     })
                 })
                 .context("Query failed")?;
@@ -411,7 +415,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user'), COALESCE(must_change_password, 0) FROM users WHERE id = ?1")
+                .prepare("SELECT id, username, password_hash, salt, COALESCE(role, 'user'), COALESCE(must_change_password, 0), COALESCE(failed_attempts, 0), locked_until FROM users WHERE id = ?1")
                 .context("Prepare failed")?;
             let result = stmt
                 .query_row(rusqlite::params![id], |row| {
@@ -422,6 +426,8 @@ impl Storage {
                         salt: row.get(3)?,
                         role: row.get(4)?,
                         must_change_password: row.get(5)?,
+                        failed_attempts: row.get(6)?,
+                        locked_until: row.get(7)?,
                     })
                 })
                 .ok();
@@ -469,10 +475,58 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "UPDATE users SET password_hash = ?1, must_change_password = 0 WHERE id = ?2",
+                "UPDATE users SET password_hash = ?1, must_change_password = 0, failed_attempts = 0, locked_until = NULL WHERE id = ?2",
                 rusqlite::params![password_hash, id],
             )
             .context("Update user password failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn increment_failed_attempts(&self, username: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE users SET failed_attempts = COALESCE(failed_attempts, 0) + 1 WHERE username = ?1",
+                rusqlite::params![username],
+            )
+            .context("Increment failed attempts failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn lock_account(&self, username: &str, locked_until: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE users SET locked_until = ?1 WHERE username = ?2",
+                rusqlite::params![locked_until, username],
+            )
+            .context("Lock account failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn reset_failed_attempts(&self, username: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE username = ?1",
+                rusqlite::params![username],
+            )
+            .context("Reset failed attempts failed")?;
             Ok(())
         })
         .await
@@ -2224,6 +2278,10 @@ fn init_schema(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0");
     // Force existing admin users to change password (they likely have the default "admin" password)
     let _ = conn.execute_batch("UPDATE users SET must_change_password = 1 WHERE username = 'admin'");
+
+    // Migration: add account lockout columns to users
+    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN locked_until INTEGER");
 
     Ok(())
 }
