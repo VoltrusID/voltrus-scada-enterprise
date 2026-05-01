@@ -411,6 +411,8 @@ pub struct User {
     pub salt: String,
     #[serde(default = "default_user_role")]
     pub role: String,
+    #[serde(default)]
+    pub must_change_password: bool,
 }
 
 fn default_user_role() -> String {
@@ -548,6 +550,8 @@ pub struct LoginResponse {
     pub ok: bool,
     pub username: String,
     pub role: String,
+    #[serde(default)]
+    pub must_change_password: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -562,6 +566,11 @@ pub struct CreateUserRequest {
 pub struct UpdateUserRequest {
     pub role: Option<String>,
     pub password: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ChangePasswordRequest {
+    pub new_password: String,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -666,6 +675,30 @@ pub struct PushSubscribeRequest {
     pub endpoint: String,
     pub p256dh: String,
     pub auth_key: String,
+}
+
+// ── Flow types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Flow {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub trigger_config: String,
+    pub nodes: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FlowRun {
+    pub id: i64,
+    pub flow_id: String,
+    pub started_at: i64,
+    pub duration_ms: i64,
+    pub success: bool,
+    pub error: Option<String>,
+    pub output: Option<String>,
 }
 
 // ── Tests ──

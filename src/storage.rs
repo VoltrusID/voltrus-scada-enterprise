@@ -8,6 +8,7 @@ use crate::models::{
     NavShortcut, Alarm, CanvasLayoutItem,
     ModbusDevice, ModbusRegister, ModbusRegisterInput, DeviceConfig,
     ScadaEquipment, ScadaConnection,
+    Flow, FlowRun,
 };
 
 #[derive(Clone)]
@@ -1673,18 +1674,185 @@ impl Storage {
         .map(|_| ())
     }
 
-    // ── Flow runs (stub — full implementation in Task 6) ──
+    // ── Flows ──
+
+    pub async fn create_flow(
+        &self,
+        id: &str,
+        name: &str,
+        enabled: bool,
+        trigger_config: &str,
+        nodes: &str,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        let name = name.to_string();
+        let trigger_config = trigger_config.to_string();
+        let nodes = nodes.to_string();
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO flows (id, name, enabled, trigger_config, nodes, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![id, name, enabled as i64, trigger_config, nodes, now, now],
+            )
+            .context("Insert flow failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_flow(&self, id: &str) -> Result<Option<Flow>> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, enabled, trigger_config, nodes, created_at, updated_at FROM flows WHERE id = ?1")
+                .context("Prepare failed")?;
+            let result = stmt
+                .query_row(rusqlite::params![id], |row| {
+                    Ok(Flow {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        enabled: row.get::<_, i64>(2)? != 0,
+                        trigger_config: row.get(3)?,
+                        nodes: row.get(4)?,
+                        created_at: row.get(5)?,
+                        updated_at: row.get(6)?,
+                    })
+                })
+                .ok();
+            Ok(result)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_flows(&self) -> Result<Vec<Flow>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, enabled, trigger_config, nodes, created_at, updated_at FROM flows ORDER BY created_at")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(Flow {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        enabled: row.get::<_, i64>(2)? != 0,
+                        trigger_config: row.get(3)?,
+                        nodes: row.get(4)?,
+                        created_at: row.get(5)?,
+                        updated_at: row.get(6)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_flow(
+        &self,
+        id: &str,
+        name: &str,
+        enabled: bool,
+        trigger_config: &str,
+        nodes: &str,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        let name = name.to_string();
+        let trigger_config = trigger_config.to_string();
+        let nodes = nodes.to_string();
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE flows SET name = ?1, enabled = ?2, trigger_config = ?3, nodes = ?4, updated_at = ?5 WHERE id = ?6",
+                rusqlite::params![name, enabled as i64, trigger_config, nodes, now, id],
+            )
+            .context("Update flow failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_flow(&self, id: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM flows WHERE id = ?1", rusqlite::params![id])
+                .context("Delete flow failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Flow runs ──
 
     pub async fn insert_flow_run(
         &self,
-        _flow_id: &str,
-        _duration_ms: u64,
-        _success: bool,
-        _error: Option<String>,
-        _output: Option<serde_json::Value>,
+        flow_id: &str,
+        duration_ms: u64,
+        success: bool,
+        error: Option<String>,
+        output: Option<serde_json::Value>,
     ) -> Result<()> {
-        // Stub: will be implemented in Task 6
-        Ok(())
+        let conn = self.conn.clone();
+        let flow_id = flow_id.to_string();
+        let error = error.map(|s| s.to_string());
+        let output = output.map(|v| v.to_string());
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO flow_runs (flow_id, started_at, duration_ms, success, error, output)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![flow_id, now, duration_ms as i64, success as i64, error, output],
+            )
+            .context("Insert flow run failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_flow_runs(&self, flow_id: &str, limit: i64) -> Result<Vec<FlowRun>> {
+        let conn = self.conn.clone();
+        let flow_id = flow_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, flow_id, started_at, duration_ms, success, error, output FROM flow_runs WHERE flow_id = ?1 ORDER BY started_at DESC LIMIT ?2")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![flow_id, limit], |row| {
+                    Ok(FlowRun {
+                        id: row.get(0)?,
+                        flow_id: row.get(1)?,
+                        started_at: row.get(2)?,
+                        duration_ms: row.get(3)?,
+                        success: row.get::<_, i64>(4)? != 0,
+                        error: row.get(5)?,
+                        output: row.get(6)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn is_in_cooldown(&self, source_key: &str, severity: &str) -> Result<bool> {
@@ -1940,7 +2108,25 @@ fn init_schema(conn: &Connection) -> Result<()> {
             UNIQUE(device_id, metric, bucket_start)
         );
         CREATE INDEX IF NOT EXISTS idx_daily_dev_metric
-            ON telemetry_daily(device_id, metric, bucket_start);",
+            ON telemetry_daily(device_id, metric, bucket_start);
+        CREATE TABLE IF NOT EXISTS flows (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            enabled INTEGER DEFAULT 1,
+            trigger_config TEXT NOT NULL,
+            nodes TEXT NOT NULL,
+            created_at INTEGER,
+            updated_at INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS flow_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            flow_id TEXT NOT NULL,
+            started_at INTEGER,
+            duration_ms INTEGER,
+            success INTEGER,
+            error TEXT,
+            output TEXT
+        );",
     )
     .context("Failed to create schema")?;
 
