@@ -3,6 +3,7 @@ mod auth;
 mod cache;
 mod config;
 mod expression;
+mod flow_engine;
 mod modbus;
 mod models;
 mod poller_manager;
