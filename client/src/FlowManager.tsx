@@ -2,30 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useFlows, useCreateFlow, useUpdateFlow, useDeleteFlow, useStartFlow, useStopFlow, useTestFlow } from './queries'
 import type { Flow, FlowNodeConfig, FlowNodeType } from './types'
 import { btnStyle } from './styles'
-
-/* ── Node type definitions ── */
-const NODE_META: Record<string, { label: string; color: string; icon: string; desc: string; defaultConfig: Record<string, any> }> = {
-  filter:        { label: 'Filter',        color: '#22d3ee', icon: 'M3 6h18M3 12h18M3 18h18', desc: 'Pass only if condition is true', defaultConfig: { condition: 'payload.metrics.temp > 0' } },
-  transform:     { label: 'Transform',     color: '#60a5fa', icon: 'M23 4l-11 16-5-5-5 5M23 4h-6', desc: 'Map fields to new schema', defaultConfig: { map: { status: "if(payload.metrics.temp > 80, 'CRITICAL', 'OK')" } } },
-  threshold:     { label: 'Threshold',     color: '#fbbf24', icon: 'M12 2v20M2 12h20', desc: 'Check values against rules', defaultConfig: { field: 'payload.metrics.temp', rules: [{ gt: 80, set: { alarm: 'HIGH' } }] } },
-  lookup:        { label: 'Lookup',        color: '#c084fc', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z', desc: 'Map values via lookup table', defaultConfig: { field: 'payload.machine_code', output_field: 'payload.machine_name', table: { M1: 'Cutting' }, default: 'Unknown' } },
-  expression:    { label: 'Expression',    color: '#4ade80', icon: 'M9 7h6M9 11h6M9 15h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z', desc: 'Compute new field from formula', defaultConfig: { output_field: 'payload.power_kw', expr: 'payload.metrics.voltage * payload.metrics.current * 0.001' } },
-  data_source_out: { label: 'Data Source',  color: '#a3e635', icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5', desc: 'Write to virtual sensor', defaultConfig: { value_field: 'payload.power_kw', source_key: 'flow_power', name: 'Power', unit: 'kW', decimals: 2 } },
-  http_out:      { label: 'HTTP Webhook',  color: '#818cf8', icon: 'M10 13a5 5 0 007 0M4 15l3-3-3-3M20 15l-3-3 3-3', desc: 'POST to external URL', defaultConfig: { url: 'https://example.com/webhook', headers: {}, timeout_ms: 5000, retry_count: 3 } },
-  alarm_out:     { label: 'Alarm',         color: '#f87171', icon: 'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01', desc: 'Trigger an alarm', defaultConfig: { severity: 'critical', source_key: 'flow_alert', message: 'Alert triggered' } },
-}
-
-const TRIGGER_META: Record<string, { label: string; color: string }> = {
-  modbus: { label: 'Modbus', color: '#22d3ee' },
-  timer:  { label: 'Timer',  color: '#fbbf24' },
-  mqtt:   { label: 'MQTT',   color: '#c084fc' },
-}
-
-const TRIGGER_DEFAULTS: Record<string, Record<string, any>> = {
-  modbus: { type: 'modbus', device_id: '*', metric: '', debounce_ms: 1000, on_change_only: false },
-  timer:  { type: 'timer', interval_ms: 5000 },
-  mqtt:   { type: 'mqtt', topic: 'sensors/+/temp', debounce_ms: 1000 },
-}
+import { NODE_META, TRIGGER_META, TRIGGER_DEFAULTS } from './components/flow-editor/constants'
 
 /* ── SVG Edge between two node positions ── */
 function Edge({ from, to }: { from: { x: number; y: number }; to: { x: number; y: number } }) {
