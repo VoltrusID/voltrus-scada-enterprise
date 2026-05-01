@@ -15,6 +15,7 @@ use api::AppState;
 use cache::DeviceCache;
 use models::DeviceStatus;
 use poller_manager::PollerManager;
+use std::sync::Arc;
 use storage::Storage;
 
 #[tokio::main]
@@ -39,6 +40,34 @@ async fn main() -> anyhow::Result<()> {
 
     let cache = DeviceCache::new();
     let storage = Storage::new(&app_config.db_path)?;
+
+    let flow_engine = crate::flow_engine::engine::FlowEngine::new(
+        storage.clone(),
+        cache.clone(),
+    );
+    if let Ok(flows) = storage.list_flows().await {
+        for flow in flows {
+            if flow.enabled {
+                match (serde_json::from_str::<crate::flow_engine::trigger::TriggerConfig>(&flow.trigger_config),
+                       serde_json::from_str::<Vec<crate::flow_engine::node::NodeConfig>>(&flow.nodes)) {
+                    (Ok(trigger), Ok(nodes)) => {
+                        let engine_flow = crate::flow_engine::engine::Flow {
+                            id: flow.id,
+                            name: flow.name,
+                            enabled: flow.enabled,
+                            trigger,
+                            nodes,
+                        };
+                        flow_engine.add_flow(engine_flow).await;
+                    }
+                    _ => {
+                        tracing::warn!("Failed to deserialize flow {} config, skipping", flow.id);
+                    }
+                }
+            }
+        }
+    }
+    flow_engine.spawn().await;
 
     // Auto-seed on startup if no admin user exists
     storage.seed_database().await?;
@@ -215,7 +244,7 @@ async fn main() -> anyhow::Result<()> {
         oidc_config,
         jwks_manager,
         retention_config: app_config.retention.clone(),
-        flow_engine: None,
+        flow_engine: Some(Arc::new(flow_engine)),
     };
 
     api::stream::spawn_sse_composer(cache, storage);
