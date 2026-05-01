@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
+import { LicenseActivationScreen } from './LicenseActivationScreen'
 import { DashboardSettings } from './DashboardSettings'
 import { SensorDetail } from './SensorDetail'
 import { DataManager } from './DataManager'
@@ -26,6 +27,9 @@ import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, u
 
 function AppInner() {
   const queryClient = useQueryClient()
+
+  // ── License state ────────────────────────────────────────────────
+  const [licenseValid, setLicenseValid] = useState<boolean | null>(null)
 
   // ── Auth state ───────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false)
@@ -193,6 +197,14 @@ function AppInner() {
 
   const effectiveLayouts = defaultLayouts ?? screenLayouts
 
+  // ── License check ────────────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/license/status')
+      .then(r => r.json())
+      .then(d => { setLicenseValid(d.status === 'Valid') })
+      .catch(() => { setLicenseValid(true) })
+  }, [])
+
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/v1/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthLoading(false) }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthLoading(false) })
@@ -324,6 +336,8 @@ function AppInner() {
   }, [activeAlarms.count, startAlarm, stopAlarm])
 
   // ── Render gates ─────────────────────────────────────────────────
+  if (licenseValid === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Checking license...</div>
+  if (!licenseValid) return <LicenseActivationScreen />
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
 

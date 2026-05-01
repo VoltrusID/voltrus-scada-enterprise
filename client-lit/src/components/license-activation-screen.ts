@@ -73,7 +73,7 @@ export class LicenseActivationScreen extends LitElement {
             <code class="cmd">./voltrus-lite --generate-request YOUR_LICENSE_KEY</code>
           </li>
           <li>Copy the generated <code>license-request.bin</code> to a PC with internet access.</li>
-          <li>Upload it at <a href="https://activate.voltrus.id" target="_blank">activate.voltrus.id</a>.</li>
+          <li>Upload it at <a href="https://voltrus.id/activate.html" target="_blank">voltrus.id/activate.html</a>.</li>
           <li>Copy the returned <code>license-activation.bin</code> back to your server.</li>
           <li>Run this command to activate:
             <code class="cmd">./voltrus-lite --import-activation license-activation.bin</code>
