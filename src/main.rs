@@ -29,10 +29,66 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let config_path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "config.yaml".to_string());
-    let app_config = config::load_config(&config_path)?;
+    let args: Vec<String> = std::env::args().collect();
+
+    if args.len() > 1 {
+        match args[1].as_str() {
+            "--generate-request" => {
+                if args.len() < 3 {
+                    eprintln!("Usage: {} --generate-request <LICENSE_KEY>", args[0]);
+                    std::process::exit(1);
+                }
+                let path = license::request::generate_request(&args[2])?;
+                println!("License request written to: {}", path);
+                return Ok(());
+            }
+            "--import-activation" => {
+                if args.len() < 3 {
+                    eprintln!("Usage: {} --import-activation <PATH> [CONFIG_PATH]", args[0]);
+                    std::process::exit(1);
+                }
+                let activation_path = &args[2];
+                let config_path = args.get(3).map(|s| s.as_str()).unwrap_or("config.yaml");
+                let app_config = config::load_config(config_path)?;
+                let storage = Storage::new_with_key(
+                    &app_config.db_path,
+                    app_config.db_encryption_key.as_deref(),
+                )?;
+                let activation = license::activation::import_activation_file(activation_path)?;
+                let fingerprint = license::fingerprint::collect_fingerprint();
+                let row = crate::models::LicenseActivationRow {
+                    license_key: activation.license_key.clone(),
+                    fingerprint_hash: fingerprint.hash(),
+                    activation_blob: std::fs::read(activation_path)?,
+                    fingerprint_hostname: fingerprint.hostname,
+                    fingerprint_cpu: fingerprint.cpu,
+                    fingerprint_disk_serial: fingerprint.disk_serial,
+                    fingerprint_mac: fingerprint.mac,
+                    fingerprint_machine_id: fingerprint.machine_id,
+                    activated_at: activation.issued_at,
+                    expires_at: Some(activation.expires_at),
+                };
+                storage.store_license_activation(&row).await?;
+                println!("License activated successfully: {}", activation.license_key);
+                return Ok(());
+            }
+            "--license-status" => {
+                let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
+                let app_config = config::load_config(config_path)?;
+                let storage = Storage::new_with_key(
+                    &app_config.db_path,
+                    app_config.db_encryption_key.as_deref(),
+                )?;
+                let status = license::verify_license(&storage).await;
+                println!("{}", serde_json::to_string_pretty(&status)?);
+                std::process::exit(if status.is_valid() { 0 } else { 1 });
+            }
+            _ => {}
+        }
+    }
+
+    let config_path = args.get(1).map(|s| s.as_str()).unwrap_or("config.yaml");
+    let app_config = config::load_config(config_path)?;
 
     tracing::info!(
         "Loaded config: {} devices in YAML, port {}",
@@ -45,6 +101,11 @@ async fn main() -> anyhow::Result<()> {
         &app_config.db_path,
         app_config.db_encryption_key.as_deref(),
     )?;
+    let license_status = license::verify_license(&storage).await;
+
+    if !license_status.is_valid() {
+        tracing::warn!("License status: {:?}", license_status);
+    }
 
     let flow_engine = crate::flow_engine::engine::FlowEngine::new(
         storage.clone(),
@@ -275,6 +336,7 @@ async fn main() -> anyhow::Result<()> {
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger,
         intrusion_detector,
+        license_status: license_status.clone(),
     };
 
     api::stream::spawn_sse_composer(cache, storage);
