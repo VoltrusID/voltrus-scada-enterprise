@@ -50,6 +50,7 @@ pub struct AppState {
     pub global_rate_limiter: crate::security::GlobalRateLimiter,
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
+    pub license_status: crate::license::LicenseStatus,
 }
 
 #[derive(Debug)]
@@ -384,6 +385,9 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Unactivated {
+                message: "test".to_string(),
+            },
         };
         create_router(state)
     }
@@ -552,12 +556,16 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Unactivated {
+                message: "test".to_string(),
+            },
         };
         let app = create_router(state);
 
         // Login with admin/admin
         let login_body = serde_json::json!({"username": "admin", "password": "admin"});
         let resp = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -606,6 +614,9 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Unactivated {
+                message: "test".to_string(),
+            },
         };
         let app = create_router(state);
 
@@ -688,6 +699,9 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Unactivated {
+                message: "test".to_string(),
+            },
         };
         let app = create_router(state);
 
@@ -748,6 +762,9 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Unactivated {
+                message: "test".to_string(),
+            },
         };
         let app = create_router(state);
 
