@@ -12,6 +12,7 @@ mod system;
 mod generators;
 pub(crate) mod stream;
 mod flows;
+mod license;
 
 use axum::{
     extract::{Request, State},
@@ -72,6 +73,30 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
     }
 }
 
+async fn license_check_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> impl IntoResponse {
+    let path = req.uri().path();
+    if path == "/api/health" || path == "/api/license/status" {
+        return next.run(req).await;
+    }
+
+    if !state.license_status.is_valid() {
+        let body = match serde_json::to_value(&state.license_status) {
+            Ok(v) => v,
+            Err(_) => serde_json::json!({"status": "error", "message": "license invalid"}),
+        };
+        return (
+            StatusCode::FORBIDDEN,
+            Json(body),
+        ).into_response();
+    }
+
+    next.run(req).await
+}
+
 pub fn create_router(state: AppState) -> Router {
     // Build CORS layer only for API routes — static assets should not have CORS headers
     let cors = match &state.cors_origin {
@@ -114,7 +139,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/me", get(auth::auth_me))
         .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
         .route("/api/v1/settings/branding", get(settings::get_branding))
-        .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown));
+        .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
+        .route("/api/license/status", get(license::get_license_status));
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
@@ -227,6 +253,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(protected)
         .merge(admin_protected)
         .route("/api/v1/{*path}", get(api_not_found))
+        .layer(middleware::from_fn_with_state(state.clone(), license_check_middleware))
         .layer(cors)
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB body limit
         .layer(middleware::from_fn_with_state(
