@@ -1,11 +1,11 @@
-import { fabric } from 'fabric'
+import { Canvas, FabricObject, Group, FabricText } from 'fabric'
 import { evalExpression } from './expression'
 import { resolveContext, resolveTemplate } from './bindings'
 import type { VisualRule } from './types'
 import type { SensorConfig, SensorData } from '../../types'
 
 export function startRenderLoop(
-  canvas: fabric.Canvas,
+  canvas: Canvas,
   getState: () => { currentValues: Record<string, SensorData> },
   sensors: SensorConfig[],
 ): () => void {
@@ -18,7 +18,7 @@ export function startRenderLoop(
     lastValues = currentValues
 
     if (changed) {
-      canvas.getObjects().forEach(obj => {
+      canvas.getObjects().forEach((obj: FabricObject) => {
         const scada = (obj as any)._scada
         if (!scada) return
 
@@ -35,7 +35,7 @@ export function startRenderLoop(
 
         // Update attached labels
         if (scada.attached_labels?.length > 0 && (obj as any)._labelObjects) {
-          for (const labelObj of (obj as any)._labelObjects as fabric.Text[]) {
+          for (const labelObj of (obj as any)._labelObjects as FabricText[]) {
             const tmpl = (labelObj as any)._template
             if (tmpl) {
               labelObj.set('text', resolveTemplate(tmpl, scada.bindings || [], currentValues, sensors))
@@ -59,12 +59,12 @@ export function startRenderLoop(
   return () => { if (rafId !== null) cancelAnimationFrame(rafId) }
 }
 
-function applyRule(obj: fabric.Object, target: string, value: string | number | boolean) {
+function applyRule(obj: FabricObject, target: string, value: string | number | boolean) {
   switch (target) {
     case 'fill':
       obj.set('fill', value as string)
       if ((obj as any)._objects) {
-        (obj as fabric.Group).getObjects().forEach((child: fabric.Object) => {
+        (obj as Group).getObjects().forEach((child: FabricObject) => {
           if (child.type === 'path' || child.type === 'circle' || child.type === 'rect') {
             child.set('stroke', value as string)
           }

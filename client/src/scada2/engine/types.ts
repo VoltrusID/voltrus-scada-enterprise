@@ -37,6 +37,7 @@ export interface ScadaConnectionProps {
   from_id: string
   to_id: string
   connection_type: ScadaConnectionType
+  points: [number, number][]
   visual_rules: VisualRule[]
   attached_labels: AttachedLabel[]
 }
