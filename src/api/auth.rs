@@ -120,7 +120,7 @@ pub async fn login(
     .path("/")
     .build();
     let jar = jar.add(cookie);
-    Ok((jar, Json(LoginResponse { ok: true, username: body.username, role: user.role })).into_response())
+    Ok((jar, Json(LoginResponse { ok: true, username: body.username, role: user.role.clone(), must_change_password: user.must_change_password })).into_response())
 }
 
 pub async fn logout(jar: CookieJar) -> impl IntoResponse {
@@ -148,6 +148,21 @@ pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl Into
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     state.storage.seed_database().await?;
     Ok(Json(json!({"ok": true})))
+}
+
+pub async fn change_password(
+    State(state): State<AppState>,
+    Extension(auth): Extension<super::AuthUser>,
+    Json(body): Json<ChangePasswordRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if body.new_password.len() < 8 {
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "Password must be at least 8 characters"}))).into_response());
+    }
+    let user = state.storage.get_user_by_username(&auth.username).await?
+        .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+    let hash = hash_password(&body.new_password);
+    state.storage.update_user_password(user.id, &hash).await?;
+    Ok(Json(json!({"ok": true})).into_response())
 }
 
 // ── User management handlers ──
