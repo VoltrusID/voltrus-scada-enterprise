@@ -674,4 +674,150 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
     }
+
+    #[tokio::test]
+    async fn test_flow_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+
+        let cache = DeviceCache::new();
+        let poller_manager = PollerManager::new(cache.clone());
+        let state = AppState {
+            cache,
+            storage,
+            poller_manager,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
+        };
+        let app = create_router(state);
+
+        // Login to get auth cookie
+        let login_body = serde_json::json!({"username": "admin", "password": "admin"});
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&login_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let set_cookie = resp
+            .headers()
+            .get("set-cookie")
+            .expect("should have set-cookie")
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        let cookie_val = set_cookie
+            .split(';')
+            .next()
+            .unwrap()
+            .trim()
+            .trim_start_matches("voltrus_token=")
+            .to_string();
+
+        // Create flow
+        let flow = serde_json::json!({
+            "id": "test_flow",
+            "name": "Test Flow",
+            "enabled": true,
+            "trigger_config": serde_json::json!({"type": "modbus", "device_id": "*"}).to_string(),
+            "nodes": serde_json::json!([
+                {"id": "n1", "type": "filter", "condition": "metrics.temp > 0"}
+            ]).to_string(),
+            "created_at": 0,
+            "updated_at": 0,
+        });
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/flows")
+                    .header("content-type", "application/json")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::from(serde_json::to_string(&flow).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Get flow
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/flows/test_flow")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Test flow
+        let test_payload = serde_json::json!({
+            "payload": {
+                "metrics": {
+                    "temp": 25.0
+                }
+            }
+        });
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/flows/test_flow/test")
+                    .header("content-type", "application/json")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::from(serde_json::to_string(&test_payload).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["success"], true);
+
+        // Delete flow
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/api/flows/test_flow")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
 }
