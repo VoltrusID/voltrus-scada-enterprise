@@ -533,6 +533,86 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    // ── Refresh token management ──
+
+    pub async fn create_refresh_token(&self, username: &str, token_hash: &str, expires_at: i64, created_at: i64) -> Result<i64> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        let token_hash = token_hash.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO refresh_tokens (token_hash, username, expires_at, created_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![token_hash, username, expires_at, created_at],
+            )
+            .context("Create refresh token failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_refresh_token_by_hash(&self, token_hash: &str) -> Result<Option<crate::models::RefreshToken>> {
+        let conn = self.conn.clone();
+        let token_hash = token_hash.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, token_hash, username, expires_at, created_at, revoked_at FROM refresh_tokens WHERE token_hash = ?1"
+            )
+            .context("Prepare failed")?;
+            let result = stmt.query_row(
+                rusqlite::params![token_hash],
+                |row| {
+                    Ok(crate::models::RefreshToken {
+                        id: row.get(0)?,
+                        token_hash: row.get(1)?,
+                        username: row.get(2)?,
+                        expires_at: row.get(3)?,
+                        created_at: row.get(4)?,
+                        revoked_at: row.get(5)?,
+                    })
+                },
+            )
+            .ok();
+            Ok(result)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn revoke_refresh_token(&self, token_hash: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let token_hash = token_hash.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE refresh_tokens SET revoked_at = ?1 WHERE token_hash = ?2",
+                rusqlite::params![crate::timeutil::now_secs(), token_hash],
+            )
+            .context("Revoke refresh token failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn revoke_all_user_refresh_tokens(&self, username: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let username = username.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE refresh_tokens SET revoked_at = ?1 WHERE username = ?2 AND revoked_at IS NULL",
+                rusqlite::params![crate::timeutil::now_secs(), username],
+            )
+            .context("Revoke all user refresh tokens failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn delete_user(&self, id: i64) -> Result<()> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
@@ -2279,11 +2359,25 @@ fn init_schema(conn: &Connection) -> Result<()> {
     // Force existing admin users to change password (they likely have the default "admin" password)
     let _ = conn.execute_batch("UPDATE users SET must_change_password = 1 WHERE username = 'admin'");
 
-    // Migration: add account lockout columns to users
-    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0");
-    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN locked_until INTEGER");
+        // Migration: add account lockout columns to users
+        let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0");
+        let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN locked_until INTEGER");
 
-    Ok(())
+        // Migration: add refresh_tokens table
+        let _ = conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS refresh_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_hash TEXT NOT NULL UNIQUE,
+                username TEXT NOT NULL,
+                expires_at INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                revoked_at INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_refresh_tokens_username ON refresh_tokens(username);
+            CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);"
+        );
+
+        Ok(())
 }
 
 // ── Modbus device management ──

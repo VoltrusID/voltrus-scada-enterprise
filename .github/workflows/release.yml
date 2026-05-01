@@ -162,9 +162,36 @@ jobs:
           name: windows-x86_64
           path: voltrus-lite-${{ needs.check-version.outputs.version }}-windows-x86_64.zip
 
+  # ── Security Scan ──────────────────────────────────────────
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        run: cargo audit
+
+      - name: Run cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
   # ── Release + R2 Upload ────────────────────────────────────
   release:
-    needs: [check-version, build-linux-x86_64, build-windows]
+    needs: [check-version, build-linux-x86_64, build-windows, security-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: write

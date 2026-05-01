@@ -47,6 +47,7 @@ pub struct AppState {
     pub retention_config: crate::models::RetentionConfig,
     pub flow_engine: Option<Arc<crate::flow_engine::engine::FlowEngine>>,
     pub login_rate_limiter: crate::security::LoginRateLimiter,
+    pub global_rate_limiter: crate::security::GlobalRateLimiter,
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
 }
@@ -107,6 +108,7 @@ pub fn create_router(state: AppState) -> Router {
     let public = Router::new()
         .route("/api/health", get(system::get_health))
         .route("/api/auth/login", post(auth::login))
+        .route("/api/auth/refresh", post(auth::refresh_token))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::auth_me))
         .route("/api/auth/csrf-token", get(auth::get_csrf_token))
@@ -226,6 +228,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/{*path}", get(api_not_found))
         .layer(cors)
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB body limit
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::security::global_rate_limit_middleware,
+        ))
         .layer(middleware::from_fn(crate::security::request_id_middleware))
         .layer(middleware::from_fn(crate::security::security_headers_middleware))
         .layer(middleware::from_fn(crate::security::strip_forwarded_host_middleware));
@@ -241,6 +247,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .layer(middleware::from_fn(crate::security::block_source_maps_middleware))
         .layer(middleware::from_fn(crate::security::limit_range_requests_middleware))
+        .layer(middleware::from_fn(crate::security::strip_accept_ranges_middleware))
         .layer(middleware::from_fn(crate::security::security_headers_middleware))
         .layer(middleware::from_fn(crate::security::strip_forwarded_host_middleware));
 
@@ -374,6 +381,7 @@ mod tests {
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
         };
@@ -465,6 +473,22 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
+    /// Extract a specific cookie value from potentially multiple Set-Cookie headers.
+    fn extract_cookie_value(headers: &http::HeaderMap, name: &str) -> Option<String> {
+        headers
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find_map(|s| {
+                let kv = s.split(';').next()?.trim();
+                if kv.starts_with(&format!("{}=", name)) {
+                    Some(kv.trim_start_matches(&format!("{}=", name)).to_string())
+                } else {
+                    None
+                }
+            })
+    }
+
     async fn seed_and_get_cookie(app: &Router) -> String {
         // Seed directly via storage (bypass HTTP)
         let _state = app
@@ -501,20 +525,7 @@ mod tests {
             .await
             .unwrap();
 
-        let set_cookie = resp
-            .headers()
-            .get("set-cookie")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-        set_cookie
-            .split(';')
-            .next()
-            .unwrap()
-            .trim()
-            .trim_start_matches("voltrus_token=")
-            .to_string()
+        extract_cookie_value(resp.headers(), "voltrus_token").expect("voltrus_token cookie not found")
     }
 
     #[tokio::test]
@@ -538,6 +549,7 @@ mod tests {
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
         };
@@ -559,14 +571,8 @@ mod tests {
 
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let set_cookie = resp
-            .headers()
-            .get("set-cookie")
-            .expect("should have set-cookie")
-            .to_str()
-            .unwrap()
-            .to_string();
-        assert!(set_cookie.contains("voltrus_token="));
+        assert!(extract_cookie_value(resp.headers(), "voltrus_token").is_some());
+        assert!(extract_cookie_value(resp.headers(), "voltrus_refresh").is_some());
 
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
             .await
@@ -597,6 +603,7 @@ mod tests {
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
         };
@@ -678,6 +685,7 @@ mod tests {
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
         };
@@ -698,22 +706,8 @@ mod tests {
             .await
             .unwrap();
 
-        let set_cookie = resp
-            .headers()
-            .get("set-cookie")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-
-        // Extract cookie value
-        let cookie_val = set_cookie
-            .split(';')
-            .next()
-            .unwrap()
-            .trim()
-            .trim_start_matches("voltrus_token=")
-            .to_string();
+        let cookie_val = extract_cookie_value(resp.headers(), "voltrus_token")
+            .expect("voltrus_token cookie not found");
 
         // Access protected route with cookie
         let resp = app
@@ -751,6 +745,7 @@ mod tests {
             retention_config: crate::models::RetentionConfig::default(),
             flow_engine: None,
             login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
         };
@@ -771,21 +766,8 @@ mod tests {
             .await
             .unwrap();
 
-        let set_cookie = resp
-            .headers()
-            .get("set-cookie")
-            .expect("should have set-cookie")
-            .to_str()
-            .unwrap()
-            .to_string();
-
-        let cookie_val = set_cookie
-            .split(';')
-            .next()
-            .unwrap()
-            .trim()
-            .trim_start_matches("voltrus_token=")
-            .to_string();
+        let cookie_val = extract_cookie_value(resp.headers(), "voltrus_token")
+            .expect("voltrus_token cookie not found");
 
         // Create flow
         let flow = serde_json::json!({

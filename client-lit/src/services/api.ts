@@ -38,12 +38,50 @@ class DataManager extends EventTarget {
 
 export const dataManager = new DataManager();
 
+// Global in-flight refresh promise
+let refreshing: Promise<boolean> | null = null
+
+async function doRefresh(): Promise<boolean> {
+  if (refreshing) {
+    return refreshing
+  }
+  refreshing = (async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      return r.ok
+    } catch {
+      return false
+    } finally {
+      refreshing = null
+    }
+  })()
+  return refreshing
+}
+
+async function fetchWithRefresh(
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const r = await fetch(url, { credentials: 'include', ...init })
+  if (r.status === 401) {
+    const ok = await doRefresh()
+    if (ok) {
+      return fetch(url, { credentials: 'include', ...init })
+    }
+    window.location.href = '/login'
+    throw new Error('Session expired')
+  }
+  return r
+}
+
 /**
  * Fetch wrapper for REST API calls.
  */
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    credentials: 'include',
+  const res = await fetchWithRefresh(`${API_BASE}/api${path}`, {
     headers: { 'Content-Type': 'application/json', ...((init?.headers as Record<string, string>) ?? {}) },
     ...init,
   });
@@ -52,7 +90,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${API_BASE}${url}`, { credentials: 'include', ...init });
+  const res = await fetchWithRefresh(`${API_BASE}${url}`, { credentials: 'include', ...init });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);

@@ -586,6 +586,16 @@ pub struct TokenClaims {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RefreshToken {
+    pub id: i64,
+    pub token_hash: String,
+    pub username: String,
+    pub expires_at: i64,
+    pub created_at: i64,
+    pub revoked_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BrandingSettings {
     pub title: String,
     pub subtitle: String,

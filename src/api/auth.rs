@@ -4,12 +4,14 @@ use axum::response::IntoResponse;
 use axum::Json;
 use axum_extra::extract::CookieJar;
 use base64::Engine;
+use rand::Rng;
 use serde_json::json;
 
 use crate::models::*;
 use super::{AppError, AppState};
 
-const TOKEN_EXPIRY_MS: u64 = 24 * 60 * 60 * 1000;
+const ACCESS_TOKEN_EXPIRY_MS: u64 = 15 * 60 * 1000; // 15 minutes
+const REFRESH_TOKEN_EXPIRY_SECS: i64 = 7 * 24 * 60 * 60; // 7 days
 
 pub fn hash_password(password: &str) -> String {
     use argon2::password_hash::{SaltString, PasswordHasher};
@@ -44,6 +46,20 @@ fn constant_time_equal(a: &str, b: &str) -> bool {
     r == 0
 }
 
+// ── Refresh token helpers ──
+
+fn generate_refresh_token() -> String {
+    let bytes: [u8; 32] = rand::rng().random();
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+fn hash_refresh_token(token: &str) -> String {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 fn hmac_sign(payload: &str, secret: &str) -> String {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
@@ -55,7 +71,7 @@ fn hmac_sign(payload: &str, secret: &str) -> String {
 }
 
 pub fn create_token(username: &str, role: &str, secret: &str) -> String {
-    let exp = crate::timeutil::now_millis() as u64 + TOKEN_EXPIRY_MS;
+    let exp = crate::timeutil::now_millis() as u64 + ACCESS_TOKEN_EXPIRY_MS;
     let payload =
         serde_json::to_string(&TokenClaims {
             username: username.to_string(),
@@ -164,23 +180,43 @@ async fn check_password_and_login(
         return (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar);
     }
 
-    // Successful login — reset failed attempts
+    // Successful login — reset failed attempts and revoke old refresh tokens
     let _ = state.storage.reset_failed_attempts(&body.username).await;
+    let _ = state.storage.revoke_all_user_refresh_tokens(&body.username).await;
     state.login_rate_limiter.cleanup();
 
     let secret = &state.auth_secret;
-    let token = create_token(&body.username, &user.role, secret);
-    let cookie = axum_extra::extract::cookie::Cookie::build((
+    let access_token = create_token(&body.username, &user.role, secret);
+
+    // Generate refresh token
+    let refresh_token_raw = generate_refresh_token();
+    let refresh_hash = hash_refresh_token(&refresh_token_raw);
+    let refresh_expires = crate::timeutil::now_secs() + REFRESH_TOKEN_EXPIRY_SECS;
+    let _ = state.storage.create_refresh_token(&body.username, &refresh_hash, refresh_expires, crate::timeutil::now_secs()).await;
+
+    let access_cookie = axum_extra::extract::cookie::Cookie::build((
         "voltrus_token",
-        token.clone(),
+        access_token.clone(),
     ))
     .http_only(true)
     .secure(state.cookie_secure)
     .same_site(axum_extra::extract::cookie::SameSite::Strict)
-    .max_age(time::Duration::seconds(86400))
+    .max_age(time::Duration::seconds(900)) // 15 minutes
     .path("/")
     .build();
-    let jar = jar.add(cookie);
+
+    let refresh_cookie = axum_extra::extract::cookie::Cookie::build((
+        "voltrus_refresh",
+        refresh_token_raw,
+    ))
+    .http_only(true)
+    .secure(state.cookie_secure)
+    .same_site(axum_extra::extract::cookie::SameSite::Strict)
+    .max_age(time::Duration::seconds(REFRESH_TOKEN_EXPIRY_SECS))
+    .path("/")
+    .build();
+
+    let jar = jar.add(access_cookie).add(refresh_cookie);
     (
         StatusCode::OK,
         json!({
@@ -193,12 +229,22 @@ async fn check_password_and_login(
     )
 }
 
-pub async fn logout(jar: CookieJar) -> impl IntoResponse {
-    let cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_token", ""))
+pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
+    // Revoke refresh token if present
+    if let Some(refresh_cookie) = jar.get("voltrus_refresh") {
+        let refresh_hash = hash_refresh_token(refresh_cookie.value());
+        let _ = state.storage.revoke_refresh_token(&refresh_hash).await;
+    }
+
+    let access_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_token", ""))
         .max_age(time::Duration::seconds(0))
         .path("/")
         .build();
-    (jar.add(cookie), Json(json!({"ok": true})))
+    let refresh_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", ""))
+        .max_age(time::Duration::seconds(0))
+        .path("/")
+        .build();
+    (jar.add(access_cookie).add(refresh_cookie), Json(json!({"ok": true})))
 }
 
 pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
@@ -229,6 +275,81 @@ pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> im
             Json(json!({"csrf_token": csrf})).into_response()
         }
         None => (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response(),
+    }
+}
+
+pub async fn refresh_token(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Result<impl IntoResponse, AppError> {
+    let refresh_token = jar.get("voltrus_refresh").map(|c| c.value()).unwrap_or("");
+    if refresh_token.is_empty() {
+        return Ok((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "unauthorized"})),
+        )
+            .into_response());
+    }
+
+    let refresh_hash = hash_refresh_token(refresh_token);
+    match state.storage.get_refresh_token_by_hash(&refresh_hash).await? {
+        Some(rt) if rt.revoked_at.is_none() && rt.expires_at > crate::timeutil::now_secs() => {
+            // Revoke old token (rotation)
+            let _ = state.storage.revoke_refresh_token(&rt.token_hash).await;
+
+            // Get user
+            let user = state
+                .storage
+                .get_user_by_username(&rt.username)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+            // Create new tokens
+            let new_access = create_token(&user.username, &user.role, &state.auth_secret);
+            let new_refresh_raw = generate_refresh_token();
+            let new_refresh_hash = hash_refresh_token(&new_refresh_raw);
+            let refresh_expires = crate::timeutil::now_secs() + REFRESH_TOKEN_EXPIRY_SECS;
+            let _ = state
+                .storage
+                .create_refresh_token(&user.username, &new_refresh_hash, refresh_expires, crate::timeutil::now_secs())
+                .await;
+
+            let access_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_token", new_access))
+                .http_only(true)
+                .secure(state.cookie_secure)
+                .same_site(axum_extra::extract::cookie::SameSite::Strict)
+                .max_age(time::Duration::seconds(900))
+                .path("/")
+                .build();
+
+            let refresh_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", new_refresh_raw))
+                .http_only(true)
+                .secure(state.cookie_secure)
+                .same_site(axum_extra::extract::cookie::SameSite::Strict)
+                .max_age(time::Duration::seconds(REFRESH_TOKEN_EXPIRY_SECS))
+                .path("/")
+                .build();
+
+            let jar = jar.add(access_cookie).add(refresh_cookie);
+            Ok((jar, Json(json!({"ok": true}))).into_response())
+        }
+        _ => {
+            // Clear cookies on invalid refresh
+            let access_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_token", ""))
+                .max_age(time::Duration::seconds(0))
+                .path("/")
+                .build();
+            let refresh_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", ""))
+                .max_age(time::Duration::seconds(0))
+                .path("/")
+                .build();
+            let jar = jar.add(access_cookie).add(refresh_cookie);
+            Ok((
+                jar,
+                (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))),
+            )
+                .into_response())
+        }
     }
 }
 
