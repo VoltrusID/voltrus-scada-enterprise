@@ -6,7 +6,7 @@ import { ScreenLayouts, CanvasLayoutItem, SensorConfig } from '../types'
 import type { LayoutItem } from '../types'
 
 const DigitalTwinView = lazy(() => import('../DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
-const ScadaView = lazy(() => import('../ScadaView').then(m => ({ default: m.ScadaView })))
+const ScadaView = lazy(() => import('../scada2/ScadaView').then(m => ({ default: m.ScadaView })))
 
 interface Props {
   viewMode: 'cards' | 'canvas' | 'twin' | 'scada'
