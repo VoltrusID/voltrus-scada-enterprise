@@ -14,6 +14,7 @@ import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './Brand
 import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
 import { SystemPanel } from './components/SystemPanel'
+import { FlowManager } from './FlowManager'
 import { LayoutBreakpointSelector } from './components/LayoutBreakpointSelector'
 import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
@@ -40,9 +41,9 @@ function AppInner() {
   const [showDashSettings, setShowDashSettings] = useState(false)
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
   const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system'>(() => {
+  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows'>(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return (m === 'history' || m === 'system') ? m : 'live'
+    return (m === 'history' || m === 'system' || m === 'flows') ? m : 'live'
   })
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
@@ -371,8 +372,9 @@ function AppInner() {
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
-          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system') setMode('live') }}
+          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows') setMode('live') }}
           onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
+          onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
           onRenameScreen={handleRenameScreen}
           onDeleteScreen={handleDeleteScreen}
           onAddScreen={handleAddScreen}
@@ -394,35 +396,38 @@ function AppInner() {
           flexDirection: 'column',
         }}>
           {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
-          <MainContent
-            viewMode={viewMode} mode={mode}
-            screenSensors={screenSensors}
-            effectiveLayouts={effectiveLayouts}
-            canvasLayouts={canvasLayouts}
-            editMode={editMode} activeScreen={activeScreen}
-            gap={dashSettings.gap}
-            editingId={editingId}
-            setEditingId={setEditingId}
-            setSelectedSensor={setSelectedSensor}
-            onLayoutChange={handleLayoutChange}
-            onCanvasLayoutChange={handleCanvasLayoutChange}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            forcedBreakpoint={layoutBreakpoint}
-            shortcuts={shortcuts}
-            scadaEquipment={scadaEquipment}
-            scadaConnections={scadaConnections}
-            twinLayouts={twinLayouts}
-            twinCamera={twinCamera}
-            twinConnections={twinConnections}
-            sensors={sensors}
-            saveScadaEquipmentMut={saveScadaEquipmentMut}
-            saveScadaConnectionsMut={saveScadaConnectionsMut}
-            saveTwinLayoutMut={saveTwinLayoutMut}
-            saveTwinConnectionsMut={saveTwinConnectionsMut}
-            updateSensorMut={updateSensorMut}
-            fetchOk={fetchOk}
-          />
+          {mode === 'flows' && <FlowManager isAdmin={isAdmin} />}
+          {mode !== 'system' && mode !== 'flows' && (
+            <MainContent
+              viewMode={viewMode} mode={mode}
+              screenSensors={screenSensors}
+              effectiveLayouts={effectiveLayouts}
+              canvasLayouts={canvasLayouts}
+              editMode={editMode} activeScreen={activeScreen}
+              gap={dashSettings.gap}
+              editingId={editingId}
+              setEditingId={setEditingId}
+              setSelectedSensor={setSelectedSensor}
+              onLayoutChange={handleLayoutChange}
+              onCanvasLayoutChange={handleCanvasLayoutChange}
+              onSave={handleSave}
+              onDelete={handleDelete}
+              forcedBreakpoint={layoutBreakpoint}
+              shortcuts={shortcuts}
+              scadaEquipment={scadaEquipment}
+              scadaConnections={scadaConnections}
+              twinLayouts={twinLayouts}
+              twinCamera={twinCamera}
+              twinConnections={twinConnections}
+              sensors={sensors}
+              saveScadaEquipmentMut={saveScadaEquipmentMut}
+              saveScadaConnectionsMut={saveScadaConnectionsMut}
+              saveTwinLayoutMut={saveTwinLayoutMut}
+              saveTwinConnectionsMut={saveTwinConnectionsMut}
+              updateSensorMut={updateSensorMut}
+              fetchOk={fetchOk}
+            />
+          )}
         </div>
 
         {/* Detail view */}

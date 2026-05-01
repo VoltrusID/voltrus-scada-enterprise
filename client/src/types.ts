@@ -188,3 +188,61 @@ export interface UserItem {
   username: string
   role: string
 }
+
+// ── Flow Engine types ──
+
+export interface Flow {
+  id: string
+  name: string
+  enabled: boolean
+  trigger_config: string
+  nodes: string
+  created_at: number
+  updated_at: number
+}
+
+export interface FlowRun {
+  id: number
+  flow_id: string
+  started_at: number
+  duration_ms: number
+  success: boolean
+  error: string | null
+  output: string | null
+}
+
+export interface FlowTestResult {
+  success: boolean
+  output: Record<string, any>
+  node_results: FlowNodeResult[]
+}
+
+export interface FlowNodeResult {
+  node_id: string
+  result?: string
+  output?: Record<string, any>
+  error?: string
+}
+
+export type FlowNodeType =
+  | 'filter'
+  | 'transform'
+  | 'threshold'
+  | 'lookup'
+  | 'expression'
+  | 'data_source_out'
+  | 'http_out'
+  | 'alarm_out'
+
+export type FlowTriggerType = 'modbus' | 'timer' | 'mqtt'
+
+export interface FlowNodeConfig {
+  id: string
+  type: FlowNodeType
+  [key: string]: any
+}
+
+export interface FlowTriggerConfig {
+  type: FlowTriggerType
+  [key: string]: any
+}

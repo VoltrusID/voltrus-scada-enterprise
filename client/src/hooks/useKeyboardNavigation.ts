@@ -14,9 +14,9 @@ export function useKeyboardNavigation({
   setSelectedSensor: (id: number | null) => void
   setActiveScreen: (id: string) => void
   setViewMode: (mode: 'cards' | 'canvas' | 'twin' | 'scada') => void
-  setMode: (mode: 'live' | 'history' | 'system') => void
+  setMode: (mode: 'live' | 'history' | 'system' | 'flows') => void
   setShowAlarmPanel: (v: boolean | ((prev: boolean) => boolean)) => void
-  mode: 'live' | 'history' | 'system'
+  mode: 'live' | 'history' | 'system' | 'flows'
 }) {
   const shortcutToSensorId = useMemo(() => {
     const map = new Map<string, number>();

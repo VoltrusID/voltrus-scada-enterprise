@@ -18,7 +18,7 @@ interface Props {
   onSave: (s: SensorConfig, shortcut?: string | null) => void
   onDelete: (id: number) => void
   shortcuts: Record<number, string>
-  mode: 'live' | 'history' | 'system'
+  mode: 'live' | 'history' | 'system' | 'flows'
 }
 
 const DEFAULT_W = 300
