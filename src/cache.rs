@@ -6,27 +6,31 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::models::{DeviceSnapshot, DeviceStatus};
 
 const SSE_CHANNEL_CAPACITY: usize = 256;
+const SNAPSHOT_CHANNEL_CAPACITY: usize = 256;
 
 #[derive(Debug, Clone)]
 pub struct DeviceCache {
     devices: Arc<RwLock<HashMap<String, DeviceSnapshot>>>,
     tx: broadcast::Sender<String>,
+    snapshot_tx: broadcast::Sender<DeviceSnapshot>,
     trigger: watch::Sender<bool>,
 }
 
 impl DeviceCache {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(SSE_CHANNEL_CAPACITY);
+        let (snapshot_tx, _) = broadcast::channel(SNAPSHOT_CHANNEL_CAPACITY);
         let (trigger, _) = watch::channel(false);
         Self {
             devices: Arc::new(RwLock::new(HashMap::new())),
             tx,
+            snapshot_tx,
             trigger,
         }
     }
 
     pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>) {
-        {
+        let snapshot = {
             let mut devices = self.devices.write().await;
             let timestamp = crate::timeutil::now_secs();
 
@@ -42,9 +46,11 @@ impl DeviceCache {
                     status: DeviceStatus::Online,
                     timestamp,
                     metrics,
-                });
-        }
+                })
+                .clone()
+        };
 
+        let _ = self.snapshot_tx.send(snapshot);
         let _ = self.trigger.send(true);
     }
 
@@ -78,8 +84,12 @@ impl DeviceCache {
         let _ = self.tx.send(payload);
     }
 
-    pub fn subscribe(&self) -> BroadcastStream<String> {
+    pub fn subscribe_sse(&self) -> BroadcastStream<String> {
         BroadcastStream::new(self.tx.subscribe())
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<DeviceSnapshot> {
+        self.snapshot_tx.subscribe()
     }
 
     pub fn trigger_receiver(&self) -> watch::Receiver<bool> {
@@ -179,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn test_publish_and_receive_sse_payload() {
         let cache = DeviceCache::new();
-        let mut stream = cache.subscribe();
+        let mut stream = cache.subscribe_sse();
 
         cache.publish_sse_payload(r#"{"test":true}"#.to_string());
 
