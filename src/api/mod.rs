@@ -79,7 +79,11 @@ async fn license_check_middleware(
     next: Next,
 ) -> impl IntoResponse {
     let path = req.uri().path();
-    if path == "/api/health" || path == "/api/license/status" {
+    if path == "/api/v1/health"
+        || path == "/api/license/status"
+        || path == "/api/v1/settings/branding"
+        || path.starts_with("/api/v1/auth/")
+    {
         return next.run(req).await;
     }
 
