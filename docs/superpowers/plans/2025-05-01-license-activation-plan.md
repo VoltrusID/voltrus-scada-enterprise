@@ -27,7 +27,7 @@ src/
   api/mod.rs        # Add license route and middleware
   Cargo.toml        # Add ed25519-dalek dependency
 
-worker/license-activate/
+(separate repo: voltrus-lite-cloudflare-worker)
   package.json
   wrangler.toml
   schema.sql
