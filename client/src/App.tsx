@@ -364,6 +364,8 @@ function AppInner() {
         turbo={turbo} onToggleTurbo={() => setTurbo(v => !v)}
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => setShowDataManager(true)}
+        onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
+        isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
       />
@@ -374,7 +376,6 @@ function AppInner() {
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
           onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows') setMode('live') }}
           onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
-          onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
           onRenameScreen={handleRenameScreen}
           onDeleteScreen={handleDeleteScreen}
           onAddScreen={handleAddScreen}
