@@ -11,6 +11,7 @@ mod data;
 mod system;
 mod generators;
 pub(crate) mod stream;
+mod flows;
 
 use axum::{
     extract::{Request, State},
@@ -30,6 +31,7 @@ use crate::auth::oidc::{JwksManager, OidcConfig};
 use crate::cache::DeviceCache;
 use crate::poller_manager::PollerManager;
 use crate::storage::Storage;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -43,6 +45,7 @@ pub struct AppState {
     pub oidc_config: OidcConfig,
     pub jwks_manager: JwksManager,
     pub retention_config: crate::models::RetentionConfig,
+    pub flow_engine: Option<Arc<crate::flow_engine::engine::FlowEngine>>,
 }
 
 #[derive(Debug)]
@@ -112,6 +115,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/live", get(system::get_live))
         .route("/api/stream", get(stream::stream))
         .route("/api/system", get(system::get_system))
+        .route("/api/auth/change-password", post(auth::change_password))
         .route("/api/data", get(data::get_data))
         .route("/api/history", get(data::get_history))
         .route("/api/export/csv", get(data::export_csv))
@@ -191,6 +195,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/modbus-devices/{id}/restart", post(modbus_devices::restart_poller))
         .route("/api/users", get(auth::list_users).post(auth::create_user_handler))
         .route("/api/users/{id}", put(auth::update_user_handler).delete(auth::delete_user_handler))
+        .route("/api/flows", get(flows::list_flows).post(flows::create_flow))
+        .route("/api/flows/{id}", get(flows::get_flow).put(flows::update_flow).delete(flows::delete_flow))
+        .route("/api/flows/{id}/start", post(flows::start_flow))
+        .route("/api/flows/{id}/stop", post(flows::stop_flow))
+        .route("/api/flows/{id}/test", post(flows::test_flow))
+        .route("/api/flows/{id}/runs", get(flows::list_flow_runs))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -323,6 +333,7 @@ mod tests {
             oidc_config: test_oidc_config(),
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
         };
         create_router(state)
     }
@@ -481,6 +492,7 @@ mod tests {
             oidc_config: test_oidc_config(),
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
         };
         let app = create_router(state);
 
@@ -535,6 +547,7 @@ mod tests {
             oidc_config: test_oidc_config(),
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
         };
         let app = create_router(state);
 
@@ -611,6 +624,7 @@ mod tests {
             oidc_config: test_oidc_config(),
             jwks_manager: test_jwks_manager(),
             retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
         };
         let app = create_router(state);
 

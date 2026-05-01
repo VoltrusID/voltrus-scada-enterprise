@@ -215,6 +215,7 @@ async fn main() -> anyhow::Result<()> {
         oidc_config,
         jwks_manager,
         retention_config: app_config.retention.clone(),
+        flow_engine: None,
     };
 
     api::stream::spawn_sse_composer(cache, storage);
