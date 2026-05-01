@@ -16,6 +16,7 @@ import '../views/scada-view.js';
 import '../views/twin-view.js';
 import '../views/system-view.js';
 import '../components/data-manager.js';
+import '../components/license-activation-screen.js';
 
 type ViewName = 'grid' | 'canvas' | 'scada' | 'twin' | 'system';
 
@@ -113,10 +114,12 @@ export class AppShell extends LitElement {
   @state() private _dialog: null | { type: 'add-screen' | 'rename-screen' | 'delete-screen'; title: string; label: string; okLabel: string; initialValue: string } = null;
   @state() private _authRole = 'user';
   @state() private _systemInfo: { hostname?: string; os?: string; uptime_secs?: number } = {};
+  @state() private _licenseValid = true;
 
   connectedCallback() {
     super.connectedCallback();
     this._readUrlParams();
+    this._checkLicense();
     authManager.addEventListener('change', this._onAuth as EventListener);
     authManager.check();
     this._loadScreens();
@@ -133,6 +136,16 @@ export class AppShell extends LitElement {
     super.disconnectedCallback();
     authManager.removeEventListener('change', this._onAuth as EventListener);
     document.removeEventListener('keydown', this._onKeyDown);
+  }
+
+  private async _checkLicense() {
+    try {
+      const res = await fetch('/api/license/status');
+      const data = await res.json();
+      this._licenseValid = data.status === 'Valid';
+    } catch {
+      this._licenseValid = true;
+    }
   }
 
   private _onAuth = () => {
@@ -316,6 +329,9 @@ export class AppShell extends LitElement {
   }
 
   render() {
+    if (!this._licenseValid) {
+      return html`<vlt-license-activation @activated="${() => { this._licenseValid = true; this.requestUpdate(); }}"></vlt-license-activation>`;
+    }
     if (this._authLoading) {
       return html`<div class="loading">Loading...</div>`;
     }
