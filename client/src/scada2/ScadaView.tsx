@@ -145,7 +145,7 @@ export const ScadaView: React.FC<Props> = ({
       cv.requestRenderAll()
       return
     }
-    const group = new Group(objects)
+    const group = new (Group as any)(objects) as any
     const bounds = group.getBoundingRect(true)
     group.destroy()
     const padding = 40
