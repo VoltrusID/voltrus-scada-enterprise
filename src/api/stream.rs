@@ -10,7 +10,7 @@ use crate::api::AppState;
 pub async fn stream(State(state): State<AppState>) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let stream = state
         .cache
-        .subscribe()
+        .subscribe_sse()
         .filter_map(|result| match result {
             Ok(payload) => Some(Ok(Event::default().data(payload))),
             Err(_) => None,
