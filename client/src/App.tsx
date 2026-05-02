@@ -84,7 +84,7 @@ function AppInner() {
   const { data: screenSensors = [] } = useScreenSensors(activeScreen, authed)
   const { data: screens = [] } = useScreens(authed)
   const { data: serverLayouts } = useLayouts(activeScreen, authed)
-  const screenLayouts = localLayouts ?? (serverLayouts ?? { lg: [], md: [], sm: [] })
+  const screenLayouts = localLayouts ?? (serverLayouts ?? { lg: [], md: [], sm: [], xs: [] })
   const { data: twinLayoutsData } = useTwinLayouts(activeScreen, authed)
   const twinLayouts = twinLayoutsData?.items ?? []
   const twinCamera = twinLayoutsData?.camera
@@ -136,10 +136,10 @@ function AppInner() {
     return defaults
   }, [screens, navShortcuts])
 
-  const DEFAULT_COLS: Record<string, number> = { lg: 24, md: 12, sm: 4 }
+  const DEFAULT_COLS: Record<string, number> = { lg: 24, md: 12, sm: 4, xs: 2 }
   function generateDefaultLayout(sensorIds: number[], bp: string): LayoutItem[] {
     const cols = DEFAULT_COLS[bp] || 24
-    const defaultW = bp === 'lg' ? 6 : bp === 'md' ? 6 : 4
+    const defaultW = bp === 'lg' ? 6 : bp === 'md' ? 6 : bp === 'xs' ? 2 : 4
     const defaultH = 4
     let x = 0, y = 0
     return sensorIds.map(id => {
@@ -176,6 +176,7 @@ function AppInner() {
         const ct = s.chart_type || 'sparkline'
         let { w, h } = CHART_SIZES[ct] || { w: 6, h: 4 }
         if (bp === 'sm') { w = Math.min(w, 4); h = Math.max(h, 3) }
+        if (bp === 'xs') { w = 2; h = 3 }
         if (x + w > cols) { x = 0; rowY += maxRowH; maxRowH = 0 }
         items.push({ i: String(s.id), x, y: rowY, w, h })
         maxRowH = Math.max(maxRowH, h)
@@ -187,14 +188,14 @@ function AppInner() {
   }
 
   function autoArrangeAll(sensors: SensorConfig[]): ScreenLayouts {
-    return { lg: autoArrangeLayout(sensors, 'lg'), md: autoArrangeLayout(sensors, 'md'), sm: autoArrangeLayout(sensors, 'sm') }
+    return { lg: autoArrangeLayout(sensors, 'lg'), md: autoArrangeLayout(sensors, 'md'), sm: autoArrangeLayout(sensors, 'sm'), xs: autoArrangeLayout(sensors, 'xs') }
   }
 
   const defaultLayouts = useMemo(() => {
     if (screenLayouts.lg.length > 0) return null
     const ids = screenSensors.map(s => s.id)
     if (ids.length === 0) return null
-    return { lg: generateDefaultLayout(ids, 'lg'), md: generateDefaultLayout(ids, 'md'), sm: generateDefaultLayout(ids, 'sm') }
+    return { lg: generateDefaultLayout(ids, 'lg'), md: generateDefaultLayout(ids, 'md'), sm: generateDefaultLayout(ids, 'sm'), xs: generateDefaultLayout(ids, 'xs') }
   }, [screenSensors, screenLayouts])
 
   const effectiveLayouts = defaultLayouts ?? screenLayouts
@@ -261,6 +262,7 @@ function AppInner() {
       lg: allLayouts.lg?.length > 0 ? normalize(allLayouts.lg) : [],
       md: allLayouts.md?.length > 0 ? normalize(allLayouts.md) : [],
       sm: allLayouts.sm?.length > 0 ? normalize(allLayouts.sm) : [],
+      xs: allLayouts.xs?.length > 0 ? normalize(allLayouts.xs) : [],
     }
     setLocalLayouts(prev => {
       const next = JSON.stringify(newLayouts)
@@ -390,7 +392,7 @@ function AppInner() {
       />
       </header>
 
-      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }} className="main-content">
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}

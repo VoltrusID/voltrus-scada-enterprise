@@ -39,7 +39,7 @@ export interface Screen { id: string; name: string; type: string; sort_order: nu
 
 export interface LayoutItem { i: string; x: number; y: number; w: number; h: number }
 
-export type ScreenLayouts = { lg: LayoutItem[]; md: LayoutItem[]; sm: LayoutItem[] }
+export type ScreenLayouts = { lg: LayoutItem[]; md: LayoutItem[]; sm: LayoutItem[]; xs: LayoutItem[] }
 
 export interface CanvasLayoutItem {
   data_source_id: number

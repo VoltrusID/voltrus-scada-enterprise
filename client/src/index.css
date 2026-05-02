@@ -279,3 +279,10 @@ input, textarea, [contenteditable] {
 .screen-tabs-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* Mobile main content padding */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0 10px 10px !important;
+  }
+}

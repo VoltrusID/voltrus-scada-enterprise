@@ -1,9 +1,20 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { SensorConfig, SOURCE_CATEGORY } from './types'
 import { Chart } from './Chart'
 import { stColor } from './styles'
 import { parseConfig } from './styles'
 import { useSensorCurrentValue, useChartValues } from './store/dashboardStore'
+
+const useIsSmallScreen = () => {
+  const [small, setSmall] = useState(window.innerWidth <= 480)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 480px)')
+    const handler = (e: MediaQueryListEvent) => setSmall(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return small
+}
 
 interface Props {
   sensor: SensorConfig
@@ -26,10 +37,12 @@ export const SensorCard = React.memo(function SensorCard({
 }: Props) {
   const cv = useSensorCurrentValue(s.id)
   const chartData = useChartValues(s.id, mode === 'history' ? 'history' : 'live')
+  const isSmall = useIsSmallScreen()
 
   const st = cv?.status ?? 'normal';
   const ct = s.chart_type || 'sparkline';
   const hideStatus = ct === 'image' || ct === 'text';
+  const isCompact = isSmall && !hideStatus;
 
   const formattedValue = st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals);
   const cardAriaLabel = `${s.name}: ${formattedValue} ${s.unit || ''}`;
@@ -43,6 +56,53 @@ export const SensorCard = React.memo(function SensorCard({
 
   const sourceTag = useMemo(() => SOURCE_CATEGORY[s.source_type]?.tag ?? s.source_type, [s.source_type]);
   const sourceTagColor = useMemo(() => SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)', [s.source_type]);
+
+  // Compact mode for small screens
+  if (isCompact) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={cardAriaLabel}
+        onKeyDown={handleKeyDown}
+        style={{
+          background: 'var(--card)',
+          border: `1px solid ${selected ? 'var(--cyan)' : editingId === s.id ? 'var(--cyan)' : 'var(--border)'}`,
+          borderRadius: 10,
+          overflow: 'hidden',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: '12px 14px',
+          ...(selected ? { boxShadow: '0 0 0 2px var(--cyan)' } : {}),
+        }}
+        onClick={onClick}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', minWidth: 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: stColor(st), flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', padding: '3px 8px', borderRadius: 4, flexShrink: 0, minWidth: 44, minHeight: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : st === 'offline' ? 'rgba(100,100,100,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
+        </div>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, lineHeight: 1.2 }}>
+          <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
+          <span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 10, color: 'var(--muted)' }}>
+          <span style={{ padding: '1px 5px', borderRadius: 3, background: `${sourceTagColor}18`, color: sourceTagColor, fontWeight: 700, letterSpacing: '.03em' }}>{sourceTag}</span>
+          {editMode && activeScreen !== 'all' && (
+            <button
+              onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }}
+              style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '4px 8px', fontSize: 10, lineHeight: 1, minWidth: 44, minHeight: 28 }}
+            >Remove</button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
