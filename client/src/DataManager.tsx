@@ -4,6 +4,7 @@ import { ModbusDeviceManager } from './ModbusDeviceManager';
 import { UserManager } from './UserManager';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
+import { PushSettings } from './PushSettings';
 import { btnStyle } from './styles';
 import type { SensorConfig } from './types';
 
@@ -98,7 +99,10 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             <UserManager onClose={onClose} embedded />
           )}
           {tab === 'notifications' && isAdmin && (
-            <NotificationSettingsPanel onClose={onClose} embedded />
+            <>
+              <PushSettings />
+              <NotificationSettingsPanel onClose={onClose} embedded />
+            </>
           )}
           {tab === 'api-keys' && isAdmin && (
             <ApiKeyManager onClose={onClose} embedded />
