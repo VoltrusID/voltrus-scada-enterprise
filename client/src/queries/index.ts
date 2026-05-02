@@ -124,3 +124,18 @@ export {
   useSubscribePush,
   useUnsubscribePush,
 } from './push'
+
+export {
+  useOpcUaDevices,
+  useOpcUaNodes,
+  useCreateOpcUaDevice,
+  useUpdateOpcUaDevice,
+  useDeleteOpcUaDevice,
+  useBrowseOpcUaDevice,
+  useAddOpcUaNode,
+  useDeleteOpcUaNode,
+  useStartOpcUaDevice,
+  useStopOpcUaDevice,
+} from './opcua'
+
+export type { OpcUaDevice, OpcUaNode, BrowseResult } from './opcua'
