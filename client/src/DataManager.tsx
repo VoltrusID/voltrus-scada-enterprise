@@ -6,12 +6,13 @@ import { UserManager } from './UserManager';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { PushSettings } from './PushSettings';
+import { HubManager } from './HubManager';
 import { btnStyle } from './styles';
 import { useLicense } from './LicenseContext';
 import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'opcua' | 'users' | 'notifications' | 'api-keys';
+type Tab = 'sources' | 'modbus' | 'opcua' | 'hub' | 'users' | 'notifications' | 'api-keys';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -27,6 +28,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   const modalRef = useRef<HTMLDivElement>(null);
   const license = useLicense();
   const isOpcUaDisabled = license?.feature_flags?.opcua_enabled === false;
+  const isHubDisabled = license?.feature_flags?.multi_site === false;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -88,6 +90,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             {isAdmin && <button style={tabBtn('notifications')} onClick={() => setTab('notifications')} aria-selected={tab === 'notifications'}>Notifications</button>}
             {isAdmin && <button style={tabBtn('api-keys')} onClick={() => setTab('api-keys')} aria-selected={tab === 'api-keys'}>API Keys</button>}
             {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA{isOpcUaDisabled && <FeatureBadge tier="Professional" />}</button>}
+            {isAdmin && <button style={tabBtn('hub')} onClick={() => setTab('hub')} aria-selected={tab === 'hub'}>Hub{isHubDisabled && <FeatureBadge tier="Professional" />}</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -115,6 +118,9 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'opcua' && isAdmin && (
             <OpcUaDeviceManager onClose={onClose} embedded />
+          )}
+          {tab === 'hub' && isAdmin && (
+            <HubManager onClose={onClose} embedded />
           )}
         </div>
       </div>
