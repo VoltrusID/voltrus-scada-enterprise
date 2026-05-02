@@ -21,9 +21,9 @@ pub async fn create_notification_setting(
     Json(req): Json<CreateNotificationSettingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Validate channel_type
-    if req.channel_type != "email" && req.channel_type != "webhook" {
+    if req.channel_type != "email" && req.channel_type != "webhook" && req.channel_type != "push" {
         return Err(AppError(anyhow::anyhow!(
-            "channel_type must be 'email' or 'webhook'"
+            "channel_type must be 'email', 'webhook', or 'push'"
         )));
     }
 
@@ -87,9 +87,9 @@ pub async fn update_notification_setting(
 ) -> Result<impl IntoResponse, AppError> {
     // Validate channel_type if provided
     if let Some(ref ct) = req.channel_type {
-        if ct != "email" && ct != "webhook" {
+        if ct != "email" && ct != "webhook" && ct != "push" {
             return Err(AppError(anyhow::anyhow!(
-                "channel_type must be 'email' or 'webhook'"
+                "channel_type must be 'email', 'webhook', or 'push'"
             )));
         }
     }
@@ -141,9 +141,9 @@ pub async fn test_notification(
     State(state): State<AppState>,
     Json(req): Json<TestNotificationRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if req.channel_type != "email" && req.channel_type != "webhook" {
+    if req.channel_type != "email" && req.channel_type != "webhook" && req.channel_type != "push" {
         return Err(AppError(anyhow::anyhow!(
-            "channel_type must be 'email' or 'webhook'"
+            "channel_type must be 'email', 'webhook', or 'push'"
         )));
     }
 

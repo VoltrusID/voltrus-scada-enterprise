@@ -38,6 +38,7 @@ pub enum PushSendResult {
 #[derive(Clone)]
 pub struct PushNotifier {
     vapid_private_key: String,
+    vapid_public_key: String,
     vapid_subject: String,
     client: IsahcWebPushClient,
 }
@@ -56,18 +57,15 @@ impl PushNotifier {
 
         Ok(Self {
             vapid_private_key: config.vapid_private_key.clone(),
+            vapid_public_key: config.vapid_public_key.clone(),
             vapid_subject: config.vapid_subject.clone(),
             client,
         })
     }
 
     /// Returns the public VAPID key (for serving to the frontend).
-    #[allow(dead_code)]
     pub fn public_key(&self) -> &str {
-        // The public key is stored in PushConfig but not held here;
-        // access it via config. This method is available if we need it on
-        // the notifier itself later.
-        ""
+        &self.vapid_public_key
     }
 
     /// Send an alarm notification to a push subscription.
