@@ -22,6 +22,7 @@ mod hub;
 mod report;
 mod report_scheduler;
 mod analytics;
+mod compliance;
 mod recipe;
 
 use api::AppState;

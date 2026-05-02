@@ -21,6 +21,8 @@ pub(crate) mod hub;
 mod reports;
 mod analytics;
 mod recipes;
+mod rbac;
+mod compliance;
 
 use axum::{
     extract::{Request, State},
@@ -313,6 +315,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/recipes", get(recipes::list_recipes).post(recipes::create_recipe))
         .route("/api/v1/recipes/{id}", get(recipes::get_recipe).put(recipes::update_recipe).delete(recipes::delete_recipe))
         .route("/api/v1/recipes/{id}/load", post(recipes::load_recipe))
+        // RBAC routes (admin-only, license-gated)
+        .route("/api/v1/roles", get(rbac::list_roles).post(rbac::create_role))
+        .route("/api/v1/roles/{id}", put(rbac::update_role).delete(rbac::delete_role))
+        .route("/api/v1/users/{id}/role", put(rbac::assign_user_role))
+        // Compliance routes (admin-only, license-gated)
+        .route("/api/v1/compliance/config", get(compliance::get_compliance_config).put(compliance::update_compliance_config))
+        .route("/api/v1/compliance/sign", post(compliance::create_electronic_signature))
+        .route("/api/v1/compliance/signatures", get(compliance::list_electronic_signatures))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

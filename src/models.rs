@@ -1108,6 +1108,37 @@ mod tests {
         assert_eq!(parsed["availability"], 0.85);
         assert_eq!(parsed["total_running_secs"], 3600);
     }
+
+    #[test]
+    fn test_permission_constants() {
+        assert_eq!(PERM_SCREENS_READ, "screens:read");
+        assert_eq!(PERM_SCREENS_WRITE, "screens:write");
+        assert_eq!(ALL_PERMISSIONS.len(), 14);
+        assert!(ALL_PERMISSIONS.contains(&PERM_USERS_MANAGE));
+    }
+
+    #[test]
+    fn test_role_serde() {
+        let role = Role {
+            id: 1,
+            name: "Admin".to_string(),
+            permissions: r#"["screens:read"]"#.to_string(),
+            created_at: 1000,
+        };
+        let json = serde_json::to_string(&role).unwrap();
+        assert!(json.contains("\"name\":\"Admin\""));
+        let back: Role = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.id, 1);
+        assert_eq!(back.name, "Admin");
+    }
+
+    #[test]
+    fn test_create_role_request_deserialize() {
+        let json = r#"{"name":"Operator","permissions":"[\"screens:read\"]"}"#;
+        let req: CreateRoleRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.name, "Operator");
+        assert_eq!(req.permissions, r#"["screens:read"]"#);
+    }
 }
 
 // -- OEE / Downtime types --
@@ -1259,6 +1290,76 @@ pub struct UpdateHubSiteRequest {
     pub api_key: Option<String>,
     pub enabled: Option<bool>,
 }
+
+// ── RBAC types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Role {
+    pub id: i64,
+    pub name: String,
+    pub permissions: String, // JSON array: ["screens:read", "screens:write", ...]
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateRoleRequest {
+    pub name: String,
+    pub permissions: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateRoleRequest {
+    pub name: Option<String>,
+    pub permissions: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AssignRoleRequest {
+    pub role_id: i64,
+}
+
+// ── Permission constants ──
+
+pub const PERM_SCREENS_READ: &str = "screens:read";
+pub const PERM_SCREENS_WRITE: &str = "screens:write";
+pub const PERM_DEVICES_READ: &str = "devices:read";
+pub const PERM_DEVICES_WRITE: &str = "devices:write";
+pub const PERM_ALARMS_READ: &str = "alarms:read";
+pub const PERM_ALARMS_ACK: &str = "alarms:ack";
+pub const PERM_SETTINGS_READ: &str = "settings:read";
+pub const PERM_SETTINGS_WRITE: &str = "settings:write";
+pub const PERM_USERS_MANAGE: &str = "users:manage";
+pub const PERM_FLOWS_MANAGE: &str = "flows:manage";
+pub const PERM_NOTIFICATIONS_MANAGE: &str = "notifications:manage";
+pub const PERM_HUB_MANAGE: &str = "hub:manage";
+pub const PERM_REPORTS_MANAGE: &str = "reports:manage";
+pub const PERM_RECIPES_MANAGE: &str = "recipes:manage";
+
+/// All available permission constants for seeding.
+pub const ALL_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_SCREENS_WRITE,
+    PERM_DEVICES_READ, PERM_DEVICES_WRITE,
+    PERM_ALARMS_READ, PERM_ALARMS_ACK,
+    PERM_SETTINGS_READ, PERM_SETTINGS_WRITE,
+    PERM_USERS_MANAGE,
+    PERM_FLOWS_MANAGE,
+    PERM_NOTIFICATIONS_MANAGE,
+    PERM_HUB_MANAGE,
+    PERM_REPORTS_MANAGE,
+    PERM_RECIPES_MANAGE,
+];
+
+/// Read-only permissions for the Viewer role.
+pub const VIEWER_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
+    PERM_SETTINGS_READ,
+];
+
+/// Read + ack permissions for the Operator role.
+pub const OPERATOR_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
+    PERM_ALARMS_ACK, PERM_SETTINGS_READ,
+];
 
 // ── Recipe types ──
 
