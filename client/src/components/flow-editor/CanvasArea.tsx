@@ -1,12 +1,12 @@
 import { useRef, useMemo, useEffect, useState } from 'react'
 import { FlowNode } from './FlowNode'
-import { NODE_WIDTH, NODE_GAP, NODE_HEIGHT } from './constants'
+import { NODE_WIDTH, NODE_GAP, NODE_HEIGHT, NODE_META } from './constants'
 import type { FlowNodeConfig } from '../../types'
 
 interface Props {
   trigger: any
   nodes: FlowNodeConfig[]
-  selectedIndex: number | null // null = trigger selected, >=0 = node index
+  selectedIndex: number | null
   onSelectTrigger: () => void
   onSelectNode: (index: number) => void
   onRemoveNode: (index: number) => void
@@ -33,49 +33,141 @@ export function CanvasArea({
     return () => ro.disconnect()
   }, [])
 
-  // Auto-layout: trigger + nodes, centered horizontally
-  const positions = useMemo(() => {
-    const totalItems = 1 + nodes.length
-    const totalWidth = totalItems * NODE_WIDTH + (totalItems - 1) * NODE_GAP
-    const startX = Math.max(60, (canvasSize.width - totalWidth) / 2)
-    const y = canvasSize.height / 2 - NODE_HEIGHT / 2
+  // Split nodes into process and output groups
+  const processNodes = useMemo(() => nodes.filter(n => NODE_META[n.type]?.category === 'process'), [nodes])
+  const outputNodes = useMemo(() => nodes.filter(n => NODE_META[n.type]?.category === 'output'), [nodes])
 
-    const pos: { x: number; y: number }[] = []
-    for (let i = 0; i < totalItems; i++) {
-      pos.push({ x: startX + i * (NODE_WIDTH + NODE_GAP), y })
+  // Build index maps (original index in nodes array)
+  const processIndices = useMemo(() => {
+    const idx: number[] = []
+    nodes.forEach((n, i) => { if (NODE_META[n.type]?.category === 'process') idx.push(i) })
+    return idx
+  }, [nodes])
+
+  const outputIndices = useMemo(() => {
+    const idx: number[] = []
+    nodes.forEach((n, i) => { if (NODE_META[n.type]?.category === 'output') idx.push(i) })
+    return idx
+  }, [nodes])
+
+  // Layout: trigger → process chain → outputs stacked vertically
+  const { positions, nodeMap } = useMemo(() => {
+    const map = new Map<string, { x: number; y: number; nodeIndex: number; isTrigger: boolean }>()
+    const OUTPUT_GAP = 16
+
+    // Total width of process chain + trigger
+    const processChainWidth = (1 + processNodes.length) * NODE_WIDTH + (processNodes.length) * NODE_GAP
+    // Check if output stack would be taller
+    const outputStackHeight = outputNodes.length * NODE_HEIGHT + (outputNodes.length - 1) * OUTPUT_GAP
+
+    // Center vertically based on the tallest section
+    const centerY = canvasSize.height / 2 - NODE_HEIGHT / 2
+
+    // Trigger position
+    let x = Math.max(60, (canvasSize.width - (processChainWidth + NODE_GAP + NODE_WIDTH)) / 2)
+    const triggerY = centerY
+
+    map.set('trigger', { x, y: triggerY, nodeIndex: -1, isTrigger: true })
+
+    // Process nodes in a horizontal chain
+    x += NODE_WIDTH + NODE_GAP
+    for (let i = 0; i < processNodes.length; i++) {
+      map.set(`process-${i}`, { x, y: centerY, nodeIndex: processIndices[i], isTrigger: false })
+      x += NODE_WIDTH + NODE_GAP
     }
-    return pos
-  }, [nodes.length, canvasSize.width, canvasSize.height])
 
-  // Connection points: right edge of item i to left edge of item i+1
+    // Output nodes stacked vertically
+    const outputStartY = centerY - (outputStackHeight - NODE_HEIGHT) / 2
+    for (let i = 0; i < outputNodes.length; i++) {
+      map.set(`output-${i}`, { x, y: outputStartY + i * (NODE_HEIGHT + OUTPUT_GAP), nodeIndex: outputIndices[i], isTrigger: false })
+    }
+
+    return { positions: map, nodeMap: map }
+  }, [processNodes.length, outputNodes.length, processIndices, outputIndices, canvasSize.width, canvasSize.height])
+
+  // Build edges
   const edges = useMemo(() => {
     const result: { from: { x: number; y: number }; to: { x: number; y: number } }[] = []
-    for (let i = 0; i < positions.length - 1; i++) {
-      const from = { x: positions[i].x + NODE_WIDTH, y: positions[i].y + NODE_HEIGHT / 2 }
-      const to = { x: positions[i + 1].x, y: positions[i + 1].y + NODE_HEIGHT / 2 }
-      result.push({ from, to })
+
+    const triggerPos = nodeMap.get('trigger')
+    const firstProcess = nodeMap.get('process-0')
+    const firstOutput = nodeMap.get('output-0')
+
+    // Trigger → first process
+    if (triggerPos && firstProcess) {
+      result.push({
+        from: { x: triggerPos.x + NODE_WIDTH, y: triggerPos.y + NODE_HEIGHT / 2 },
+        to: { x: firstProcess.x, y: firstProcess.y + NODE_HEIGHT / 2 },
+      })
     }
+
+    // Process chain
+    for (let i = 1; i < processNodes.length; i++) {
+      const prev = nodeMap.get(`process-${i - 1}`)
+      const curr = nodeMap.get(`process-${i}`)
+      if (prev && curr) {
+        result.push({
+          from: { x: prev.x + NODE_WIDTH, y: prev.y + NODE_HEIGHT / 2 },
+          to: { x: curr.x, y: curr.y + NODE_HEIGHT / 2 },
+        })
+      }
+    }
+
+    // Last process → outputs (or trigger → outputs if no process nodes)
+    const source = processNodes.length > 0
+      ? nodeMap.get(`process-${processNodes.length - 1}`)
+      : triggerPos
+
+    if (source) {
+      for (let i = 0; i < outputNodes.length; i++) {
+        const out = nodeMap.get(`output-${i}`)
+        if (out) {
+          result.push({
+            from: { x: source.x + NODE_WIDTH, y: source.y + NODE_HEIGHT / 2 },
+            to: { x: out.x, y: out.y + NODE_HEIGHT / 2 },
+          })
+        }
+      }
+    }
+
     return result
-  }, [positions])
+  }, [nodeMap, processNodes.length, outputNodes.length])
 
   const handleMouseUp = (e: React.MouseEvent) => {
     if (!isDragOver) return
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     const x = e.clientX - rect.left
-
-    // Find nearest insertion gap
     const totalItems = 1 + nodes.length
     let bestIndex = totalItems
     let bestDist = Infinity
 
-    // Check gaps: before trigger (0), between items, after last (totalItems)
+    // Build gap positions based on the layout
     for (let i = 0; i <= totalItems; i++) {
+      let key: string | null = null
+      if (i === 0) {
+        key = 'trigger'
+      } else {
+        const ni = i - 1
+        const node = nodes[ni]
+        const cat = NODE_META[node?.type]?.category
+        if (cat === 'process') {
+          const pi = processIndices.indexOf(ni)
+          if (pi >= 0) key = `process-${pi}`
+        } else {
+          const oi = outputIndices.indexOf(ni)
+          if (oi >= 0) key = `output-${oi}`
+        }
+      }
+
+      if (!key) continue
+      const pos = nodeMap.get(key)
+      if (!pos) continue
+
       const gapX = i === 0
-        ? positions[0]?.x - NODE_GAP / 2 || 0
-        : i === totalItems
-          ? (positions[totalItems - 1]?.x + NODE_WIDTH + NODE_GAP / 2) || canvasSize.width
-          : (positions[i - 1].x + NODE_WIDTH + positions[i].x) / 2
+        ? pos.x - NODE_GAP / 2
+        : pos.x + NODE_WIDTH + NODE_GAP / 2
+
       const dist = Math.abs(x - gapX)
       if (dist < bestDist) {
         bestDist = dist
@@ -84,6 +176,29 @@ export function CanvasArea({
     }
     onDrop(bestIndex)
   }
+
+  // Render all items from the nodeMap
+  const items = useMemo(() => {
+    const result: { key: string; x: number; y: number; isTrigger: boolean; nodeIndex: number }[] = []
+
+    // Trigger
+    const tp = nodeMap.get('trigger')
+    if (tp) result.push({ key: 'trigger', ...tp })
+
+    // Process nodes
+    for (let i = 0; i < processNodes.length; i++) {
+      const p = nodeMap.get(`process-${i}`)
+      if (p) result.push({ key: `process-${i}`, ...p })
+    }
+
+    // Output nodes
+    for (let i = 0; i < outputNodes.length; i++) {
+      const p = nodeMap.get(`output-${i}`)
+      if (p) result.push({ key: `output-${i}`, ...p })
+    }
+
+    return result
+  }, [nodeMap, processNodes.length, outputNodes.length])
 
   return (
     <div
@@ -128,38 +243,32 @@ export function CanvasArea({
       </svg>
 
       {/* Nodes */}
-      {positions.map((pos, i) => {
-        const isTriggerNode = i === 0
-        const nodeIndex = i - 1
-        return (
-          <div
-            key={isTriggerNode ? 'trigger' : nodes[nodeIndex].id}
-            style={{
-              position: 'absolute', left: pos.x, top: pos.y, zIndex: 2,
-            }}
-          >
-            {isTriggerNode ? (
-              <FlowNode
-                isTrigger={true}
-                triggerType={trigger?.type}
-                isSelected={selectedIndex === null}
-                index={0}
-                onSelect={onSelectTrigger}
-              />
-            ) : (
-              <FlowNode
-                node={nodes[nodeIndex]}
-                isTrigger={false}
-                isSelected={selectedIndex === nodeIndex}
-                index={nodeIndex}
-                onSelect={() => onSelectNode(nodeIndex)}
-                onRemove={() => onRemoveNode(nodeIndex)}
-                onDragStart={onDragNodeStart}
-              />
-            )}
-          </div>
-        )
-      })}
+      {items.map(item => (
+        <div
+          key={item.key}
+          style={{ position: 'absolute', left: item.x, top: item.y, zIndex: 2 }}
+        >
+          {item.isTrigger ? (
+            <FlowNode
+              isTrigger={true}
+              triggerType={trigger?.type}
+              isSelected={selectedIndex === null}
+              index={0}
+              onSelect={onSelectTrigger}
+            />
+          ) : (
+            <FlowNode
+              node={nodes[item.nodeIndex]}
+              isTrigger={false}
+              isSelected={selectedIndex === item.nodeIndex}
+              index={item.nodeIndex}
+              onSelect={() => onSelectNode(item.nodeIndex)}
+              onRemove={() => onRemoveNode(item.nodeIndex)}
+              onDragStart={onDragNodeStart}
+            />
+          )}
+        </div>
+      ))}
     </div>
   )
 }

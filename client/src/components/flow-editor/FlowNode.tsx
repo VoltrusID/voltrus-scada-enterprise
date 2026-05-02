@@ -18,29 +18,24 @@ export function FlowNode({ node, triggerType, isTrigger, isSelected, index, onSe
   const label = meta?.label || node?.type || triggerType || 'Unknown'
 
   const cardStyle: React.CSSProperties = {
-    width: NODE_WIDTH, borderRadius: isTrigger ? 4 : 10,
+    width: NODE_WIDTH, borderRadius: 10,
     border: `1px solid ${isSelected ? color : 'var(--border)'}`,
     background: 'var(--card)', overflow: 'hidden', cursor: 'pointer',
     boxShadow: isSelected ? `0 0 0 2px ${color}33, 0 4px 12px rgba(0,0,0,.2)` : '0 2px 8px rgba(0,0,0,.15)',
-    transition: 'box-shadow .15s, border-color .15s, transform .15s',
-    transform: isTrigger ? 'rotate(45deg)' : 'none',
+    transition: 'box-shadow .15s, border-color .15s',
   }
 
-  const innerStyle: React.CSSProperties = {
-    padding: '12px 14px',
-    transform: isTrigger ? 'rotate(-45deg)' : 'none',
-  }
-
-  // For trigger, we need a wrapper to maintain diamond shape without affecting layout flow
   if (isTrigger) {
     return (
-      <div style={{ width: NODE_WIDTH + 20, height: NODE_WIDTH + 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: NODE_WIDTH }}>
         <div style={cardStyle} onClick={onSelect}>
-          <div style={{ height: 4, background: color }} />
-          <div style={innerStyle}>
+          <div style={{ height: 4, background: color, borderRadius: '10px 10px 0 0' }} />
+          <div style={{ padding: '12px 14px' }}>
             <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600, marginBottom: 4 }}>Trigger</div>
             <div style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+                <path d={meta?.icon || ''} />
+              </svg>
               {label}
             </div>
           </div>
