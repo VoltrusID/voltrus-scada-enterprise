@@ -290,7 +290,7 @@ fn variant_to_f64(variant: &Variant) -> Option<f64> {
 
 /// Convert our `OpcUaSecurityPolicy` to the string expected by
 /// `EndpointDescription`'s From impl (security policy URI).
-fn security_policy_to_str(policy: &OpcUaSecurityPolicy) -> &'static str {
+pub(crate) fn security_policy_to_str(policy: &OpcUaSecurityPolicy) -> &'static str {
     match policy {
         OpcUaSecurityPolicy::None => "http://opcfoundation.org/UA/SecurityPolicy#None",
         OpcUaSecurityPolicy::Basic256Sha256 => {
@@ -300,7 +300,7 @@ fn security_policy_to_str(policy: &OpcUaSecurityPolicy) -> &'static str {
 }
 
 /// Convert our `OpcUaSecurityMode` to the OPC-UA `MessageSecurityMode`.
-fn security_mode_to_opcua(mode: &OpcUaSecurityMode) -> MessageSecurityMode {
+pub(crate) fn security_mode_to_opcua(mode: &OpcUaSecurityMode) -> MessageSecurityMode {
     match mode {
         OpcUaSecurityMode::None => MessageSecurityMode::None,
         OpcUaSecurityMode::Sign => MessageSecurityMode::Sign,

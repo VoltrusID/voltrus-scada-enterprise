@@ -15,6 +15,7 @@ pub(crate) mod stream;
 mod flows;
 mod license;
 mod notifications;
+mod opcua_devices;
 
 use axum::{
     extract::{Request, State},
@@ -264,6 +265,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/notifications/test", post(notifications::test_notification))
         .route("/api/v1/api-keys", post(api_keys::create_api_key).get(api_keys::list_api_keys))
         .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key))
+        .route("/api/v1/opcua/devices", get(opcua_devices::list_devices).post(opcua_devices::create_device))
+        .route("/api/v1/opcua/devices/{id}", put(opcua_devices::update_device).delete(opcua_devices::delete_device))
+        .route("/api/v1/opcua/devices/{id}/nodes", get(opcua_devices::list_nodes).post(opcua_devices::add_node))
+        .route("/api/v1/opcua/devices/{id}/nodes/{node_id}", delete(opcua_devices::remove_node))
+        .route("/api/v1/opcua/devices/{id}/browse", post(opcua_devices::browse_device))
+        .route("/api/v1/opcua/devices/{id}/start", post(opcua_devices::start_device))
+        .route("/api/v1/opcua/devices/{id}/stop", post(opcua_devices::stop_device))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
