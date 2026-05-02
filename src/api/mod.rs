@@ -1,4 +1,5 @@
 pub(crate) mod auth;
+mod api_keys;
 mod push;
 mod screens;
 mod data_sources;
@@ -17,10 +18,10 @@ mod notifications;
 
 use axum::{
     extract::{Request, State},
-    http::{HeaderValue, Method, StatusCode, header::{self, CONTENT_TYPE}},
+    http::{HeaderValue, Method, StatusCode, header::{self, CONTENT_TYPE, HeaderName}},
     middleware::{self, Next},
     response::IntoResponse,
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use axum::extract::{ConnectInfo, Extension, DefaultBodyLimit};
@@ -114,7 +115,12 @@ pub fn create_router(state: AppState) -> Router {
             CorsLayer::new()
                 .allow_origin(origins)
                 .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
-                .allow_headers([CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION])
+                .allow_headers([
+                    CONTENT_TYPE,
+                    header::ACCEPT,
+                    header::AUTHORIZATION,
+                    HeaderName::from_static("x-api-key"),
+                ])
                 .allow_credentials(true)
         }
         None => {
@@ -130,7 +136,12 @@ pub fn create_router(state: AppState) -> Router {
                 .allow_methods([
                     Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE,
                 ])
-                .allow_headers([CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION])
+                .allow_headers([
+                    CONTENT_TYPE,
+                    header::ACCEPT,
+                    header::AUTHORIZATION,
+                    HeaderName::from_static("x-api-key"),
+                ])
                 // NOTE: allow_credentials is intentionally FALSE when no explicit origin is set
                 // to prevent credential leakage to arbitrary origins.
         }
@@ -248,6 +259,8 @@ pub fn create_router(state: AppState) -> Router {
             put(notifications::update_notification_setting).delete(notifications::delete_notification_setting),
         )
         .route("/api/v1/notifications/test", post(notifications::test_notification))
+        .route("/api/v1/api-keys", post(api_keys::create_api_key).get(api_keys::list_api_keys))
+        .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -332,7 +345,31 @@ async fn cookie_auth_middleware(
 
     let mut req = req;
 
-    // Try Bearer token (OIDC) first
+    // 1. Try API key authentication (X-API-Key header or ?api_key= query param)
+    if let Some(api_key) = extract_api_key(&req) {
+        match state.storage.validate_api_key(&api_key).await {
+            Ok(Some((id, permissions))) => {
+                req.extensions_mut().insert(AuthUser {
+                    username: format!("api_key:{}", id),
+                    role: "api".to_string(),
+                });
+                req.extensions_mut().insert(ApiKeyAuth {
+                    id,
+                    permissions,
+                });
+                return next.run(req).await;
+            }
+            _ => {
+                // Failed API key auth — record intrusion and reject immediately.
+                // If an API key was explicitly provided, it must be the sole auth method;
+                // do not fall through to cookie/JWT auth.
+                state.intrusion_detector.record_401(&client_ip);
+                return (StatusCode::UNAUTHORIZED, "Invalid or expired API key").into_response();
+            }
+        }
+    }
+
+    // 2. Try Bearer token (OIDC)
     if state.oidc_config.enabled {
         if let Some(auth_header) = req.headers().get("authorization") {
             if let Some(token) = auth_header.to_str().ok().and_then(|v| v.strip_prefix("Bearer ")) {
@@ -348,7 +385,7 @@ async fn cookie_auth_middleware(
         }
     }
 
-    // Fall back to local cookie auth
+    // 3. Fall back to local cookie auth
     let jar = CookieJar::from_headers(req.headers());
     let token = jar
         .get("voltrus_token")
@@ -379,6 +416,38 @@ async fn cookie_auth_middleware(
                 .into_response()
         }
     }
+}
+
+/// API key authentication info.
+/// Note: permissions field is stored for future use but not yet enforced.
+/// All valid API keys currently grant full read access to protected endpoints.
+#[derive(Clone, Debug)]
+pub struct ApiKeyAuth {
+    pub id: i64,
+    pub permissions: String,
+}
+
+/// Extract API key from X-API-Key header or ?api_key= query parameter.
+fn extract_api_key(req: &Request) -> Option<String> {
+    // Check X-API-Key header first
+    if let Some(header) = req.headers().get("X-API-Key") {
+        if let Ok(key) = header.to_str() {
+            if !key.is_empty() {
+                return Some(key.to_string());
+            }
+        }
+    }
+    // Fall back to query parameter
+    if let Some(query) = req.uri().query() {
+        for pair in query.split('&') {
+            if let Some(key) = pair.strip_prefix("api_key=") {
+                if !key.is_empty() {
+                    return Some(key.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 // ── Tests ──
@@ -942,5 +1011,173 @@ mod tests {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+
+        let cache = DeviceCache::new();
+        let poller_manager = PollerManager::new(cache.clone());
+        let state = AppState {
+            cache,
+            storage,
+            poller_manager,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            smtp_config: None,
+        };
+        let app = create_router(state);
+
+        // Login to get admin cookie
+        let login_body = serde_json::json!({"username": "admin", "password": "admin"});
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&login_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let cookie_val = extract_cookie_value(resp.headers(), "voltrus_token")
+            .expect("voltrus_token cookie not found");
+
+        // Create API key
+        let create_body = serde_json::json!({
+            "name": "test-export-key",
+            "permissions": "[\"data:read\", \"data:export\"]"
+        });
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/api-keys")
+                    .header("content-type", "application/json")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::from(serde_json::to_string(&create_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["name"], "test-export-key");
+        assert!(json["key"].as_str().unwrap().len() == 64);
+        let plain_key = json["key"].as_str().unwrap().to_string();
+        let key_id = json["id"].as_i64().unwrap();
+
+        // List API keys
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/api-keys")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Use API key to access protected route (X-API-Key header)
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system")
+                    .header("X-API-Key", &plain_key)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Use API key via query parameter
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&format!("/api/v1/system?api_key={}", plain_key))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Invalid API key should fail
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system")
+                    .header("X-API-Key", "invalid-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // Revoke API key
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(&format!("/api/v1/api-keys/{}", key_id))
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Revoked key should no longer work
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system")
+                    .header("X-API-Key", &plain_key)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 }
