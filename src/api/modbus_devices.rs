@@ -65,18 +65,14 @@ pub async fn create_modbus_device(
     }
 
     // Check device limit from license tier
-    if let crate::license::LicenseStatus::Valid { tier, device_limit, .. } = &state.license_status {
-        if tier.as_deref() == Some("starter") {
-            if let Some(limit) = device_limit {
-                let current_devices = state.storage.list_modbus_devices().await?;
-                let count = current_devices.len() as u32;
-                if count >= *limit {
-                    return Err(AppError(anyhow::anyhow!(
-                        "Device limit reached ({}). Your {} tier allows up to {} devices. Upgrade at https://voltrus.id",
-                        count, tier.as_deref().unwrap_or("starter"), limit
-                    )));
-                }
-            }
+    let max = state.license_tier.max_devices();
+    if let Some(limit) = max {
+        let count = state.storage.count_modbus_devices().await?;
+        if count >= limit {
+            return Err(AppError(anyhow::anyhow!(
+                "Device limit of {} reached. Upgrade at https://voltrus.id",
+                limit
+            )));
         }
     }
 

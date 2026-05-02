@@ -55,6 +55,8 @@ pub struct AppState {
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
     pub license_status: crate::license::LicenseStatus,
+    pub license_tier: crate::license::LicenseTier,
+    pub feature_flags: serde_json::Value,
     pub smtp_config: Option<crate::models::SmtpConfig>,
     pub vapid_public_key: Option<String>,
 }
@@ -90,7 +92,13 @@ async fn license_check_middleware(
         || path == "/api/v1/push/vapid-key"
         || path.starts_with("/api/v1/auth/")
     {
-        return next.run(req).await;
+        let mut resp = next.run(req).await;
+        let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
+        resp.headers_mut().insert(
+            HeaderName::from_static("x-license-tier"),
+            HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+        );
+        return resp;
     }
 
     if !state.license_status.is_valid() {
@@ -104,7 +112,13 @@ async fn license_check_middleware(
         ).into_response();
     }
 
-    next.run(req).await
+    let mut resp = next.run(req).await;
+    let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
+    resp.headers_mut().insert(
+        HeaderName::from_static("x-license-tier"),
+        HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+    );
+    resp
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -513,6 +527,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -690,6 +706,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -754,6 +772,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -845,6 +865,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -914,6 +936,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -1060,6 +1084,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };

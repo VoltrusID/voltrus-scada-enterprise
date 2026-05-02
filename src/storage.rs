@@ -3005,6 +3005,19 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
+    pub async fn count_modbus_devices(&self) -> Result<u32> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM modbus_devices",
+                [],
+                |row| row.get(0),
+            ).context("Count query failed")?;
+            Ok(count as u32)
+        }).await.context("Task join failed")?
+    }
+
     pub async fn list_modbus_devices(&self) -> Result<Vec<ModbusDevice>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {

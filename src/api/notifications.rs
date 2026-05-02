@@ -21,10 +21,22 @@ pub async fn create_notification_setting(
     Json(req): Json<CreateNotificationSettingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Validate channel_type
-    if req.channel_type != "email" && req.channel_type != "webhook" && req.channel_type != "push" {
+    if req.channel_type != "email" && req.channel_type != "webhook" && req.channel_type != "push" && req.channel_type != "sms" {
         return Err(AppError(anyhow::anyhow!(
-            "channel_type must be 'email', 'webhook', or 'push'"
+            "channel_type must be 'email', 'webhook', 'push', or 'sms'"
         )));
+    }
+
+    // Tier-gate channel types
+    let tier = &state.license_tier;
+    match req.channel_type.as_str() {
+        "email" | "webhook" | "push" if !tier.email_notifications() => {
+            return Err(AppError(anyhow::anyhow!("Email/webhook/push notifications require Starter tier or above")));
+        }
+        "sms" if !tier.sms_notifications() => {
+            return Err(AppError(anyhow::anyhow!("SMS notifications require Professional tier or above")));
+        }
+        _ => {}
     }
 
     // Validate config is valid JSON array
@@ -145,6 +157,15 @@ pub async fn test_notification(
         return Err(AppError(anyhow::anyhow!(
             "channel_type must be 'email' or 'webhook' (push is tested via browser subscription)"
         )));
+    }
+
+    // Tier-gate channel types
+    let tier = &state.license_tier;
+    match req.channel_type.as_str() {
+        "email" | "webhook" if !tier.email_notifications() => {
+            return Err(AppError(anyhow::anyhow!("Email/webhook notifications require Starter tier or above")));
+        }
+        _ => {}
     }
 
     let targets: Vec<String> = match serde_json::from_str(&req.config) {
