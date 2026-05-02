@@ -252,3 +252,30 @@ input, textarea, [contenteditable] {
 .skip-to-content:focus {
   top: 0;
 }
+
+/* Mobile navigation drawer */
+@media (max-width: 768px) {
+  .header-actions-desktop {
+    display: none !important;
+  }
+}
+@media (min-width: 769px) {
+  .hamburger-menu {
+    display: none !important;
+  }
+}
+
+/* Drawer slide-in animation */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Hide scrollbar on mobile tab scroll */
+.screen-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
