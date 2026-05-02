@@ -136,6 +136,12 @@ impl LicenseTier {
         matches!(self, LicenseTier::Enterprise)
     }
 
+    /// RTSP video integration.
+    /// Only available on Enterprise tier.
+    pub fn rtsp_video(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
     /// Returns all feature flags as a JSON object.
     pub fn to_feature_flags(&self) -> serde_json::Value {
         serde_json::json!({
@@ -162,6 +168,7 @@ impl LicenseTier {
             "cfr_part_11": self.cfr_part_11(),
             "ethernet_ip": self.ethernet_ip(),
             "s7_protocol": self.s7_protocol(),
+            "rtsp_video": self.rtsp_video(),
         })
     }
 }
@@ -512,6 +519,7 @@ mod tests {
         assert!(ent.cfr_part_11());
         assert!(ent.ethernet_ip());
         assert!(ent.s7_protocol());
+        assert!(ent.rtsp_video());
     }
 
     #[test]
@@ -584,6 +592,14 @@ mod tests {
         assert!(!LicenseTier::Starter.s7_protocol());
         assert!(!LicenseTier::Professional.s7_protocol());
         assert!(LicenseTier::Enterprise.s7_protocol());
+    }
+
+    #[test]
+    fn test_rtsp_video_enterprise_only() {
+        assert!(!LicenseTier::Trial.rtsp_video());
+        assert!(!LicenseTier::Starter.rtsp_video());
+        assert!(!LicenseTier::Professional.rtsp_video());
+        assert!(LicenseTier::Enterprise.rtsp_video());
     }
 
     #[test]

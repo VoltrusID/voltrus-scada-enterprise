@@ -1069,6 +1069,57 @@ fn default_true() -> bool {
     true
 }
 
+fn default_retention_hours() -> u32 { 72 }
+
+// ── RTSP Video / Camera types ──
+
+/// Database row for cameras table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Camera {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub snapshot_on_alarm: bool,
+    #[serde(default = "default_retention_hours")]
+    pub retention_hours: u32,
+    pub created_at: i64,
+}
+
+/// Database row for camera_snapshots table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CameraSnapshot {
+    pub id: i64,
+    pub camera_id: i64,
+    pub timestamp: i64,
+    pub alarm_source: Option<String>,
+    pub file_path: String,
+    pub file_size: u64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateCameraRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub snapshot_on_alarm: bool,
+    #[serde(default = "default_retention_hours")]
+    pub retention_hours: u32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateCameraRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub enabled: Option<bool>,
+    pub snapshot_on_alarm: Option<bool>,
+    pub retention_hours: Option<u32>,
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateNotificationSettingRequest {
     pub source_key: Option<String>,

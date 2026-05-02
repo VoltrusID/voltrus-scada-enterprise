@@ -26,6 +26,7 @@ mod report_scheduler;
 mod analytics;
 mod compliance;
 mod recipe;
+mod video;
 
 use api::AppState;
 use base64::Engine;
@@ -984,6 +985,7 @@ EXAMPLES:
         smtp_config: app_config.smtp.clone(),
         vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
         hub_manager,
+        stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
     };
 
     api::stream::spawn_sse_composer(cache, storage);
