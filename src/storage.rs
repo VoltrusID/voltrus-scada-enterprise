@@ -2546,6 +2546,42 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    /// Get push subscriptions for a specific user.
+    pub async fn get_push_subscriptions_by_user(&self, user: &str) -> Result<Vec<crate::models::PushSubscription>> {
+        let conn = self.conn.clone();
+        let user = user.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, user, endpoint, p256dh, auth_key, created_at
+                     FROM push_subscriptions WHERE user = ?1",
+                )
+                .context("Prepare get_push_subscriptions_by_user failed")?;
+
+            let rows = stmt
+                .query_map(rusqlite::params![user], |row| {
+                    Ok(crate::models::PushSubscription {
+                        id: row.get(0)?,
+                        user: row.get(1)?,
+                        endpoint: row.get(2)?,
+                        p256dh: row.get(3)?,
+                        auth_key: row.get(4)?,
+                        created_at: row.get(5)?,
+                    })
+                })
+                .context("Query get_push_subscriptions_by_user failed")?;
+
+            let mut subscriptions = Vec::new();
+            for row in rows {
+                subscriptions.push(row.context("Row get_push_subscriptions_by_user failed")?);
+            }
+            Ok(subscriptions)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     /// Delete a push subscription by ID (for cleaning up stale subscriptions).
     pub async fn delete_push_subscription(&self, id: i64) -> Result<()> {
         let conn = self.conn.clone();

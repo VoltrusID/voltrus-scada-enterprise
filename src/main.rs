@@ -742,7 +742,7 @@ EXAMPLES:
         intrusion_detector,
         license_status: license_status.clone(),
         smtp_config: app_config.smtp.clone(),
-        push_config: app_config.push.clone(),
+        vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
     };
 
     api::stream::spawn_sse_composer(cache, storage);

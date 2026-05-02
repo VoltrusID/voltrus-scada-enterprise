@@ -55,8 +55,7 @@ pub struct AppState {
     pub intrusion_detector: crate::security::IntrusionDetector,
     pub license_status: crate::license::LicenseStatus,
     pub smtp_config: Option<crate::models::SmtpConfig>,
-    #[allow(dead_code)]
-    pub push_config: Option<crate::models::PushConfig>,
+    pub vapid_public_key: Option<String>,
 }
 
 #[derive(Debug)]
@@ -87,6 +86,7 @@ async fn license_check_middleware(
     if path == "/api/v1/health"
         || path == "/api/license/status"
         || path == "/api/v1/settings/branding"
+        || path == "/api/v1/push/vapid-key"
         || path.starts_with("/api/v1/auth/")
     {
         return next.run(req).await;
@@ -202,6 +202,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/push/subscribe",
             post(push::subscribe).delete(push::unsubscribe),
         )
+        .route("/api/v1/push/vapid-key", get(push::vapid_public_key))
         .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
         .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
         .route("/api/v1/notifications/settings", get(notifications::list_notification_settings))
@@ -505,7 +506,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
-            push_config: None,
+            vapid_public_key: None,
         };
         create_router(state)
     }
@@ -682,7 +683,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
-            push_config: None,
+            vapid_public_key: None,
         };
         let app = create_router(state);
 
@@ -746,7 +747,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
-            push_config: None,
+            vapid_public_key: None,
         };
         let app = create_router(state);
 
@@ -837,7 +838,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
-            push_config: None,
+            vapid_public_key: None,
         };
         let app = create_router(state);
 
@@ -906,7 +907,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
-            push_config: None,
+            vapid_public_key: None,
         };
         let app = create_router(state);
 
@@ -1052,7 +1053,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
-            push_config: None,
+            vapid_public_key: None,
         };
         let app = create_router(state);
 
