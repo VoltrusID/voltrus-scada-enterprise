@@ -264,6 +264,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/modbus-devices", post(modbus_devices::create_modbus_device))
         .route("/api/v1/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
+        .route("/api/v1/modbus-devices/scan-network", post(modbus_devices::scan_network))
         .route(
             "/api/v1/modbus-devices/{id}",
             put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),

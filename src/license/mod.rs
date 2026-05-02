@@ -90,6 +90,10 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    pub fn auto_discovery(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
     pub fn white_label(&self) -> bool {
         !matches!(self, LicenseTier::Trial)
     }
@@ -130,6 +134,7 @@ impl LicenseTier {
             "oee": self.oee(),
             "pdf_reporting": self.pdf_reporting(),
             "backup_restore": self.backup_restore(),
+            "auto_discovery": self.auto_discovery(),
             "white_label": self.white_label(),
             "rbac": self.rbac(),
             "multi_site": self.multi_site(),
