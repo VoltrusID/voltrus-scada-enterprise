@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OidcConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -144,6 +144,103 @@ pub fn extract_role(claims: &OidcClaims, config: &OidcConfig) -> String {
     }
 
     "user".to_string()
+}
+
+/// Group-to-role mapping configuration.
+/// Maps OIDC group names to local application roles.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupRoleMapping {
+    #[serde(default)]
+    pub group: String,
+    #[serde(default)]
+    pub role: String,
+}
+
+/// Resolves a user's role based on OIDC groups and a configurable mapping.
+/// Falls back to the default `extract_role` logic if no mapping matches.
+pub fn extract_role_with_mapping(
+    claims: &OidcClaims,
+    config: &OidcConfig,
+    group_mappings: &[GroupRoleMapping],
+) -> String {
+    // Collect all groups the user belongs to
+    let user_groups: Vec<&str> = claims.groups
+        .as_ref()
+        .map(|g| g.iter().map(|s| s.as_str()).collect())
+        .unwrap_or_default();
+
+    // Check group mappings in order (first match wins)
+    for mapping in group_mappings {
+        if user_groups.iter().any(|g| *g == mapping.group) {
+            return mapping.role.clone();
+        }
+    }
+
+    // Fall back to standard role extraction
+    extract_role(claims, config)
+}
+
+/// OIDC provider presets for common identity providers.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OidcProviderPreset {
+    pub name: String,
+    pub issuer_format: String,
+    pub default_scope: String,
+    pub default_role_claim: String,
+}
+
+/// Returns preset configurations for well-known OIDC providers.
+pub fn get_provider_presets() -> Vec<OidcProviderPreset> {
+    vec![
+        OidcProviderPreset {
+            name: "azure-ad".to_string(),
+            issuer_format: "https://login.microsoftonline.com/{tenant-id}/v2.0".to_string(),
+            default_scope: "openid profile email".to_string(),
+            default_role_claim: "groups".to_string(),
+        },
+        OidcProviderPreset {
+            name: "okta".to_string(),
+            issuer_format: "https://{domain}/oauth2/default".to_string(),
+            default_scope: "openid profile email groups".to_string(),
+            default_role_claim: "groups".to_string(),
+        },
+        OidcProviderPreset {
+            name: "google-workspace".to_string(),
+            issuer_format: "https://accounts.google.com".to_string(),
+            default_scope: "openid profile email".to_string(),
+            default_role_claim: "hd".to_string(),
+        },
+        OidcProviderPreset {
+            name: "keycloak".to_string(),
+            issuer_format: "https://{domain}/realms/{realm}".to_string(),
+            default_scope: "openid profile email".to_string(),
+            default_role_claim: "realm_access.roles".to_string(),
+        },
+    ]
+}
+
+/// JIT (Just-in-Time) user provisioning info extracted from OIDC claims.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JitUserInfo {
+    pub sub: String,
+    pub email: String,
+    pub display_name: String,
+    pub role: String,
+}
+
+/// Extracts JIT user provisioning info from OIDC claims.
+pub fn extract_jit_user_info(claims: &OidcClaims, config: &OidcConfig) -> JitUserInfo {
+    let role = extract_role(claims, config);
+
+    let email = claims.sub.clone();
+    let display_name = claims.sub.clone();
+
+    JitUserInfo {
+        sub: claims.sub.clone(),
+        email,
+        display_name,
+        role,
+    }
 }
 
 pub fn spawn_jwks_refresh(manager: JwksManager) {
