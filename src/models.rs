@@ -37,6 +37,8 @@ pub struct AppConfig {
     pub oidc_admin_role: String,
     #[serde(default)]
     pub db_encryption_key: Option<String>,
+    #[serde(default)]
+    pub smtp: Option<SmtpConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -648,6 +650,47 @@ pub struct DataQuery {
     pub to: Option<i64>,
     pub detail: Option<String>,
     pub agg: Option<String>,
+}
+
+// ── SMTP notification config ──
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SmtpConfig {
+    pub host: String,
+    #[serde(default = "default_smtp_port")]
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    #[serde(default = "default_smtp_from_address")]
+    pub from_address: String,
+    #[serde(default = "default_smtp_from_name")]
+    pub from_name: String,
+    #[serde(default = "default_smtp_encryption")]
+    pub encryption: SmtpEncryption,
+}
+
+fn default_smtp_port() -> u16 {
+    587
+}
+
+fn default_smtp_from_address() -> String {
+    "voltrus@example.com".to_string()
+}
+
+fn default_smtp_from_name() -> String {
+    "Voltrus Lite".to_string()
+}
+
+fn default_smtp_encryption() -> SmtpEncryption {
+    SmtpEncryption::StartTls
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum SmtpEncryption {
+    StartTls,
+    ImplicitTls,
+    None,
 }
 
 // ── Alarm types ──
