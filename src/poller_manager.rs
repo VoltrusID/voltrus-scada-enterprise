@@ -4,7 +4,7 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
-use crate::models::{DeviceConfig, PollerStatus};
+use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus};
 
 #[derive(Clone)]
 pub struct PollerManager {
@@ -28,6 +28,18 @@ impl PollerManager {
         let cache = self.cache.clone();
         let handle = tokio::spawn(async move {
             crate::modbus::poll_device(config, cache).await;
+        });
+        self.handles.write().await.insert(device_id, handle);
+    }
+
+    pub async fn start_opcua(&self, config: OpcUaDeviceConfig) {
+        let device_id = config.id.clone();
+        if self.is_running(&device_id).await {
+            self.stop(&device_id).await;
+        }
+        let cache = self.cache.clone();
+        let handle = tokio::spawn(async move {
+            crate::opcua::poll_opcua_device(config, cache).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }

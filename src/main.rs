@@ -466,6 +466,36 @@ EXAMPLES:
         tracing::warn!("No valid license — Modbus polling disabled");
     }
 
+    // Start OPC-UA pollers (Professional tier only)
+    {
+        let is_pro = matches!(
+            &license_status,
+            crate::license::LicenseStatus::Valid { tier, .. } if tier.as_deref() == Some("professional")
+        );
+        if is_pro {
+            match storage.get_all_opcua_device_configs().await {
+                Ok(opcua_configs) => {
+                    for config in &opcua_configs {
+                        poller_manager.start_opcua(config.clone()).await;
+                        tracing::info!("Started OPC-UA poller for device {}", config.id);
+                    }
+                    if !opcua_configs.is_empty() {
+                        tracing::info!("Started {} OPC-UA device(s)", opcua_configs.len());
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load OPC-UA device configs: {}", e);
+                }
+            }
+        } else if let Ok(configs) = storage.get_all_opcua_device_configs().await {
+            if !configs.is_empty() {
+                tracing::warn!(
+                    "OPC-UA devices configured but Professional tier required. Upgrade at https://voltrus.id"
+                );
+            }
+        }
+    }
+
     // Build optional email notifier from SMTP config
     let email_notifier = match &app_config.smtp {
         Some(smtp_cfg) => match notification::email::EmailNotifier::new(smtp_cfg) {
