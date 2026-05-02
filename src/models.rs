@@ -1260,6 +1260,34 @@ pub struct UpdateHubSiteRequest {
     pub enabled: Option<bool>,
 }
 
+// ── Recipe types ──
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Recipe {
+    pub id: i64,
+    pub name: String,
+    pub category: Option<String>,
+    pub device_id: String,
+    pub values: String,
+    pub version: i32,
+    pub description: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateRecipeRequest {
+    pub name: String,
+    pub category: Option<String>,
+    pub device_id: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LoadRecipeRequest {
+    pub recipe_id: i64,
+}
+
 #[derive(Debug, Clone)]
 pub struct LicenseActivationRow {
     pub license_key: String,
