@@ -15,6 +15,7 @@ mod timeutil;
 mod license;
 mod notification;
 mod opcua;
+mod hub;
 
 use api::AppState;
 use base64::Engine;
@@ -487,6 +488,30 @@ EXAMPLES:
         }
     }
 
+    // Start hub site connectors (Professional tier only)
+    let hub_manager = {
+        if license_tier.multi_site() {
+            let hm = crate::api::hub::HubManager::new();
+            match storage.get_enabled_hub_sites().await {
+                Ok(sites) => {
+                    for site in &sites {
+                        hm.start_site(site.clone(), cache.clone(), storage.clone()).await;
+                        tracing::info!("Started hub connector for site '{}' (id={})", site.name, site.id);
+                    }
+                    if !sites.is_empty() {
+                        tracing::info!("Started {} hub site connector(s)", sites.len());
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load hub sites: {}", e);
+                }
+            }
+            Some(hm)
+        } else {
+            None
+        }
+    };
+
     // Build optional email notifier from SMTP config
     let email_notifier = match &app_config.smtp {
         Some(smtp_cfg) => match notification::email::EmailNotifier::new(smtp_cfg) {
@@ -767,6 +792,7 @@ EXAMPLES:
         feature_flags: feature_flags.clone(),
         smtp_config: app_config.smtp.clone(),
         vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
+        hub_manager,
     };
 
     api::stream::spawn_sse_composer(cache, storage);

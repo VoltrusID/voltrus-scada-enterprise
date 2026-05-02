@@ -16,6 +16,7 @@ mod flows;
 mod license;
 mod notifications;
 mod opcua_devices;
+pub(crate) mod hub;
 
 use axum::{
     extract::{Request, State},
@@ -59,6 +60,7 @@ pub struct AppState {
     pub feature_flags: serde_json::Value,
     pub smtp_config: Option<crate::models::SmtpConfig>,
     pub vapid_public_key: Option<String>,
+    pub hub_manager: Option<hub::HubManager>,
 }
 
 #[derive(Debug)]
@@ -286,6 +288,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/opcua/devices/{id}/browse", post(opcua_devices::browse_device))
         .route("/api/v1/opcua/devices/{id}/start", post(opcua_devices::start_device))
         .route("/api/v1/opcua/devices/{id}/stop", post(opcua_devices::stop_device))
+        .route("/api/v1/hub/sites", get(hub::list_sites).post(hub::create_site))
+        .route("/api/v1/hub/sites/{id}", put(hub::update_site).delete(hub::delete_site))
+        .route("/api/v1/hub/sites/{id}/start", post(hub::start_site_connection))
+        .route("/api/v1/hub/sites/{id}/stop", post(hub::stop_site_connection))
+        .route("/api/v1/hub/status", get(hub::get_hub_status))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -531,6 +538,7 @@ mod tests {
             feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         create_router(state)
     }
@@ -710,6 +718,7 @@ mod tests {
             feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         let app = create_router(state);
 
@@ -776,6 +785,7 @@ mod tests {
             feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         let app = create_router(state);
 
@@ -869,6 +879,7 @@ mod tests {
             feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         let app = create_router(state);
 
@@ -940,6 +951,7 @@ mod tests {
             feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         let app = create_router(state);
 
@@ -1088,6 +1100,7 @@ mod tests {
             feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         let app = create_router(state);
 
@@ -1250,6 +1263,7 @@ mod tests {
             feature_flags,
             smtp_config: None,
             vapid_public_key: None,
+            hub_manager: None,
         };
         create_router(state)
     }

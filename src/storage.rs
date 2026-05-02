@@ -11,6 +11,7 @@ use crate::models::{
     Flow, FlowRun,
     OpcUaDevice, OpcUaNode, OpcUaDeviceConfig, OpcUaNodeConfig,
     OpcUaSecurityPolicy, OpcUaSecurityMode,
+    HubSite,
 };
 
 #[derive(Clone)]
@@ -2863,7 +2864,17 @@ fn init_schema(conn: &Connection) -> Result<()> {
             created_at INTEGER NOT NULL,
             UNIQUE(device_id, node_id)
         );
-        CREATE INDEX IF NOT EXISTS idx_opcua_nodes_device ON opcua_nodes(device_id);",
+        CREATE INDEX IF NOT EXISTS idx_opcua_nodes_device ON opcua_nodes(device_id);
+        CREATE TABLE IF NOT EXISTS hub_sites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            api_key TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_seen INTEGER,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_hub_sites_enabled ON hub_sites(enabled);",
     )
     .context("Failed to create schema")?;
 
@@ -3672,6 +3683,135 @@ impl Storage {
     }
 }
 
+// ── Hub Sites management ──
+
+impl Storage {
+    pub async fn create_hub_site(&self, name: &str, url: &str, api_key: &str, enabled: bool) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let url = url.to_string();
+        let api_key = api_key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO hub_sites (name, url, api_key, enabled, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![name, url, api_key, enabled as i64, now],
+            )
+            .context("Insert hub_site failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_hub_sites(&self) -> Result<Vec<HubSite>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, url, api_key, enabled, last_seen, created_at FROM hub_sites ORDER BY created_at"
+                )
+                .context("Prepare list_hub_sites failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(HubSite {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    url: row.get(2)?,
+                    api_key: row.get(3)?,
+                    enabled: row.get::<_, i64>(4)? != 0,
+                    last_seen: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            }).context("Query list_hub_sites failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_hub_site(&self, id: i64, name: Option<&str>, url: Option<&str>, api_key: Option<&str>, enabled: Option<bool>) -> Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let url = url.map(|s| s.to_string());
+        let api_key = api_key.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(name) = &name {
+                conn.execute("UPDATE hub_sites SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
+                    .context("Update hub_site name failed")?;
+            }
+            if let Some(url) = &url {
+                conn.execute("UPDATE hub_sites SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
+                    .context("Update hub_site url failed")?;
+            }
+            if let Some(api_key) = &api_key {
+                conn.execute("UPDATE hub_sites SET api_key = ?1 WHERE id = ?2", rusqlite::params![api_key, id])
+                    .context("Update hub_site api_key failed")?;
+            }
+            if let Some(enabled) = enabled {
+                conn.execute("UPDATE hub_sites SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
+                    .context("Update hub_site enabled failed")?;
+            }
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_hub_site(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM hub_sites WHERE id = ?1", rusqlite::params![id])
+                .context("Delete hub_site failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_hub_site_last_seen(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute("UPDATE hub_sites SET last_seen = ?1 WHERE id = ?2", rusqlite::params![now, id])
+                .context("Update hub_site last_seen failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_enabled_hub_sites(&self) -> Result<Vec<HubSite>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, url, api_key, enabled, last_seen, created_at FROM hub_sites WHERE enabled = 1 ORDER BY created_at"
+                )
+                .context("Prepare get_enabled_hub_sites failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(HubSite {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    url: row.get(2)?,
+                    api_key: row.get(3)?,
+                    enabled: row.get::<_, i64>(4)? != 0,
+                    last_seen: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            }).context("Query get_enabled_hub_sites failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+}
+
 // ── License Activation ──
 
 impl Storage {
@@ -3997,5 +4137,67 @@ mod tests {
         ).await.unwrap();
         let count = storage.count_modbus_devices().await.unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_hub_site_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Create a site
+        let id = storage.create_hub_site("Factory A", "https://factory-a.example.com", "secret-key-123", true).await.unwrap();
+        assert!(id > 0);
+
+        // List sites
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, "Factory A");
+        assert_eq!(sites[0].url, "https://factory-a.example.com");
+        assert_eq!(sites[0].enabled, true);
+        assert!(sites[0].last_seen.is_none());
+
+        // Update site
+        storage.update_hub_site(id, Some("Factory A Updated"), None, None, None).await.unwrap();
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert_eq!(sites[0].name, "Factory A Updated");
+
+        // Update last_seen
+        storage.update_hub_site_last_seen(id).await.unwrap();
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert!(sites[0].last_seen.is_some());
+
+        // Get enabled sites
+        let enabled = storage.get_enabled_hub_sites().await.unwrap();
+        assert_eq!(enabled.len(), 1);
+
+        // Disable site
+        storage.update_hub_site(id, None, None, None, Some(false)).await.unwrap();
+        let enabled = storage.get_enabled_hub_sites().await.unwrap();
+        assert_eq!(enabled.len(), 0);
+
+        // Delete site
+        storage.delete_hub_site(id).await.unwrap();
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert_eq!(sites.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_hub_site_multiple_sites() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        let id1 = storage.create_hub_site("Site 1", "https://site1.example.com", "key1", true).await.unwrap();
+        let id2 = storage.create_hub_site("Site 2", "https://site2.example.com", "key2", false).await.unwrap();
+
+        let all = storage.list_hub_sites().await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let enabled = storage.get_enabled_hub_sites().await.unwrap();
+        assert_eq!(enabled.len(), 1);
+        assert_eq!(enabled[0].id, id1);
+
+        // Delete one
+        storage.delete_hub_site(id1).await.unwrap();
+        let all = storage.list_hub_sites().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].id, id2);
     }
 }
