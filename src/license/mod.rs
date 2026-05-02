@@ -536,6 +536,40 @@ mod tests {
     }
 
     #[test]
+    fn test_trial_status_tier_returns_trial() {
+        let tier = LicenseTier::Trial;
+        let status = LicenseStatus::Trial {
+            started_at: 1000,
+            expires_at: 1000 + 30 * 86400,
+            days_remaining: 30,
+            tier: tier.clone(),
+            feature_flags: tier.to_feature_flags(),
+        };
+        assert_eq!(status.tier(), LicenseTier::Trial);
+    }
+
+    #[test]
+    fn test_trial_expired_status_tier_returns_trial() {
+        let status = LicenseStatus::TrialExpired {
+            started_at: 1000,
+            message: "Trial expired".to_string(),
+        };
+        assert_eq!(status.tier(), LicenseTier::Trial);
+    }
+
+    #[test]
+    fn test_valid_status_tier_maps_correctly() {
+        let valid = LicenseStatus::Valid {
+            license_key: "key".to_string(),
+            expires_at: None,
+            days_remaining: None,
+            tier: Some("starter".to_string()),
+            device_limit: None,
+        };
+        assert_eq!(valid.tier(), LicenseTier::Starter);
+    }
+
+    #[test]
     fn test_license_status_tier_and_feature_flags() {
         // Valid status with tier
         let valid = LicenseStatus::Valid {
