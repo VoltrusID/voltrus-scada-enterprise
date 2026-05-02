@@ -104,6 +104,8 @@ EXAMPLES:
                     fingerprint_machine_id: fingerprint.machine_id,
                     activated_at: activation.issued_at,
                     expires_at: activation.expires_at,
+                    tier: activation.tier,
+                    device_limit: activation.device_limit,
                 };
                 storage.store_license_activation(&row).await?;
                 println!("License activated successfully: {}", activation.license_key);
@@ -176,6 +178,8 @@ EXAMPLES:
                     fingerprint_machine_id: fingerprint.machine_id,
                     activated_at: activation.issued_at,
                     expires_at: activation.expires_at,
+                    tier: activation.tier,
+                    device_limit: activation.device_limit,
                 };
                 storage.store_license_activation(&row).await?;
                 println!("License activated successfully: {}", activation.license_key);
@@ -308,9 +312,30 @@ EXAMPLES:
     let poller_manager = PollerManager::new(cache.clone());
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
+        let device_limit = match &license_status {
+            crate::license::LicenseStatus::Valid { tier, device_limit, .. } => {
+                if tier.as_deref() == Some("starter") {
+                    *device_limit
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        let mut started_count: u32 = 0;
         for config in &device_configs {
+            if let Some(limit) = device_limit {
+                if started_count >= limit {
+                    tracing::warn!(
+                        "Device '{}' skipped — Starter tier limit of {} devices reached. Upgrade at https://voltrus.id",
+                        config.id, limit
+                    );
+                    continue;
+                }
+            }
             poller_manager.start(config.clone()).await;
             tracing::info!("Started poller for device {}", config.id);
+            started_count += 1;
         }
     } else {
         tracing::warn!("No valid license — Modbus polling disabled");

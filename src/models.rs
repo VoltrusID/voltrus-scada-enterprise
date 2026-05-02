@@ -815,4 +815,6 @@ pub struct LicenseActivationRow {
     pub fingerprint_machine_id: String,
     pub activated_at: String,
     pub expires_at: Option<String>,
+    pub tier: Option<String>,
+    pub device_limit: Option<u32>,
 }

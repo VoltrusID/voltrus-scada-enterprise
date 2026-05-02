@@ -12,6 +12,8 @@ pub enum LicenseStatus {
         license_key: String,
         expires_at: Option<String>,
         days_remaining: Option<i64>,
+        tier: Option<String>,
+        device_limit: Option<u32>,
     },
     Unactivated {
         message: String,
@@ -106,5 +108,7 @@ pub async fn verify_license(storage: &Storage) -> LicenseStatus {
         license_key: activation.license_key,
         expires_at,
         days_remaining,
+        tier: activation.tier,
+        device_limit: activation.device_limit,
     }
 }

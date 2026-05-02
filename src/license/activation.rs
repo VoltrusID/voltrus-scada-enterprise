@@ -19,6 +19,10 @@ pub struct LicenseActivation {
     pub fingerprint_hash: String,
     pub issued_at: String,
     pub expires_at: Option<String>,
+    #[serde(default)]
+    pub tier: Option<String>,
+    #[serde(default)]
+    pub device_limit: Option<u32>,
     pub signature: String,
 }
 
@@ -29,6 +33,10 @@ struct ActivationPayload {
     fingerprint_hash: String,
     issued_at: String,
     expires_at: Option<String>,
+    #[serde(default)]
+    tier: Option<String>,
+    #[serde(default)]
+    device_limit: Option<u32>,
 }
 
 pub fn verify_activation_signature(data: &[u8]) -> anyhow::Result<LicenseActivation> {
@@ -48,6 +56,8 @@ pub fn verify_activation_signature(data: &[u8]) -> anyhow::Result<LicenseActivat
         fingerprint_hash: activation.fingerprint_hash.clone(),
         issued_at: activation.issued_at.clone(),
         expires_at: activation.expires_at.clone(),
+        tier: activation.tier.clone(),
+        device_limit: activation.device_limit,
     };
     let payload_json = serde_json::to_vec(&payload)?;
 
