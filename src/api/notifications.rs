@@ -141,9 +141,9 @@ pub async fn test_notification(
     State(state): State<AppState>,
     Json(req): Json<TestNotificationRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if req.channel_type != "email" && req.channel_type != "webhook" && req.channel_type != "push" {
+    if req.channel_type != "email" && req.channel_type != "webhook" {
         return Err(AppError(anyhow::anyhow!(
-            "channel_type must be 'email', 'webhook', or 'push'"
+            "channel_type must be 'email' or 'webhook' (push is tested via browser subscription)"
         )));
     }
 
