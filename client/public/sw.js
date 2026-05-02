@@ -43,7 +43,9 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const url = event.notification.data?.url || self.location.origin;
+  const rawUrl = event.notification.data?.url || self.location.origin;
+  // Validate URL origin to prevent open-ended redirects
+  const url = rawUrl.startsWith(self.location.origin) ? rawUrl : self.location.origin;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {

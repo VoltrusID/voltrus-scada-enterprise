@@ -39,6 +39,9 @@ pub async fn unsubscribe(
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let endpoint = body["endpoint"].as_str().unwrap_or("");
+    if endpoint.is_empty() {
+        return Err(AppError(anyhow::anyhow!("endpoint is required")));
+    }
     state
         .storage
         .remove_push_subscription(&user.username, endpoint)

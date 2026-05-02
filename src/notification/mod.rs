@@ -109,56 +109,57 @@ pub async fn dispatch_alarm_notifications(
             }
             "push" => {
                 if let Some(ref notifier) = push_notifier {
-                    // Load all push subscriptions from the database
-                    match storage.get_push_subscriptions().await {
-                        Ok(subscriptions) => {
-                            let payload = build_alarm_payload(
-                                &source_name,
-                                &alarm.severity,
-                                &alarm.message,
-                                &alarm.source_key,
-                            );
-                            for sub in &subscriptions {
-                                match notifier.send_push_alarm(
-                                    &sub.endpoint,
-                                    &sub.p256dh,
-                                    &sub.auth_key,
-                                    &payload,
-                                ).await {
-                                    push::PushSendResult::Sent => {
-                                        // success, already logged
-                                    }
-                                    push::PushSendResult::SubscriptionGone => {
-                                        tracing::warn!(
-                                            "Push subscription {} is stale, removing",
-                                            sub.id
-                                        );
-                                        if let Err(e) = storage.delete_push_subscription(sub.id).await {
+                    // config is a JSON array of usernames to send push notifications to
+                    let usernames: Vec<String> =
+                        serde_json::from_str(&setting.config).unwrap_or_default();
+                    let payload = build_alarm_payload(
+                        &source_name,
+                        &alarm.severity,
+                        &alarm.message,
+                        &alarm.source_key,
+                    );
+                    for username in &usernames {
+                        match storage.get_push_subscriptions_by_user(username).await {
+                            Ok(subscriptions) => {
+                                for sub in &subscriptions {
+                                    match notifier.send_push_alarm(
+                                        &sub.endpoint,
+                                        &sub.p256dh,
+                                        &sub.auth_key,
+                                        &payload,
+                                    ).await {
+                                        push::PushSendResult::Sent => {}
+                                        push::PushSendResult::SubscriptionGone => {
+                                            tracing::warn!(
+                                                "Push subscription {} for user {} is stale, removing",
+                                                sub.id, username
+                                            );
+                                            if let Err(e) = storage.delete_push_subscription(sub.id).await {
+                                                tracing::error!(
+                                                    "Failed to delete stale push subscription {}: {}",
+                                                    sub.id, e
+                                                );
+                                            }
+                                        }
+                                        push::PushSendResult::ServerError => {
+                                            tracing::warn!(
+                                                "Push service server error for subscription {}", sub.id
+                                            );
+                                        }
+                                        push::PushSendResult::Other(err) => {
                                             tracing::error!(
-                                                "Failed to delete stale push subscription {}: {}",
-                                                sub.id,
-                                                e
+                                                "Push notification error for subscription {}: {}",
+                                                sub.id, err
                                             );
                                         }
                                     }
-                                    push::PushSendResult::ServerError => {
-                                        tracing::warn!(
-                                            "Push service server error for subscription {}",
-                                            sub.id
-                                        );
-                                    }
-                                    push::PushSendResult::Other(err) => {
-                                        tracing::error!(
-                                            "Push notification error for subscription {}: {}",
-                                            sub.id,
-                                            err
-                                        );
-                                    }
                                 }
                             }
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to load push subscriptions: {}", e);
+                            Err(e) => {
+                                tracing::error!(
+                                    "Failed to load push subscriptions for {}: {}", username, e
+                                );
+                            }
                         }
                     }
                 } else {

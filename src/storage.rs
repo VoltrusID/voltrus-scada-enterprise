@@ -2484,10 +2484,11 @@ impl Storage {
             let now = crate::timeutil::now_secs();
             conn.execute(
                 "INSERT INTO push_subscriptions (user, endpoint, p256dh, auth_key, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(user, endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth_key=excluded.auth_key",
                 rusqlite::params![user, endpoint, p256dh, auth_key, now],
             )
-            .context("Insert push subscription failed")
+            .context("Upsert push subscription failed")
         })
         .await
         .context("Task join failed")?
@@ -2695,7 +2696,8 @@ fn init_schema(conn: &Connection) -> Result<()> {
             endpoint TEXT NOT NULL,
             p256dh TEXT NOT NULL,
             auth_key TEXT NOT NULL,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            UNIQUE(user, endpoint)
         );
         CREATE TABLE IF NOT EXISTS canvas_layouts (
             screen_id TEXT NOT NULL,
@@ -2817,7 +2819,7 @@ fn init_schema(conn: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS notification_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source_key TEXT NOT NULL,
-            channel_type TEXT NOT NULL CHECK(channel_type IN ('email', 'webhook')),
+            channel_type TEXT NOT NULL CHECK(channel_type IN ('email', 'webhook', 'push')),
             config TEXT NOT NULL DEFAULT '[]',
             enabled INTEGER NOT NULL DEFAULT 1,
             created_at INTEGER NOT NULL
