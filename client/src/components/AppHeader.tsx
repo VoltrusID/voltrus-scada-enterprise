@@ -44,7 +44,7 @@ export function AppHeader({
   onLogout, onAlarmPanelToggle, onExportClick,
 }: Props) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', flexShrink: 0, flexWrap: 'wrap', gap: 16 }}>
+    <nav role="navigation" aria-label="Main navigation" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', flexShrink: 0, flexWrap: 'wrap', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: editMode ? 'pointer' : 'default' }}
         onClick={onBrandingClick}>
         <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'contain' }} />
@@ -58,7 +58,7 @@ export function AppHeader({
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {/* Alarm bell */}
-        <button onClick={onAlarmPanelToggle} style={{
+        <button onClick={onAlarmPanelToggle} aria-label={`Alarms${activeAlarmCount > 0 ? ` (${activeAlarmCount} active)` : ''}`} style={{
           ...btnStyle, position: 'relative', borderColor: activeAlarmCount > 0 ? 'var(--crit)' : 'var(--border)',
           color: activeAlarmCount > 0 ? 'var(--crit)' : 'var(--fg)',
         }}>
@@ -78,7 +78,7 @@ export function AppHeader({
           <button style={{ ...btnStyle, border: 'none', borderRadius: 0, color: viewMode === 'scada' ? 'var(--cyan)' : 'var(--fg)', background: viewMode === 'scada' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => onViewModeChange('scada')}>2D{effectiveNavShortcuts['view:scada'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '0 3px', marginLeft: 4, borderRadius: 2, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['view:scada'])}</kbd> : null}</button>
         </div>
         <div style={{ position: 'relative' }}>
-          <button onClick={onToggleShortcutsPanel} style={{ ...btnStyle, padding: '6px 8px', fontSize: 12, color: showShortcutsPanel ? 'var(--cyan)' : 'var(--muted)', background: showShortcutsPanel ? 'rgba(34,197,94,.1)' : 'transparent', border: showShortcutsPanel ? '1px solid var(--cyan)' : '1px solid var(--border)' }} title="Keyboard shortcuts">
+          <button onClick={onToggleShortcutsPanel} aria-label="Keyboard shortcuts" style={{ ...btnStyle, padding: '8px 14px', fontSize: 12, color: showShortcutsPanel ? 'var(--cyan)' : 'var(--muted)', background: showShortcutsPanel ? 'rgba(34,197,94,.1)' : 'transparent', border: showShortcutsPanel ? '1px solid var(--cyan)' : '1px solid var(--border)', minHeight: 44 }} title="Keyboard shortcuts">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/></svg>
           </button>
           {shortcutsPanel}
@@ -93,7 +93,7 @@ export function AppHeader({
             <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
           )}
           {mode === 'live' && (
-            <button onClick={onToggleTurbo} style={{
+            <button onClick={onToggleTurbo} aria-label={turbo ? 'Disable turbo mode' : 'Enable turbo mode'} style={{
               ...btnStyle,
               borderColor: turbo ? 'var(--warn)' : 'var(--border)',
               color: turbo ? 'var(--warn)' : 'var(--fg)',
@@ -104,20 +104,21 @@ export function AppHeader({
             </button>
           )}
         </>)}
-        <button style={btnStyle} onClick={onSettingsClick}>
+        <button style={btnStyle} onClick={onSettingsClick} aria-label="Settings">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span>Settings</span>
         </button>
-        <button style={btnStyle} onClick={onDataManagerClick}>
+        <button style={btnStyle} onClick={onDataManagerClick} aria-label="Data manager">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
           <span>Data</span>
         </button>
-        <button style={btnStyle} onClick={onExportClick}>
+        <button style={btnStyle} onClick={onExportClick} aria-label="Export data">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>Export</span>
         </button>
         {isAdmin && (
           <button
+            aria-label="Flows"
             style={{
               ...btnStyle,
               borderColor: mode === 'flows' ? '#f59e0b' : 'var(--border)',
@@ -131,11 +132,11 @@ export function AppHeader({
           </button>
         )}
         <div style={{ marginLeft: 'auto' }} />
-        <button style={btnStyle} onClick={onLogout}>
+        <button style={btnStyle} onClick={onLogout} aria-label="Logout">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           <span>Logout</span>
         </button>
       </div>
-    </div>
+    </nav>
   )
 }
