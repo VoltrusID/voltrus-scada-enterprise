@@ -13,6 +13,7 @@ mod generators;
 pub(crate) mod stream;
 mod flows;
 mod license;
+mod notifications;
 
 use axum::{
     extract::{Request, State},
@@ -52,6 +53,7 @@ pub struct AppState {
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
     pub license_status: crate::license::LicenseStatus,
+    pub smtp_config: Option<crate::models::SmtpConfig>,
 }
 
 #[derive(Debug)]
@@ -188,6 +190,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
         .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
+        .route("/api/v1/notifications/settings", get(notifications::list_notification_settings))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
@@ -238,6 +241,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/flows/{id}/stop", post(flows::stop_flow))
         .route("/api/v1/flows/{id}/test", post(flows::test_flow))
         .route("/api/v1/flows/{id}/runs", get(flows::list_flow_runs))
+        .route("/api/v1/notifications/settings", post(notifications::create_notification_setting))
+        .route(
+            "/api/v1/notifications/settings/{id}",
+            put(notifications::update_notification_setting).delete(notifications::delete_notification_setting),
+        )
+        .route("/api/v1/notifications/test", post(notifications::test_notification))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -423,6 +432,7 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            smtp_config: None,
         };
         create_router(state)
     }
@@ -598,6 +608,7 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            smtp_config: None,
         };
         let app = create_router(state);
 
@@ -660,6 +671,7 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            smtp_config: None,
         };
         let app = create_router(state);
 
@@ -749,6 +761,7 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            smtp_config: None,
         };
         let app = create_router(state);
 
@@ -816,6 +829,7 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            smtp_config: None,
         };
         let app = create_router(state);
 

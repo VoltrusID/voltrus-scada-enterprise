@@ -20,6 +20,7 @@ pub struct AlarmEmailData {
     pub threshold: f64,
     pub message: String,
     pub unit: String,
+    pub triggered_at: String,
 }
 
 // ── Email notifier ──
@@ -78,6 +79,8 @@ impl EmailNotifier {
     }
 
     /// Send an alarm notification email to the given recipient.
+    ///
+    /// Uses multipart/alternative with both HTML and plaintext bodies.
     pub async fn send_alarm_email(&self, to: &str, alarm: &AlarmEmailData) -> Result<()> {
         let subject = format!(
             "[{}] {} alarm: {}",
@@ -87,6 +90,7 @@ impl EmailNotifier {
         );
 
         let html_body = render_alarm_html(alarm);
+        let text_body = render_alarm_text(alarm);
 
         let from = format!("{} <{}>", self.from_name, self.from_address)
             .parse()
@@ -100,8 +104,19 @@ impl EmailNotifier {
             .from(from)
             .to(recipient)
             .subject(subject)
-            .header(ContentType::TEXT_HTML)
-            .body(html_body)
+            .multipart(
+                lettre::message::MultiPart::alternative()
+                    .singlepart(
+                        lettre::message::SinglePart::builder()
+                            .header(ContentType::TEXT_PLAIN)
+                            .body(text_body),
+                    )
+                    .singlepart(
+                        lettre::message::SinglePart::builder()
+                            .header(ContentType::TEXT_HTML)
+                            .body(html_body),
+                    ),
+            )
             .context("Failed to build email message")?;
 
         self.mailer
@@ -120,6 +135,30 @@ impl EmailNotifier {
     }
 }
 
+// ── Text template (plaintext fallback for multipart/alternative) ──
+
+fn render_alarm_text(alarm: &AlarmEmailData) -> String {
+    format!(
+        "ALARM NOTIFICATION\n\
+         =================\n\
+         Source:    {source_name}\n\
+         Severity:  {severity_upper}\n\
+         Value:     {value}{unit}\n\
+         Threshold: {threshold}{unit}\n\
+         Message:   {message}\n\
+         Triggered: {triggered_at}\n\
+         \n\
+         -- Voltrus Lite Monitoring System",
+        source_name = alarm.source_name,
+        severity_upper = alarm.severity.to_uppercase(),
+        value = alarm.value,
+        unit = alarm.unit,
+        threshold = alarm.threshold,
+        message = alarm.message,
+        triggered_at = alarm.triggered_at,
+    )
+}
+
 // ── HTML template (inline, no external files) ──
 
 fn render_alarm_html(alarm: &AlarmEmailData) -> String {
@@ -129,7 +168,7 @@ fn render_alarm_html(alarm: &AlarmEmailData) -> String {
         _ => "#6c757d",
     };
 
-    let triggered_at = format_timestamp();
+    let triggered_at = &alarm.triggered_at;
 
     format!(
         r#"<!DOCTYPE html>
@@ -203,23 +242,6 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn format_timestamp() -> String {
-    // Use a simple UTC timestamp for now; can be refined later
-    chrono_free_timestamp()
-}
-
-fn chrono_free_timestamp() -> String {
-    // Simple UTC time formatting without adding a chrono dependency.
-    // The alarm data already carries triggered_at as i64 epoch seconds,
-    // so callers can format it. Here we use a fallback for the email body.
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    format!("{} (UTC)", now)
-}
-
 // ── Tests ──
 
 #[cfg(test)]
@@ -235,6 +257,7 @@ mod tests {
             threshold: 240.0,
             message: "PLTS 1 Voltage reached 250.5V (critical: 240.0V)".to_string(),
             unit: "V".to_string(),
+            triggered_at: "2024-03-09T20:00:00Z".to_string(),
         }
     }
 
@@ -306,4 +329,16 @@ encryption: "none"
         let config_none: SmtpConfig = serde_yml::from_str(yaml_none).unwrap();
         assert_eq!(config_none.encryption, crate::models::SmtpEncryption::None);
     }
+
+    #[test]
+    fn test_render_alarm_text_contains_key_fields() {
+        let alarm = sample_alarm();
+        let text = render_alarm_text(&alarm);
+        assert!(text.contains("PLTS 1 Voltage"));
+        assert!(text.contains("CRITICAL"));
+        assert!(text.contains("250.5"));
+        assert!(text.contains("240.0"));
+        assert!(text.contains("ALARM NOTIFICATION"));
+    }
+
 }
