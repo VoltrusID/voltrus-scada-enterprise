@@ -337,9 +337,9 @@ pub struct PollerStatus {
 // ── OPC-UA config types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum OpcUaSecurityPolicy {
     None,
+    #[serde(rename = "basic256sha256")]
     Basic256Sha256,
 }
 
@@ -348,10 +348,10 @@ impl Default for OpcUaSecurityPolicy {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum OpcUaSecurityMode {
     None,
     Sign,
+    #[serde(rename = "signandencrypt")]
     SignAndEncrypt,
 }
 

@@ -61,6 +61,9 @@ pub async fn create_device(
     if req.url.is_empty() {
         return Err(AppError(anyhow::anyhow!("Device URL is required")));
     }
+    if !req.url.starts_with("opc.tcp://") {
+        return Err(AppError(anyhow::anyhow!("Device URL must start with opc.tcp://")));
+    }
 
     let id = state
         .storage
@@ -101,6 +104,12 @@ pub async fn update_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
+    }
+
+    if let Some(ref url) = req.url {
+        if !url.is_empty() && !url.starts_with("opc.tcp://") {
+            return Err(AppError(anyhow::anyhow!("Device URL must start with opc.tcp://")));
+        }
     }
 
     state
@@ -205,7 +214,14 @@ pub async fn add_node(
             &req.display_name,
             &req.data_type,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("UNIQUE constraint failed") {
+                AppError(anyhow::anyhow!("Node already exists on this device"))
+            } else {
+                AppError(e)
+            }
+        })?;
 
     Ok((
         StatusCode::CREATED,
