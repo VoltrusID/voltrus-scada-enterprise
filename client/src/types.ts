@@ -252,8 +252,8 @@ export interface FlowTriggerConfig {
 export interface NotificationSetting {
   id: number
   source_key: string
-  channel_type: 'email' | 'webhook'
-  config: string  // JSON string of array: '["email@example.com"]' or '["https://webhook.url"]'
+  channel_type: 'email' | 'webhook' | 'push' | 'sms'
+  config: string  // JSON string: email/webhook/push use string arrays; sms uses object array '[{"phone":"5551234567","carrier":"att"}]'
   enabled: boolean
   created_at: number
 }

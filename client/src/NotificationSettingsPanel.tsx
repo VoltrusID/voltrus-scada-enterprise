@@ -11,7 +11,30 @@ import { useLicense } from './LicenseContext'
 import { FeatureBadge } from './components/FeatureBadge'
 import type { NotificationSetting } from './types'
 
+interface SmsTarget {
+  phone: string
+  carrier: string
+}
+
+const CARRIER_OPTIONS = [
+  { value: 'att', label: 'AT&T' },
+  { value: 'verizon', label: 'Verizon' },
+  { value: 'tmobile', label: 'T-Mobile' },
+  { value: 'sprint', label: 'Sprint' },
+  { value: 'uscellular', label: 'US Cellular' },
+]
+
 function parseConfigTargets(config: string): string[] {
+  try {
+    const parsed = JSON.parse(config)
+    if (Array.isArray(parsed)) return parsed
+    return []
+  } catch {
+    return []
+  }
+}
+
+function parseSmsTargets(config: string): SmsTarget[] {
   try {
     const parsed = JSON.parse(config)
     if (Array.isArray(parsed)) return parsed
@@ -23,6 +46,10 @@ function parseConfigTargets(config: string): string[] {
 
 function formatConfigTargets(targets: string[]): string {
   return JSON.stringify(targets.filter(t => t.trim() !== ''))
+}
+
+function formatSmsTargets(targets: SmsTarget[]): string {
+  return JSON.stringify(targets.filter(t => t.phone.trim() !== ''))
 }
 
 export function NotificationSettingsPanel({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
@@ -106,15 +133,23 @@ export function NotificationSettingsPanel({ onClose, embedded }: { onClose: () =
                     <td style={tdStyle}>
                       <span style={{
                         display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                        background: s.channel_type === 'email' ? 'rgba(168,85,247,.15)' : 'rgba(34,197,94,.1)',
-                        color: s.channel_type === 'email' ? '#a855f7' : 'var(--ok)',
+                        background: s.channel_type === 'email' ? 'rgba(168,85,247,.15)' : s.channel_type === 'sms' ? 'rgba(59,130,246,.15)' : 'rgba(34,197,94,.1)',
+                        color: s.channel_type === 'email' ? '#a855f7' : s.channel_type === 'sms' ? '#3b82f6' : 'var(--ok)',
                       }}>
                         {s.channel_type}
                       </span>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                        {targets.length === 0 ? 'none' : targets.length === 1 ? targets[0] : `${targets.length} targets`}
+                        {s.channel_type === 'sms'
+                          ? (() => {
+                              const smsTargets = parseSmsTargets(s.config)
+                              return smsTargets.length === 0 ? 'none' : smsTargets.length === 1
+                                ? `${smsTargets[0].phone} (${smsTargets[0].carrier})`
+                                : `${smsTargets.length} phone numbers`
+                            })()
+                          : targets.length === 0 ? 'none' : targets.length === 1 ? targets[0] : `${targets.length} targets`
+                        }
                       </span>
                     </td>
                     <td style={tdStyle}>
@@ -200,26 +235,57 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
   const isEdit = !!setting
   const license = useLicense()
   const isTrialNotificationsDisabled = license?.tier === 'trial' && license.feature_flags?.email_notifications === false
+  const smsEnabled = license?.feature_flags?.sms_notifications === true
   const [sourceKey, setSourceKey] = useState(setting?.source_key || '')
-  const [channelType, setChannelType] = useState<'email' | 'webhook'>(setting?.channel_type || 'email')
+  const [channelType, setChannelType] = useState<'email' | 'webhook' | 'push' | 'sms'>(setting?.channel_type || 'email')
   const [targetsText, setTargetsText] = useState(
-    parseConfigTargets(setting?.config || '[]').join('\n')
+    setting?.channel_type === 'sms' ? '' : parseConfigTargets(setting?.config || '[]').join('\n')
+  )
+  const [smsTargets, setSmsTargets] = useState<SmsTarget[]>(
+    setting?.channel_type === 'sms' ? parseSmsTargets(setting?.config || '[]') : [{ phone: '', carrier: 'att' }]
   )
   const [enabled, setEnabled] = useState(setting?.enabled ?? true)
 
   const handleSave = () => {
-    const targets = targetsText.split('\n').map(t => t.trim()).filter(Boolean)
-    onSave({
-      source_key: sourceKey,
-      channel_type: channelType,
-      config: formatConfigTargets(targets),
-      enabled,
-    })
+    if (channelType === 'sms') {
+      onSave({
+        source_key: sourceKey,
+        channel_type: channelType,
+        config: formatSmsTargets(smsTargets),
+        enabled,
+      })
+    } else {
+      const targets = targetsText.split('\n').map(t => t.trim()).filter(Boolean)
+      onSave({
+        source_key: sourceKey,
+        channel_type: channelType,
+        config: formatConfigTargets(targets),
+        enabled,
+      })
+    }
   }
+
+  const addSmsTarget = () => {
+    setSmsTargets([...smsTargets, { phone: '', carrier: 'att' }])
+  }
+
+  const removeSmsTarget = (index: number) => {
+    setSmsTargets(smsTargets.filter((_, i) => i !== index))
+  }
+
+  const updateSmsTarget = (index: number, field: keyof SmsTarget, value: string) => {
+    const updated = [...smsTargets]
+    updated[index] = { ...updated[index], [field]: value }
+    setSmsTargets(updated)
+  }
+
+  const canSave = channelType === 'sms'
+    ? smsTargets.some(t => t.phone.trim() !== '')
+    : targetsText.trim() !== ''
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 440, width: '90%' }}>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 480, width: '90%' }}>
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{isEdit ? 'Edit' : 'Add'} Notification Rule</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
@@ -233,24 +299,86 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
             />
           </div>
           <div>
-            <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>Channel Type{isTrialNotificationsDisabled && <FeatureBadge tier="Starter" />}</label>
-            <select value={channelType} onChange={e => setChannelType(e.target.value as 'email' | 'webhook')} style={inputStyle}>
+            <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              Channel Type
+              {isTrialNotificationsDisabled && <FeatureBadge tier="Starter" />}
+            </label>
+            <select value={channelType} onChange={e => setChannelType(e.target.value as 'email' | 'webhook' | 'push' | 'sms')} style={inputStyle}>
               <option value="email">Email</option>
               <option value="webhook">Webhook</option>
+              <option value="push">Push Notification</option>
+              {smsEnabled ? (
+                <option value="sms">SMS</option>
+              ) : (
+                <option value="sms" disabled style={{ color: 'var(--muted)' }}>SMS (Professional)</option>
+              )}
             </select>
+            {!smsEnabled && channelType === 'sms' && (
+              <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                SMS notifications require a Professional tier license.
+              </p>
+            )}
           </div>
-          <div>
-            <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>
-              Targets ({channelType === 'email' ? 'one email per line' : 'one URL per line'})
-            </label>
-            <textarea
-              placeholder={channelType === 'email' ? 'user@example.com\nadmin@example.com' : 'https://hooks.example.com/notify'}
-              value={targetsText}
-              onChange={e => setTargetsText(e.target.value)}
-              style={{ ...inputStyle, minHeight: 80, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-              rows={3}
-            />
-          </div>
+          {channelType === 'sms' ? (
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>
+                SMS Recipients
+              </label>
+              {smsTargets.map((target, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                  <input
+                    placeholder="5551234567"
+                    value={target.phone}
+                    onChange={e => updateSmsTarget(idx, 'phone', e.target.value)}
+                    style={{ ...inputStyle, flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                  />
+                  <select
+                    value={target.carrier}
+                    onChange={e => updateSmsTarget(idx, 'carrier', e.target.value)}
+                    style={{ ...inputStyle, width: 130, fontSize: 12 }}
+                  >
+                    {CARRIER_OPTIONS.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  {smsTargets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSmsTarget(idx)}
+                      style={{ ...btnStyle, fontSize: 11, padding: '4px 8px', borderColor: 'var(--crit)', color: 'var(--crit)', flexShrink: 0 }}
+                    >
+                      X
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addSmsTarget}
+                style={{ ...btnStyle, fontSize: 11, padding: '4px 10px', borderColor: 'var(--cyan)', color: 'var(--cyan)', marginTop: 4 }}
+              >
+                + Add Number
+              </button>
+              {!smsEnabled && (
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>
+                  <FeatureBadge tier="Professional" /> Required for SMS notifications
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>
+                Targets ({channelType === 'email' ? 'one email per line' : channelType === 'webhook' ? 'one URL per line' : 'one username per line'})
+              </label>
+              <textarea
+                placeholder={channelType === 'email' ? 'user@example.com\nadmin@example.com' : channelType === 'webhook' ? 'https://hooks.example.com/notify' : 'admin\noperator'}
+                value={targetsText}
+                onChange={e => setTargetsText(e.target.value)}
+                style={{ ...inputStyle, minHeight: 80, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                rows={3}
+              />
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label style={{ fontSize: 13, color: 'var(--fg)' }}>Enabled</label>
             <button
@@ -276,7 +404,7 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
             <button
               style={{ ...btnStyle, borderColor: 'var(--ok)', color: 'var(--ok)' }}
               onClick={handleSave}
-              disabled={!targetsText.trim()}
+              disabled={!canSave}
             >{isEdit ? 'Save' : 'Create'}</button>
           </div>
         </div>
