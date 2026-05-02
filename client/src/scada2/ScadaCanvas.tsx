@@ -1,14 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { Canvas, FabricObject, Polyline, Line, Point } from 'fabric'
+import { Canvas, FabricObject, Polyline, Point } from 'fabric'
 import type { SensorConfig, SensorData } from '../types'
 import type { ScadaCanvasState } from './engine/types'
-import { startRenderLoop } from './engine/render-loop'
 import { createEquipmentObject } from './objects/ScadaEquipment'
 import { updateConnectionPoints } from './objects/ScadaConnection'
 import { createLabelObject } from './objects/ScadaLabel'
+import { updateCanvasObjects } from './engine/render-loop'
 
-const CANVAS_W = 3000
-const CANVAS_H = 2000
 const GRID_SIZE = 20
 
 interface Props {
@@ -33,8 +31,6 @@ export const ScadaCanvas: React.FC<Props> = ({
   const stateRef = useRef(canvasState)
   stateRef.current = canvasState
 
-  const stopRenderRef = useRef<(() => void) | null>(null)
-
   // ---------- Init effect ----------
   useEffect(() => {
     if (!containerRef.current) return
@@ -45,45 +41,13 @@ export const ScadaCanvas: React.FC<Props> = ({
     const canvas = new Canvas(canvasEl, {
       width: container.clientWidth,
       height: container.clientHeight,
-      backgroundColor: '#060e09',
+      backgroundColor: 'transparent',
       selection: true,
       preserveObjectStacking: true,
     })
 
     canvasRef.current = canvas
     ;(window as any).__scadaCanvas = canvas
-
-    // Grid lines
-    const gridLines: FabricObject[] = []
-    for (let x = 0; x <= CANVAS_W; x += GRID_SIZE) {
-      const line = new Line([x, 0, x, CANVAS_H], {
-        stroke: '#0d1a12',
-        strokeWidth: 1,
-        selectable: false,
-        evented: false,
-        excludeFromExport: true,
-      })
-      ;(line as any)._isGrid = true
-      gridLines.push(line)
-    }
-    for (let y = 0; y <= CANVAS_H; y += GRID_SIZE) {
-      const line = new Line([0, y, CANVAS_W, y], {
-        stroke: '#0d1a12',
-        strokeWidth: 1,
-        selectable: false,
-        evented: false,
-        excludeFromExport: true,
-      })
-      ;(line as any)._isGrid = true
-      gridLines.push(line)
-    }
-    canvas.add(...gridLines)
-    for (const gl of gridLines) {
-      canvas.sendObjectToBack(gl)
-    }
-
-    // Render loop
-    stopRenderRef.current = startRenderLoop(canvas, getState, sensors)
 
     // Resize observer
     const ro = new ResizeObserver((entries) => {
@@ -95,9 +59,19 @@ export const ScadaCanvas: React.FC<Props> = ({
     })
     ro.observe(container)
 
+    // Store-driven updates (no RAF polling)
+    let lastValues: Record<string, SensorData> = {}
+    const interval = setInterval(() => {
+      const { currentValues } = getState()
+      if (currentValues !== lastValues) {
+        lastValues = currentValues
+        updateCanvasObjects(canvas, currentValues, sensors)
+      }
+    }, 250)
+
     return () => {
+      clearInterval(interval)
       ro.disconnect()
-      stopRenderRef.current?.()
       canvas.dispose()
       canvasRef.current = null
       ;(window as any).__scadaCanvas = null
@@ -327,6 +301,9 @@ export const ScadaCanvas: React.FC<Props> = ({
       border: '1px solid var(--border)',
       borderRadius: 8,
       overflow: 'hidden',
+      backgroundColor: '#060e09',
+      backgroundImage: `linear-gradient(to right, #0d1a12 1px, transparent 1px), linear-gradient(to bottom, #0d1a12 1px, transparent 1px)`,
+      backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
     }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
         <canvas />
