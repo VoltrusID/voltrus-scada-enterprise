@@ -14,6 +14,7 @@ use crate::models::{
     HubSite,
     Report,
     DowntimeEvent, OeeMetrics, ShiftConfig,
+    Role,
 };
 
 #[derive(Clone)]
@@ -1882,6 +1883,287 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    // ── Role management ──
+
+    pub async fn create_role(&self, name: &str, permissions: &str) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let permissions = permissions.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO roles (name, permissions, created_at) VALUES (?1, ?2, ?3)",
+                rusqlite::params![name, permissions, now],
+            )
+            .context("Insert role failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_roles(&self) -> Result<Vec<Role>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, permissions, created_at FROM roles ORDER BY id")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(Role {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        permissions: row.get(2)?,
+                        created_at: row.get(3)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_role_by_id(&self, id: i64) -> Result<Option<Role>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn
+                .query_row(
+                    "SELECT id, name, permissions, created_at FROM roles WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| {
+                        Ok(Role {
+                            id: row.get(0)?,
+                            name: row.get(1)?,
+                            permissions: row.get(2)?,
+                            created_at: row.get(3)?,
+                        })
+                    },
+                )
+                .ok();
+            Ok(result)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_role(&self, id: i64, name: Option<&str>, permissions: Option<&str>) -> Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let permissions = permissions.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(name) = name {
+                conn.execute(
+                    "UPDATE roles SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update role name failed")?;
+            }
+            if let Some(permissions) = permissions {
+                conn.execute(
+                    "UPDATE roles SET permissions = ?1 WHERE id = ?2",
+                    rusqlite::params![permissions, id],
+                )
+                .context("Update role permissions failed")?;
+            }
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_role(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM roles WHERE id = ?1", rusqlite::params![id])
+                .context("Delete role failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn assign_user_role(&self, user_id: i64, role_id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE users SET role_id = ?1 WHERE id = ?2",
+                rusqlite::params![role_id, user_id],
+            )
+            .context("Assign user role failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_user_role_permissions(&self, user_id: i64) -> Result<Vec<String>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let permissions_json: Option<String> = conn
+                .query_row(
+                    "SELECT r.permissions FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?1",
+                    rusqlite::params![user_id],
+                    |row| row.get(0),
+                )
+                .ok();
+            match permissions_json {
+                Some(json_str) => {
+                    let perms: Vec<String> = serde_json::from_str(&json_str).unwrap_or_default();
+                    Ok(perms)
+                }
+                None => Ok(vec![]),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Seed default roles if they don't exist yet.
+    pub async fn seed_default_roles(&self) -> Result<()> {
+        let existing = self.list_roles().await?;
+        if existing.is_empty() {
+            let now = crate::timeutil::now_secs();
+            let _ = self.create_role("Admin", &serde_json::to_string(crate::models::ALL_PERMISSIONS).unwrap()).await;
+            let _ = self.create_role("Operator", &serde_json::to_string(crate::models::OPERATOR_PERMISSIONS).unwrap()).await;
+            let _ = self.create_role("Viewer", &serde_json::to_string(crate::models::VIEWER_PERMISSIONS).unwrap()).await;
+        }
+        Ok(())
+    }
+
+    // ── Electronic signatures ──
+
+    pub async fn create_electronic_signature(
+        &self,
+        user_id: &str,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        reason: &str,
+        meaning: &str,
+        signature_hash: &str,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let user_id = user_id.to_string();
+        let action = action.to_string();
+        let resource_type = resource_type.to_string();
+        let resource_id = resource_id.to_string();
+        let reason = reason.to_string();
+        let meaning = meaning.to_string();
+        let signature_hash = signature_hash.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO electronic_signatures (user_id, action, resource_type, resource_id, reason, meaning, signature_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![user_id, action, resource_type, resource_id, reason, meaning, signature_hash, now],
+            )
+            .context("Insert electronic signature failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_electronic_signatures(
+        &self,
+        resource_type: Option<&str>,
+        resource_id: Option<&str>,
+    ) -> Result<Vec<crate::compliance::ElectronicSignature>> {
+        let conn = self.conn.clone();
+        let rt = resource_type.map(|s| s.to_string());
+        let ri = resource_id.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let base_sql = "SELECT id, user_id, action, resource_type, resource_id, reason, meaning, signature_hash, created_at FROM electronic_signatures";
+            let mut sql = String::from(base_sql);
+            let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if rt.is_some() {
+                sql.push_str(" WHERE resource_type = ?1");
+                param_values.push(Box::new(rt.as_deref().unwrap()));
+                if ri.is_some() {
+                    sql.push_str(" AND resource_id = ?2");
+                    param_values.push(Box::new(ri.as_deref().unwrap()));
+                }
+            }
+            sql.push_str(" ORDER BY created_at DESC");
+
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|b| b.as_ref()).collect();
+
+            let mut stmt = conn.prepare(&sql).context("Prepare failed")?;
+            let rows = stmt.query_map(param_refs.as_slice(), |row| {
+                Ok(crate::compliance::ElectronicSignature {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    action: row.get(2)?,
+                    resource_type: row.get(3)?,
+                    resource_id: row.get(4)?,
+                    reason: row.get(5)?,
+                    meaning: row.get(6)?,
+                    signature_hash: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            })
+            .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Compliance config ──
+
+    pub async fn get_compliance_config(&self) -> Result<Option<crate::compliance::ComplianceConfig>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let config_json: Option<String> = conn
+                .query_row(
+                    "SELECT config FROM compliance_config WHERE id = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .ok();
+            match config_json {
+                Some(json_str) => {
+                    let config: crate::compliance::ComplianceConfig = serde_json::from_str(&json_str)
+                        .context("Failed to parse compliance config")?;
+                    Ok(Some(config))
+                }
+                None => Ok(None),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn upsert_compliance_config(&self, config: &crate::compliance::ComplianceConfig) -> Result<()> {
+        let conn = self.conn.clone();
+        let config_json = serde_json::to_string(config).context("Failed to serialize compliance config")?;
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO compliance_config (id, config) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET config = ?1",
+                rusqlite::params![config_json],
+            )
+            .context("Upsert compliance config failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     // ── Seed ──
 
     pub async fn seed_database(&self) -> Result<()> {
@@ -1903,6 +2185,11 @@ impl Storage {
             tracing::warn!("  You will be required to change this on first login.");
             tracing::warn!("  Save this password now — it will NOT be shown again.");
             tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        }
+
+        // Seed default RBAC roles if none exist
+        if let Err(e) = self.seed_default_roles().await {
+            tracing::warn!("Failed to seed default roles: {}", e);
         }
 
         // Seed PLTS data sources if none exist
@@ -2931,6 +3218,29 @@ fn init_schema(conn: &Connection) -> Result<()> {
             duration_hours INTEGER NOT NULL,
             days_mask INTEGER NOT NULL DEFAULT 127,
             created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS roles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            permissions TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS electronic_signatures (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            meaning TEXT NOT NULL,
+            signature_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_electronic_signatures_resource
+            ON electronic_signatures(resource_type, resource_id);
+        CREATE TABLE IF NOT EXISTS compliance_config (
+            id INTEGER PRIMARY KEY CHECK(id = 1),
+            config TEXT NOT NULL
         );",
     )
     .context("Failed to create schema")?;
@@ -3020,8 +3330,11 @@ fn init_schema(conn: &Connection) -> Result<()> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_recipes_device ON recipes(device_id);",
+        CREATE INDEX IF NOT EXISTS idx_recipes_device ON recipes(device_id);"
     );
+
+    // Migration: add role_id column to users (roles table is created in main schema above)
+    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN role_id INTEGER REFERENCES roles(id)");
 
         Ok(())
 }
