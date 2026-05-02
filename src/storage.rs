@@ -11,6 +11,8 @@ use crate::models::{
     Flow, FlowRun,
     OpcUaDevice, OpcUaNode, OpcUaDeviceConfig, OpcUaNodeConfig,
     OpcUaSecurityPolicy, OpcUaSecurityMode,
+    HubSite,
+    Report,
 };
 
 #[derive(Clone)]
@@ -2863,7 +2865,27 @@ fn init_schema(conn: &Connection) -> Result<()> {
             created_at INTEGER NOT NULL,
             UNIQUE(device_id, node_id)
         );
-        CREATE INDEX IF NOT EXISTS idx_opcua_nodes_device ON opcua_nodes(device_id);",
+        CREATE INDEX IF NOT EXISTS idx_opcua_nodes_device ON opcua_nodes(device_id);
+        CREATE TABLE IF NOT EXISTS hub_sites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            api_key TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_seen INTEGER,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_hub_sites_enabled ON hub_sites(enabled);
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            schedule TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            device_ids TEXT NOT NULL DEFAULT 'all',
+            email_recipients TEXT NOT NULL,
+            last_generated INTEGER,
+            created_at INTEGER NOT NULL
+        );",
     )
     .context("Failed to create schema")?;
 
@@ -3672,6 +3694,135 @@ impl Storage {
     }
 }
 
+// ── Hub Sites management ──
+
+impl Storage {
+    pub async fn create_hub_site(&self, name: &str, url: &str, api_key: &str, enabled: bool) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let url = url.to_string();
+        let api_key = api_key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO hub_sites (name, url, api_key, enabled, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![name, url, api_key, enabled as i64, now],
+            )
+            .context("Insert hub_site failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_hub_sites(&self) -> Result<Vec<HubSite>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, url, api_key, enabled, last_seen, created_at FROM hub_sites ORDER BY created_at"
+                )
+                .context("Prepare list_hub_sites failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(HubSite {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    url: row.get(2)?,
+                    api_key: row.get(3)?,
+                    enabled: row.get::<_, i64>(4)? != 0,
+                    last_seen: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            }).context("Query list_hub_sites failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_hub_site(&self, id: i64, name: Option<&str>, url: Option<&str>, api_key: Option<&str>, enabled: Option<bool>) -> Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let url = url.map(|s| s.to_string());
+        let api_key = api_key.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(name) = &name {
+                conn.execute("UPDATE hub_sites SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
+                    .context("Update hub_site name failed")?;
+            }
+            if let Some(url) = &url {
+                conn.execute("UPDATE hub_sites SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
+                    .context("Update hub_site url failed")?;
+            }
+            if let Some(api_key) = &api_key {
+                conn.execute("UPDATE hub_sites SET api_key = ?1 WHERE id = ?2", rusqlite::params![api_key, id])
+                    .context("Update hub_site api_key failed")?;
+            }
+            if let Some(enabled) = enabled {
+                conn.execute("UPDATE hub_sites SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
+                    .context("Update hub_site enabled failed")?;
+            }
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_hub_site(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM hub_sites WHERE id = ?1", rusqlite::params![id])
+                .context("Delete hub_site failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_hub_site_last_seen(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute("UPDATE hub_sites SET last_seen = ?1 WHERE id = ?2", rusqlite::params![now, id])
+                .context("Update hub_site last_seen failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_enabled_hub_sites(&self) -> Result<Vec<HubSite>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, url, api_key, enabled, last_seen, created_at FROM hub_sites WHERE enabled = 1 ORDER BY created_at"
+                )
+                .context("Prepare get_enabled_hub_sites failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(HubSite {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    url: row.get(2)?,
+                    api_key: row.get(3)?,
+                    enabled: row.get::<_, i64>(4)? != 0,
+                    last_seen: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            }).context("Query get_enabled_hub_sites failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+}
+
 // ── License Activation ──
 
 impl Storage {
@@ -3738,6 +3889,224 @@ impl Storage {
             conn.execute("DELETE FROM license_activation", [])
                 .context("Clear license activation failed")?;
             Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    // ── Report management ──
+
+    pub async fn list_reports(&self) -> Result<Vec<Report>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, name, schedule, enabled, device_ids, email_recipients, last_generated, created_at FROM reports ORDER BY id"
+            ).context("Prepare list_reports failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Report {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    schedule: row.get(2)?,
+                    enabled: row.get::<_, i64>(3)? != 0,
+                    device_ids: row.get(4)?,
+                    email_recipients: row.get(5)?,
+                    last_generated: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            }).context("Query list_reports failed")?;
+            let mut reports = Vec::new();
+            for row in rows {
+                reports.push(row.context("Row parse list_reports failed")?);
+            }
+            Ok(reports)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn get_report(&self, id: i64) -> Result<Option<Report>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, name, schedule, enabled, device_ids, email_recipients, last_generated, created_at FROM reports WHERE id = ?1"
+            ).context("Prepare get_report failed")?;
+            let result = stmt.query_row(rusqlite::params![id], |row| {
+                Ok(Report {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    schedule: row.get(2)?,
+                    enabled: row.get::<_, i64>(3)? != 0,
+                    device_ids: row.get(4)?,
+                    email_recipients: row.get(5)?,
+                    last_generated: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            }).ok();
+            Ok(result)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn create_report(
+        &self,
+        name: &str,
+        schedule: &str,
+        enabled: bool,
+        device_ids: &str,
+        email_recipients: &str,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let schedule = schedule.to_string();
+        let device_ids = device_ids.to_string();
+        let email_recipients = email_recipients.to_string();
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO reports (name, schedule, enabled, device_ids, email_recipients, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![name, schedule, enabled as i64, device_ids, email_recipients, now],
+            ).context("Insert report failed")?;
+            Ok(conn.last_insert_rowid())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn update_report(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        schedule: Option<&str>,
+        device_ids: Option<&str>,
+        email_recipients: Option<&str>,
+        enabled: Option<bool>,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let schedule = schedule.map(|s| s.to_string());
+        let device_ids = device_ids.map(|s| s.to_string());
+        let email_recipients = email_recipients.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(name) = name {
+                conn.execute("UPDATE reports SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
+                    .context("Update report name failed")?;
+            }
+            if let Some(schedule) = schedule {
+                conn.execute("UPDATE reports SET schedule = ?1 WHERE id = ?2", rusqlite::params![schedule, id])
+                    .context("Update report schedule failed")?;
+            }
+            if let Some(device_ids) = device_ids {
+                conn.execute("UPDATE reports SET device_ids = ?1 WHERE id = ?2", rusqlite::params![device_ids, id])
+                    .context("Update report device_ids failed")?;
+            }
+            if let Some(email_recipients) = email_recipients {
+                conn.execute("UPDATE reports SET email_recipients = ?1 WHERE id = ?2", rusqlite::params![email_recipients, id])
+                    .context("Update report email_recipients failed")?;
+            }
+            if let Some(enabled) = enabled {
+                conn.execute("UPDATE reports SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
+                    .context("Update report enabled failed")?;
+            }
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn delete_report(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM reports WHERE id = ?1", rusqlite::params![id])
+                .context("Delete report failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn update_report_last_generated(&self, id: i64, ts: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE reports SET last_generated = ?1 WHERE id = ?2",
+                rusqlite::params![ts, id],
+            ).context("Update report last_generated failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    /// Query distinct device IDs from telemetry table.
+    pub async fn get_telemetry_device_ids(&self) -> Result<Vec<String>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare("SELECT DISTINCT device_id FROM telemetry ORDER BY device_id")
+                .context("Prepare get_telemetry_device_ids failed")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))
+                .context("Query get_telemetry_device_ids failed")?;
+            let mut ids = Vec::new();
+            for row in rows {
+                ids.push(row.context("Row parse get_telemetry_device_ids failed")?);
+            }
+            Ok(ids)
+        }).await.context("Task join failed")?
+    }
+
+    /// Query distinct metrics for a device from telemetry table.
+    pub async fn get_telemetry_metrics(&self, device_id: &str) -> Result<Vec<String>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT metric FROM telemetry WHERE device_id = ?1 ORDER BY metric"
+            ).context("Prepare get_telemetry_metrics failed")?;
+            let rows = stmt.query_map(rusqlite::params![device_id], |row| row.get::<_, String>(0))
+                .context("Query get_telemetry_metrics failed")?;
+            let mut metrics = Vec::new();
+            for row in rows {
+                metrics.push(row.context("Row parse get_telemetry_metrics failed")?);
+            }
+            Ok(metrics)
+        }).await.context("Task join failed")?
+    }
+
+    /// Query telemetry history for a device with optional metric filter.
+    pub async fn query_history_multi(
+        &self,
+        device_id: &str,
+        from: i64,
+        to: i64,
+        metric: Option<&str>,
+    ) -> Result<Vec<DataPoint>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut points: Vec<DataPoint> = Vec::new();
+            if let Some(ref m) = metric {
+                let mut stmt = conn.prepare(
+                    "SELECT timestamp, value FROM telemetry
+                     WHERE device_id = ?1 AND metric = ?2 AND timestamp >= ?3 AND timestamp <= ?4
+                     ORDER BY timestamp LIMIT 5000"
+                ).context("Prepare query_history_multi failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, m, from, to], |row| {
+                    Ok(DataPoint { timestamp: row.get(0)?, value: row.get(1)? })
+                }).context("Query query_history_multi failed")?;
+                for row in rows {
+                    points.push(row.context("Row parse query_history_multi failed")?);
+                }
+            } else {
+                let mut stmt = conn.prepare(
+                    "SELECT timestamp, value FROM telemetry
+                     WHERE device_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
+                     ORDER BY timestamp LIMIT 5000"
+                ).context("Prepare query_history_multi failed")?;
+                let rows = stmt.query_map(rusqlite::params![device_id, from, to], |row| {
+                    Ok(DataPoint { timestamp: row.get(0)?, value: row.get(1)? })
+                }).context("Query query_history_multi failed")?;
+                for row in rows {
+                    points.push(row.context("Row parse query_history_multi failed")?);
+                }
+            }
+            Ok(points)
         }).await.context("Task join failed")?
     }
 }
@@ -3997,5 +4366,67 @@ mod tests {
         ).await.unwrap();
         let count = storage.count_modbus_devices().await.unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_hub_site_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Create a site
+        let id = storage.create_hub_site("Factory A", "https://factory-a.example.com", "secret-key-123", true).await.unwrap();
+        assert!(id > 0);
+
+        // List sites
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].name, "Factory A");
+        assert_eq!(sites[0].url, "https://factory-a.example.com");
+        assert_eq!(sites[0].enabled, true);
+        assert!(sites[0].last_seen.is_none());
+
+        // Update site
+        storage.update_hub_site(id, Some("Factory A Updated"), None, None, None).await.unwrap();
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert_eq!(sites[0].name, "Factory A Updated");
+
+        // Update last_seen
+        storage.update_hub_site_last_seen(id).await.unwrap();
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert!(sites[0].last_seen.is_some());
+
+        // Get enabled sites
+        let enabled = storage.get_enabled_hub_sites().await.unwrap();
+        assert_eq!(enabled.len(), 1);
+
+        // Disable site
+        storage.update_hub_site(id, None, None, None, Some(false)).await.unwrap();
+        let enabled = storage.get_enabled_hub_sites().await.unwrap();
+        assert_eq!(enabled.len(), 0);
+
+        // Delete site
+        storage.delete_hub_site(id).await.unwrap();
+        let sites = storage.list_hub_sites().await.unwrap();
+        assert_eq!(sites.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_hub_site_multiple_sites() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        let id1 = storage.create_hub_site("Site 1", "https://site1.example.com", "key1", true).await.unwrap();
+        let id2 = storage.create_hub_site("Site 2", "https://site2.example.com", "key2", false).await.unwrap();
+
+        let all = storage.list_hub_sites().await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let enabled = storage.get_enabled_hub_sites().await.unwrap();
+        assert_eq!(enabled.len(), 1);
+        assert_eq!(enabled[0].id, id1);
+
+        // Delete one
+        storage.delete_hub_site(id1).await.unwrap();
+        let all = storage.list_hub_sites().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].id, id2);
     }
 }
