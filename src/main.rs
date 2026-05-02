@@ -16,6 +16,8 @@ mod license;
 mod notification;
 mod opcua;
 mod hub;
+mod report;
+mod report_scheduler;
 
 use api::AppState;
 use base64::Engine;
@@ -526,6 +528,20 @@ EXAMPLES:
         },
         None => None,
     };
+
+    // Start report scheduler (Professional tier, SMTP required)
+    if license_tier.pdf_reporting() {
+        if let Some(ref notifier) = email_notifier {
+            report_scheduler::start_report_scheduler(
+                storage.clone(),
+                cache.clone(),
+                notifier.clone(),
+            );
+            tracing::info!("PDF report scheduler started");
+        } else {
+            tracing::info!("PDF reporting enabled but SMTP not configured — report scheduler not started");
+        }
+    }
 
     // Build optional push notifier from VAPID config
     let push_notifier = match &app_config.push {
