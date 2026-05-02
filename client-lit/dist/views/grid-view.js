@@ -126,7 +126,7 @@ let GridView = class GridView extends LitElement {
     async saveLayouts() {
         try {
             const actualId = this._screenId === 'all' ? '__overview' : this._screenId;
-            await fetchOk(`/api/screens/${actualId}/layouts`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._layouts) });
+            await fetchOk(`/api/v1/screens/${actualId}/layouts`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._layouts) });
         }
         catch { /* ignore */ }
     }

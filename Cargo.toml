@@ -1,6 +1,6 @@
 [package]
 name = "voltrus-lite-rust-service"
-version = "0.18.0"
+version = "0.19.0"
 edition = "2024"
 license = "MIT"
 
@@ -38,7 +38,7 @@ flate2 = "=1.1.9"
 sysinfo = "=0.34.2"
 time = "=0.3.47"
 jsonwebtoken = "=9.3"
-reqwest = { version = "=0.12.15", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "=0.12.15", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 ed25519-dalek = "=2.1.1"
 
 [dev-dependencies]

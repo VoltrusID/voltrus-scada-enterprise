@@ -1308,6 +1308,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -2065,7 +2066,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "voltrus-lite-rust-service"
-version = "0.17.6"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "argon2",

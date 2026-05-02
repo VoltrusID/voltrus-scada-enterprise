@@ -1,1 +1,0 @@
-{"version":3,"file":"scada-view.d.ts","sourceRoot":"","sources":["../../src/views/scada-view.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,UAAU,EAAa,MAAM,KAAK,CAAC;AAI5C,qBACa,SAAU,SAAQ,UAAU;IACvC,MAAM,CAAC,MAAM,0BAkBX;IAEO,OAAO,CAAC,SAAS,CAAS;IAC1B,OAAO,CAAC,KAAK,CAA6C;IAEnE,MAAM;CAgBP"}

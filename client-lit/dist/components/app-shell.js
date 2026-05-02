@@ -21,11 +21,13 @@ import '../views/scada-view.js';
 import '../views/twin-view.js';
 import '../views/system-view.js';
 import '../components/data-manager.js';
+import '../components/license-activation-screen.js';
 let AppShell = class AppShell extends LitElement {
     constructor() {
         super(...arguments);
         this._authed = false;
         this._authLoading = true;
+        this._mustChangePassword = false;
         this._view = 'grid';
         this._activeScreen = 'all';
         this._screens = [];
@@ -43,11 +45,13 @@ let AppShell = class AppShell extends LitElement {
         this._dialog = null;
         this._authRole = 'user';
         this._systemInfo = {};
+        this._licenseValid = true;
         this._onAuth = () => {
             const s = authManager.state;
             this._authed = s.authed;
             this._authLoading = s.loading;
             this._authRole = s.role;
+            this._mustChangePassword = s.mustChangePassword;
             if (s.authed) {
                 this._loadScreens();
                 this._loadAllSensors();
@@ -158,6 +162,7 @@ let AppShell = class AppShell extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._readUrlParams();
+        this._checkLicense();
         authManager.addEventListener('change', this._onAuth);
         authManager.check();
         this._loadScreens();
@@ -173,6 +178,33 @@ let AppShell = class AppShell extends LitElement {
         super.disconnectedCallback();
         authManager.removeEventListener('change', this._onAuth);
         document.removeEventListener('keydown', this._onKeyDown);
+    }
+    async _checkLicense() {
+        try {
+            const res = await fetch('/api/license/status');
+            const data = await res.json();
+            this._licenseValid = data.status === 'Valid';
+        }
+        catch {
+            this._licenseValid = true;
+        }
+    }
+    async _handleChangePassword(e) {
+        e.preventDefault();
+        const form = e.target;
+        const pw = form.querySelector('[name=pw]').value;
+        const pw2 = form.querySelector('[name=pw2]').value;
+        if (pw !== pw2) {
+            alert('Passwords do not match');
+            return;
+        }
+        if (pw.length < 8) {
+            alert('Password must be at least 8 characters');
+            return;
+        }
+        const ok = await authManager.changePassword(pw);
+        if (!ok)
+            alert('Failed to change password');
     }
     async _loadScreens() {
         try {
@@ -234,7 +266,7 @@ let AppShell = class AppShell extends LitElement {
     }
     async _fetchVersion() {
         try {
-            const res = await fetch(`${window.location.origin}/api/version`);
+            const res = await fetch(`${window.location.origin}/api/v1/version`);
             const data = await res.json();
             this._version = data.version || '';
         }
@@ -288,7 +320,7 @@ let AppShell = class AppShell extends LitElement {
                 await this._loadScreens();
             }
             else if (d.type === 'rename-screen') {
-                await fetchOk(`/api/screens/${this._activeScreen}`, { method: 'PUT', body: JSON.stringify({ name: value }) });
+                await fetchOk(`/api/v1/screens/${this._activeScreen}`, { method: 'PUT', body: JSON.stringify({ name: value }) });
                 await this._loadScreens();
             }
         }
@@ -299,7 +331,7 @@ let AppShell = class AppShell extends LitElement {
         this._dialog = null;
         if (d?.type === 'delete-screen') {
             try {
-                await fetchOk(`/api/screens/${this._activeScreen}`, { method: 'DELETE' });
+                await fetchOk(`/api/v1/screens/${this._activeScreen}`, { method: 'DELETE' });
                 this._activeScreen = 'all';
                 await this._loadScreens();
             }
@@ -323,11 +355,27 @@ let AppShell = class AppShell extends LitElement {
         this._editMode = false;
     }
     render() {
+        if (!this._licenseValid) {
+            return html `<vlt-license-activation @activated="${() => { this._licenseValid = true; this.requestUpdate(); }}"></vlt-license-activation>`;
+        }
         if (this._authLoading) {
             return html `<div class="loading">Loading...</div>`;
         }
         if (!this._authed) {
             return html `<vlt-login-screen></vlt-login-screen>`;
+        }
+        if (this._mustChangePassword) {
+            return html `
+        <div style="height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);font-family:Inter,sans-serif">
+          <form @submit="${this._handleChangePassword}" style="background:var(--card);border-radius:12px;padding:32px;width:360px;display:flex;flex-direction:column;gap:16px;border:1px solid var(--border)">
+            <h2 style="margin:0;font-size:18px;color:var(--fg)">Change Your Password</h2>
+            <p style="margin:0;font-size:13px;color:var(--muted)">You must set a new password before continuing.</p>
+            <input name="pw" type="password" placeholder="New password (min 8 chars)" required minlength="8" style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:14px" />
+            <input name="pw2" type="password" placeholder="Confirm new password" required style="padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:14px" />
+            <button type="submit" style="padding:10px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;font-size:14px">Change Password</button>
+          </form>
+        </div>
+      `;
         }
         const selectedSensor = this._allSensors.find(s => s.id === this._selectedSensorId);
         const activeScreenObj = this._screens.find(s => s.id === this._activeScreen);
@@ -438,6 +486,9 @@ __decorate([
 ], AppShell.prototype, "_authLoading", void 0);
 __decorate([
     state()
+], AppShell.prototype, "_mustChangePassword", void 0);
+__decorate([
+    state()
 ], AppShell.prototype, "_view", void 0);
 __decorate([
     state()
@@ -487,6 +538,9 @@ __decorate([
 __decorate([
     state()
 ], AppShell.prototype, "_systemInfo", void 0);
+__decorate([
+    state()
+], AppShell.prototype, "_licenseValid", void 0);
 AppShell = __decorate([
     customElement('vlt-app-shell')
 ], AppShell);

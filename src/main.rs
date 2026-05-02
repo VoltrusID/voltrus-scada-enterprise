@@ -14,6 +14,7 @@ mod timeutil;
 mod license;
 
 use api::AppState;
+use base64::Engine;
 use cache::DeviceCache;
 use models::DeviceStatus;
 use poller_manager::PollerManager;
@@ -31,8 +32,40 @@ async fn main() -> anyhow::Result<()> {
 
     let args: Vec<String> = std::env::args().collect();
 
+    const HELP_TEXT: &str = "\
+voltrus-lite — Industrial Modbus monitoring dashboard
+
+USAGE:
+    voltrus-lite [CONFIG_PATH]              Start server (default: config.yaml)
+    voltrus-lite --help                     Show this help
+    voltrus-lite --license-status [CONFIG]  Check current license status
+    voltrus-lite --generate-request <KEY>   Generate license-request.bin
+    voltrus-lite --import-activation <FILE> [CONFIG]
+                                            Import license-activation.bin
+    voltrus-lite --online-activate <KEY> [CONFIG]
+                                            Activate directly via internet
+
+OPTIONS:
+    --help                     Show this help message
+    --license-status           Print license status as JSON (exit 1 if invalid)
+    --generate-request <KEY>   Generate a license request file for offline activation
+    --import-activation <FILE> Import a signed activation file from the activation server
+    --online-activate <KEY>    Connect to activation server and activate in one step
+                               (requires internet access)
+
+EXAMPLES:
+    voltrus-lite                              # Start with config.yaml
+    voltrus-lite /etc/voltrus/prod.yaml       # Start with custom config
+    voltrus-lite --online-activate VOLTRUS-XXXX   # Activate online
+    voltrus-lite --license-status             # Check license
+";
+
     if args.len() > 1 {
         match args[1].as_str() {
+            "--help" | "-h" => {
+                print!("{}", HELP_TEXT);
+                std::process::exit(0);
+            }
             "--generate-request" => {
                 if args.len() < 3 {
                     eprintln!("Usage: {} --generate-request <LICENSE_KEY>", args[0]);
@@ -72,6 +105,78 @@ async fn main() -> anyhow::Result<()> {
                 println!("License activated successfully: {}", activation.license_key);
                 return Ok(());
             }
+            "--online-activate" => {
+                if args.len() < 3 {
+                    eprintln!("Usage: {} --online-activate <LICENSE_KEY> [CONFIG_PATH]", args[0]);
+                    std::process::exit(1);
+                }
+                let license_key = &args[2];
+                let config_path = args.get(3).map(|s| s.as_str()).unwrap_or("config.yaml");
+                let app_config = config::load_config(config_path)?;
+                let storage = Storage::new_with_key(
+                    &app_config.db_path,
+                    app_config.db_encryption_key.as_deref(),
+                )?;
+
+                eprintln!("Generating license request...");
+                let request_data = {
+                    let path = license::request::generate_request(license_key)?;
+                    let data = std::fs::read(&path)?;
+                    std::fs::remove_file(&path).ok();
+                    data
+                };
+
+                eprintln!("Contacting activation server...");
+                let client = reqwest::Client::new();
+                let file_part = reqwest::multipart::Part::bytes(request_data.clone())
+                    .file_name("license-request.bin")
+                    .mime_str("application/octet-stream")?;
+                let form = reqwest::multipart::Form::new()
+                    .text("license_key", license_key.clone())
+                    .part("file", file_part);
+
+                let resp = client
+                    .post("https://activate.voltrus.id/activate")
+                    .multipart(form)
+                    .timeout(std::time::Duration::from_secs(30))
+                    .send()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to connect to activation server: {}. Ensure you have internet access.", e))?;
+
+                if !resp.status().is_success() {
+                    anyhow::bail!("Activation server returned HTTP {}", resp.status());
+                }
+
+                let result: serde_json::Value = resp.json().await?;
+                if !result["success"].as_bool().unwrap_or(false) {
+                    let err = result["error"].as_str().unwrap_or("Unknown error");
+                    anyhow::bail!("Activation failed: {}", err);
+                }
+
+                let activation_b64 = result["activation_file"]
+                    .as_str()
+                    .ok_or_else(|| anyhow::anyhow!("Activation server did not return activation file"))?;
+                let activation_blob = base64::engine::general_purpose::STANDARD
+                    .decode(activation_b64)?;
+
+                let activation = license::activation::verify_activation_signature(&activation_blob)?;
+                let fingerprint = license::fingerprint::collect_fingerprint();
+                let row = crate::models::LicenseActivationRow {
+                    license_key: activation.license_key.clone(),
+                    fingerprint_hash: fingerprint.hash(),
+                    activation_blob,
+                    fingerprint_hostname: fingerprint.hostname,
+                    fingerprint_cpu: fingerprint.cpu,
+                    fingerprint_disk_serial: fingerprint.disk_serial,
+                    fingerprint_mac: fingerprint.mac,
+                    fingerprint_machine_id: fingerprint.machine_id,
+                    activated_at: activation.issued_at,
+                    expires_at: activation.expires_at,
+                };
+                storage.store_license_activation(&row).await?;
+                println!("License activated successfully: {}", activation.license_key);
+                return Ok(());
+            }
             "--license-status" => {
                 let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
                 let app_config = config::load_config(config_path)?;
@@ -82,6 +187,11 @@ async fn main() -> anyhow::Result<()> {
                 let status = license::verify_license(&storage).await;
                 println!("{}", serde_json::to_string_pretty(&status)?);
                 std::process::exit(if status.is_valid() { 0 } else { 1 });
+            }
+            other if other.starts_with('-') => {
+                eprintln!("Unknown option: {}", other);
+                eprintln!("Run '{} --help' for usage.", args[0]);
+                std::process::exit(1);
             }
             _ => {}
         }
@@ -104,7 +214,7 @@ async fn main() -> anyhow::Result<()> {
     let license_status = license::verify_license(&storage).await;
 
     if !license_status.is_valid() {
-        tracing::warn!("License status: {:?}", license_status);
+        tracing::warn!("License status: {:?} — skipping Modbus polling", license_status);
     }
 
     let flow_engine = crate::flow_engine::engine::FlowEngine::new(
@@ -145,12 +255,16 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Migrated {} devices from YAML to database", app_config.devices.len());
     }
 
-    // Load device configs from DB and start pollers
-    let device_configs = storage.get_all_device_configs().await?;
+    // Load device configs from DB and start pollers (only with valid license)
     let poller_manager = PollerManager::new(cache.clone());
-    for config in &device_configs {
-        poller_manager.start(config.clone()).await;
-        tracing::info!("Started poller for device {}", config.id);
+    if license_status.is_valid() {
+        let device_configs = storage.get_all_device_configs().await?;
+        for config in &device_configs {
+            poller_manager.start(config.clone()).await;
+            tracing::info!("Started poller for device {}", config.id);
+        }
+    } else {
+        tracing::warn!("No valid license — Modbus polling disabled");
     }
 
     // Spawn persistence task
