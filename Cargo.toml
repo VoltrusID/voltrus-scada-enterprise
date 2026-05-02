@@ -44,6 +44,7 @@ lettre = { version = "=0.11", default-features = false, features = ["tokio1-rust
 ed25519-dalek = "=2.1.1"
 web-push = "=0.11.0"
 tempfile = "=3.27.0"
+async-opcua = { version = "=0.18.0", default-features = false, features = ["client"] }
 
 [dev-dependencies]
 http = "=1.4.0"
