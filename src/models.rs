@@ -1069,6 +1069,38 @@ mod tests {
     }
 }
 
+// ── Report types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Report {
+    pub id: i64,
+    pub name: String,
+    pub schedule: String,
+    pub enabled: bool,
+    pub device_ids: String,
+    pub email_recipients: String,
+    pub last_generated: Option<i64>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateReportRequest {
+    pub name: String,
+    pub schedule: String,
+    pub device_ids: Option<String>,
+    pub email_recipients: String,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateReportRequest {
+    pub name: Option<String>,
+    pub schedule: Option<String>,
+    pub device_ids: Option<String>,
+    pub email_recipients: Option<String>,
+    pub enabled: Option<bool>,
+}
+
 // ── Hub (Multi-Site) types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

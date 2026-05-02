@@ -17,6 +17,7 @@ mod license;
 mod notifications;
 mod opcua_devices;
 pub(crate) mod hub;
+mod reports;
 
 use axum::{
     extract::{Request, State},
@@ -293,6 +294,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/hub/sites/{id}/start", post(hub::start_site_connection))
         .route("/api/v1/hub/sites/{id}/stop", post(hub::stop_site_connection))
         .route("/api/v1/hub/status", get(hub::get_hub_status))
+        .route("/api/v1/reports", get(reports::list_reports).post(reports::create_report))
+        .route("/api/v1/reports/{id}", put(reports::update_report).delete(reports::delete_report))
+        .route("/api/v1/reports/{id}/generate", post(reports::generate_report))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
