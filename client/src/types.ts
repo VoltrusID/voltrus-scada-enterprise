@@ -246,3 +246,14 @@ export interface FlowTriggerConfig {
   type: FlowTriggerType
   [key: string]: any
 }
+
+// -- Notification Settings types --
+
+export interface NotificationSetting {
+  id: number
+  source_key: string
+  channel_type: 'email' | 'webhook'
+  config: string  // JSON string of array: '["email@example.com"]' or '["https://webhook.url"]'
+  enabled: boolean
+  created_at: number
+}
