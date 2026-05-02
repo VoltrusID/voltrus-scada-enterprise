@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { SensorManager } from './SensorManager';
 import { ModbusDeviceManager } from './ModbusDeviceManager';
 import { UserManager } from './UserManager';
+import { ApiKeyManager } from './ApiKeyManager';
+import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { btnStyle } from './styles';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'users';
+type Tab = 'sources' | 'modbus' | 'users' | 'notifications' | 'api-keys';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -45,6 +47,8 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             <button style={tabBtn('sources')} onClick={() => setTab('sources')}>Sources</button>
             <button style={tabBtn('modbus')} onClick={() => setTab('modbus')}>Modbus</button>
             {isAdmin && <button style={tabBtn('users')} onClick={() => setTab('users')}>Users</button>}
+            {isAdmin && <button style={tabBtn('notifications')} onClick={() => setTab('notifications')}>Notifications</button>}
+            {isAdmin && <button style={tabBtn('api-keys')} onClick={() => setTab('api-keys')}>API Keys</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -60,6 +64,12 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'users' && isAdmin && (
             <UserManager onClose={onClose} embedded />
+          )}
+          {tab === 'notifications' && isAdmin && (
+            <NotificationSettingsPanel onClose={onClose} embedded />
+          )}
+          {tab === 'api-keys' && isAdmin && (
+            <ApiKeyManager onClose={onClose} embedded />
           )}
         </div>
       </div>

@@ -10,6 +10,7 @@ import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
+import { DataExportPanel } from './DataExportPanel'
 import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
@@ -65,6 +66,7 @@ function AppInner() {
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
+  const [showExportPanel, setShowExportPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
 
@@ -382,6 +384,7 @@ function AppInner() {
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
+        onExportClick={() => setShowExportPanel(true)}
       />
 
       <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -478,6 +481,7 @@ function AppInner() {
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
+        {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
       </div>
 
       <Footer />

@@ -22,4 +22,6 @@ export const queryKeys = {
   flows: ['flows'] as const,
   flow: (id: string) => ['flow', id] as const,
   flowRuns: (id: string) => ['flowRuns', id] as const,
+  notificationSettings: ['notificationSettings'] as const,
+  apiKeys: ['api-keys'] as const,
 }
