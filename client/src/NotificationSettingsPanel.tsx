@@ -7,6 +7,8 @@ import {
   useTestNotification,
 } from './queries'
 import { inputStyle, btnStyle } from './styles'
+import { useLicense } from './LicenseContext'
+import { FeatureBadge } from './components/FeatureBadge'
 import type { NotificationSetting } from './types'
 
 function parseConfigTargets(config: string): string[] {
@@ -196,6 +198,8 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
   error?: string
 }) {
   const isEdit = !!setting
+  const license = useLicense()
+  const isTrialNotificationsDisabled = license?.tier === 'trial' && license.feature_flags?.email_notifications === false
   const [sourceKey, setSourceKey] = useState(setting?.source_key || '')
   const [channelType, setChannelType] = useState<'email' | 'webhook'>(setting?.channel_type || 'email')
   const [targetsText, setTargetsText] = useState(
@@ -229,7 +233,7 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
             />
           </div>
           <div>
-            <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'block' }}>Channel Type</label>
+            <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>Channel Type{isTrialNotificationsDisabled && <FeatureBadge tier="Starter" />}</label>
             <select value={channelType} onChange={e => setChannelType(e.target.value as 'email' | 'webhook')} style={inputStyle}>
               <option value="email">Email</option>
               <option value="webhook">Webhook</option>
