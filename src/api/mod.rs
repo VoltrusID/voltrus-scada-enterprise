@@ -55,6 +55,8 @@ pub struct AppState {
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
     pub license_status: crate::license::LicenseStatus,
+    pub license_tier: crate::license::LicenseTier,
+    pub feature_flags: serde_json::Value,
     pub smtp_config: Option<crate::models::SmtpConfig>,
     pub vapid_public_key: Option<String>,
 }
@@ -90,7 +92,13 @@ async fn license_check_middleware(
         || path == "/api/v1/push/vapid-key"
         || path.starts_with("/api/v1/auth/")
     {
-        return next.run(req).await;
+        let mut resp = next.run(req).await;
+        let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
+        resp.headers_mut().insert(
+            HeaderName::from_static("x-license-tier"),
+            HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+        );
+        return resp;
     }
 
     if !state.license_status.is_valid() {
@@ -104,7 +112,13 @@ async fn license_check_middleware(
         ).into_response();
     }
 
-    next.run(req).await
+    let mut resp = next.run(req).await;
+    let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
+    resp.headers_mut().insert(
+        HeaderName::from_static("x-license-tier"),
+        HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+    );
+    resp
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -513,6 +527,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -690,6 +706,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -754,6 +772,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -845,6 +865,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -914,6 +936,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -1060,6 +1084,8 @@ mod tests {
                 tier: Some("professional".to_string()),
                 device_limit: None,
             },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
             smtp_config: None,
             vapid_public_key: None,
         };
@@ -1196,5 +1222,117 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    fn test_app_with_license_status(license_status: crate::license::LicenseStatus, license_tier: crate::license::LicenseTier) -> Router {
+        let cache = DeviceCache::new();
+        let storage = Storage::new_in_memory().unwrap();
+        let poller_manager = PollerManager::new(cache.clone());
+        let feature_flags = license_tier.to_feature_flags();
+        let state = AppState {
+            cache,
+            storage,
+            poller_manager,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status,
+            license_tier,
+            feature_flags,
+            smtp_config: None,
+            vapid_public_key: None,
+        };
+        create_router(state)
+    }
+
+    #[tokio::test]
+    async fn test_trial_middleware_allows_access() {
+        let tier = crate::license::LicenseTier::Trial;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Trial {
+                started_at: 0,
+                expires_at: 2592000,
+                days_remaining: 25,
+                tier: tier.clone(),
+                feature_flags: tier.to_feature_flags(),
+            },
+            tier,
+        );
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_trial_expired_middleware_blocks_access() {
+        // Verify that TrialExpired reports is_valid() == false
+        let status = crate::license::LicenseStatus::TrialExpired {
+            started_at: 0,
+            message: "expired".to_string(),
+        };
+        assert!(!status.is_valid());
+
+        // Health endpoint is always allowed even for expired licenses
+        let tier = crate::license::LicenseTier::Trial;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::TrialExpired {
+                started_at: 0,
+                message: "expired".to_string(),
+            },
+            tier,
+        );
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_license_tier_header_in_response() {
+        let app = test_app();
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let tier_header = resp.headers()
+            .get("x-license-tier")
+            .expect("X-License-Tier header should be present");
+        // serde_json serializes LicenseTier::Professional as "professional"
+        assert_eq!(tier_header, "\"professional\"");
     }
 }
