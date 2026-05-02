@@ -7,6 +7,7 @@ mod expression;
 mod flow_engine;
 mod modbus;
 mod models;
+mod oee;
 mod poller_manager;
 mod retention;
 mod security;
@@ -730,6 +731,16 @@ EXAMPLES:
         tokio::spawn(async move {
             retention::run_retention_task(storage, retention_config).await;
         });
+    }
+
+    // Spawn OEE monitor (Starter tier and above)
+    if license_tier.oee() {
+        let oee_cache = cache.clone();
+        let oee_storage = storage.clone();
+        tokio::spawn(async move {
+            oee::run_oee_monitor(oee_cache, oee_storage).await;
+        });
+        tracing::info!("OEE monitor started");
     }
 
     let auth_secret = match &app_config.auth_secret {
