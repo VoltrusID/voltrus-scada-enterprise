@@ -389,7 +389,9 @@ EXAMPLES:
         &app_config.db_path,
         app_config.db_encryption_key.as_deref(),
     )?;
-    let license_status = license::verify_license(&storage).await;
+    let license_status = license::resolve_license_status(&storage).await;
+    let license_tier = license_status.tier();
+    let feature_flags = license_status.feature_flags();
 
     if !license_status.is_valid() {
         tracing::warn!("License status: {:?} — skipping Modbus polling", license_status);
@@ -437,23 +439,16 @@ EXAMPLES:
     let poller_manager = PollerManager::new(cache.clone());
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
-        let device_limit = match &license_status {
-            crate::license::LicenseStatus::Valid { tier, device_limit, .. } => {
-                if tier.as_deref() == Some("starter") {
-                    *device_limit
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
+        let device_limit = license_tier.max_devices();
         let mut started_count: u32 = 0;
         for config in &device_configs {
             if let Some(limit) = device_limit {
                 if started_count >= limit {
                     tracing::warn!(
-                        "Device '{}' skipped — Starter tier limit of {} devices reached. Upgrade at https://voltrus.id",
-                        config.id, limit
+                        "Device '{}' skipped — {} tier limit of {} devices reached. Upgrade at https://voltrus.id",
+                        config.id,
+                        serde_json::to_string(&license_tier).unwrap_or_else(|_| "unknown".to_string()),
+                        limit
                     );
                     continue;
                 }
@@ -468,11 +463,7 @@ EXAMPLES:
 
     // Start OPC-UA pollers (Professional tier only)
     {
-        let is_pro = matches!(
-            &license_status,
-            crate::license::LicenseStatus::Valid { tier, .. } if tier.as_deref() == Some("professional")
-        );
-        if is_pro {
+        if license_tier.opcua_enabled() {
             match storage.get_all_opcua_device_configs().await {
                 Ok(opcua_configs) => {
                     for config in &opcua_configs {
@@ -772,6 +763,8 @@ EXAMPLES:
         audit_logger,
         intrusion_detector,
         license_status: license_status.clone(),
+        license_tier: license_tier.clone(),
+        feature_flags: feature_flags.clone(),
         smtp_config: app_config.smtp.clone(),
         vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
     };

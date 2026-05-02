@@ -7,6 +7,8 @@ import { ApiKeyManager } from './ApiKeyManager';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { PushSettings } from './PushSettings';
 import { btnStyle } from './styles';
+import { useLicense } from './LicenseContext';
+import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
 type Tab = 'sources' | 'modbus' | 'opcua' | 'users' | 'notifications' | 'api-keys';
@@ -23,6 +25,8 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
 }) {
   const [tab, setTab] = useState<Tab>('sources');
   const modalRef = useRef<HTMLDivElement>(null);
+  const license = useLicense();
+  const isOpcUaDisabled = license?.feature_flags?.opcua_enabled === false;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -83,7 +87,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             {isAdmin && <button style={tabBtn('users')} onClick={() => setTab('users')} aria-selected={tab === 'users'}>Users</button>}
             {isAdmin && <button style={tabBtn('notifications')} onClick={() => setTab('notifications')} aria-selected={tab === 'notifications'}>Notifications</button>}
             {isAdmin && <button style={tabBtn('api-keys')} onClick={() => setTab('api-keys')} aria-selected={tab === 'api-keys'}>API Keys</button>}
-            {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA</button>}
+            {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA{isOpcUaDisabled && <FeatureBadge tier="Professional" />}</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>

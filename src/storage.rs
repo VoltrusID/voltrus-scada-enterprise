@@ -3005,6 +3005,19 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
+    pub async fn count_modbus_devices(&self) -> Result<u32> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM modbus_devices",
+                [],
+                |row| row.get(0),
+            ).context("Count query failed")?;
+            Ok(count as u32)
+        }).await.context("Task join failed")?
+    }
+
     pub async fn list_modbus_devices(&self) -> Result<Vec<ModbusDevice>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
@@ -3960,5 +3973,29 @@ mod tests {
 
         let keys = storage.list_api_keys().await.unwrap();
         assert!(keys[0].last_used_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_count_modbus_devices_empty() {
+        let storage = Storage::new_in_memory().unwrap();
+        let count = storage.count_modbus_devices().await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_count_modbus_devices_with_data() {
+        let storage = Storage::new_in_memory().unwrap();
+        storage.create_modbus_device(
+            "dev_count_1",
+            "Test Device",
+            "192.168.1.1",
+            502,
+            1,
+            1000,
+            "big",
+            &[],
+        ).await.unwrap();
+        let count = storage.count_modbus_devices().await.unwrap();
+        assert_eq!(count, 1);
     }
 }

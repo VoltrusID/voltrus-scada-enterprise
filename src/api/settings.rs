@@ -9,6 +9,15 @@ use super::{AppState, AppError, AuthUser};
 pub async fn get_branding(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
+    // Trial tier cannot use custom branding — return hardcoded defaults
+    if !state.license_tier.white_label() {
+        return Ok(Json(json!({
+            "title": "Voltrus Lite",
+            "subtitle": "Monitoring Dashboard",
+            "logo": "",
+        })));
+    }
+
     let settings = state
         .storage
         .get_settings(&["brand_title", "brand_subtitle", "brand_logo"])
@@ -40,6 +49,10 @@ pub async fn update_branding(
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.white_label() {
+        return Err(AppError(anyhow::anyhow!("White-label branding requires Starter tier or above. Upgrade at https://voltrus.id")));
+    }
+
     if let Some(title) = body.get("title").and_then(|v| v.as_str()) {
         let sanitized = crate::security::sanitize_brand_input(title);
         state.storage.upsert_setting("brand_title", &sanitized).await?;

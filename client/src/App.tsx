@@ -25,12 +25,15 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
 import { useDashboardSystemInfo } from './store/dashboardStore'
 import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
+import { LicenseContext, type LicenseInfo } from './LicenseContext'
+import { TrialBanner } from './TrialBanner'
 
 function AppInner() {
   const queryClient = useQueryClient()
 
   // ── License state ────────────────────────────────────────────────
-  const [licenseValid, setLicenseValid] = useState<boolean | null>(null)
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null)
+  const [showLicenseActivation, setShowLicenseActivation] = useState(false)
 
   // ── Auth state ───────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false)
@@ -204,8 +207,8 @@ function AppInner() {
   useEffect(() => {
     fetch('/api/license/status')
       .then(r => r.json())
-      .then(d => { setLicenseValid(d.status === 'Valid') })
-      .catch(() => { setLicenseValid(true) })
+      .then(d => { setLicenseInfo(d) })
+      .catch(() => { setLicenseInfo({ status: 'Valid', tier: 'professional', feature_flags: {} }) })
   }, [])
 
   // ── Auth ─────────────────────────────────────────────────────────
@@ -340,8 +343,11 @@ function AppInner() {
   }, [activeAlarms.count, startAlarm, stopAlarm])
 
   // ── Render gates ─────────────────────────────────────────────────
-  if (licenseValid === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Checking license...</div>
-  if (!licenseValid) return <LicenseActivationScreen />
+  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Checking license...</div>
+  const licenseStatus = licenseInfo.status
+  const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Trial' || licenseStatus === 'TrialExpired'
+  if (!isLicensed) return <LicenseActivationScreen />
+  if (showLicenseActivation) return <LicenseActivationScreen />
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
 
@@ -365,8 +371,12 @@ function AppInner() {
   }
 
   return (
+    <LicenseContext.Provider value={licenseInfo}>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <a href="#main-content" className="skip-to-content">Skip to content</a>
+      {(licenseStatus === 'Trial' || licenseStatus === 'TrialExpired') && (
+        <TrialBanner licenseInfo={licenseInfo} onActivate={() => setShowLicenseActivation(true)} />
+      )}
       <header role="banner">
       <AppHeader
         branding={branding} editMode={editMode}
@@ -491,6 +501,7 @@ function AppInner() {
 
       <Footer />
     </div>
+    </LicenseContext.Provider>
   )
 }
 
