@@ -1,6 +1,7 @@
 pub(crate) mod auth;
 mod api_keys;
 mod push;
+mod oee;
 mod screens;
 mod data_sources;
 mod layouts;
@@ -224,6 +225,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
         .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
         .route("/api/v1/notifications/settings", get(notifications::list_notification_settings))
+        .route("/api/v1/oee/metrics", get(oee::get_oee_metrics))
+        .route("/api/v1/oee/downtime", get(oee::list_downtime))
+        .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
@@ -297,6 +301,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/reports", get(reports::list_reports).post(reports::create_report))
         .route("/api/v1/reports/{id}", put(reports::update_report).delete(reports::delete_report))
         .route("/api/v1/reports/{id}/generate", post(reports::generate_report))
+        .route("/api/v1/oee/downtime", post(oee::create_downtime))
+        .route("/api/v1/oee/downtime/{id}/close", put(oee::close_downtime))
+        .route("/api/v1/oee/shifts", post(oee::create_shift))
+        .route("/api/v1/oee/shifts/{id}", delete(oee::delete_shift))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

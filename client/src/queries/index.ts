@@ -161,3 +161,15 @@ export {
 } from './reports'
 
 export type { Report } from './reports'
+
+export {
+  useOeeMetrics,
+  useDowntimeEvents,
+  useCreateDowntimeEvent,
+  useCloseDowntimeEvent,
+  useShifts,
+  useCreateShift,
+  useDeleteShift,
+} from './oee'
+
+export type { DowntimeEvent, OeeMetrics, ShiftConfig } from './oee'
