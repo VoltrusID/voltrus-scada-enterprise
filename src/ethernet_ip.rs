@@ -701,7 +701,7 @@ fn parse_symbol_instance(data: &[u8]) -> Option<CipTag> {
 
     // After the name, skip padding to even boundary, then read type info
     let type_offset = 4 + name_len + (name_len % 2);
-    if data.len() < type_offset + 4 {
+    if data.len() < type_offset + 2 {
         return None;
     }
 
@@ -1127,7 +1127,7 @@ mod tests {
         assert_eq!(b.next(), 8000);
         assert_eq!(b.next(), 16000);
         assert_eq!(b.next(), 32000);
-        assert_eq!(b.next(), 64000); // capped at 60000
+        assert_eq!(b.next(), 60000); // capped at 60000
     }
 
     #[test]
@@ -1145,7 +1145,7 @@ mod tests {
     fn test_parse_read_tag_response_dint() {
         // Simulate a successful DINT read response
         let mut data = vec![CIP_READ_TAG | 0x80, 0x00, CIP_STATUS_SUCCESS, 0x00];
-        data.extend_from_slice(&CIP_TYPE_DINT.to_le_bytes()); // type
+        data.extend_from_slice(&(CIP_TYPE_DINT as u16).to_le_bytes()); // type (u16)
         data.extend_from_slice(&42i32.to_le_bytes()); // value
         let val = parse_read_tag_response(&data).unwrap();
         assert_eq!(val, CipValue::Dint(42));
@@ -1184,9 +1184,8 @@ mod tests {
     #[test]
     fn test_parse_symbol_instance_valid() {
         let mut data = Vec::new();
-        data.extend_from_slice(&5u32.to_le_bytes()); // name len
-        data.extend_from_slice(b"MyTag1"); // name (5 bytes + padding)
-        data.extend_from_slice(&0x00u8.to_le_bytes()); // padding
+        data.extend_from_slice(&6u32.to_le_bytes()); // name len
+        data.extend_from_slice(b"MyTag1"); // name (6 bytes, even → no padding)
         data.extend_from_slice(&((1u16 << 8) | CIP_TYPE_DINT as u16).to_le_bytes()); // type: 1 element, DINT
 
         let tag = parse_symbol_instance(&data).unwrap();
