@@ -2736,7 +2736,20 @@ fn init_schema(conn: &Connection) -> Result<()> {
             created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_notification_settings_source
-            ON notification_settings(source_key);",
+            ON notification_settings(source_key);
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            key_hash TEXT NOT NULL UNIQUE,
+            key_prefix TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            created_by TEXT NOT NULL,
+            last_used_at INTEGER,
+            expires_at INTEGER,
+            permissions TEXT NOT NULL DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_api_keys_hash
+            ON api_keys(key_hash);",
     )
     .context("Failed to create schema")?;
 
@@ -3082,6 +3095,144 @@ impl Storage {
     }
 }
 
+// ── API Key management ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ApiKeyInfo {
+    pub id: i64,
+    pub name: String,
+    pub key_prefix: String,
+    pub created_at: i64,
+    pub created_by: String,
+    pub last_used_at: Option<i64>,
+    pub expires_at: Option<i64>,
+    pub permissions: String,
+}
+
+impl Storage {
+    /// Create a new API key. Returns (id, plain_text_key). The plain key is shown only once.
+    pub async fn create_api_key(
+        &self,
+        name: &str,
+        created_by: &str,
+        expires_at: Option<i64>,
+        permissions: &str,
+    ) -> Result<(i64, String)> {
+        use rand::Rng;
+        use sha2::{Sha256, Digest};
+
+        // Generate 32 random bytes, hex-encoded = 64-char key
+        let key_bytes: [u8; 32] = rand::rng().random();
+        let plain_key = hex::encode(key_bytes);
+
+        // Hash with SHA-256 for storage
+        let mut hasher = Sha256::new();
+        hasher.update(plain_key.as_bytes());
+        let key_hash = hex::encode(hasher.finalize());
+
+        // Prefix is first 8 chars of the plain key
+        let key_prefix = plain_key[..8].to_string();
+
+        let now = crate::timeutil::now_secs();
+        let name = name.to_string();
+        let created_by = created_by.to_string();
+        let permissions = permissions.to_string();
+
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO api_keys (name, key_hash, key_prefix, created_at, created_by, expires_at, permissions)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![name, key_hash, key_prefix, now, created_by, expires_at, permissions],
+            ).context("Insert api_key failed")?;
+            let id = conn.last_insert_rowid();
+            Ok((id, plain_key))
+        }).await.context("Task join failed")?
+    }
+
+    /// Validate an API key by hashing it and looking it up. Returns (id, permissions) if valid.
+    pub async fn validate_api_key(&self, key: &str) -> Result<Option<(i64, String)>> {
+        use sha2::{Sha256, Digest};
+
+        let mut hasher = Sha256::new();
+        hasher.update(key.as_bytes());
+        let key_hash = hex::encode(hasher.finalize());
+
+        let now = crate::timeutil::now_secs();
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, permissions, expires_at FROM api_keys WHERE key_hash = ?1"
+            ).context("Prepare failed")?;
+            let result = stmt.query_row(rusqlite::params![key_hash], |row| {
+                let id: i64 = row.get(0)?;
+                let permissions: String = row.get(1)?;
+                let expires_at: Option<i64> = row.get(2)?;
+                Ok((id, permissions, expires_at))
+            }).ok();
+
+            match result {
+                Some((id, permissions, expires_at)) => {
+                    // Check expiry
+                    if let Some(exp) = expires_at {
+                        if exp < now {
+                            return Ok(None);
+                        }
+                    }
+                    // Update last_used_at
+                    let _ = conn.execute(
+                        "UPDATE api_keys SET last_used_at = ?1 WHERE id = ?2",
+                        rusqlite::params![now, id],
+                    );
+                    Ok(Some((id, permissions)))
+                }
+                None => Ok(None),
+            }
+        }).await.context("Task join failed")?
+    }
+
+    /// List all API keys (never includes the full key hash).
+    pub async fn list_api_keys(&self) -> Result<Vec<ApiKeyInfo>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, name, key_prefix, created_at, created_by, last_used_at, expires_at, permissions
+                 FROM api_keys ORDER BY created_at DESC"
+            ).context("Prepare failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(ApiKeyInfo {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    key_prefix: row.get(2)?,
+                    created_at: row.get(3)?,
+                    created_by: row.get(4)?,
+                    last_used_at: row.get(5)?,
+                    expires_at: row.get(6)?,
+                    permissions: row.get(7)?,
+                })
+            }).context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        }).await.context("Task join failed")?
+    }
+
+    /// Revoke (delete) an API key by id.
+    pub async fn revoke_api_key(&self, id: i64) -> Result<bool> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let affected = conn.execute(
+                "DELETE FROM api_keys WHERE id = ?1",
+                rusqlite::params![id],
+            ).context("Delete api_key failed")?;
+            Ok(affected > 0)
+        }).await.context("Task join failed")?
+    }
+}
+
 // ── License Activation ──
 
 impl Storage {
@@ -3304,5 +3455,84 @@ mod tests {
 
         let points = storage.query_history("dev1", "voltage", 0, 9999).await.unwrap();
         assert_eq!(points.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_create_and_validate() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        let (id, plain_key) = storage.create_api_key("test-key", "admin", None, "[]").await.unwrap();
+        assert!(id > 0);
+        assert_eq!(plain_key.len(), 64); // 32 bytes hex-encoded
+
+        // Validate the key
+        let result = storage.validate_api_key(&plain_key).await.unwrap();
+        assert!(result.is_some());
+        let (key_id, permissions) = result.unwrap();
+        assert_eq!(key_id, id);
+        assert_eq!(permissions, "[]");
+
+        // Wrong key should fail
+        let result = storage.validate_api_key("wrong_key").await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_api_key_list_and_revoke() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        let (id1, _) = storage.create_api_key("key-one", "admin", None, "[]").await.unwrap();
+        let (id2, _) = storage.create_api_key("key-two", "admin", None, "[\"data:read\"]").await.unwrap();
+
+        let keys = storage.list_api_keys().await.unwrap();
+        assert_eq!(keys.len(), 2);
+
+        // Verify key prefix is first 8 chars and key_hash is never returned
+        for k in &keys {
+            assert_eq!(k.key_prefix.len(), 8);
+        }
+
+        // Revoke one
+        let deleted = storage.revoke_api_key(id1).await.unwrap();
+        assert!(deleted);
+
+        let keys = storage.list_api_keys().await.unwrap();
+        assert_eq!(keys.len(), 1);
+
+        // Revoking again should return false
+        let deleted = storage.revoke_api_key(id1).await.unwrap();
+        assert!(!deleted);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_expiry() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Create key that expired in the past
+        let (_, plain_key) = storage
+            .create_api_key("expired-key", "admin", Some(1000), "[]")
+            .await
+            .unwrap();
+
+        // Should not validate (expired)
+        let result = storage.validate_api_key(&plain_key).await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_api_key_last_used_at_updated() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        let (id, plain_key) = storage.create_api_key("usage-key", "admin", None, "[]").await.unwrap();
+
+        // Initially last_used_at should be None
+        let keys = storage.list_api_keys().await.unwrap();
+        assert!(keys[0].last_used_at.is_none());
+
+        // Validate (which updates last_used_at)
+        storage.validate_api_key(&plain_key).await.unwrap();
+
+        let keys = storage.list_api_keys().await.unwrap();
+        assert!(keys[0].last_used_at.is_some());
     }
 }
