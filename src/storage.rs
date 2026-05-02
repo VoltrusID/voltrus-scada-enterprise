@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 
 use crate::models::{
-    DataPoint, Device, ScreenLayoutRow, DataSource, Setting, TwinLayout, TwinConnection, User, UserShortcut,
+    DataPoint, Device, ScreenLayoutRow, ScreenDataSource, DataSource, Setting, TwinLayout, TwinConnection, User, UserShortcut,
     NavShortcut, Alarm, CanvasLayoutItem,
     ModbusDevice, ModbusRegister, ModbusRegisterInput, DeviceConfig,
     ScadaEquipment, ScadaConnection,
@@ -1263,6 +1263,30 @@ impl Storage {
             )
             .context("Delete screen data sources by screen failed")?;
             Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_screen_data_sources(&self, screen_id: &str) -> Result<Vec<ScreenDataSource>> {
+        let conn = self.conn.clone();
+        let screen_id = screen_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT screen_id, data_source_id, sort_order FROM screen_data_sources WHERE screen_id = ?1 ORDER BY sort_order")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![screen_id], |row| {
+                    Ok(ScreenDataSource {
+                        screen_id: row.get(0)?,
+                        data_source_id: row.get(1)?,
+                        sort_order: row.get(2)?,
+                    })
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
         })
         .await
         .context("Task join failed")?
