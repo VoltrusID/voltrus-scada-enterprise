@@ -184,8 +184,9 @@ EXAMPLES:
             "--reset-admin-password" => {
                 let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
                 let app_config = config::load_config(config_path)?;
+                let db_path = app_config.db_path.clone();
                 let storage = Storage::new_with_key(
-                    &app_config.db_path,
+                    &db_path,
                     app_config.db_encryption_key.as_deref(),
                 )?;
                 match storage.get_user_by_username("admin").await? {
@@ -200,8 +201,24 @@ EXAMPLES:
                             .map(char::from)
                             .collect();
                         let hash = crate::api::auth::hash_password(&password);
-                        storage.update_user_password(user.id, &hash).await?;
-                        storage.set_must_change_password("admin", true).await?;
+                        if let Err(e) = storage.update_user_password(user.id, &hash).await {
+                            if e.to_string().contains("readonly") || e.to_string().contains("read-only") {
+                                anyhow::bail!(
+                                    "Database is read-only: {}\n\nFix: run with sudo, or change ownership:\n  sudo chown $USER:{}",
+                                    db_path, db_path
+                                );
+                            }
+                            return Err(e);
+                        }
+                        if let Err(e) = storage.set_must_change_password("admin", true).await {
+                            if e.to_string().contains("readonly") || e.to_string().contains("read-only") {
+                                anyhow::bail!(
+                                    "Database is read-only: {}\n\nFix: run with sudo, or change ownership:\n  sudo chown $USER:{}",
+                                    db_path, db_path
+                                );
+                            }
+                            return Err(e);
+                        }
                         println!("Admin password reset successfully.");
                         println!("New password: {}", password);
                         println!("You will be required to change this on next login.");
