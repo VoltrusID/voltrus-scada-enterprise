@@ -44,19 +44,23 @@ USAGE:
                                             Import license-activation.bin
     voltrus-lite --online-activate <KEY> [CONFIG]
                                             Activate directly via internet
+    voltrus-lite --reset-admin-password [CONFIG]
+                                            Reset admin password (prints new password)
 
 OPTIONS:
-    --help                     Show this help message
-    --license-status           Print license status as JSON (exit 1 if invalid)
-    --generate-request <KEY>   Generate a license request file for offline activation
-    --import-activation <FILE> Import a signed activation file from the activation server
-    --online-activate <KEY>    Connect to activation server and activate in one step
-                               (requires internet access)
+    --help                        Show this help message
+    --license-status              Print license status as JSON (exit 1 if invalid)
+    --generate-request <KEY>      Generate a license request file for offline activation
+    --import-activation <FILE>    Import a signed activation file from the activation server
+    --online-activate <KEY>       Connect to activation server and activate in one step
+                                  (requires internet access)
+    --reset-admin-password        Generate a new random password for admin user
 
 EXAMPLES:
     voltrus-lite                              # Start with config.yaml
     voltrus-lite /etc/voltrus/prod.yaml       # Start with custom config
     voltrus-lite --online-activate VOLTRUS-XXXX   # Activate online
+    voltrus-lite --reset-admin-password       # Reset lost admin password
     voltrus-lite --license-status             # Check license
 ";
 
@@ -175,6 +179,34 @@ EXAMPLES:
                 };
                 storage.store_license_activation(&row).await?;
                 println!("License activated successfully: {}", activation.license_key);
+                return Ok(());
+            }
+            "--reset-admin-password" => {
+                let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
+                let app_config = config::load_config(config_path)?;
+                let storage = Storage::new_with_key(
+                    &app_config.db_path,
+                    app_config.db_encryption_key.as_deref(),
+                )?;
+                match storage.get_user_by_username("admin").await? {
+                    None => {
+                        anyhow::bail!("Admin user not found. Start the server first to auto-seed the database.");
+                    }
+                    Some(user) => {
+                        use rand::Rng;
+                        let password: String = rand::rng()
+                            .sample_iter(&rand::distr::Alphanumeric)
+                            .take(16)
+                            .map(char::from)
+                            .collect();
+                        let hash = crate::api::auth::hash_password(&password);
+                        storage.update_user_password(user.id, &hash).await?;
+                        storage.set_must_change_password("admin", true).await?;
+                        println!("Admin password reset successfully.");
+                        println!("New password: {}", password);
+                        println!("You will be required to change this on next login.");
+                    }
+                }
                 return Ok(());
             }
             "--license-status" => {
