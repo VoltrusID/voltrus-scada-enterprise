@@ -449,6 +449,150 @@ pub struct CreateOpcUaNodeRequest {
     pub data_type: String,
 }
 
+// ── S7 (Siemens) device types ──
+
+/// Database row for s7_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct S7Device {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_s7_rack")]
+    pub rack: u8,
+    #[serde(default = "default_s7_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+fn default_s7_rack() -> u8 { 0 }
+fn default_s7_slot() -> u8 { 1 }
+
+/// Database row for s7_tags table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct S7TagRow {
+    pub id: i64,
+    pub device_id: i64,
+    pub tag_address: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateS7DeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_s7_rack")]
+    pub rack: u8,
+    #[serde(default = "default_s7_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateS7DeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub rack: Option<u8>,
+    pub slot: Option<u8>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateS7TagRequest {
+    pub tag_address: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+// ── EtherNet/IP (Allen-Bradley) device types ──
+
+/// Database row for enip_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnipDevice {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_enip_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+fn default_enip_slot() -> u8 { 0 }
+
+/// Database row for enip_tags table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnipTag {
+    pub id: i64,
+    pub device_id: i64,
+    pub tag_name: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateEnipDeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_enip_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateEnipDeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub slot: Option<u8>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateEnipTagRequest {
+    pub tag_name: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+/// Runtime config for an EtherNet/IP device, used by the poller.
+#[derive(Debug, Clone)]
+pub struct EnipDeviceConfig {
+    pub id: String,
+    pub url: String,
+    pub slot: u8,
+    pub interval_ms: u64,
+    pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
+}
+
 // ── Runtime types ──
 
 #[derive(Debug, Clone, Serialize)]

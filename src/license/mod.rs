@@ -114,7 +114,19 @@ impl LicenseTier {
         matches!(self, LicenseTier::Enterprise)
     }
 
+    /// SSO with SAML/OIDC enhanced features and LDAP fallback.
+    /// Only available on Enterprise tier.
+    pub fn sso_saml(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
     pub fn cfr_part_11(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
+    /// EtherNet/IP (Allen-Bradley) protocol support.
+    /// Only available on Enterprise tier.
+    pub fn ethernet_ip(&self) -> bool {
         matches!(self, LicenseTier::Enterprise)
     }
 
@@ -140,7 +152,9 @@ impl LicenseTier {
             "multi_site": self.multi_site(),
             "recipes": self.recipes(),
             "sso": self.sso(),
+            "sso_saml": self.sso_saml(),
             "cfr_part_11": self.cfr_part_11(),
+            "ethernet_ip": self.ethernet_ip(),
         })
     }
 }
@@ -416,6 +430,7 @@ mod tests {
         assert!(!trial.multi_site());
         assert!(!trial.recipes());
         assert!(!trial.sso());
+        assert!(!trial.sso_saml());
         assert!(!trial.cfr_part_11());
 
         // Starter tier: many features enabled
@@ -438,6 +453,7 @@ mod tests {
         assert!(!starter.multi_site());
         assert!(!starter.recipes());
         assert!(!starter.sso());
+        assert!(!starter.sso_saml());
         assert!(!starter.cfr_part_11());
 
         // Professional tier: most features enabled
@@ -460,6 +476,7 @@ mod tests {
         assert!(pro.multi_site());
         assert!(pro.recipes());
         assert!(!pro.sso());
+        assert!(!pro.sso_saml());
         assert!(!pro.cfr_part_11());
 
         // Enterprise tier: all features enabled
@@ -482,6 +499,7 @@ mod tests {
         assert!(ent.multi_site());
         assert!(ent.recipes());
         assert!(ent.sso());
+        assert!(ent.sso_saml());
         assert!(ent.cfr_part_11());
     }
 
@@ -538,6 +556,15 @@ mod tests {
         assert_eq!(flags["max_devices"], serde_json::Value::Null);
         assert_eq!(flags["sso"], true);
         assert_eq!(flags["cfr_part_11"], true);
+        assert_eq!(flags["ethernet_ip"], true);
+    }
+
+    #[test]
+    fn test_ethernet_ip_enterprise_only() {
+        assert!(!LicenseTier::Trial.ethernet_ip());
+        assert!(!LicenseTier::Starter.ethernet_ip());
+        assert!(!LicenseTier::Professional.ethernet_ip());
+        assert!(LicenseTier::Enterprise.ethernet_ip());
     }
 
     #[test]
@@ -614,5 +641,25 @@ mod tests {
         };
         assert_eq!(unactivated.tier(), LicenseTier::Trial);
         assert_eq!(unactivated.feature_flags(), serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_sso_saml_enterprise_only() {
+        assert!(!LicenseTier::Trial.sso_saml());
+        assert!(!LicenseTier::Starter.sso_saml());
+        assert!(!LicenseTier::Professional.sso_saml());
+        assert!(LicenseTier::Enterprise.sso_saml());
+    }
+
+    #[test]
+    fn test_sso_saml_in_feature_flags() {
+        let flags = LicenseTier::Enterprise.to_feature_flags();
+        assert_eq!(flags["sso_saml"], true);
+
+        let flags = LicenseTier::Trial.to_feature_flags();
+        assert_eq!(flags["sso_saml"], false);
+
+        let flags = LicenseTier::Professional.to_feature_flags();
+        assert_eq!(flags["sso_saml"], false);
     }
 }
