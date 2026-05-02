@@ -12,6 +12,7 @@ mod security;
 mod storage;
 mod timeutil;
 mod license;
+mod notification;
 
 use api::AppState;
 use base64::Engine;

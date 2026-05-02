@@ -87,3 +87,13 @@ devices:
 #       downsample_to: daily
 #     - name: daily
 #       keep: null             # forever
+
+# SMTP email notifications (optional - uncomment and fill to enable)
+# smtp:
+#   host: "smtp.example.com"
+#   port: 587
+#   username: "your@email.com"
+#   password: "your-app-password"
+#   from_address: "voltrus@example.com"
+#   from_name: "Voltrus Lite"
+#   encryption: "starttls"     # starttls | implicittls | none
