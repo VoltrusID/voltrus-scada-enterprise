@@ -97,3 +97,10 @@ devices:
 #   from_address: "voltrus@example.com"
 #   from_name: "Voltrus Lite"
 #   encryption: "starttls"     # starttls | implicittls | none
+
+# Web Push notifications (optional - uncomment and fill to enable)
+# Requires VAPID keys. Generate with: openssl ecparam -name prime256v1 -genkey -noout | openssl ec -outform DER | tail -c 32 | base64 | tr '+/' '-_' | tr -d '='
+# push:
+#   vapid_private_key: "base64url-encoded P-256 private key"
+#   vapid_public_key: "base64url-encoded P-256 public key"
+#   vapid_subject: "mailto:admin@example.com"

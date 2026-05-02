@@ -55,6 +55,8 @@ pub struct AppState {
     pub intrusion_detector: crate::security::IntrusionDetector,
     pub license_status: crate::license::LicenseStatus,
     pub smtp_config: Option<crate::models::SmtpConfig>,
+    #[allow(dead_code)]
+    pub push_config: Option<crate::models::PushConfig>,
 }
 
 #[derive(Debug)]
@@ -503,6 +505,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
+            push_config: None,
         };
         create_router(state)
     }
@@ -679,6 +682,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
+            push_config: None,
         };
         let app = create_router(state);
 
@@ -742,6 +746,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
+            push_config: None,
         };
         let app = create_router(state);
 
@@ -832,6 +837,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
+            push_config: None,
         };
         let app = create_router(state);
 
@@ -900,6 +906,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
+            push_config: None,
         };
         let app = create_router(state);
 
@@ -1045,6 +1052,7 @@ mod tests {
                 device_limit: None,
             },
             smtp_config: None,
+            push_config: None,
         };
         let app = create_router(state);
 

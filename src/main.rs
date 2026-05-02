@@ -480,11 +480,27 @@ EXAMPLES:
         None => None,
     };
 
+    // Build optional push notifier from VAPID config
+    let push_notifier = match &app_config.push {
+        Some(push_cfg) => match notification::push::PushNotifier::new(push_cfg) {
+            Ok(notifier) => {
+                tracing::info!("Push notifier initialized");
+                Some(notifier)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to initialize push notifier: {}", e);
+                None
+            }
+        },
+        None => None,
+    };
+
     // Spawn persistence task
     {
         let cache = cache.clone();
         let storage = storage.clone();
         let email_notifier = email_notifier.clone();
+        let push_notifier = push_notifier.clone();
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
@@ -567,6 +583,7 @@ EXAMPLES:
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
+                                        let notif_push = push_notifier.clone();
                                         let alarm = crate::models::Alarm {
                                             id: alarm_id,
                                             source_key: source.key.clone(),
@@ -586,6 +603,7 @@ EXAMPLES:
                                                 notif_storage,
                                                 &alarm,
                                                 notif_notifier,
+                                                notif_push,
                                             )
                                             .await;
                                         });
@@ -605,6 +623,7 @@ EXAMPLES:
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
+                                        let notif_push = push_notifier.clone();
                                         let alarm = crate::models::Alarm {
                                             id: alarm_id,
                                             source_key: source.key.clone(),
@@ -624,6 +643,7 @@ EXAMPLES:
                                                 notif_storage,
                                                 &alarm,
                                                 notif_notifier,
+                                                notif_push,
                                             )
                                             .await;
                                         });
@@ -722,6 +742,7 @@ EXAMPLES:
         intrusion_detector,
         license_status: license_status.clone(),
         smtp_config: app_config.smtp.clone(),
+        push_config: app_config.push.clone(),
     };
 
     api::stream::spawn_sse_composer(cache, storage);

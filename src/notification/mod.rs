@@ -1,19 +1,22 @@
 pub mod email;
+pub mod push;
 pub mod webhook;
 
 use crate::models::Alarm;
 use crate::storage::Storage;
 use email::{AlarmEmailData, EmailNotifier};
+use push::{PushNotifier, build_alarm_payload};
 use webhook::{WebhookPayload, send_webhook_alarm, format_triggered_at};
 
 /// Dispatch alarm notifications to all configured channels for the given source_key.
 ///
-/// Loads notification settings from the database and sends via email and/or webhook.
+/// Loads notification settings from the database and sends via email, webhook, and/or push.
 /// This is spawned as an async task so it never blocks the alarm creation flow.
 pub async fn dispatch_alarm_notifications(
     storage: Storage,
     alarm: &Alarm,
     email_notifier: Option<EmailNotifier>,
+    push_notifier: Option<PushNotifier>,
 ) {
     let settings = match storage.get_notification_settings_by_source(&alarm.source_key).await {
         Ok(s) => s,
@@ -102,6 +105,66 @@ pub async fn dispatch_alarm_notifications(
                             e
                         );
                     }
+                }
+            }
+            "push" => {
+                if let Some(ref notifier) = push_notifier {
+                    // Load all push subscriptions from the database
+                    match storage.get_push_subscriptions().await {
+                        Ok(subscriptions) => {
+                            let payload = build_alarm_payload(
+                                &source_name,
+                                &alarm.severity,
+                                &alarm.message,
+                                &alarm.source_key,
+                            );
+                            for sub in &subscriptions {
+                                match notifier.send_push_alarm(
+                                    &sub.endpoint,
+                                    &sub.p256dh,
+                                    &sub.auth_key,
+                                    &payload,
+                                ).await {
+                                    push::PushSendResult::Sent => {
+                                        // success, already logged
+                                    }
+                                    push::PushSendResult::SubscriptionGone => {
+                                        tracing::warn!(
+                                            "Push subscription {} is stale, removing",
+                                            sub.id
+                                        );
+                                        if let Err(e) = storage.delete_push_subscription(sub.id).await {
+                                            tracing::error!(
+                                                "Failed to delete stale push subscription {}: {}",
+                                                sub.id,
+                                                e
+                                            );
+                                        }
+                                    }
+                                    push::PushSendResult::ServerError => {
+                                        tracing::warn!(
+                                            "Push service server error for subscription {}",
+                                            sub.id
+                                        );
+                                    }
+                                    push::PushSendResult::Other(err) => {
+                                        tracing::error!(
+                                            "Push notification error for subscription {}: {}",
+                                            sub.id,
+                                            err
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to load push subscriptions: {}", e);
+                        }
+                    }
+                } else {
+                    tracing::warn!(
+                        "Push notification requested but VAPID is not configured"
+                    );
                 }
             }
             other => {
