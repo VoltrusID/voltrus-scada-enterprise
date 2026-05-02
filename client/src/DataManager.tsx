@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { SensorManager } from './SensorManager';
 import { ModbusDeviceManager } from './ModbusDeviceManager';
+import { OpcUaDeviceManager } from './OpcUaDeviceManager';
 import { UserManager } from './UserManager';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
@@ -8,7 +9,7 @@ import { PushSettings } from './PushSettings';
 import { btnStyle } from './styles';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'users' | 'notifications' | 'api-keys';
+type Tab = 'sources' | 'modbus' | 'opcua' | 'users' | 'notifications' | 'api-keys';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -82,6 +83,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             {isAdmin && <button style={tabBtn('users')} onClick={() => setTab('users')} aria-selected={tab === 'users'}>Users</button>}
             {isAdmin && <button style={tabBtn('notifications')} onClick={() => setTab('notifications')} aria-selected={tab === 'notifications'}>Notifications</button>}
             {isAdmin && <button style={tabBtn('api-keys')} onClick={() => setTab('api-keys')} aria-selected={tab === 'api-keys'}>API Keys</button>}
+            {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -106,6 +108,9 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'api-keys' && isAdmin && (
             <ApiKeyManager onClose={onClose} embedded />
+          )}
+          {tab === 'opcua' && isAdmin && (
+            <OpcUaDeviceManager onClose={onClose} embedded />
           )}
         </div>
       </div>
