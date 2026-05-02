@@ -342,10 +342,26 @@ EXAMPLES:
         tracing::warn!("No valid license — Modbus polling disabled");
     }
 
+    // Build optional email notifier from SMTP config
+    let email_notifier = match &app_config.smtp {
+        Some(smtp_cfg) => match notification::email::EmailNotifier::new(smtp_cfg) {
+            Ok(notifier) => {
+                tracing::info!("Email notifier initialized (from: {})", smtp_cfg.from_address);
+                Some(notifier)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to initialize email notifier: {}", e);
+                None
+            }
+        },
+        None => None,
+    };
+
     // Spawn persistence task
     {
         let cache = cache.clone();
         let storage = storage.clone();
+        let email_notifier = email_notifier.clone();
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
@@ -424,7 +440,35 @@ EXAMPLES:
                                     "{} reached {}{} (critical: {}{})",
                                     source.name, value, source.unit, source.crit_val, source.unit
                                 );
-                                let _ = storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg).await;
+                                match storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg).await {
+                                    Ok(alarm_id) => {
+                                        let notif_storage = storage.clone();
+                                        let notif_notifier = email_notifier.clone();
+                                        let alarm = crate::models::Alarm {
+                                            id: alarm_id,
+                                            source_key: source.key.clone(),
+                                            source_name: source.name.clone(),
+                                            severity: "critical".to_string(),
+                                            value,
+                                            threshold: source.crit_val,
+                                            message: msg,
+                                            triggered_at: crate::timeutil::now_secs(),
+                                            resolved_at: None,
+                                            acknowledged_at: None,
+                                            acknowledged_by: None,
+                                            cooldown_until: None,
+                                        };
+                                        tokio::spawn(async move {
+                                            notification::dispatch_alarm_notifications(
+                                                notif_storage,
+                                                &alarm,
+                                                notif_notifier,
+                                            )
+                                            .await;
+                                        });
+                                    }
+                                    Err(e) => tracing::error!("Failed to create alarm: {}", e),
+                                }
                             }
                         } else if source.warn_val > 0.0 && value >= source.warn_val {
                             let has_active = storage.has_active_alarm(&source.key, "warning").await.unwrap_or(false);
@@ -434,7 +478,35 @@ EXAMPLES:
                                     "{} reached {}{} (warning: {}{})",
                                     source.name, value, source.unit, source.warn_val, source.unit
                                 );
-                                let _ = storage.create_alarm(&source.key, "warning", value, source.warn_val, &msg).await;
+                                match storage.create_alarm(&source.key, "warning", value, source.warn_val, &msg).await {
+                                    Ok(alarm_id) => {
+                                        let notif_storage = storage.clone();
+                                        let notif_notifier = email_notifier.clone();
+                                        let alarm = crate::models::Alarm {
+                                            id: alarm_id,
+                                            source_key: source.key.clone(),
+                                            source_name: source.name.clone(),
+                                            severity: "warning".to_string(),
+                                            value,
+                                            threshold: source.warn_val,
+                                            message: msg,
+                                            triggered_at: crate::timeutil::now_secs(),
+                                            resolved_at: None,
+                                            acknowledged_at: None,
+                                            acknowledged_by: None,
+                                            cooldown_until: None,
+                                        };
+                                        tokio::spawn(async move {
+                                            notification::dispatch_alarm_notifications(
+                                                notif_storage,
+                                                &alarm,
+                                                notif_notifier,
+                                            )
+                                            .await;
+                                        });
+                                    }
+                                    Err(e) => tracing::error!("Failed to create alarm: {}", e),
+                                }
                             }
                         } else {
                             let _ = storage.resolve_active_alarms(&source.key).await;
@@ -526,6 +598,7 @@ EXAMPLES:
         audit_logger,
         intrusion_detector,
         license_status: license_status.clone(),
+        smtp_config: app_config.smtp.clone(),
     };
 
     api::stream::spawn_sse_composer(cache, storage);

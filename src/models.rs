@@ -717,6 +717,46 @@ pub struct AlarmQuery {
     pub limit: Option<i64>,
 }
 
+// ── Notification settings ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NotificationSetting {
+    pub id: i64,
+    pub source_key: String,
+    pub channel_type: String,
+    pub config: String,
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateNotificationSettingRequest {
+    pub source_key: String,
+    pub channel_type: String,
+    pub config: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateNotificationSettingRequest {
+    pub source_key: Option<String>,
+    pub channel_type: Option<String>,
+    pub config: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TestNotificationRequest {
+    pub channel_type: String,
+    pub config: String,
+    pub source_key: Option<String>,
+}
+
 // ── Push subscription (groundwork for Web Push) ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
