@@ -188,10 +188,18 @@ pub async fn add_node(
         return Err(AppError(anyhow::anyhow!("Node name is required")));
     }
 
+    // Look up device name for data source key generation
+    let devices = state.storage.list_opcua_devices().await?;
+    let device = devices
+        .iter()
+        .find(|d| d.id == device_id)
+        .ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
+
     let id = state
         .storage
         .create_opcua_node(
             device_id,
+            &device.name,
             &req.node_id,
             &req.name,
             &req.display_name,
