@@ -2860,8 +2860,10 @@ fn init_schema(conn: &Connection) -> Result<()> {
             name TEXT NOT NULL,
             display_name TEXT NOT NULL DEFAULT '',
             data_type TEXT NOT NULL DEFAULT '',
-            created_at INTEGER NOT NULL
-        );",
+            created_at INTEGER NOT NULL,
+            UNIQUE(device_id, node_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_opcua_nodes_device ON opcua_nodes(device_id);",
     )
     .context("Failed to create schema")?;
 
