@@ -9,12 +9,14 @@ import { PushSettings } from './PushSettings';
 import { HubManager } from './HubManager';
 import { ReportManager } from './ReportManager';
 import { OeePanel } from './OeePanel';
+import { AnalyticsPanel } from './AnalyticsPanel';
+import { RecipeManager } from './RecipeManager';
 import { btnStyle } from './styles';
 import { useLicense } from './LicenseContext';
 import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'opcua' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee';
+type Tab = 'sources' | 'modbus' | 'opcua' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -33,6 +35,8 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   const isHubDisabled = license?.feature_flags?.multi_site === false;
   const isReportsDisabled = license?.feature_flags?.pdf_reporting === false;
   const isOeeDisabled = license?.feature_flags?.oee === false;
+  const isAnalyticsDisabled = license?.feature_flags?.analytics === false;
+  const isRecipesDisabled = license?.feature_flags?.recipes === false;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -97,6 +101,8 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             {isAdmin && <button style={tabBtn('hub')} onClick={() => setTab('hub')} aria-selected={tab === 'hub'}>Hub{isHubDisabled && <FeatureBadge tier="Professional" />}</button>}
             {isAdmin && <button style={tabBtn('reports')} onClick={() => setTab('reports')} aria-selected={tab === 'reports'}>Reports{isReportsDisabled && <FeatureBadge tier="Professional" />}</button>}
             <button style={tabBtn('oee')} onClick={() => setTab('oee')} aria-selected={tab === 'oee'}>OEE{isOeeDisabled && <FeatureBadge tier="Starter" />}</button>
+            <button style={tabBtn('analytics')} onClick={() => setTab('analytics')} aria-selected={tab === 'analytics'}>Analytics{isAnalyticsDisabled && <FeatureBadge tier="Starter" />}</button>
+            {isAdmin && <button style={tabBtn('recipes')} onClick={() => setTab('recipes')} aria-selected={tab === 'recipes'}>Recipes{isRecipesDisabled && <FeatureBadge tier="Professional" />}</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -133,6 +139,12 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'oee' && (
             <OeePanel />
+          )}
+          {tab === 'analytics' && (
+            <AnalyticsPanel />
+          )}
+          {tab === 'recipes' && isAdmin && (
+            <RecipeManager />
           )}
         </div>
       </div>

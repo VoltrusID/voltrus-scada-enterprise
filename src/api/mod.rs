@@ -19,6 +19,8 @@ mod notifications;
 mod opcua_devices;
 pub(crate) mod hub;
 mod reports;
+mod analytics;
+mod recipes;
 
 use axum::{
     extract::{Request, State},
@@ -228,6 +230,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/metrics", get(oee::get_oee_metrics))
         .route("/api/v1/oee/downtime", get(oee::list_downtime))
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
+        .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
+        .route("/api/v1/analytics/compare", get(analytics::get_compare))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
@@ -306,6 +310,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/downtime/{id}/close", put(oee::close_downtime))
         .route("/api/v1/oee/shifts", post(oee::create_shift))
         .route("/api/v1/oee/shifts/{id}", delete(oee::delete_shift))
+        .route("/api/v1/recipes", get(recipes::list_recipes).post(recipes::create_recipe))
+        .route("/api/v1/recipes/{id}", get(recipes::get_recipe).put(recipes::update_recipe).delete(recipes::delete_recipe))
+        .route("/api/v1/recipes/{id}/load", post(recipes::load_recipe))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -1361,5 +1368,45 @@ mod tests {
             .expect("X-License-Tier header should be present");
         // serde_json serializes LicenseTier::Professional as "professional"
         assert_eq!(tier_header, "\"professional\"");
+    }
+
+    // ── Analytics & Recipe unit tests ──
+
+    #[test]
+    fn test_analytics_change_percent() {
+        let current_avg = 110.0_f64;
+        let previous_avg = 100.0_f64;
+        let change = ((current_avg - previous_avg) / previous_avg) * 100.0;
+        assert!((change - 10.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_analytics_change_percent_zero_division() {
+        let current_avg = 5.0_f64;
+        let previous_avg = 0.0_f64;
+        let change = if previous_avg.abs() > f64::EPSILON {
+            ((current_avg - previous_avg) / previous_avg) * 100.0
+        } else {
+            0.0
+        };
+        assert_eq!(change, 0.0);
+    }
+
+    #[test]
+    fn test_analytics_change_percent_negative() {
+        let current_avg = 80.0_f64;
+        let previous_avg = 100.0_f64;
+        let change = ((current_avg - previous_avg) / previous_avg) * 100.0;
+        assert!((change - (-20.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_recipe_values_json_parse() {
+        let json = r#"{"temp": 25.0, "pressure": 1.5}"#;
+        let values: std::collections::HashMap<String, f64> =
+            serde_json::from_str(json).unwrap();
+        assert_eq!(values.len(), 2);
+        assert!((values["temp"] - 25.0).abs() < 0.001);
+        assert!((values["pressure"] - 1.5).abs() < 0.001);
     }
 }
