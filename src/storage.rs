@@ -4329,7 +4329,6 @@ impl Storage {
         }
         Ok(configs)
     }
-}
     // ── S7 (Siemens) device management ──
 
     pub async fn create_s7_device(
@@ -4649,6 +4648,8 @@ impl Storage {
         Ok(configs)
     }
 
+
+}
 
 // ── API Key management ──
 
