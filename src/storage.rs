@@ -2510,6 +2510,57 @@ impl Storage {
         .context("Task join failed")?
         .map(|_| ())
     }
+
+    /// Get all push subscriptions (for broadcasting alarm notifications).
+    pub async fn get_push_subscriptions(&self) -> Result<Vec<crate::models::PushSubscription>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, user, endpoint, p256dh, auth_key, created_at
+                     FROM push_subscriptions",
+                )
+                .context("Prepare get_push_subscriptions failed")?;
+
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(crate::models::PushSubscription {
+                        id: row.get(0)?,
+                        user: row.get(1)?,
+                        endpoint: row.get(2)?,
+                        p256dh: row.get(3)?,
+                        auth_key: row.get(4)?,
+                        created_at: row.get(5)?,
+                    })
+                })
+                .context("Query get_push_subscriptions failed")?;
+
+            let mut subscriptions = Vec::new();
+            for row in rows {
+                subscriptions.push(row.context("Row get_push_subscriptions failed")?);
+            }
+            Ok(subscriptions)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Delete a push subscription by ID (for cleaning up stale subscriptions).
+    pub async fn delete_push_subscription(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM push_subscriptions WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete push subscription by id failed")
+        })
+        .await
+        .context("Task join failed")?
+        .map(|_| ())
+    }
 }
 
 fn init_schema(conn: &Connection) -> Result<()> {
