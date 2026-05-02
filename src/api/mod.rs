@@ -156,6 +156,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/version", get(system::get_version))
         .route("/api/v1/auth/change-password", post(auth::change_password))
         .route("/api/v1/data", get(data::get_data))
+        .route("/api/v1/data/export", get(data::export_data))
         .route("/api/v1/history", get(data::get_history))
         .route("/api/v1/export/csv", get(data::export_csv))
         .route("/api/v1/screens", get(screens::list_screens))

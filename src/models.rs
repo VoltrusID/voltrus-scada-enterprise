@@ -652,6 +652,56 @@ pub struct DataQuery {
     pub agg: Option<String>,
 }
 
+/// Query parameters for the /api/v1/data/export endpoint.
+#[derive(Debug, serde::Deserialize)]
+pub struct ExportQuery {
+    /// Start time: ISO 8601 string or unix timestamp (seconds).
+    /// Parsed to i64 unix timestamp.
+    pub from: Option<String>,
+    /// End time: ISO 8601 string or unix timestamp (seconds).
+    pub to: Option<String>,
+    /// Filter by device ID.
+    pub device: Option<String>,
+    /// Filter by metric name.
+    pub metric: Option<String>,
+    /// Aggregation function: avg, min, max, count, sum. Default: raw (no aggregation).
+    pub aggregation: Option<String>,
+    /// Aggregation window: 1m, 5m, 15m, 1h, 1d.
+    pub interval: Option<String>,
+    /// Pagination: max rows to return (default 1000, max 10000).
+    pub limit: Option<usize>,
+    /// Pagination: rows to skip (default 0).
+    pub offset: Option<usize>,
+    /// Response format: json (default) or csv.
+    pub format: Option<String>,
+}
+
+/// A single telemetry row for export responses.
+#[derive(Debug, serde::Serialize)]
+pub struct TelemetryExportRow {
+    pub timestamp: i64,
+    pub device: String,
+    pub metric: String,
+    pub value: f64,
+}
+
+/// Paginated meta information for export responses.
+#[derive(Debug, serde::Serialize)]
+pub struct ExportMeta {
+    pub total: i64,
+    pub limit: usize,
+    pub offset: usize,
+    pub aggregation: String,
+    pub interval: String,
+}
+
+/// The standard envelope for JSON export responses.
+#[derive(Debug, serde::Serialize)]
+pub struct ExportResponse {
+    pub data: Vec<TelemetryExportRow>,
+    pub meta: ExportMeta,
+}
+
 // ── SMTP notification config ──
 
 #[derive(Debug, Clone, Deserialize)]
