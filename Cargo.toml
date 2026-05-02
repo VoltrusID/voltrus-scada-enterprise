@@ -20,7 +20,7 @@ axum = "=0.8.9"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 serde_yml = "=0.0.12"
-rusqlite = { version = "=0.34.0", features = ["bundled"] }
+rusqlite = { version = "=0.34.0", features = ["bundled", "backup"] }
 anyhow = "=1.0.102"
 tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
@@ -35,8 +35,9 @@ password-hash = "=0.5.0"
 rand = "=0.9.4"
 dashmap = "=6.1.0"
 flate2 = "=1.1.9"
+tar = "=0.4"
 sysinfo = "=0.34.2"
-time = "=0.3.47"
+time = { version = "=0.3.47", features = ["local-offset"] }
 jsonwebtoken = "=9.3"
 reqwest = { version = "=0.12.15", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 lettre = { version = "=0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }

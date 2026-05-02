@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod backup;
 mod cache;
 mod config;
 mod expression;
@@ -47,6 +48,11 @@ USAGE:
                                             Activate directly via internet
     voltrus-lite --reset-admin-password [CONFIG]
                                             Reset admin password (prints new password)
+    voltrus-lite backup [OPTIONS]           Create backup archive
+
+BACKUP OPTIONS:
+    --output <PATH>    Output archive path (default: voltrus-backup-YYYYMMDD-HHMMSS.tar.gz)
+    --config <PATH>    Config file path for db_path lookup (default: config.yaml)
 
 OPTIONS:
     --help                        Show this help message
@@ -63,6 +69,8 @@ EXAMPLES:
     voltrus-lite --online-activate VOLTRUS-XXXX   # Activate online
     voltrus-lite --reset-admin-password       # Reset lost admin password
     voltrus-lite --license-status             # Check license
+    voltrus-lite backup                       # Create backup in current directory
+    voltrus-lite backup --output /tmp/bak.tar.gz  # Custom output path
 ";
 
     if args.len() > 1 {
@@ -230,6 +238,54 @@ EXAMPLES:
                     }
                 }
                 return Ok(());
+            }
+            "backup" => {
+                let mut config_path = "config.yaml".to_string();
+                let mut output_path: Option<String> = None;
+                let mut i = 2;
+                while i < args.len() {
+                    match args[i].as_str() {
+                        "--config" => {
+                            if i + 1 >= args.len() {
+                                eprintln!("Error: --config requires a path argument");
+                                std::process::exit(1);
+                            }
+                            config_path = args[i + 1].clone();
+                            i += 2;
+                        }
+                        "--output" => {
+                            if i + 1 >= args.len() {
+                                eprintln!("Error: --output requires a path argument");
+                                std::process::exit(1);
+                            }
+                            output_path = Some(args[i + 1].clone());
+                            i += 2;
+                        }
+                        flag if flag.starts_with('-') => {
+                            eprintln!("Unknown backup option: {}", flag);
+                            eprintln!("Usage: {} backup [--config <PATH>] [--output <PATH>]", args[0]);
+                            std::process::exit(1);
+                        }
+                        _ => {
+                            eprintln!("Unexpected argument: {}", args[i]);
+                            eprintln!("Usage: {} backup [--config <PATH>] [--output <PATH>]", args[0]);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                let app_config = config::load_config(&config_path)?;
+                let opts = backup::BackupOptions {
+                    config_path,
+                    db_path: app_config.db_path.clone(),
+                    output_path,
+                };
+                match backup::run_backup(opts) {
+                    Ok(_) => std::process::exit(0),
+                    Err(e) => {
+                        eprintln!("Backup failed: {:#}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
             "--license-status" => {
                 let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
