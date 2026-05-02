@@ -49,10 +49,17 @@ USAGE:
     voltrus-lite --reset-admin-password [CONFIG]
                                             Reset admin password (prints new password)
     voltrus-lite backup [OPTIONS]           Create backup archive
+    voltrus-lite restore <BACKUP_FILE> [OPTIONS]
+                                            Restore from backup archive
 
 BACKUP OPTIONS:
     --output <PATH>    Output archive path (default: voltrus-backup-YYYYMMDD-HHMMSS.tar.gz)
     --config <PATH>    Config file path for db_path lookup (default: config.yaml)
+
+RESTORE OPTIONS:
+    <BACKUP_FILE>      Path to the .tar.gz backup archive
+    --config <PATH>    Target config file path (default: config.yaml)
+    --force            Skip confirmation prompt
 
 OPTIONS:
     --help                        Show this help message
@@ -71,6 +78,9 @@ EXAMPLES:
     voltrus-lite --license-status             # Check license
     voltrus-lite backup                       # Create backup in current directory
     voltrus-lite backup --output /tmp/bak.tar.gz  # Custom output path
+    voltrus-lite restore backup.tar.gz        # Restore from archive
+    voltrus-lite restore backup.tar.gz --force  # Restore without confirmation
+    voltrus-lite restore backup.tar.gz --config /etc/voltrus/prod.yaml
 ";
 
     if args.len() > 1 {
@@ -283,6 +293,63 @@ EXAMPLES:
                     Ok(_) => std::process::exit(0),
                     Err(e) => {
                         eprintln!("Backup failed: {:#}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            "restore" => {
+                let mut config_path = "config.yaml".to_string();
+                let mut archive_path: Option<String> = None;
+                let mut force = false;
+                let mut i = 2;
+                while i < args.len() {
+                    match args[i].as_str() {
+                        "--config" => {
+                            if i + 1 >= args.len() {
+                                eprintln!("Error: --config requires a path argument");
+                                std::process::exit(1);
+                            }
+                            config_path = args[i + 1].clone();
+                            i += 2;
+                        }
+                        "--force" => {
+                            force = true;
+                            i += 1;
+                        }
+                        flag if flag.starts_with('-') => {
+                            eprintln!("Unknown restore option: {}", flag);
+                            eprintln!("Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]", args[0]);
+                            std::process::exit(1);
+                        }
+                        arg => {
+                            if archive_path.is_some() {
+                                eprintln!("Unexpected argument: {}", arg);
+                                eprintln!("Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]", args[0]);
+                                std::process::exit(1);
+                            }
+                            archive_path = Some(arg.to_string());
+                            i += 1;
+                        }
+                    }
+                }
+                let archive_path = match archive_path {
+                    Some(p) => p,
+                    None => {
+                        eprintln!("Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]", args[0]);
+                        std::process::exit(1);
+                    }
+                };
+                let app_config = config::load_config(&config_path)?;
+                let opts = backup::RestoreOptions {
+                    archive_path,
+                    config_path,
+                    db_path: app_config.db_path.clone(),
+                    force,
+                };
+                match backup::run_restore(opts) {
+                    Ok(_) => std::process::exit(0),
+                    Err(e) => {
+                        eprintln!("Restore failed: {:#}", e);
                         std::process::exit(1);
                     }
                 }
