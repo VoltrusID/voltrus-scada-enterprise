@@ -334,6 +334,121 @@ pub struct PollerStatus {
     pub status: String,
 }
 
+// ── OPC-UA config types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpcUaSecurityPolicy {
+    None,
+    Basic256Sha256,
+}
+
+impl Default for OpcUaSecurityPolicy {
+    fn default() -> Self { Self::None }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OpcUaSecurityMode {
+    None,
+    Sign,
+    SignAndEncrypt,
+}
+
+impl Default for OpcUaSecurityMode {
+    fn default() -> Self { Self::None }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpcUaNodeConfig {
+    pub node_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+/// Runtime config for an OPC-UA device, used by the poller.
+#[derive(Debug, Clone)]
+pub struct OpcUaDeviceConfig {
+    pub id: String,
+    pub url: String,
+    pub security_policy: OpcUaSecurityPolicy,
+    pub security_mode: OpcUaSecurityMode,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub interval_ms: u64,
+    pub nodes: Vec<OpcUaNodeConfig>,
+}
+
+/// Database row for opcua_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpcUaDevice {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    pub security_policy: OpcUaSecurityPolicy,
+    pub security_mode: OpcUaSecurityMode,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+/// Database row for opcua_nodes table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpcUaNode {
+    pub id: i64,
+    pub device_id: i64,
+    pub node_id: String,
+    pub name: String,
+    pub display_name: String,
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateOpcUaDeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default)]
+    pub security_policy: OpcUaSecurityPolicy,
+    #[serde(default)]
+    pub security_mode: OpcUaSecurityMode,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateOpcUaDeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub security_policy: Option<OpcUaSecurityPolicy>,
+    pub security_mode: Option<OpcUaSecurityMode>,
+    pub username: Option<Option<String>>,
+    pub password: Option<Option<String>>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateOpcUaNodeRequest {
+    pub node_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
 // ── Runtime types ──
 
 #[derive(Debug, Clone, Serialize)]
@@ -803,6 +918,8 @@ pub struct CreateNotificationSettingRequest {
     #[serde(default = "default_true")]
     pub enabled: bool,
 }
+
+fn default_interval_ms() -> u64 { 1000 }
 
 fn default_true() -> bool {
     true
