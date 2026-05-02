@@ -64,6 +64,22 @@ pub async fn create_modbus_device(
         return Err(AppError(anyhow::anyhow!("IP address is required")));
     }
 
+    // Check device limit from license tier
+    if let crate::license::LicenseStatus::Valid { tier, device_limit, .. } = &state.license_status {
+        if tier.as_deref() == Some("starter") {
+            if let Some(limit) = device_limit {
+                let current_devices = state.storage.list_modbus_devices().await?;
+                let count = current_devices.len() as u32;
+                if count >= *limit {
+                    return Err(AppError(anyhow::anyhow!(
+                        "Device limit reached ({}). Your {} tier allows up to {} devices. Upgrade at https://voltrus.id",
+                        count, tier.as_deref().unwrap_or("starter"), limit
+                    )));
+                }
+            }
+        }
+    }
+
     let registers: Vec<ModbusRegisterInput> = body
         .get("registers")
         .and_then(|v| v.as_array())

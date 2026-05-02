@@ -420,6 +420,8 @@ mod tests {
                 license_key: "polar_test_key".to_string(),
                 expires_at: None,
                 days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
             },
         };
         create_router(state)
@@ -593,6 +595,8 @@ mod tests {
                 license_key: "polar_test_key".to_string(),
                 expires_at: None,
                 days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
             },
         };
         let app = create_router(state);
@@ -653,6 +657,8 @@ mod tests {
                 license_key: "polar_test_key".to_string(),
                 expires_at: None,
                 days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
             },
         };
         let app = create_router(state);
@@ -740,6 +746,8 @@ mod tests {
                 license_key: "polar_test_key".to_string(),
                 expires_at: None,
                 days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
             },
         };
         let app = create_router(state);
@@ -805,6 +813,8 @@ mod tests {
                 license_key: "polar_test_key".to_string(),
                 expires_at: None,
                 days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
             },
         };
         let app = create_router(state);

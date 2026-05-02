@@ -2407,8 +2407,18 @@ fn init_schema(conn: &Connection) -> Result<()> {
             fingerprint_machine_id TEXT NOT NULL,
             activation_blob BLOB NOT NULL,
             activated_at TEXT NOT NULL,
-            expires_at TEXT
+            expires_at TEXT,
+            tier TEXT,
+            device_limit INTEGER
         );",
+    );
+
+    // Migration: add tier and device_limit columns to existing databases
+    let _ = conn.execute_batch(
+        "ALTER TABLE license_activation ADD COLUMN tier TEXT;",
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE license_activation ADD COLUMN device_limit INTEGER;",
     );
 
         Ok(())
@@ -2689,7 +2699,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT license_key, fingerprint_hash, activation_blob, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activated_at, expires_at FROM license_activation ORDER BY id DESC LIMIT 1")
+                .prepare("SELECT license_key, fingerprint_hash, activation_blob, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activated_at, expires_at, tier, device_limit FROM license_activation ORDER BY id DESC LIMIT 1")
                 .context("Prepare failed")?;
             let result = stmt.query_row([], |row| {
                 Ok(crate::models::LicenseActivationRow {
@@ -2703,6 +2713,8 @@ impl Storage {
                     fingerprint_machine_id: row.get(7)?,
                     activated_at: row.get(8)?,
                     expires_at: row.get(9)?,
+                    tier: row.get(10)?,
+                    device_limit: row.get(11)?,
                 })
             }).ok();
             Ok(result)
@@ -2717,8 +2729,8 @@ impl Storage {
             // Clear any existing activation first — only one license can be active at a time
             let _ = conn.execute("DELETE FROM license_activation", []);
             conn.execute(
-                "INSERT INTO license_activation (license_key, fingerprint_hash, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activation_blob, activated_at, expires_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT INTO license_activation (license_key, fingerprint_hash, fingerprint_hostname, fingerprint_cpu, fingerprint_disk_serial, fingerprint_mac, fingerprint_machine_id, activation_blob, activated_at, expires_at, tier, device_limit)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 rusqlite::params![
                     row.license_key,
                     row.fingerprint_hash,
@@ -2730,6 +2742,8 @@ impl Storage {
                     row.activation_blob,
                     row.activated_at,
                     row.expires_at,
+                    row.tier,
+                    row.device_limit,
                 ],
             ).context("Store license activation failed")?;
             Ok(())
