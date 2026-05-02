@@ -14,6 +14,7 @@ mod storage;
 mod timeutil;
 mod license;
 mod notification;
+mod opcua;
 
 use api::AppState;
 use base64::Engine;
