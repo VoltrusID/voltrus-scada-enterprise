@@ -3,6 +3,8 @@ mod auth;
 mod backup;
 mod cache;
 mod config;
+mod config_export;
+mod discovery;
 mod expression;
 mod flow_engine;
 mod modbus;
@@ -56,6 +58,10 @@ USAGE:
     voltrus-lite backup [OPTIONS]           Create backup archive
     voltrus-lite restore <BACKUP_FILE> [OPTIONS]
                                             Restore from backup archive
+    voltrus-lite config export [DIR]        Export config to YAML files
+    voltrus-lite config import [DIR]        Import config from YAML files
+    voltrus-lite config validate [DIR]      Validate YAML config files
+    voltrus-lite discover --range <CIDR>    Scan subnet for Modbus TCP devices
 
 BACKUP OPTIONS:
     --output <PATH>    Output archive path (default: voltrus-backup-YYYYMMDD-HHMMSS.tar.gz)
@@ -65,6 +71,11 @@ RESTORE OPTIONS:
     <BACKUP_FILE>      Path to the .tar.gz backup archive
     --config <PATH>    Target config file path (default: config.yaml)
     --force            Skip confirmation prompt
+
+DISCOVER OPTIONS:
+    --range <CIDR>     Subnet to scan (e.g., 192.168.1.0/24)
+    --port <PORT>      Modbus TCP port (default: 502)
+    --config <PATH>    Config file path (default: config.yaml)
 
 OPTIONS:
     --help                        Show this help message
@@ -86,6 +97,10 @@ EXAMPLES:
     voltrus-lite restore backup.tar.gz        # Restore from archive
     voltrus-lite restore backup.tar.gz --force  # Restore without confirmation
     voltrus-lite restore backup.tar.gz --config /etc/voltrus/prod.yaml
+    voltrus-lite config export ./my-config    # Export config to directory
+    voltrus-lite config import ./my-config    # Import config from directory
+    voltrus-lite config validate ./my-config  # Validate config files
+    voltrus-lite discover --range 192.168.1.0/24 --port 502
 ";
 
     if args.len() > 1 {
@@ -251,6 +266,150 @@ EXAMPLES:
                         println!("New password: {}", password);
                         println!("You will be required to change this on next login.");
                     }
+                }
+                return Ok(());
+            }
+            "config" => {
+                let subcommand = args.get(2).map(|s| s.as_str()).unwrap_or("");
+                let path = args.get(3).map(|s| s.as_str()).unwrap_or("config");
+                match subcommand {
+                    "export" => {
+                        let config_path = args.get(4).map(|s| s.as_str()).unwrap_or("config.yaml");
+                        let app_config = config::load_config(config_path)?;
+                        let storage = Storage::new_with_key(
+                            &app_config.db_path,
+                            app_config.db_encryption_key.as_deref(),
+                        )?;
+                        let status = license::verify_license(&storage).await;
+                        if !status.is_valid() || !status.tier().backup_restore() {
+                            eprintln!("Config export requires a valid Starter+ license (backup_restore feature).");
+                            std::process::exit(1);
+                        }
+                        match config_export::export_config(&storage, path) {
+                            Ok(_) => {
+                                println!("Config exported to {path}/");
+                                std::process::exit(0);
+                            }
+                            Err(e) => {
+                                eprintln!("Export failed: {:#}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    "import" => {
+                        let config_path = args.get(4).map(|s| s.as_str()).unwrap_or("config.yaml");
+                        let app_config = config::load_config(config_path)?;
+                        let storage = Storage::new_with_key(
+                            &app_config.db_path,
+                            app_config.db_encryption_key.as_deref(),
+                        )?;
+                        let status = license::verify_license(&storage).await;
+                        if !status.is_valid() || !status.tier().backup_restore() {
+                            eprintln!("Config import requires a valid Starter+ license (backup_restore feature).");
+                            std::process::exit(1);
+                        }
+                        match config_export::import_config(&storage, path) {
+                            Ok(_) => {
+                                println!("Config imported from {path}/");
+                                std::process::exit(0);
+                            }
+                            Err(e) => {
+                                eprintln!("Import failed: {:#}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    "validate" => {
+                        match config_export::validate_config(path) {
+                            Ok(messages) => {
+                                for msg in &messages {
+                                    println!("{}", msg);
+                                }
+                                let has_errors = messages.iter().any(|m| m.starts_with("ERROR"));
+                                std::process::exit(if has_errors { 1 } else { 0 });
+                            }
+                            Err(e) => {
+                                eprintln!("Validation failed: {:#}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    _ => {
+                        eprintln!("Usage: {} config [export|import|validate] [PATH]", args[0]);
+                        eprintln!();
+                        eprintln!("Commands:");
+                        eprintln!("  export [DIR]   Export config to YAML files (default: config/)");
+                        eprintln!("  import [DIR]   Import config from YAML files (default: config/)");
+                        eprintln!("  validate [DIR] Validate YAML config files (default: config/)");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            "discover" => {
+                let mut range = String::new();
+                let mut port: u16 = 502;
+                let mut config_path = "config.yaml".to_string();
+                let mut i = 2;
+                while i < args.len() {
+                    match args[i].as_str() {
+                        "--range" => {
+                            if i + 1 >= args.len() {
+                                eprintln!("Error: --range requires a CIDR argument (e.g., 192.168.1.0/24)");
+                                std::process::exit(1);
+                            }
+                            range = args[i + 1].clone();
+                            i += 2;
+                        }
+                        "--port" => {
+                            if i + 1 >= args.len() {
+                                eprintln!("Error: --port requires a port number");
+                                std::process::exit(1);
+                            }
+                            port = args[i + 1].parse().unwrap_or(502);
+                            i += 2;
+                        }
+                        "--config" => {
+                            if i + 1 >= args.len() {
+                                eprintln!("Error: --config requires a path argument");
+                                std::process::exit(1);
+                            }
+                            config_path = args[i + 1].clone();
+                            i += 2;
+                        }
+                        flag if flag.starts_with('-') => {
+                            eprintln!("Unknown discover option: {}", flag);
+                            eprintln!("Usage: {} discover --range <CIDR> [--port PORT]", args[0]);
+                            std::process::exit(1);
+                        }
+                        _ => {
+                            eprintln!("Unexpected argument: {}", args[i]);
+                            eprintln!("Usage: {} discover --range <CIDR> [--port PORT]", args[0]);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                if range.is_empty() {
+                    eprintln!("Usage: {} discover --range <CIDR> [--port PORT]", args[0]);
+                    std::process::exit(1);
+                }
+                let app_config = config::load_config(&config_path)?;
+                let storage = Storage::new_with_key(
+                    &app_config.db_path,
+                    app_config.db_encryption_key.as_deref(),
+                )?;
+                let status = license::verify_license(&storage).await;
+                if !status.is_valid() || !status.tier().auto_discovery() {
+                    eprintln!("Network discovery requires a valid Starter+ license (auto_discovery feature).");
+                    std::process::exit(1);
+                }
+                eprintln!("Scanning {} port {} for Modbus TCP devices...", range, port);
+                let devices = discovery::scan_network(&range, port, 500).await?;
+                let json = serde_json::to_string_pretty(&devices)?;
+                println!("{}", json);
+                if devices.is_empty() {
+                    eprintln!("No Modbus devices found on {} port {}", range, port);
+                } else {
+                    eprintln!("Found {} device(s)", devices.len());
                 }
                 return Ok(());
             }
