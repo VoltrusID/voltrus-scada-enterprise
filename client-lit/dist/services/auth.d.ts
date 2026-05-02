@@ -3,6 +3,7 @@ export interface AuthState {
     role: string;
     loading: boolean;
     error: string;
+    mustChangePassword: boolean;
 }
 declare class AuthManager extends EventTarget {
     private _state;
@@ -11,10 +12,12 @@ declare class AuthManager extends EventTarget {
         role: string;
         loading: boolean;
         error: string;
+        mustChangePassword: boolean;
     };
     private _set;
     check(): Promise<void>;
     login(username: string, password: string): Promise<void>;
+    changePassword(newPassword: string): Promise<boolean>;
     logout(): Promise<void>;
 }
 export declare const authManager: AuthManager;

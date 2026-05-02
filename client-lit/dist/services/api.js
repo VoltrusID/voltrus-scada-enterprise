@@ -10,7 +10,7 @@ class DataManager extends EventTarget {
     constructor() {
         super(...arguments);
         this._es = null;
-        this._url = `${API_BASE}/api/stream`;
+        this._url = `${API_BASE}/api/v1/stream`;
     }
     connect() {
         if (this._es)
@@ -36,12 +36,46 @@ class DataManager extends EventTarget {
     }
 }
 export const dataManager = new DataManager();
+// Global in-flight refresh promise
+let refreshing = null;
+async function doRefresh() {
+    if (refreshing) {
+        return refreshing;
+    }
+    refreshing = (async () => {
+        try {
+            const r = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            return r.ok;
+        }
+        catch {
+            return false;
+        }
+        finally {
+            refreshing = null;
+        }
+    })();
+    return refreshing;
+}
+async function fetchWithRefresh(url, init) {
+    const r = await fetch(url, { credentials: 'include', ...init });
+    if (r.status === 401) {
+        const ok = await doRefresh();
+        if (ok) {
+            return fetch(url, { credentials: 'include', ...init });
+        }
+        window.location.href = '/login';
+        throw new Error('Session expired');
+    }
+    return r;
+}
 /**
  * Fetch wrapper for REST API calls.
  */
 export async function api(path, init) {
-    const res = await fetch(`${API_BASE}/api${path}`, {
-        credentials: 'include',
+    const res = await fetchWithRefresh(`${API_BASE}/api/v1${path}`, {
         headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
         ...init,
     });
@@ -50,7 +84,7 @@ export async function api(path, init) {
     return res.json();
 }
 export async function fetchOk(url, init) {
-    const res = await fetch(`${API_BASE}${url}`, { credentials: 'include', ...init });
+    const res = await fetchWithRefresh(`${API_BASE}${url}`, { credentials: 'include', ...init });
     if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `Request failed: ${res.status}`);
