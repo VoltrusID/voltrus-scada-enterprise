@@ -13,6 +13,7 @@ use crate::models::{
     OpcUaSecurityPolicy, OpcUaSecurityMode,
     HubSite,
     Report,
+    DowntimeEvent, OeeMetrics, ShiftConfig,
 };
 
 #[derive(Clone)]
@@ -2885,6 +2886,27 @@ fn init_schema(conn: &Connection) -> Result<()> {
             email_recipients TEXT NOT NULL,
             last_generated INTEGER,
             created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS downtime_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            state TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            ended_at INTEGER,
+            duration_secs INTEGER,
+            reason TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_downtime_device ON downtime_events(device_id);
+        CREATE INDEX IF NOT EXISTS idx_downtime_started ON downtime_events(started_at);
+        CREATE TABLE IF NOT EXISTS shifts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            start_hour INTEGER NOT NULL,
+            start_minute INTEGER NOT NULL,
+            duration_hours INTEGER NOT NULL,
+            days_mask INTEGER NOT NULL DEFAULT 127,
+            created_at INTEGER NOT NULL
         );",
     )
     .context("Failed to create schema")?;
@@ -4031,6 +4053,232 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
+    // ── OEE / Downtime methods ──
+
+    /// Create an open downtime event.
+    pub async fn create_downtime_event(&self, device_id: &str, state: &str) -> Result<i64> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let state = state.to_string();
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO downtime_events (device_id, state, started_at, created_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![device_id, state, now, now],
+            ).context("Insert downtime event failed")?;
+            Ok(conn.last_insert_rowid())
+        }).await.context("Task join failed")?
+    }
+
+    /// Close a downtime event by setting ended_at and calculating duration.
+    pub async fn close_downtime_event(&self, id: i64, reason: Option<&str>) -> Result<()> {
+        let conn = self.conn.clone();
+        let reason = reason.map(|s| s.to_string());
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            // Calculate duration from started_at
+            let started_at: i64 = conn.query_row(
+                "SELECT started_at FROM downtime_events WHERE id = ?1",
+                rusqlite::params![id],
+                |row| row.get(0),
+            ).context("Failed to get downtime started_at")?;
+            let duration = now - started_at;
+            conn.execute(
+                "UPDATE downtime_events SET ended_at = ?1, duration_secs = ?2, reason = ?3 WHERE id = ?4 AND ended_at IS NULL",
+                rusqlite::params![now, duration, reason, id],
+            ).context("Close downtime event failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    /// List downtime events with optional filters.
+    pub async fn list_downtime_events(
+        &self,
+        device_id: Option<&str>,
+        from: Option<i64>,
+        to: Option<i64>,
+    ) -> Result<Vec<DowntimeEvent>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut sql = String::from("SELECT id, device_id, state, started_at, ended_at, duration_secs, reason FROM downtime_events WHERE 1=1");
+            if device_id.is_some() {
+                sql.push_str(&format!(" AND device_id = '{}'", device_id.as_ref().unwrap().replace('\'', "''")));
+            }
+            if let Some(from) = from {
+                sql.push_str(&format!(" AND started_at >= {}", from));
+            }
+            if let Some(to) = to {
+                sql.push_str(&format!(" AND started_at <= {}", to));
+            }
+            sql.push_str(" ORDER BY started_at DESC");
+
+            let mut stmt = conn.prepare(&sql).context("Prepare list downtime events failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(DowntimeEvent {
+                    id: row.get(0)?,
+                    device_id: row.get(1)?,
+                    state: row.get(2)?,
+                    started_at: row.get(3)?,
+                    ended_at: row.get(4)?,
+                    duration_secs: row.get(5)?,
+                    reason: row.get(6)?,
+                })
+            }).context("Query list downtime events failed")?;
+
+            let mut events = Vec::new();
+            for row in rows {
+                events.push(row.context("Row parse downtime event failed")?);
+            }
+            Ok(events)
+        }).await.context("Task join failed")?
+    }
+
+    /// Get the currently open (unclosed) downtime event for a device.
+    pub async fn get_open_downtime_event(&self, device_id: &str) -> Result<Option<DowntimeEvent>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, device_id, state, started_at, ended_at, duration_secs, reason FROM downtime_events WHERE device_id = ?1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1"
+            ).context("Prepare get open downtime event failed")?;
+            let mut rows = stmt.query_map(rusqlite::params![device_id], |row| {
+                Ok(DowntimeEvent {
+                    id: row.get(0)?,
+                    device_id: row.get(1)?,
+                    state: row.get(2)?,
+                    started_at: row.get(3)?,
+                    ended_at: row.get(4)?,
+                    duration_secs: row.get(5)?,
+                    reason: row.get(6)?,
+                })
+            }).context("Query get open downtime event failed")?;
+            match rows.next() {
+                Some(row) => Ok(Some(row.context("Row parse open downtime event failed")?)),
+                None => Ok(None),
+            }
+        }).await.context("Task join failed")?
+    }
+
+    /// Calculate OEE metrics for a device over a time range.
+    /// Availability = total_running_secs / total_planned_secs
+    /// Performance and Quality default to 1.0 (to be enriched by user configuration).
+    /// OEE = Availability * Performance * Quality
+    pub async fn calculate_oee(
+        &self,
+        device_id: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<OeeMetrics> {
+        let events = self.list_downtime_events(Some(device_id), Some(from), Some(to)).await?;
+
+        let total_planned_secs = if to > from { to - from } else { 0 };
+
+        // Total downtime = sum of all downtime durations (including currently open events)
+        let mut total_downtime_secs: i64 = 0;
+        let now = crate::timeutil::now_secs();
+        let mut downtime_count: i64 = 0;
+
+        for event in &events {
+            downtime_count += 1;
+            if let Some(duration) = event.duration_secs {
+                total_downtime_secs += duration;
+            } else if event.ended_at.is_none() {
+                // Still open — calculate from started_at to now
+                total_downtime_secs += (now - event.started_at).max(0);
+            }
+        }
+
+        let total_running_secs = (total_planned_secs - total_downtime_secs).max(0);
+
+        let availability = if total_planned_secs > 0 {
+            total_running_secs as f64 / total_planned_secs as f64
+        } else {
+            1.0
+        };
+
+        // Performance and quality default to 1.0 until enriched with production data
+        let performance = 1.0;
+        let quality = 1.0;
+        let oee = availability * performance * quality;
+
+        Ok(OeeMetrics {
+            availability,
+            performance,
+            quality,
+            oee,
+            total_running_secs,
+            total_planned_secs,
+            downtime_count,
+        })
+    }
+
+    // ── Shift methods ──
+
+    /// Create a shift configuration.
+    pub async fn create_shift(
+        &self,
+        name: &str,
+        start_hour: u32,
+        start_minute: u32,
+        duration_hours: u32,
+        days_mask: u32,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO shifts (name, start_hour, start_minute, duration_hours, days_mask, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![name, start_hour, start_minute, duration_hours, days_mask, now],
+            ).context("Insert shift failed")?;
+            Ok(conn.last_insert_rowid())
+        }).await.context("Task join failed")?
+    }
+
+    /// List all shift configurations.
+    pub async fn list_shifts(&self) -> Result<Vec<ShiftConfig>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, name, start_hour, start_minute, duration_hours, days_mask, created_at FROM shifts ORDER BY id"
+            ).context("Prepare list shifts failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(ShiftConfig {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    start_hour: row.get(2)?,
+                    start_minute: row.get(3)?,
+                    duration_hours: row.get(4)?,
+                    days_mask: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            }).context("Query list shifts failed")?;
+            let mut shifts = Vec::new();
+            for row in rows {
+                shifts.push(row.context("Row parse shift failed")?);
+            }
+            Ok(shifts)
+        }).await.context("Task join failed")?
+    }
+
+    /// Delete a shift configuration.
+    pub async fn delete_shift(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM shifts WHERE id = ?1", rusqlite::params![id])
+                .context("Delete shift failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
     /// Query distinct device IDs from telemetry table.
     pub async fn get_telemetry_device_ids(&self) -> Result<Vec<String>> {
         let conn = self.conn.clone();
@@ -4428,5 +4676,82 @@ mod tests {
         let all = storage.list_hub_sites().await.unwrap();
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].id, id2);
+    }
+
+    #[tokio::test]
+    async fn test_downtime_event_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Create open event
+        let id = storage.create_downtime_event("dev1", "faulted").await.unwrap();
+        assert!(id > 0);
+
+        // Verify open event
+        let open = storage.get_open_downtime_event("dev1").await.unwrap();
+        assert!(open.is_some());
+        let open = open.unwrap();
+        assert_eq!(open.device_id, "dev1");
+        assert_eq!(open.state, "faulted");
+        assert!(open.ended_at.is_none());
+
+        // Close event
+        storage.close_downtime_event(id, Some("Machine repaired")).await.unwrap();
+
+        // Verify closed
+        let open_after = storage.get_open_downtime_event("dev1").await.unwrap();
+        assert!(open_after.is_none());
+
+        // List events
+        let events = storage.list_downtime_events(Some("dev1"), None, None).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].reason.as_deref(), Some("Machine repaired"));
+        assert!(events[0].duration_secs.is_some());
+        assert!(events[0].duration_secs.unwrap() >= 0);
+    }
+
+    #[tokio::test]
+    async fn test_oee_metrics_calculation() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Create a downtime event that represents 1 hour of downtime
+        let id = storage.create_downtime_event("dev1", "idle").await.unwrap();
+        storage.close_downtime_event(id, Some("Break")).await.unwrap();
+
+        // Calculate OEE for a 8-hour window
+        let now = crate::timeutil::now_secs();
+        let from = now - 8 * 3600;
+        let metrics = storage.calculate_oee("dev1", from, now).await.unwrap();
+
+        assert_eq!(metrics.total_planned_secs, 8 * 3600);
+        assert!(metrics.total_running_secs > 0);
+        assert!(metrics.availability <= 1.0);
+        assert!(metrics.availability >= 0.0);
+        assert_eq!(metrics.performance, 1.0); // default
+        assert_eq!(metrics.quality, 1.0); // default
+        assert_eq!(metrics.oee, metrics.availability);
+        assert!(metrics.downtime_count >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_shift_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Create shift
+        let id = storage.create_shift("Morning", 6, 0, 8, 31).await.unwrap(); // Mon-Fri
+        assert!(id > 0);
+
+        // List shifts
+        let shifts = storage.list_shifts().await.unwrap();
+        assert_eq!(shifts.len(), 1);
+        assert_eq!(shifts[0].name, "Morning");
+        assert_eq!(shifts[0].start_hour, 6);
+        assert_eq!(shifts[0].start_minute, 0);
+        assert_eq!(shifts[0].duration_hours, 8);
+        assert_eq!(shifts[0].days_mask, 31);
+
+        // Delete shift
+        storage.delete_shift(id).await.unwrap();
+        let shifts = storage.list_shifts().await.unwrap();
+        assert_eq!(shifts.len(), 0);
     }
 }

@@ -1067,6 +1067,135 @@ mod tests {
         let back: DataPoint = serde_json::from_str(&json).unwrap();
         assert_eq!(back, dp);
     }
+
+    #[test]
+    fn test_machine_state_serde() {
+        let state = MachineState::Running;
+        let json = serde_json::to_string(&state).unwrap();
+        let expected = r#""running""#;
+        assert_eq!(json, expected);
+        let back: MachineState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MachineState::Running);
+        assert!(MachineState::from_str("running").unwrap() == MachineState::Running);
+        assert!(MachineState::from_str("idle").unwrap() == MachineState::Idle);
+        assert!(MachineState::from_str("faulted").unwrap() == MachineState::Faulted);
+        assert!(MachineState::from_str("setup").unwrap() == MachineState::Setup);
+        assert!(MachineState::from_str("maintenance").unwrap() == MachineState::Maintenance);
+        assert!(MachineState::from_str("unknown").is_none());
+    }
+
+    #[test]
+    fn test_create_downtime_event_request_deserialize() {
+        let json = r#"{"device_id":"dev1","state":"faulted"}"#;
+        let req: CreateDowntimeEventRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.device_id, "dev1");
+        assert_eq!(req.state, "faulted");
+    }
+
+    #[test]
+    fn test_oee_metrics_structure() {
+        let metrics = OeeMetrics {
+            availability: 0.85,
+            performance: 0.90,
+            quality: 0.95,
+            oee: 0.85 * 0.90 * 0.95,
+            total_running_secs: 3600,
+            total_planned_secs: 4235,
+            downtime_count: 3,
+        };
+        let json = serde_json::to_string(&metrics).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["availability"], 0.85);
+        assert_eq!(parsed["total_running_secs"], 3600);
+    }
+}
+
+// -- OEE / Downtime types --
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MachineState {
+    Running,
+    Idle,
+    Faulted,
+    Setup,
+    Maintenance,
+}
+
+impl MachineState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MachineState::Running => "running",
+            MachineState::Idle => "idle",
+            MachineState::Faulted => "faulted",
+            MachineState::Setup => "setup",
+            MachineState::Maintenance => "maintenance",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "running" => Some(MachineState::Running),
+            "idle" => Some(MachineState::Idle),
+            "faulted" => Some(MachineState::Faulted),
+            "setup" => Some(MachineState::Setup),
+            "maintenance" => Some(MachineState::Maintenance),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DowntimeEvent {
+    pub id: i64,
+    pub device_id: String,
+    pub state: String,
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
+    pub duration_secs: Option<i64>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateDowntimeEventRequest {
+    pub device_id: String,
+    pub state: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CloseDowntimeEventRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct OeeMetrics {
+    pub availability: f64,
+    pub performance: f64,
+    pub quality: f64,
+    pub oee: f64,
+    pub total_running_secs: i64,
+    pub total_planned_secs: i64,
+    pub downtime_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ShiftConfig {
+    pub id: i64,
+    pub name: String,
+    pub start_hour: u32,
+    pub start_minute: u32,
+    pub duration_hours: u32,
+    pub days_mask: u32,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateShiftRequest {
+    pub name: String,
+    pub start_hour: u32,
+    pub start_minute: u32,
+    pub duration_hours: u32,
+    pub days_mask: u32,
 }
 
 // ── Report types ──
