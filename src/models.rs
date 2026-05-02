@@ -1069,6 +1069,36 @@ mod tests {
     }
 }
 
+// ── Hub (Multi-Site) types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HubSite {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(skip_serializing)]
+    pub api_key: String,
+    pub enabled: bool,
+    pub last_seen: Option<i64>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateHubSiteRequest {
+    pub name: String,
+    pub url: String,
+    pub api_key: String,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateHubSiteRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub api_key: Option<String>,
+    pub enabled: Option<bool>,
+}
+
 #[derive(Debug, Clone)]
 pub struct LicenseActivationRow {
     pub license_key: String,
