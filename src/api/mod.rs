@@ -25,6 +25,7 @@ mod rbac;
 mod compliance;
 mod enip_devices;
 mod s7_devices;
+mod video;
 
 use axum::{
     extract::{Request, State},
@@ -69,6 +70,7 @@ pub struct AppState {
     pub smtp_config: Option<crate::models::SmtpConfig>,
     pub vapid_public_key: Option<String>,
     pub hub_manager: Option<hub::HubManager>,
+    pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
 }
 
 #[derive(Debug)]
@@ -322,6 +324,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
         .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
         .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
+        // RTSP Video / Camera routes (admin-only, Enterprise-gated)
+        .route("/api/v1/cameras", get(video::list_cameras).post(video::create_camera))
+        .route("/api/v1/cameras/{id}", put(video::update_camera).delete(video::delete_camera))
+        .route("/api/v1/cameras/{id}/snapshot", post(video::trigger_snapshot))
+        .route("/api/v1/cameras/{id}/snapshots", get(video::list_snapshots))
+        .route("/api/v1/cameras/{id}/snapshots/{snapshot_id}", delete(video::delete_snapshot))
+        .route("/api/v1/cameras/{id}/stream", get(video::get_stream_info))
         .route("/api/v1/hub/sites", get(hub::list_sites).post(hub::create_site))
         .route("/api/v1/hub/sites/{id}", put(hub::update_site).delete(hub::delete_site))
         .route("/api/v1/hub/sites/{id}/start", post(hub::start_site_connection))
@@ -591,6 +600,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         create_router(state)
     }
@@ -771,6 +781,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -838,6 +849,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -932,6 +944,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -1004,6 +1017,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -1153,6 +1167,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -1316,6 +1331,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         create_router(state)
     }
