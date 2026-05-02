@@ -23,6 +23,8 @@ mod analytics;
 mod recipes;
 mod rbac;
 mod compliance;
+mod enip_devices;
+mod s7_devices;
 
 use axum::{
     extract::{Request, State},
@@ -180,6 +182,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/auth/me", get(auth::auth_me))
         .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
+        .route("/api/v1/auth/providers", get(auth::list_auth_providers))
+        .route("/api/v1/auth/saml/metadata", post(auth::saml_metadata))
+        .route("/api/v1/auth/saml/acs", post(auth::saml_acs))
+        .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
         .route("/api/license/status", get(license::get_license_status));
@@ -300,6 +306,22 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/opcua/devices/{id}/browse", post(opcua_devices::browse_device))
         .route("/api/v1/opcua/devices/{id}/start", post(opcua_devices::start_device))
         .route("/api/v1/opcua/devices/{id}/stop", post(opcua_devices::stop_device))
+        // EtherNet/IP (Allen-Bradley) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/enip/devices", get(enip_devices::list_devices).post(enip_devices::create_device))
+        .route("/api/v1/enip/devices/{id}", put(enip_devices::update_device).delete(enip_devices::delete_device))
+        .route("/api/v1/enip/devices/{id}/tags", get(enip_devices::list_tags).post(enip_devices::add_tag))
+        .route("/api/v1/enip/devices/{id}/tags/{tag_id}", delete(enip_devices::remove_tag))
+        .route("/api/v1/enip/devices/{id}/browse", post(enip_devices::browse_device))
+        .route("/api/v1/enip/devices/{id}/start", post(enip_devices::start_device))
+        .route("/api/v1/enip/devices/{id}/stop", post(enip_devices::stop_device))
+        // S7 (Siemens) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/s7/devices", get(s7_devices::list_devices).post(s7_devices::create_device))
+        .route("/api/v1/s7/devices/{id}", put(s7_devices::update_device).delete(s7_devices::delete_device))
+        .route("/api/v1/s7/devices/{id}/tags", get(s7_devices::list_tags).post(s7_devices::add_tag))
+        .route("/api/v1/s7/devices/{id}/tags/{tag_id}", delete(s7_devices::remove_tag))
+        .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
+        .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
+        .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
         .route("/api/v1/hub/sites", get(hub::list_sites).post(hub::create_site))
         .route("/api/v1/hub/sites/{id}", put(hub::update_site).delete(hub::delete_site))
         .route("/api/v1/hub/sites/{id}/start", post(hub::start_site_connection))
