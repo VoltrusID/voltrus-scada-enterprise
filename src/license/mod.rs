@@ -130,6 +130,12 @@ impl LicenseTier {
         matches!(self, LicenseTier::Enterprise)
     }
 
+    /// Siemens S7 protocol support.
+    /// Only available on Enterprise tier.
+    pub fn s7_protocol(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
     /// Returns all feature flags as a JSON object.
     pub fn to_feature_flags(&self) -> serde_json::Value {
         serde_json::json!({
@@ -155,6 +161,7 @@ impl LicenseTier {
             "sso_saml": self.sso_saml(),
             "cfr_part_11": self.cfr_part_11(),
             "ethernet_ip": self.ethernet_ip(),
+            "s7_protocol": self.s7_protocol(),
         })
     }
 }
@@ -432,6 +439,8 @@ mod tests {
         assert!(!trial.sso());
         assert!(!trial.sso_saml());
         assert!(!trial.cfr_part_11());
+        assert!(!trial.ethernet_ip());
+        assert!(!trial.s7_protocol());
 
         // Starter tier: many features enabled
         let starter = LicenseTier::Starter;
@@ -501,6 +510,8 @@ mod tests {
         assert!(ent.sso());
         assert!(ent.sso_saml());
         assert!(ent.cfr_part_11());
+        assert!(ent.ethernet_ip());
+        assert!(ent.s7_protocol());
     }
 
     #[test]
@@ -565,6 +576,14 @@ mod tests {
         assert!(!LicenseTier::Starter.ethernet_ip());
         assert!(!LicenseTier::Professional.ethernet_ip());
         assert!(LicenseTier::Enterprise.ethernet_ip());
+    }
+
+    #[test]
+    fn test_s7_protocol_enterprise_only() {
+        assert!(!LicenseTier::Trial.s7_protocol());
+        assert!(!LicenseTier::Starter.s7_protocol());
+        assert!(!LicenseTier::Professional.s7_protocol());
+        assert!(LicenseTier::Enterprise.s7_protocol());
     }
 
     #[test]
