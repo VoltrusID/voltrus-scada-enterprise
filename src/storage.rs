@@ -3343,6 +3343,36 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
+
+            // Look up device name and load all nodes to clean up data sources
+            let device_name: Option<String> = conn
+                .query_row(
+                    "SELECT name FROM opcua_devices WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            if let Some(device_name) = &device_name {
+                let mut stmt = conn
+                    .prepare("SELECT name FROM opcua_nodes WHERE device_id = ?1")
+                    .context("Prepare select opcua nodes failed")?;
+
+                let node_rows = stmt
+                    .query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
+                    .context("Query opcua nodes failed")?;
+
+                for node_row in node_rows {
+                    if let Ok(node_name) = node_row {
+                        let source_key = format!("{}:{}", device_name, node_name);
+                        let _ = conn.execute(
+                            "DELETE FROM data_sources WHERE key = ?1",
+                            rusqlite::params![source_key],
+                        );
+                    }
+                }
+            }
+
             conn.execute("DELETE FROM opcua_devices WHERE id = ?1", rusqlite::params![id])
                 .context("Delete opcua device failed")
         })
@@ -3354,6 +3384,7 @@ impl Storage {
     pub async fn create_opcua_node(
         &self,
         device_id: i64,
+        device_name: &str,
         node_id: &str,
         name: &str,
         display_name: &str,
@@ -3364,6 +3395,7 @@ impl Storage {
         let name = name.to_string();
         let display_name = display_name.to_string();
         let data_type = data_type.to_string();
+        let device_name = device_name.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
@@ -3373,6 +3405,21 @@ impl Storage {
                 rusqlite::params![device_id, node_id, name, display_name, data_type, now],
             )
             .context("Insert opcua node failed")?;
+
+            // Auto-create data source for this node
+            let source_key = format!("{}:{}", device_name, name);
+            let ds_name = if display_name.is_empty() {
+                name.clone()
+            } else {
+                display_name.clone()
+            };
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO data_sources (key, name, unit, color, min_val, max_val, warn_val, crit_val,
+                 base_val, sort_order, decimals, source_type, source_config, device_id, chart_type)
+                 VALUES (?1, ?2, '', '#f97316', 0, 0, 0, 0, 0, 0, 1, 'opcua', '{}', ?3, 'sparkline')",
+                rusqlite::params![source_key, ds_name, device_name],
+            );
+
             Ok(conn.last_insert_rowid())
         })
         .await
@@ -3416,6 +3463,26 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
+
+            // Look up node name and device name to delete corresponding data source
+            if let Ok((node_name, device_id)) = conn.query_row(
+                "SELECT name, device_id FROM opcua_nodes WHERE id = ?1",
+                rusqlite::params![id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            ) {
+                if let Ok(device_name) = conn.query_row(
+                    "SELECT name FROM opcua_devices WHERE id = ?1",
+                    rusqlite::params![device_id],
+                    |row| row.get::<_, String>(0),
+                ) {
+                    let source_key = format!("{}:{}", device_name, node_name);
+                    let _ = conn.execute(
+                        "DELETE FROM data_sources WHERE key = ?1",
+                        rusqlite::params![source_key],
+                    );
+                }
+            }
+
             conn.execute("DELETE FROM opcua_nodes WHERE id = ?1", rusqlite::params![id])
                 .context("Delete opcua node failed")
         })
