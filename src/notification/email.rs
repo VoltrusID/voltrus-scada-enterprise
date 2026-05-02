@@ -34,6 +34,7 @@ pub struct EmailNotifier {
     mailer: AsyncSmtpTransport<Tokio1Executor>,
     from_address: String,
     from_name: String,
+    smtp_config: SmtpConfig,
 }
 
 impl EmailNotifier {
@@ -75,7 +76,14 @@ impl EmailNotifier {
             mailer,
             from_address: config.from_address.clone(),
             from_name: config.from_name.clone(),
+            smtp_config: config.clone(),
         })
+    }
+
+    /// Returns a reference to the SMTP configuration.
+    /// Used by the SMS module to send via email-to-SMS gateways.
+    pub fn smtp_config(&self) -> &SmtpConfig {
+        &self.smtp_config
     }
 
     /// Send an alarm notification email to the given recipient.
