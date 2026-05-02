@@ -69,7 +69,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{devices.length} devices</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <input placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 200 }} />
-          <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowForm(true)}>+ Add Device</button>
+          <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowForm(true)} aria-label="Add modbus device">+ Add Device</button>
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
@@ -113,10 +113,10 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => handleEdit(d)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Edit</button>
-                    <button onClick={() => handleDup(d)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Dup</button>
-                    <button onClick={() => restartMut.mutate(d.id)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}>Restart</button>
-                    <button onClick={() => handleDelete(d.id)} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 11 }}>Del</button>
+                    <button onClick={() => handleEdit(d)} aria-label={`Edit ${d.name || d.id}`} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Edit</button>
+                    <button onClick={() => handleDup(d)} aria-label={`Duplicate ${d.name || d.id}`} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 11 }}>Dup</button>
+                    <button onClick={() => restartMut.mutate(d.id)} aria-label={`Restart ${d.name || d.id}`} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}>Restart</button>
+                    <button onClick={() => handleDelete(d.id)} aria-label={`Delete ${d.name || d.id}`} style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 11 }}>Del</button>
                   </div>
                 </td>
               </tr>
@@ -141,7 +141,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
       <div style={{ maxWidth: 1200, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={onClose} aria-label="Close modbus devices" style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
             </button>
             <h1 style={{ fontSize: 20, fontWeight: 700 }}>Modbus Devices</h1>

@@ -282,8 +282,8 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         </td>
         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }} onMouseDown={e => e.stopPropagation()}>
           <div style={{ display: 'flex', gap: 3 }}>
-            <button onClick={() => onDuplicate(s)} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>dup</button>
-            <button onClick={() => { if (confirm(`Delete ${s.name}?`)) onDelete(s.id); }} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 10 }}>del</button>
+            <button onClick={() => onDuplicate(s)} aria-label={`Duplicate ${s.name}`} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 10 }}>dup</button>
+            <button onClick={() => { if (confirm(`Delete ${s.name}?`)) onDelete(s.id); }} aria-label={`Delete ${s.name}`} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 10 }}>del</button>
           </div>
         </td>
       </tr>
@@ -337,7 +337,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{sensors.length} sources</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <input placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 200 }} />
-          <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={handleAdd}>+ Create Source</button>
+          <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={handleAdd} aria-label="Create new data source">+ Create Source</button>
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
@@ -410,7 +410,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 600 }}>Source Config</span>
-        <button onClick={saveConfig} style={{ padding: '3px 10px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}>Save</button>
+        <button onClick={saveConfig} aria-label="Save source config" style={{ padding: '3px 10px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}>Save</button>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <SourceConfigFields
@@ -431,7 +431,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={onClose} aria-label="Close data sources" style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
             </button>
             <h1 style={{ fontSize: 20, fontWeight: 700 }}>Data Sources</h1>

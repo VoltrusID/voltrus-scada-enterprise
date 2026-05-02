@@ -31,11 +31,25 @@ export const SensorCard = React.memo(function SensorCard({
   const ct = s.chart_type || 'sparkline';
   const hideStatus = ct === 'image' || ct === 'text';
 
+  const formattedValue = st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals);
+  const cardAriaLabel = `${s.name}: ${formattedValue} ${s.unit || ''}`;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick?.(e as unknown as React.MouseEvent);
+    }
+  };
+
   const sourceTag = useMemo(() => SOURCE_CATEGORY[s.source_type]?.tag ?? s.source_type, [s.source_type]);
   const sourceTagColor = useMemo(() => SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)', [s.source_type]);
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={cardAriaLabel}
+      onKeyDown={handleKeyDown}
       style={{
         background: 'var(--card)',
         border: `1px solid ${selected ? 'var(--cyan)' : editingId === s.id ? 'var(--cyan)' : 'var(--border)'}`,

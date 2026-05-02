@@ -364,6 +364,8 @@ function AppInner() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <a href="#main-content" className="skip-to-content">Skip to content</a>
+      <header role="banner">
       <AppHeader
         branding={branding} editMode={editMode}
         onBrandingClick={() => { if (editMode) setShowBrandingDialog(true) }}
@@ -386,8 +388,9 @@ function AppInner() {
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
         onExportClick={() => setShowExportPanel(true)}
       />
+      </header>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
@@ -482,7 +485,7 @@ function AppInner() {
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
         {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
-      </div>
+      </main>
 
       <Footer />
     </div>
