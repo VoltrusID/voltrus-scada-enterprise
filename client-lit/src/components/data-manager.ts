@@ -17,6 +17,11 @@ interface UserItem {
   id: number; username: string; role: string;
 }
 
+interface DiscoveredDevice {
+  ip: string; port: number; unit_id: number;
+  responsive_registers: { address: number; value: number; raw: number[] }[];
+}
+
 @customElement('vlt-data-manager')
 export class DataManager extends LitElement {
   static styles = css`
@@ -74,6 +79,11 @@ export class DataManager extends LitElement {
   @state() private _modbusDevices: ModbusDevice[] = [];
   @state() private _modbusFilter = '';
   @state() private _users: UserItem[] = [];
+  @state() private _scanRange = '192.168.1.0/24';
+  @state() private _scanPort = 502;
+  @state() private _scanning = false;
+  @state() private _scanResults: DiscoveredDevice[] = [];
+  @state() private _showScanResults = false;
   @state() private _userFilter = '';
 
   connectedCallback() {
@@ -147,6 +157,29 @@ export class DataManager extends LitElement {
     try { await fetchOk(`/api/v1/modbus-devices/${id}`, { method: 'DELETE' }); this._loadModbus(); } catch { /* ignore */ }
   }
 
+  private async _scanNetwork() {
+    if (this._scanning) return;
+    if (!this._scanRange.trim()) { alert('Enter a subnet range (e.g., 192.168.1.0/24)'); return; }
+    this._scanning = true;
+    this._scanResults = [];
+    this._showScanResults = true;
+    try {
+      const resp = await api<{ devices: DiscoveredDevice[]; count: number }>('/modbus-devices/scan-network', {
+        method: 'POST',
+        body: JSON.stringify({ range: this._scanRange, port: this._scanPort }),
+      });
+      this._scanResults = resp.devices;
+      if (resp.count === 0) {
+        this._scanResults = [];
+      }
+    } catch (e: any) {
+      alert('Scan failed: ' + (e.message || e));
+      this._showScanResults = false;
+    } finally {
+      this._scanning = false;
+    }
+  }
+
   private _close() {
     this.dispatchEvent(new CustomEvent('close'));
   }
@@ -198,8 +231,45 @@ export class DataManager extends LitElement {
     return html`
       <div class="toolbar">
         <span>${this._modbusDevices.length} devices</span>
-        <input placeholder="Search..." .value="${this._modbusFilter}" @input="${(e: InputEvent) => this._modbusFilter = (e.target as HTMLInputElement).value}" />
+        <div style="display:flex;gap:8px;align-items:center">
+          <input placeholder="Search..." .value="${this._modbusFilter}" @input="${(e: InputEvent) => this._modbusFilter = (e.target as HTMLInputElement).value}" />
+          <button class="add-btn" @click="${() => this._showScanResults = !this._showScanResults}">Scan Network</button>
+        </div>
       </div>
+      ${this._showScanResults ? html`
+        <div style="border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;background:var(--card)">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+            <input placeholder="Subnet (e.g., 192.168.1.0/24)" .value="${this._scanRange}" @input="${(e: InputEvent) => this._scanRange = (e.target as HTMLInputElement).value}" style="width:260px" />
+            <input type="number" placeholder="Port" .value="${String(this._scanPort)}" @input="${(e: InputEvent) => this._scanPort = parseInt((e.target as HTMLInputElement).value) || 502}" style="width:80px" />
+            <button class="add-btn" ?disabled="${this._scanning}" @click="${this._scanNetwork}">
+              ${this._scanning ? 'Scanning...' : 'Start Scan'}
+            </button>
+            <button style="padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--fg);cursor:pointer;font-family:inherit;font-size:13px" @click="${() => this._showScanResults = false}">Close</button>
+          </div>
+          ${this._scanResults.length > 0 ? html`
+            <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px">
+              <table>
+                <thead><tr><th>IP</th><th>Port</th><th>Unit ID</th><th>Registers</th><th>Value[0]</th></tr></thead>
+                <tbody>
+                  ${this._scanResults.map(d => html`
+                    <tr>
+                      <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${d.ip}</td>
+                      <td>${d.port}</td>
+                      <td>${d.unit_id}</td>
+                      <td>${d.responsive_registers.length}</td>
+                      <td>${d.responsive_registers.length > 0 ? d.responsive_registers[0].value.toFixed(1) : '—'}</td>
+                    </tr>
+                  `)}
+                </tbody>
+              </table>
+            </div>
+          ` : this._scanning ? html`
+            <div style="color:var(--muted);font-size:13px">Scanning network, this may take a moment...</div>
+          ` : this._showScanResults && !this._scanning ? html`
+            <div style="color:var(--muted);font-size:13px">No devices found. Check the subnet range and ensure devices are reachable.</div>
+          ` : ''}
+        </div>
+      ` : ''}
       <div class="table-wrap">
         <table>
           <thead><tr>
