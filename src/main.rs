@@ -21,6 +21,8 @@ mod opcua;
 mod hub;
 mod report;
 mod report_scheduler;
+mod analytics;
+mod recipe;
 
 use api::AppState;
 use base64::Engine;
