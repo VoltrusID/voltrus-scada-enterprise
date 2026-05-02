@@ -11,12 +11,13 @@ import { ReportManager } from './ReportManager';
 import { OeePanel } from './OeePanel';
 import { AnalyticsPanel } from './AnalyticsPanel';
 import { RecipeManager } from './RecipeManager';
+import { CameraManager } from './CameraManager';
 import { btnStyle } from './styles';
 import { useLicense } from './LicenseContext';
 import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'opcua' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes';
+type Tab = 'sources' | 'modbus' | 'opcua' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -37,6 +38,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   const isOeeDisabled = license?.feature_flags?.oee === false;
   const isAnalyticsDisabled = license?.feature_flags?.analytics === false;
   const isRecipesDisabled = license?.feature_flags?.recipes === false;
+  const isCamerasDisabled = license?.feature_flags?.rtsp_video === false;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -103,6 +105,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             <button style={tabBtn('oee')} onClick={() => setTab('oee')} aria-selected={tab === 'oee'}>OEE{isOeeDisabled && <FeatureBadge tier="Starter" />}</button>
             <button style={tabBtn('analytics')} onClick={() => setTab('analytics')} aria-selected={tab === 'analytics'}>Analytics{isAnalyticsDisabled && <FeatureBadge tier="Starter" />}</button>
             {isAdmin && <button style={tabBtn('recipes')} onClick={() => setTab('recipes')} aria-selected={tab === 'recipes'}>Recipes{isRecipesDisabled && <FeatureBadge tier="Professional" />}</button>}
+            {isAdmin && <button style={tabBtn('cameras')} onClick={() => setTab('cameras')} aria-selected={tab === 'cameras'}>Cameras{isCamerasDisabled && <FeatureBadge tier="Enterprise" />}</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -145,6 +148,9 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'recipes' && isAdmin && (
             <RecipeManager />
+          )}
+          {tab === 'cameras' && isAdmin && (
+            <CameraManager onClose={onClose} embedded />
           )}
         </div>
       </div>
