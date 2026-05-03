@@ -28,6 +28,7 @@ mod s7_devices;
 mod video;
 mod security;
 mod annotations;
+mod shift_handover;
 
 use axum::{
     extract::{Request, State},
@@ -363,6 +364,10 @@ pub fn create_router(state: AppState) -> Router {
         // Annotation routes (admin-only, Professional-gated)
         .route("/api/v1/annotations", get(annotations::list_annotations).post(annotations::create_annotation))
         .route("/api/v1/annotations/{id}", get(annotations::get_annotation).put(annotations::update_annotation).delete(annotations::delete_annotation))
+        // Shift Handover routes (admin-only, Professional-gated)
+        .route("/api/v1/shift-handover", get(shift_handover::list_shift_handovers).post(shift_handover::create_shift_handover))
+        .route("/api/v1/shift-handover/auto-report", get(shift_handover::auto_shift_report))
+        .route("/api/v1/shift-handover/{id}", get(shift_handover::get_shift_handover))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
