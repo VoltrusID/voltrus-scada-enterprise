@@ -8,6 +8,14 @@ use crate::models::*;
 use super::{AppError, AppState};
 
 /// GET /api/data-sources?screen=X — list data sources, optionally filtered by screen
+#[utoipa::path(
+    get,
+    path = "/api/v1/data-sources",
+    params(crate::models::DataQuery),
+    responses((status = 200, body = Vec<crate::models::DataSource>)),
+    tag = "Data Sources",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_data_sources(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -18,6 +26,13 @@ pub async fn list_data_sources(
 }
 
 /// POST /api/data-sources — create a new data source
+#[utoipa::path(
+    post,
+    path = "/api/v1/data-sources",
+    responses((status = 201, description = "Data source created")),
+    tag = "Data Sources",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_data_source(
     State(state): State<AppState>,
     Json(body): Json<serde_json::Value>,
@@ -73,6 +88,14 @@ pub async fn create_data_source(
 }
 
 /// PUT /api/data-sources/{id} — update data source fields dynamically
+#[utoipa::path(
+    put,
+    path = "/api/v1/data-sources/{id}",
+    params(("id" = i64, Path, description = "Data source ID")),
+    responses((status = 200, description = "Data source updated")),
+    tag = "Data Sources",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_data_source(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -83,6 +106,14 @@ pub async fn update_data_source(
 }
 
 /// DELETE /api/data-sources/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/data-sources/{id}",
+    params(("id" = i64, Path, description = "Data source ID")),
+    responses((status = 200, description = "Data source deleted")),
+    tag = "Data Sources",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_data_source(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -92,6 +123,13 @@ pub async fn delete_data_source(
 }
 
 /// PATCH /api/data-sources/reorder — accept {order: [id1, id2, ...]}
+#[utoipa::path(
+    patch,
+    path = "/api/v1/data-sources/reorder",
+    responses((status = 200, description = "Data sources reordered")),
+    tag = "Data Sources",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn reorder_data_sources(
     State(state): State<AppState>,
     Json(body): Json<serde_json::Value>,

@@ -3,17 +3,40 @@ use serde_json::json;
 use crate::api::{AppState, AppError, AuthUser};
 use crate::models::Flow;
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/flows",
+    responses((status = 200, description = "List all flows")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_flows(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
     let flows = state.storage.list_flows().await?;
     Ok(Json(json!({ "flows": flows })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/flows/{id}",
+    params(("id" = String, Path, description = "Flow ID")),
+    responses((status = 200, body = Flow)),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_flow(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<Flow>, AppError> {
     let flow = state.storage.get_flow(&id).await?
         .ok_or_else(|| anyhow::anyhow!("Flow not found"))?;
     Ok(Json(flow))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows",
+    request_body = Flow,
+    responses((status = 200, description = "Flow created")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Json(req): Json<Flow>) -> Result<Json<serde_json::Value>, AppError> {
     let id = req.id.clone();
     state.storage.create_flow(&req.id, &req.name, req.enabled, &req.trigger_config, &req.nodes).await?;
@@ -30,6 +53,15 @@ pub async fn create_flow(State(state): State<AppState>, Extension(auth): Extensi
     Ok(Json(json!({ "id": id })))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/flows/{id}",
+    params(("id" = String, Path, description = "Flow ID")),
+    request_body = Flow,
+    responses((status = 204, description = "Flow updated")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>, Json(req): Json<Flow>) -> Result<StatusCode, AppError> {
     state.storage.update_flow(&id, &req.name, req.enabled, &req.trigger_config, &req.nodes).await?;
     if let Some(engine) = &state.flow_engine {
@@ -45,6 +77,14 @@ pub async fn update_flow(State(state): State<AppState>, Extension(auth): Extensi
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/flows/{id}",
+    params(("id" = String, Path, description = "Flow ID")),
+    responses((status = 204, description = "Flow deleted")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
     state.storage.delete_flow(&id).await?;
     if let Some(engine) = &state.flow_engine {
@@ -59,6 +99,14 @@ pub async fn delete_flow(State(state): State<AppState>, Extension(auth): Extensi
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows/{id}/start",
+    params(("id" = String, Path, description = "Flow ID")),
+    responses((status = 204, description = "Flow started")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
     if let Some(engine) = &state.flow_engine {
         if let Some(mut flow) = engine.get_flow(&id).await {
@@ -75,6 +123,14 @@ pub async fn start_flow(State(state): State<AppState>, Extension(auth): Extensio
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows/{id}/stop",
+    params(("id" = String, Path, description = "Flow ID")),
+    responses((status = 204, description = "Flow stopped")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
     if let Some(engine) = &state.flow_engine {
         if let Some(mut flow) = engine.get_flow(&id).await {
@@ -85,6 +141,14 @@ pub async fn stop_flow(State(state): State<AppState>, Extension(auth): Extension
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows/{id}/test",
+    params(("id" = String, Path, description = "Flow ID")),
+    responses((status = 200, description = "Flow test results")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn test_flow(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -145,6 +209,14 @@ pub async fn test_flow(
     })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/flows/{id}/runs",
+    params(("id" = String, Path, description = "Flow ID")),
+    responses((status = 200, description = "Flow run history")),
+    tag = "Flows",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_flow_runs(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     let runs = state.storage.list_flow_runs(&id, 20).await?;
     Ok(Json(json!({ "runs": runs })))
