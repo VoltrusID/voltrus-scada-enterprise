@@ -11,6 +11,16 @@ use crate::models::*;
 // ── Device CRUD ──
 
 /// GET /api/v1/enip/devices
+#[utoipa::path(
+    get,
+    path = "/api/v1/enip/devices",
+    responses(
+        (status = 200, body = Vec<serde_json::Value>),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_devices(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -44,6 +54,18 @@ pub async fn list_devices(
 }
 
 /// POST /api/v1/enip/devices
+#[utoipa::path(
+    post,
+    path = "/api/v1/enip/devices",
+    request_body = CreateEnipDeviceRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -94,6 +116,20 @@ pub async fn create_device(
 }
 
 /// PUT /api/v1/enip/devices/{id}
+#[utoipa::path(
+    put,
+    path = "/api/v1/enip/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    request_body = UpdateEnipDeviceRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -133,6 +169,19 @@ pub async fn update_device(
 }
 
 /// DELETE /api/v1/enip/devices/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/enip/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -167,6 +216,19 @@ pub async fn delete_device(
 // ── Tag CRUD ──
 
 /// GET /api/v1/enip/devices/{id}/tags
+#[utoipa::path(
+    get,
+    path = "/api/v1/enip/devices/{id}/tags",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = Vec<EnipTag>),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_tags(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -187,6 +249,21 @@ pub async fn list_tags(
 }
 
 /// POST /api/v1/enip/devices/{id}/tags
+#[utoipa::path(
+    post,
+    path = "/api/v1/enip/devices/{id}/tags",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    request_body = CreateEnipTagRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn add_tag(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -251,6 +328,20 @@ pub async fn add_tag(
 }
 
 /// DELETE /api/v1/enip/devices/{id}/tags/{tag_id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/enip/devices/{id}/tags/{tag_id}",
+    params(
+        ("id" = i64, Path, description = "Device ID"),
+        ("tag_id" = i64, Path, description = "Tag ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn remove_tag(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -276,6 +367,20 @@ pub async fn remove_tag(
 /// POST /api/v1/enip/devices/{id}/browse
 ///
 /// Connects to the PLC and browses available tags using GetAttributeAll on Symbol class.
+#[utoipa::path(
+    post,
+    path = "/api/v1/enip/devices/{id}/browse",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+        (status = 500),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn browse_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -332,6 +437,20 @@ pub async fn browse_device(
 /// POST /api/v1/enip/devices/{id}/start
 ///
 /// Starts the EtherNet/IP poller for the device.
+#[utoipa::path(
+    post,
+    path = "/api/v1/enip/devices/{id}/start",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -399,6 +518,19 @@ pub async fn start_device(
 }
 
 /// POST /api/v1/enip/devices/{id}/stop
+#[utoipa::path(
+    post,
+    path = "/api/v1/enip/devices/{id}/stop",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
