@@ -74,6 +74,10 @@ impl Storage {
         &self.db_path
     }
 
+    pub fn asset(&self) -> crate::asset::storage::AssetStorage {
+        crate::asset::storage::AssetStorage::new(self.conn.clone())
+    }
+
     pub async fn insert_batch(&self, records: &[(String, i64, String, f64)]) -> Result<()> {
         if records.is_empty() {
             return Ok(());
@@ -4515,7 +4519,9 @@ fn init_schema(conn: &Connection) -> Result<()> {
         ('manufacturing','plc_digital_io','PLC Digital I/O','[{\"name_pattern\":\"DI{n}\",\"register_area\":\"discrete\",\"default_type\":\"bool\",\"unit\":\"\"},{\"name_pattern\":\"DO{n}\",\"register_area\":\"coil\",\"default_type\":\"bool\",\"unit\":\"\"}]','[]','{}', 0)"
     );
 
-        Ok(())
+    crate::asset::storage::AssetStorage::init_schema(conn)?;
+
+    Ok(())
 }
 
 // ── Modbus device management ──
