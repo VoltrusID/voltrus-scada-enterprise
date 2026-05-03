@@ -239,3 +239,11 @@ export {
 } from './annotations'
 
 export type { Annotation } from './annotations'
+
+export {
+  useShiftHandovers,
+  useCreateShiftHandover,
+  useShiftAutoReport,
+} from './shift_handover'
+
+export type { ShiftHandover, ShiftAutoReport } from './shift_handover'

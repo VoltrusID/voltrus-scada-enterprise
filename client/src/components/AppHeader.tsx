@@ -43,6 +43,7 @@ interface Props {
   onAlarmPanelToggle: () => void
   onExportClick: () => void
   onAnnotationPanelToggle: () => void
+  onShiftHandoverToggle: () => void
 }
 
 export function AppHeader({
@@ -54,7 +55,7 @@ export function AppHeader({
   historyRange, onHistoryRangeChange, historyDetail, onHistoryDetailChange, historyAutoAgg,
   turbo, onToggleTurbo,
   onSettingsClick, onDataManagerClick, onFlowsClick, isAdmin,
-  onLogout, onAlarmPanelToggle, onExportClick, onAnnotationPanelToggle,
+  onLogout, onAlarmPanelToggle, onExportClick, onAnnotationPanelToggle, onShiftHandoverToggle,
 }: Props) {
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -112,6 +113,13 @@ export function AppHeader({
           }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
             <span>Notes</span>
+          </button>
+          {/* Shift Handover button */}
+          <button onClick={onShiftHandoverToggle} aria-label="Shift Handover" style={{
+            ...btnStyle, position: 'relative',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            <span>Shift</span>
           </button>
           {/* View mode toggle */}
           <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
@@ -260,6 +268,10 @@ export function AppHeader({
             <button style={drawerItemStyle} onClick={() => { closeDrawer(); onAnnotationPanelToggle(); }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
               Annotations
+            </button>
+            <button style={drawerItemStyle} onClick={() => { closeDrawer(); onShiftHandoverToggle(); }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Shift Handover
             </button>
             {isAdmin && (
               <button style={drawerItemStyle} onClick={() => { closeDrawer(); onFlowsClick(); }}>
