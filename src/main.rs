@@ -670,7 +670,8 @@ EXAMPLES:
     }
 
     // Load device configs from DB and start pollers (only with valid license)
-    let poller_manager = PollerManager::new(cache.clone());
+    let modbus_pool = std::sync::Arc::new(modbus::ModbusPool::new());
+    let poller_manager = PollerManager::new(cache.clone(), modbus_pool);
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
         let device_limit = license_tier.max_devices();
