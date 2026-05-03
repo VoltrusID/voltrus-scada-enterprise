@@ -287,3 +287,34 @@ export interface NotificationSetting {
   enabled: boolean
   created_at: number
 }
+
+// WebSocket message types
+export interface WsTagUpdate {
+  tag_id: string
+  value: number
+  quality: string
+  ts: number
+  simulated: boolean
+}
+
+export interface WsCommandAck {
+  command_id: string
+  status: string
+  device_response?: string
+  latency_ms?: number
+}
+
+export interface WsDeviceStatus {
+  device_id: string
+  online: boolean
+  latency_ms?: number
+}
+
+export interface WsAlarmEvent {
+  alarm_id: number
+  tag_id: string
+  severity: string
+  message: string
+  value: number
+  ts: number
+}
