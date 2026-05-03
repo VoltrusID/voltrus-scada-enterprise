@@ -5,6 +5,7 @@ import { TvDetailChart, OverlaySeries } from './TvDetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
 import { useDetailData, useSensorCurrentValue, useDashboardSelector } from './store/dashboardStore';
 import { WriteDialog } from './components/WriteDialog';
+import { WritePolicyEditor } from './components/WritePolicyEditor';
 import type { WritePolicy } from './api/commands';
 
 export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, historyDetail, onDetailChange, historyAutoAgg, shortcuts, mode, onModeChange, allSensors, isAdmin }: {
@@ -30,6 +31,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
   const pickerRef = useRef<HTMLDivElement>(null);
   const [showWriteDialog, setShowWriteDialog] = useState(false);
   const [writePolicy, setWritePolicy] = useState<WritePolicy | null>(null);
+  const [showPolicyEditor, setShowPolicyEditor] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onBack(); };
@@ -106,6 +108,16 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
               Write
             </button>
           )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowPolicyEditor(prev => !prev)}
+              style={{ ...btnStyle, padding: '3px 8px', fontSize: 11, borderColor: showPolicyEditor ? 'var(--warn)' : 'var(--border)', color: showPolicyEditor ? 'var(--warn)' : 'var(--muted)' }}
+              aria-label="Toggle write policy editor"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              Policy
+            </button>
+          )}
         </div>
       </div>
 
@@ -180,6 +192,20 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
           <TvDetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} />
         </div>
       </div>
+
+      {/* Write Policy Editor */}
+      {showPolicyEditor && isAdmin && (
+        <div style={{ flexShrink: 0, maxHeight: 340, overflow: 'auto' }}>
+          <WritePolicyEditor
+            tagId={sensor.id}
+            currentPolicy={writePolicy ?? undefined}
+            isAdmin={!!isAdmin}
+            onSave={() => {
+              // Refresh policy from server if needed; for now keep local state
+            }}
+          />
+        </div>
+      )}
 
       {/* Write dialog */}
       {showWriteDialog && (
