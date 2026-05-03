@@ -80,6 +80,23 @@ impl DeviceCache {
             .collect()
     }
 
+    pub async fn is_device_online(&self, device_id: &str) -> bool {
+        let devices = self.devices.read().await;
+        devices
+            .get(device_id)
+            .map_or(false, |s| s.status == DeviceStatus::Online)
+    }
+
+    pub async fn get_metric_value(&self, key: &str) -> Option<f64> {
+        let devices = self.devices.read().await;
+        for snapshot in devices.values() {
+            if let Some(v) = snapshot.metrics.get(key) {
+                return Some(*v);
+            }
+        }
+        None
+    }
+
     pub fn publish_sse_payload(&self, payload: String) {
         let _ = self.tx.send(payload);
     }

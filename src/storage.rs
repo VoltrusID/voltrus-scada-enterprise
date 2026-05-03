@@ -22,6 +22,7 @@ use crate::models::{
     ShiftHandover, CreateShiftHandoverRequest,
     UserNotification, CreateNotificationRequest,
     AlarmAuditEntry, AlarmSummary, AlarmAnalyticsEntry,
+    Command, CommandAuditEntry, WritePolicy, WritePolicyUpdate, CommandQuery,
 };
 
 #[derive(Clone)]
@@ -1009,6 +1010,48 @@ impl Storage {
                 .query_row("SELECT MAX(sort_order) FROM data_sources", [], |row| row.get(0))
                 .ok();
             Ok(max.unwrap_or(-1))
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_data_source_by_id(&self, id: i64) -> Result<Option<DataSource>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, key, name, unit, color, min_val, max_val,
+                        warn_val, crit_val, base_val, sort_order, decimals,
+                        source_type, source_config, device_id, equipment_id, chart_type
+                 FROM data_sources WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(DataSource {
+                        id: row.get(0)?,
+                        key: row.get(1)?,
+                        name: row.get(2)?,
+                        unit: row.get(3)?,
+                        color: row.get(4)?,
+                        min_val: row.get(5)?,
+                        max_val: row.get(6)?,
+                        warn_val: row.get(7)?,
+                        crit_val: row.get(8)?,
+                        base_val: row.get(9)?,
+                        sort_order: row.get(10)?,
+                        decimals: row.get(11)?,
+                        source_type: row.get(12)?,
+                        source_config: row.get(13)?,
+                        device_id: row.get(14)?,
+                        equipment_id: row.get(15)?,
+                        chart_type: row.get(16)?,
+                    })
+                },
+            );
+            match result {
+                Ok(ds) => Ok(Some(ds)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get data source by id failed"),
+            }
         })
         .await
         .context("Task join failed")?
@@ -4304,6 +4347,51 @@ fn init_schema(conn: &Connection) -> Result<()> {
          PRAGMA temp_store=MEMORY;"
     ).ok(); // Don't fail on pragma errors
 
+    // Migration: v0.24.0 — Command & Control tables
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS commands (
+            id TEXT PRIMARY KEY,
+            data_source_id INTEGER NOT NULL,
+            device_id INTEGER NOT NULL,
+            protocol TEXT NOT NULL,
+            value TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            policy TEXT NOT NULL DEFAULT 'immediate',
+            scheduled_at INTEGER,
+            retry_count INTEGER NOT NULL DEFAULT 0,
+            max_retries INTEGER NOT NULL DEFAULT 3,
+            error_message TEXT,
+            created_at INTEGER NOT NULL,
+            sent_at INTEGER,
+            acked_at INTEGER,
+            resolved_at INTEGER,
+            created_by TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_commands_status ON commands(status);
+        CREATE INDEX IF NOT EXISTS idx_commands_data_source ON commands(data_source_id);
+        CREATE INDEX IF NOT EXISTS idx_commands_device ON commands(device_id);
+        CREATE INDEX IF NOT EXISTS idx_commands_created ON commands(created_at);
+
+        CREATE TABLE IF NOT EXISTS command_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            command_id TEXT NOT NULL REFERENCES commands(id) ON DELETE CASCADE,
+            old_status TEXT NOT NULL,
+            new_status TEXT NOT NULL,
+            changed_by TEXT NOT NULL,
+            reason TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_command_audit_command ON command_audit_log(command_id);"
+    );
+
+    // Migration: v0.24.0 — Write policy columns on data_sources
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN writable INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_min REAL");
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_max REAL");
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_max_rate INTEGER");
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_requires_reason INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_deadband REAL");
+
         Ok(())
 }
 
@@ -4621,6 +4709,40 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    pub async fn get_opcua_device(&self, id: i64) -> Result<Option<OpcUaDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, url, security_policy, security_mode, username, password, interval_ms, enabled, created_at FROM opcua_devices WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    let policy_str: String = row.get(3)?;
+                    let mode_str: String = row.get(4)?;
+                    Ok(OpcUaDevice {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        url: row.get(2)?,
+                        security_policy: serde_json::from_str(&policy_str).unwrap_or(OpcUaSecurityPolicy::None),
+                        security_mode: serde_json::from_str(&mode_str).unwrap_or(OpcUaSecurityMode::None),
+                        username: row.get(5)?,
+                        password: row.get(6)?,
+                        interval_ms: row.get(7)?,
+                        enabled: row.get::<_, i64>(8)? != 0,
+                        created_at: row.get(9)?,
+                    })
+                },
+            );
+            match result {
+                Ok(device) => Ok(Some(device)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get opcua device failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn list_opcua_devices(&self) -> Result<Vec<OpcUaDevice>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
@@ -4921,6 +5043,35 @@ impl Storage {
             )
             .context("Insert enip device failed")?;
             Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_enip_device(&self, id: i64) -> Result<Option<EnipDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, url, slot, interval_ms, enabled, created_at FROM enip_devices WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(EnipDevice {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        url: row.get(2)?,
+                        slot: row.get(3)?,
+                        interval_ms: row.get(4)?,
+                        enabled: row.get::<_, i64>(5)? != 0,
+                        created_at: row.get(6)?,
+                    })
+                },
+            );
+            match result {
+                Ok(device) => Ok(Some(device)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get enip device failed"),
+            }
         })
         .await
         .context("Task join failed")?
@@ -7691,6 +7842,535 @@ impl Storage {
     }
 }
 
+// ── Command & Control methods (v0.24.0) ──
+
+impl Storage {
+    pub async fn insert_command(&self, cmd: &Command) -> Result<()> {
+        let conn = self.conn.clone();
+        let cmd = cmd.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO commands (id, data_source_id, device_id, protocol, value, status, policy,
+                     scheduled_at, retry_count, max_retries, error_message, created_at, sent_at, acked_at,
+                     resolved_at, created_by)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                rusqlite::params![
+                    cmd.id, cmd.data_source_id, cmd.device_id, cmd.protocol, cmd.value,
+                    cmd.status, cmd.policy, cmd.scheduled_at, cmd.retry_count, cmd.max_retries,
+                    cmd.error_message, cmd.created_at, cmd.sent_at, cmd.acked_at, cmd.resolved_at,
+                    cmd.created_by,
+                ],
+            )
+            .context("Insert command failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_command_status(
+        &self,
+        command_id: &str,
+        new_status: &str,
+        error_message: Option<&str>,
+        changed_by: &str,
+        reason: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let command_id = command_id.to_string();
+        let new_status = new_status.to_string();
+        let error_message = error_message.map(|s| s.to_string());
+        let changed_by = changed_by.to_string();
+        let reason = reason.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            let now = crate::timeutil::now_secs();
+
+            // Fetch current status for audit log
+            let old_status: String = tx
+                .query_row(
+                    "SELECT status FROM commands WHERE id = ?",
+                    rusqlite::params![command_id],
+                    |row| row.get(0),
+                )
+                .context("Command not found")?;
+
+            // Build SQL and params based on new status (using unnumbered ? placeholders
+            // bound positionally by rusqlite to avoid off-by-one errors).
+            match new_status.as_str() {
+                "sent" => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, sent_at = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, now, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
+                "acked" => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, acked_at = ?, resolved_at = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, now, now, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
+                "failed" | "expired" | "cancelled" => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, resolved_at = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, now, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
+                "queued" => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, retry_count = retry_count + 1, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
+                _ => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
+            }
+
+            // Insert audit log entry
+            tx.execute(
+                "INSERT INTO command_audit_log (command_id, old_status, new_status, changed_by, reason, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)",
+                rusqlite::params![command_id, old_status, new_status, changed_by, reason, now],
+            )
+            .context("Insert command audit log failed")?;
+
+            tx.commit().context("Commit failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_command(&self, command_id: &str) -> Result<Option<Command>> {
+        let conn = self.conn.clone();
+        let command_id = command_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, data_source_id, device_id, protocol, value, status, policy,
+                        scheduled_at, retry_count, max_retries, error_message, created_at,
+                        sent_at, acked_at, resolved_at, created_by
+                 FROM commands WHERE id = ?1",
+                rusqlite::params![command_id],
+                |row| {
+                    Ok(Command {
+                        id: row.get(0)?,
+                        data_source_id: row.get(1)?,
+                        device_id: row.get(2)?,
+                        protocol: row.get(3)?,
+                        value: row.get(4)?,
+                        status: row.get(5)?,
+                        policy: row.get(6)?,
+                        scheduled_at: row.get(7)?,
+                        retry_count: row.get(8)?,
+                        max_retries: row.get(9)?,
+                        error_message: row.get(10)?,
+                        created_at: row.get(11)?,
+                        sent_at: row.get(12)?,
+                        acked_at: row.get(13)?,
+                        resolved_at: row.get(14)?,
+                        created_by: row.get(15)?,
+                    })
+                },
+            );
+            match result {
+                Ok(cmd) => Ok(Some(cmd)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get command failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_commands(&self, query: &CommandQuery) -> Result<Vec<Command>> {
+        let conn = self.conn.clone();
+        let tag = query.tag.clone();
+        let status = query.status.clone();
+        let device = query.device.clone();
+        let from = query.from;
+        let to = query.to;
+        let limit = query.limit.unwrap_or(50);
+        let offset = query.offset.unwrap_or(0);
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut sql = String::from(
+                "SELECT id, data_source_id, device_id, protocol, value, status, policy,
+                        scheduled_at, retry_count, max_retries, error_message, created_at,
+                        sent_at, acked_at, resolved_at, created_by
+                 FROM commands WHERE 1=1",
+            );
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(ref s) = status {
+                sql.push_str(" AND status = ?");
+                params.push(Box::new(s.clone()));
+            }
+            if let Some(ref d) = device {
+                // device_id is INTEGER in commands; the query param is a device identifier string
+                if let Ok(id) = d.parse::<i64>() {
+                    sql.push_str(" AND device_id = ?");
+                    params.push(Box::new(id));
+                } else {
+                    // Non-numeric device id; no match possible
+                    sql.push_str(" AND 0=1");
+                }
+            }
+            if let Some(f) = from {
+                sql.push_str(" AND created_at >= ?");
+                params.push(Box::new(f));
+            }
+            if let Some(t) = to {
+                sql.push_str(" AND created_at <= ?");
+                params.push(Box::new(t));
+            }
+            if let Some(ref t) = tag {
+                // tag matches data_source_id via key lookup
+                sql.push_str(" AND data_source_id IN (SELECT id FROM data_sources WHERE key = ?)");
+                params.push(Box::new(t.clone()));
+            }
+
+            sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+            params.push(Box::new(limit));
+            params.push(Box::new(offset));
+
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let mut stmt = conn.prepare(&sql).context("Prepare list_commands failed")?;
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok(Command {
+                        id: row.get(0)?,
+                        data_source_id: row.get(1)?,
+                        device_id: row.get(2)?,
+                        protocol: row.get(3)?,
+                        value: row.get(4)?,
+                        status: row.get(5)?,
+                        policy: row.get(6)?,
+                        scheduled_at: row.get(7)?,
+                        retry_count: row.get(8)?,
+                        max_retries: row.get(9)?,
+                        error_message: row.get(10)?,
+                        created_at: row.get(11)?,
+                        sent_at: row.get(12)?,
+                        acked_at: row.get(13)?,
+                        resolved_at: row.get(14)?,
+                        created_by: row.get(15)?,
+                    })
+                })
+                .context("Query list_commands failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_queued_commands(&self) -> Result<Vec<Command>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, data_source_id, device_id, protocol, value, status, policy,
+                        scheduled_at, retry_count, max_retries, error_message, created_at,
+                        sent_at, acked_at, resolved_at, created_by
+                 FROM commands
+                 WHERE status IN ('queued', 'pending')
+                 ORDER BY created_at ASC",
+            ).context("Prepare get_queued_commands failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(Command {
+                    id: row.get(0)?,
+                    data_source_id: row.get(1)?,
+                    device_id: row.get(2)?,
+                    protocol: row.get(3)?,
+                    value: row.get(4)?,
+                    status: row.get(5)?,
+                    policy: row.get(6)?,
+                    scheduled_at: row.get(7)?,
+                    retry_count: row.get(8)?,
+                    max_retries: row.get(9)?,
+                    error_message: row.get(10)?,
+                    created_at: row.get(11)?,
+                    sent_at: row.get(12)?,
+                    acked_at: row.get(13)?,
+                    resolved_at: row.get(14)?,
+                    created_by: row.get(15)?,
+                })
+            }).context("Query get_queued_commands failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_command_audit(&self, command_id: &str) -> Result<Vec<CommandAuditEntry>> {
+        let conn = self.conn.clone();
+        let command_id = command_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, command_id, old_status, new_status, changed_by, reason, created_at
+                 FROM command_audit_log
+                 WHERE command_id = ?1
+                 ORDER BY created_at ASC",
+            ).context("Prepare get_command_audit failed")?;
+            let rows = stmt.query_map(rusqlite::params![command_id], |row| {
+                Ok(CommandAuditEntry {
+                    id: row.get(0)?,
+                    command_id: row.get(1)?,
+                    old_status: row.get(2)?,
+                    new_status: row.get(3)?,
+                    changed_by: row.get(4)?,
+                    reason: row.get(5)?,
+                    created_at: row.get(6)?,
+                })
+            }).context("Query get_command_audit failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_write_policy(&self, data_source_id: i64) -> Result<Option<WritePolicy>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT writable, write_min, write_max, write_max_rate, write_requires_reason, write_deadband
+                 FROM data_sources WHERE id = ?1",
+                rusqlite::params![data_source_id],
+                |row| {
+                    let writable: i64 = row.get(0)?;
+                    let write_requires_reason: i64 = row.get(4)?;
+                    Ok(WritePolicy {
+                        writable: writable != 0,
+                        write_min: row.get(1)?,
+                        write_max: row.get(2)?,
+                        write_max_rate: row.get(3)?,
+                        write_requires_reason: write_requires_reason != 0,
+                        write_deadband: row.get(5)?,
+                    })
+                },
+            );
+            match result {
+                Ok(policy) => Ok(Some(policy)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get write policy failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_write_policy(&self, data_source_id: i64, update: &WritePolicyUpdate) -> Result<()> {
+        let conn = self.conn.clone();
+        let writable = update.writable;
+        let write_min = update.write_min.clone();
+        let write_max = update.write_max.clone();
+        let write_max_rate = update.write_max_rate.clone();
+        let write_requires_reason = update.write_requires_reason;
+        let write_deadband = update.write_deadband.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut sets: Vec<String> = Vec::new();
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(v) = writable {
+                sets.push(format!("writable = ?{}", sets.len() + 1));
+                params.push(Box::new(v as i64));
+            }
+            if let Some(ref v) = write_min {
+                sets.push(format!("write_min = ?{}", sets.len() + 1));
+                params.push(Box::new(*v));
+            }
+            if let Some(ref v) = write_max {
+                sets.push(format!("write_max = ?{}", sets.len() + 1));
+                params.push(Box::new(*v));
+            }
+            if let Some(ref v) = write_max_rate {
+                sets.push(format!("write_max_rate = ?{}", sets.len() + 1));
+                params.push(Box::new(*v));
+            }
+            if let Some(v) = write_requires_reason {
+                sets.push(format!("write_requires_reason = ?{}", sets.len() + 1));
+                params.push(Box::new(v as i64));
+            }
+            if let Some(ref v) = write_deadband {
+                sets.push(format!("write_deadband = ?{}", sets.len() + 1));
+                params.push(Box::new(*v));
+            }
+
+            if sets.is_empty() {
+                return Ok(());
+            }
+
+            let sql = format!(
+                "UPDATE data_sources SET {} WHERE id = ?{}",
+                sets.join(", "),
+                sets.len() + 1,
+            );
+            params.push(Box::new(data_source_id));
+
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            conn.execute(&sql, param_refs.as_slice())
+                .context("Update write policy failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn count_recent_writes(&self, data_source_id: i64, window_secs: i64) -> Result<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            let cutoff = now - window_secs;
+            // NOTE: We count by created_at (when the command was queued) rather than
+            // sent_at (when it was actually sent). This means commands still sitting in
+            // "pending"/"queued" also count against the rate limit. The trade-off is that
+            // a burst of queued commands won't slip past the limit — the user gets rate-
+            // limited at submission time. If we used sent_at only, a flood of pending
+            // commands could all be dispatched once the processor catches up.
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM commands WHERE data_source_id = ? AND created_at >= ?",
+                    rusqlite::params![data_source_id, cutoff],
+                    |row| row.get(0),
+                )
+                .context("Count recent writes failed")?;
+            Ok(count)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_data_source_device_id(&self, data_source_id: i64) -> Result<Option<(i64, String)>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            // data_sources has device_id TEXT and source_type TEXT.
+            // For modbus, device_id is a string id. For opcua/s7/enip, it's a stringified integer.
+            // We parse device_id as i64 and return source_type as protocol.
+            let result = conn.query_row(
+                "SELECT device_id, source_type FROM data_sources WHERE id = ?1",
+                rusqlite::params![data_source_id],
+                |row| {
+                    let device_id_str: String = row.get(0)?;
+                    let protocol: String = row.get(1)?;
+                    Ok((device_id_str, protocol))
+                },
+            );
+            match result {
+                Ok((device_id_str, protocol)) => {
+                    match device_id_str.parse::<i64>() {
+                        Ok(id) => Ok(Some((id, protocol))),
+                        Err(_) => {
+                            // device_id is non-numeric (e.g., modbus text id).
+                            // Try to look up integer id from modbus_devices table.
+                            let modbus_id: i64 = conn
+                                .query_row(
+                                    "SELECT COUNT(*) FROM modbus_devices WHERE id = ?1",
+                                    rusqlite::params![device_id_str],
+                                    |row| row.get::<_, i64>(0),
+                                )
+                                .unwrap_or(0);
+                            if modbus_id > 0 {
+                                // Modbus device exists but has text id; return 0 as device_id marker
+                                // The caller will need to handle modbus text IDs separately
+                                Ok(Some((0i64, protocol)))
+                            } else {
+                                Ok(None)
+                            }
+                        }
+                    }
+                }
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get data source device id failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Find a data source by device_id and key. Returns the data source ID if found.
+    pub async fn find_data_source_by_device_and_key(&self, device_id: &str, key: &str) -> Result<Option<DataSource>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, key, name, unit, color, min_val, max_val, warn_val, crit_val, base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id, chart_type FROM data_sources WHERE device_id = ?1 AND key = ?2",
+                rusqlite::params![device_id, key],
+                |row| {
+                    Ok(DataSource {
+                        id: row.get(0)?,
+                        key: row.get(1)?,
+                        name: row.get(2)?,
+                        unit: row.get(3)?,
+                        color: row.get(4)?,
+                        min_val: row.get(5)?,
+                        max_val: row.get(6)?,
+                        warn_val: row.get(7)?,
+                        crit_val: row.get(8)?,
+                        base_val: row.get(9)?,
+                        sort_order: row.get(10)?,
+                        decimals: row.get(11)?,
+                        source_type: row.get(12)?,
+                        source_config: row.get(13)?,
+                        device_id: row.get(14)?,
+                        equipment_id: row.get(15)?,
+                        chart_type: row.get(16)?,
+                    })
+                },
+            );
+            match result {
+                Ok(ds) => Ok(Some(ds)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Find data source by device and key failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Get the key of a data source by its ID. Returns None if not found.
+    pub async fn get_data_source_key(&self, data_source_id: i64) -> Result<Option<String>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT key FROM data_sources WHERE id = ?1",
+                rusqlite::params![data_source_id],
+                |row| row.get::<_, String>(0),
+            );
+            match result {
+                Ok(key) => Ok(Some(key)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get data source key failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -8231,5 +8911,241 @@ mod tests {
         storage.delete_shift(id).await.unwrap();
         let shifts = storage.list_shifts().await.unwrap();
         assert_eq!(shifts.len(), 0);
+    }
+
+    // ── Command & Control integration tests (v0.24.0) ──
+
+    #[tokio::test]
+    async fn test_command_crud_lifecycle() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Insert
+        let cmd = Command {
+            id: "cmd_test1".to_string(),
+            data_source_id: 1,
+            device_id: 1,
+            protocol: "modbus".to_string(),
+            value: "100.5".to_string(),
+            status: "pending".to_string(),
+            policy: "immediate".to_string(),
+            scheduled_at: None,
+            retry_count: 0,
+            max_retries: 3,
+            error_message: None,
+            created_at: 1000,
+            sent_at: None,
+            acked_at: None,
+            resolved_at: None,
+            created_by: "test_user".to_string(),
+        };
+        storage.insert_command(&cmd).await.unwrap();
+
+        // Get
+        let fetched = storage.get_command("cmd_test1").await.unwrap().unwrap();
+        assert_eq!(fetched.status, "pending");
+        assert_eq!(fetched.value, "100.5");
+        assert_eq!(fetched.created_by, "test_user");
+
+        // Update to acked
+        storage
+            .update_command_status("cmd_test1", "acked", None, "system", None)
+            .await
+            .unwrap();
+        let fetched = storage.get_command("cmd_test1").await.unwrap().unwrap();
+        assert_eq!(fetched.status, "acked");
+        assert!(fetched.acked_at.is_some());
+        assert!(fetched.resolved_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_command_audit_trail() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        let cmd = Command {
+            id: "cmd_audit1".to_string(),
+            data_source_id: 1,
+            device_id: 1,
+            protocol: "modbus".to_string(),
+            value: "50".to_string(),
+            status: "pending".to_string(),
+            policy: "immediate".to_string(),
+            scheduled_at: None,
+            retry_count: 0,
+            max_retries: 3,
+            error_message: None,
+            created_at: 1000,
+            sent_at: None,
+            acked_at: None,
+            resolved_at: None,
+            created_by: "test_user".to_string(),
+        };
+        storage.insert_command(&cmd).await.unwrap();
+
+        storage
+            .update_command_status("cmd_audit1", "queued", Some("device offline"), "system", Some("retry"))
+            .await
+            .unwrap();
+        storage
+            .update_command_status("cmd_audit1", "acked", None, "system", None)
+            .await
+            .unwrap();
+
+        let audit = storage.get_command_audit("cmd_audit1").await.unwrap();
+        assert_eq!(audit.len(), 2);
+        assert_eq!(audit[0].old_status, "pending");
+        assert_eq!(audit[0].new_status, "queued");
+        assert_eq!(audit[1].old_status, "queued");
+        assert_eq!(audit[1].new_status, "acked");
+    }
+
+    #[tokio::test]
+    async fn test_count_recent_writes() {
+        let storage = Storage::new_in_memory().unwrap();
+        let now = crate::timeutil::now_secs();
+
+        for i in 0..5 {
+            let cmd = Command {
+                id: format!("cmd_rate{}", i),
+                data_source_id: 42,
+                device_id: 1,
+                protocol: "modbus".to_string(),
+                value: "10".to_string(),
+                status: "acked".to_string(),
+                policy: "immediate".to_string(),
+                scheduled_at: None,
+                retry_count: 0,
+                max_retries: 3,
+                error_message: None,
+                created_at: now,
+                sent_at: None,
+                acked_at: None,
+                resolved_at: None,
+                created_by: "test".to_string(),
+            };
+            storage.insert_command(&cmd).await.unwrap();
+        }
+
+        let count = storage.count_recent_writes(42, 60).await.unwrap();
+        assert_eq!(count, 5);
+
+        // Different data source should be 0
+        let count2 = storage.count_recent_writes(99, 60).await.unwrap();
+        assert_eq!(count2, 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_commands_with_filters() {
+        let storage = Storage::new_in_memory().unwrap();
+        let now = crate::timeutil::now_secs();
+
+        // Insert commands with different statuses
+        for i in 0..3 {
+            let cmd = Command {
+                id: format!("cmd_list_acked_{}", i),
+                data_source_id: 1,
+                device_id: 1,
+                protocol: "modbus".to_string(),
+                value: "10".to_string(),
+                status: "acked".to_string(),
+                policy: "immediate".to_string(),
+                scheduled_at: None,
+                retry_count: 0,
+                max_retries: 3,
+                error_message: None,
+                created_at: now,
+                sent_at: None,
+                acked_at: None,
+                resolved_at: None,
+                created_by: "test".to_string(),
+            };
+            storage.insert_command(&cmd).await.unwrap();
+        }
+
+        let failed_cmd = Command {
+            id: "cmd_list_failed".to_string(),
+            data_source_id: 2,
+            device_id: 2,
+            protocol: "modbus".to_string(),
+            value: "20".to_string(),
+            status: "failed".to_string(),
+            policy: "immediate".to_string(),
+            scheduled_at: None,
+            retry_count: 3,
+            max_retries: 3,
+            error_message: Some("timeout".to_string()),
+            created_at: now,
+            sent_at: None,
+            acked_at: None,
+            resolved_at: None,
+            created_by: "test".to_string(),
+        };
+        storage.insert_command(&failed_cmd).await.unwrap();
+
+        // Filter by status
+        let query = CommandQuery {
+            status: Some("acked".to_string()),
+            ..Default::default()
+        };
+        let results = storage.list_commands(&query).await.unwrap();
+        assert_eq!(results.len(), 3);
+
+        // Filter by device
+        let query2 = CommandQuery {
+            device: Some("2".to_string()),
+            ..Default::default()
+        };
+        let results2 = storage.list_commands(&query2).await.unwrap();
+        assert_eq!(results2.len(), 1);
+        assert_eq!(results2[0].status, "failed");
+    }
+
+    #[tokio::test]
+    async fn test_get_queued_commands() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Insert a pending command
+        let cmd = Command {
+            id: "cmd_q1".to_string(),
+            data_source_id: 1,
+            device_id: 1,
+            protocol: "modbus".to_string(),
+            value: "10".to_string(),
+            status: "pending".to_string(),
+            policy: "immediate".to_string(),
+            scheduled_at: None,
+            retry_count: 0,
+            max_retries: 3,
+            error_message: None,
+            created_at: 1000,
+            sent_at: None,
+            acked_at: None,
+            resolved_at: None,
+            created_by: "test".to_string(),
+        };
+        storage.insert_command(&cmd).await.unwrap();
+
+        // Insert a queued command
+        let cmd2 = Command {
+            id: "cmd_q2".to_string(),
+            data_source_id: 1,
+            device_id: 1,
+            protocol: "modbus".to_string(),
+            value: "20".to_string(),
+            status: "queued".to_string(),
+            policy: "immediate".to_string(),
+            scheduled_at: None,
+            retry_count: 1,
+            max_retries: 3,
+            error_message: None,
+            created_at: 2000,
+            sent_at: None,
+            acked_at: None,
+            resolved_at: None,
+            created_by: "test".to_string(),
+        };
+        storage.insert_command(&cmd2).await.unwrap();
+
+        let queued = storage.get_queued_commands().await.unwrap();
+        assert_eq!(queued.len(), 2);
     }
 }
