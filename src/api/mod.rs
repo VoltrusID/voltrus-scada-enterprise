@@ -259,6 +259,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
         .route("/api/v1/analytics/compare", get(analytics::get_compare))
+        .route("/api/v1/analytics/spc", get(analytics::get_spc))
+        .route("/api/v1/analytics/histogram", get(analytics::get_histogram))
+        .route("/api/v1/analytics/run-chart", get(analytics::get_run_chart))
+        .route("/api/v1/analytics/custom-metrics", get(analytics::list_custom_metrics))
+        .route("/api/v1/analytics/custom-metrics/evaluate-all", get(analytics::evaluate_all_custom_metrics))
         .route("/api/v1/compression/stats", get(compression::get_compression_stats))
         .route("/api/v1/compression/config", get(compression::get_compression_config))
         .route("/api/v1/system/memory", get(compression::get_system_memory))
@@ -395,6 +400,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/tags/{id}/write", post(commands::write_tag))
         .route("/api/v1/commands/{command_id}/cancel", post(commands::cancel_command))
         .route("/api/v1/data-sources/{id}/write-policy", patch(commands::update_write_policy))
+        // Analytics custom metrics write routes (admin-only, Professional-gated)
+        .route("/api/v1/analytics/custom-metrics", post(analytics::create_custom_metric))
+        .route("/api/v1/analytics/custom-metrics/{id}", put(analytics::update_custom_metric).delete(analytics::delete_custom_metric))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
