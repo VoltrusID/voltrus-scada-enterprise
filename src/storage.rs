@@ -21,6 +21,7 @@ use crate::models::{
     Annotation, CreateAnnotationRequest, UpdateAnnotationRequest,
     ShiftHandover, CreateShiftHandoverRequest,
     UserNotification, CreateNotificationRequest,
+    AlarmAuditEntry, AlarmSummary, AlarmAnalyticsEntry,
 };
 
 #[derive(Clone)]
@@ -2355,13 +2356,24 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
+            let priority = match severity.as_str() {
+                "critical" => "critical",
+                "info" => "info",
+                _ => "warning",
+            };
             conn.execute(
-                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![source_key, severity, value, threshold, message, now],
+                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at, priority, state)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active')",
+                rusqlite::params![source_key, severity, value, threshold, message, now, priority],
             )
             .context("Insert alarm failed")?;
-            Ok(conn.last_insert_rowid())
+            let id = conn.last_insert_rowid();
+            // Create audit entry
+            let _ = conn.execute(
+                "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'created', 'system', ?2, ?3)",
+                rusqlite::params![id, format!("{{\"severity\":\"{}\",\"value\":{},\"threshold\":{}}}", severity, value, threshold), now],
+            );
+            Ok(id)
         })
         .await
         .context("Task join failed")?
@@ -2373,16 +2385,35 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
+
+            // Find alarms that will be resolved, for audit entries
+            let alarm_ids: Vec<i64> = {
+                let mut stmt = conn.prepare(
+                    "SELECT id FROM alarms WHERE source_key = ?1 AND resolved_at IS NULL AND acknowledged_at IS NOT NULL",
+                )?;
+                let rows = stmt.query_map(rusqlite::params![source_key], |row| row.get::<_, i64>(0))?;
+                rows.collect::<Result<Vec<_>, _>>().unwrap_or_default()
+            };
+
             conn.execute(
-                "UPDATE alarms SET resolved_at = ?1
+                "UPDATE alarms SET resolved_at = ?1, state = 'resolved'
                  WHERE source_key = ?2 AND resolved_at IS NULL AND acknowledged_at IS NOT NULL",
                 rusqlite::params![now, source_key],
             )
-            .context("Resolve alarms failed")
+            .context("Resolve alarms failed")?;
+
+            // Create audit entries for each resolved alarm
+            for alarm_id in alarm_ids {
+                let _ = conn.execute(
+                    "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'resolved', 'system', '{}', ?2)",
+                    rusqlite::params![alarm_id, now],
+                );
+            }
+
+            Ok(())
         })
         .await
         .context("Task join failed")?
-        .map(|_| ())
     }
 
     pub async fn count_active_alarms(&self) -> Result<i64> {
@@ -2431,7 +2462,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match &status {
                 Some(s) if s == "active" => (
-                    "SELECT id, source_key, severity, value, threshold, message,
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, value, threshold, message,
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
                      FROM alarms
                      WHERE acknowledged_at IS NULL
@@ -2439,7 +2470,7 @@ impl Storage {
                     vec![Box::new(limit)],
                 ),
                 Some(s) if s == "acknowledged" => (
-                    "SELECT id, source_key, severity, value, threshold, message,
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, value, threshold, message,
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
                      FROM alarms
                      WHERE acknowledged_at IS NOT NULL
@@ -2447,7 +2478,7 @@ impl Storage {
                     vec![Box::new(limit)],
                 ),
                 _ => (
-                    "SELECT id, source_key, severity, value, threshold, message,
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, value, threshold, message,
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
                      FROM alarms
                      ORDER BY triggered_at DESC LIMIT ?1",
@@ -2461,16 +2492,16 @@ impl Storage {
                     Ok(Alarm {
                         id: row.get(0)?,
                         source_key: row.get(1)?,
-                        source_name: String::new(),
-                        severity: row.get(2)?,
-                        value: row.get(3)?,
-                        threshold: row.get(4)?,
-                        message: row.get(5)?,
-                        triggered_at: row.get(6)?,
-                        resolved_at: row.get(7)?,
-                        acknowledged_at: row.get(8)?,
-                        acknowledged_by: row.get(9)?,
-                        cooldown_until: row.get(10)?,
+                        source_name: row.get(2)?,
+                        severity: row.get(3)?,
+                        value: row.get(4)?,
+                        threshold: row.get(5)?,
+                        message: row.get(6)?,
+                        triggered_at: row.get(7)?,
+                        resolved_at: row.get(8)?,
+                        acknowledged_at: row.get(9)?,
+                        acknowledged_by: row.get(10)?,
+                        cooldown_until: row.get(11)?,
                     })
                 })
                 .context("Query failed")?;
@@ -2489,14 +2520,19 @@ impl Storage {
             let now = crate::timeutil::now_secs();
             let cooldown_until = if cooldown_secs > 0 { Some(now + cooldown_secs) } else { None };
             conn.execute(
-                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2, cooldown_until = ?3 WHERE id = ?4",
+                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2, cooldown_until = ?3, state = 'acknowledged' WHERE id = ?4",
                 rusqlite::params![now, username, cooldown_until, id],
             )
-            .context("Acknowledge alarm failed")
+            .context("Acknowledge alarm failed")?;
+            // Create audit entry
+            let _ = conn.execute(
+                "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'acknowledged', ?2, ?3, ?4)",
+                rusqlite::params![id, username, format!("{{\"cooldown_secs\":{}}}", cooldown_secs), now],
+            );
+            Ok(())
         })
         .await
         .context("Task join failed")?
-        .map(|_| ())
     }
 
     pub async fn acknowledge_all(&self, username: &str, cooldown_secs: i64) -> Result<()> {
@@ -2506,16 +2542,287 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
             let cooldown_until = if cooldown_secs > 0 { Some(now + cooldown_secs) } else { None };
+
+            // Find alarms that will be acknowledged, for audit entries
+            let alarm_ids: Vec<i64> = {
+                let mut stmt = conn.prepare(
+                    "SELECT id FROM alarms WHERE acknowledged_at IS NULL",
+                )?;
+                let rows = stmt.query_map([], |row| row.get::<_, i64>(0))?;
+                rows.collect::<Result<Vec<_>, _>>().unwrap_or_default()
+            };
+
             conn.execute(
-                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2, cooldown_until = ?3
+                "UPDATE alarms SET acknowledged_at = ?1, acknowledged_by = ?2, cooldown_until = ?3, state = 'acknowledged'
                  WHERE acknowledged_at IS NULL",
                 rusqlite::params![now, username, cooldown_until],
             )
-            .context("Acknowledge all alarms failed")
+            .context("Acknowledge all alarms failed")?;
+
+            // Create audit entries for each acknowledged alarm
+            for alarm_id in alarm_ids {
+                let _ = conn.execute(
+                    "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'acknowledged', ?2, ?3, ?4)",
+                    rusqlite::params![alarm_id, username, format!("{{\"cooldown_secs\":{}}}", cooldown_secs), now],
+                );
+            }
+
+            Ok(())
         })
         .await
         .context("Task join failed")?
-        .map(|_| ())
+    }
+
+    // ── Alarm Management Overhaul methods ──
+
+    pub async fn shelf_alarm(
+        &self,
+        id: i64,
+        shelved_until: i64,
+        shelved_by: &str,
+        reason: &str,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let shelved_by = shelved_by.to_string();
+        let reason = reason.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "UPDATE alarms SET shelved_until = ?1, shelved_by = ?2, shelved_reason = ?3, state = 'shelved' WHERE id = ?4",
+                rusqlite::params![shelved_until, shelved_by, reason, id],
+            )
+            .context("Shelf alarm failed")?;
+            // Create audit entry
+            let _ = conn.execute(
+                "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'shelved', ?2, ?3, ?4)",
+                rusqlite::params![id, shelved_by, format!("{{\"reason\":\"{}\",\"until\":{}}}", reason.replace('"', "\\\""), shelved_until), now],
+            );
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn unshelf_alarm(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            // Determine new state based on acknowledgement status
+            let new_state: String = conn
+                .query_row(
+                    "SELECT CASE WHEN acknowledged_at IS NOT NULL THEN 'acknowledged' ELSE 'active' END FROM alarms WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| row.get(0),
+                )
+                .unwrap_or_else(|_| "active".to_string());
+
+            conn.execute(
+                "UPDATE alarms SET shelved_until = NULL, shelved_by = NULL, shelved_reason = NULL, state = ?1 WHERE id = ?2",
+                rusqlite::params![new_state, id],
+            )
+            .context("Unshelf alarm failed")?;
+            // Create audit entry
+            let _ = conn.execute(
+                "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'unshelved', 'system', '{}', ?2)",
+                rusqlite::params![id, now],
+            );
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_alarm_audit_entry(
+        &self,
+        alarm_id: i64,
+        action: &str,
+        performed_by: &str,
+        details: &str,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let action = action.to_string();
+        let performed_by = performed_by.to_string();
+        let details = details.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![alarm_id, action, performed_by, details, now],
+            )
+            .context("Insert alarm audit entry failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_alarm_audit(
+        &self,
+        alarm_id: Option<i64>,
+        from: Option<i64>,
+        to: Option<i64>,
+        limit: u32,
+    ) -> Result<Vec<AlarmAuditEntry>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut sql = String::from(
+                "SELECT id, alarm_id, action, performed_by, details, created_at FROM alarm_audit_log WHERE 1=1",
+            );
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            if alarm_id.is_some() {
+                sql.push_str(" AND alarm_id = ?");
+                params.push(Box::new(alarm_id.unwrap()));
+            }
+            if from.is_some() {
+                sql.push_str(" AND created_at >= ?");
+                params.push(Box::new(from.unwrap()));
+            }
+            if to.is_some() {
+                sql.push_str(" AND created_at <= ?");
+                params.push(Box::new(to.unwrap()));
+            }
+            sql.push_str(" ORDER BY created_at DESC LIMIT ?");
+            params.push(Box::new(limit));
+
+            let mut stmt = conn.prepare(&sql).context("Prepare audit query failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok(AlarmAuditEntry {
+                        id: row.get(0)?,
+                        alarm_id: row.get(1)?,
+                        action: row.get(2)?,
+                        performed_by: row.get(3)?,
+                        details: row.get(4)?,
+                        created_at: row.get(5)?,
+                    })
+                })
+                .context("Query audit failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_alarm_summary(&self) -> Result<AlarmSummary> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            let twenty_four_hours_ago = now - 86400;
+
+            let active_critical: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND priority = 'critical'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            let active_warning: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND priority = 'warning'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            let active_info: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND priority = 'info'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            let shelved: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'shelved'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            let recent_24h: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms WHERE triggered_at >= ?1",
+                    rusqlite::params![twenty_four_hours_ago],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            let avg_ack_time_secs: f64 = conn
+                .query_row(
+                    "SELECT AVG(acknowledged_at - triggered_at) FROM alarms WHERE acknowledged_at IS NOT NULL AND triggered_at >= ?1",
+                    rusqlite::params![twenty_four_hours_ago],
+                    |row| row.get::<_, Option<f64>>(0),
+                )
+                .ok()
+                .flatten()
+                .unwrap_or(0.0);
+
+            Ok(AlarmSummary {
+                active_critical,
+                active_warning,
+                active_info,
+                shelved,
+                recent_24h,
+                avg_ack_time_secs,
+            })
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_alarm_analytics(
+        &self,
+        from: Option<i64>,
+        to: Option<i64>,
+    ) -> Result<Vec<AlarmAnalyticsEntry>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut sql = String::from(
+                "SELECT source_key, COALESCE(source_name, source_key) as source_name,
+                        COUNT(*) as trigger_count,
+                        COALESCE(AVG(CASE WHEN acknowledged_at IS NOT NULL THEN acknowledged_at - triggered_at END), 0) as avg_time_to_ack_secs,
+                        MAX(triggered_at) as last_triggered_at
+                 FROM alarms WHERE 1=1",
+            );
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+            if from.is_some() {
+                sql.push_str(" AND triggered_at >= ?");
+                params.push(Box::new(from.unwrap()));
+            }
+            if to.is_some() {
+                sql.push_str(" AND triggered_at <= ?");
+                params.push(Box::new(to.unwrap()));
+            }
+            sql.push_str(" GROUP BY source_key, source_name ORDER BY trigger_count DESC");
+
+            let mut stmt = conn.prepare(&sql).context("Prepare analytics query failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok(AlarmAnalyticsEntry {
+                        source_key: row.get(0)?,
+                        source_name: row.get(1)?,
+                        trigger_count: row.get(2)?,
+                        avg_time_to_ack_secs: row.get(3)?,
+                        last_triggered_at: row.get(4)?,
+                    })
+                })
+                .context("Query analytics failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── Notification Settings ──
@@ -3545,6 +3852,30 @@ fn init_schema(conn: &Connection) -> Result<()> {
         );
         INSERT OR IGNORE INTO security_thresholds (id) VALUES (1);"
     );
+
+        // Migration: v0.23.0 — Alarm Management Overhaul
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN priority TEXT NOT NULL DEFAULT 'warning'");
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN shelved_until INTEGER");
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN shelved_by TEXT");
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN shelved_reason TEXT");
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN deadband REAL NOT NULL DEFAULT 0");
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN state TEXT NOT NULL DEFAULT 'active'");
+        let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN source_name TEXT NOT NULL DEFAULT ''");
+
+        let _ = conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS alarm_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alarm_id INTEGER NOT NULL REFERENCES alarms(id) ON DELETE CASCADE,
+                action TEXT NOT NULL,
+                performed_by TEXT NOT NULL,
+                details TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_alarm_audit_alarm_time
+                ON alarm_audit_log(alarm_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_alarm_audit_action_time
+                ON alarm_audit_log(action, created_at);"
+        );
 
         Ok(())
 }
