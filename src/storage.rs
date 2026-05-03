@@ -3539,6 +3539,116 @@ impl Storage {
             Ok(compressed_count)
         }).await.context("Task join failed")?
     }
+
+    pub async fn compress_warm_to_cold(&self, cutoff_ts: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+
+            let mut stmt = tx.prepare(
+                "SELECT device_id, metric, bucket_start, open, high, low, close, count, deltas
+                 FROM telemetry_warm
+                 WHERE bucket_start < ?1
+                 ORDER BY device_id, metric, bucket_start"
+            ).context("Prepare failed")?;
+
+            struct WarmRow {
+                device_id: String,
+                metric: String,
+                bucket_start: i64,
+                close: f64,
+                count: i64,
+            }
+
+            let rows: Vec<WarmRow> = stmt.query_map(
+                rusqlite::params![cutoff_ts],
+                |row| Ok(WarmRow {
+                    device_id: row.get(0)?,
+                    metric: row.get(1)?,
+                    bucket_start: row.get(2)?,
+                    close: row.get(6)?,
+                    count: row.get(7)?,
+                }),
+            ).context("Query failed")?
+            .collect::<Result<Vec<_>, _>>().context("Row mapping failed")?;
+
+            drop(stmt);
+
+            if rows.is_empty() {
+                tx.commit()?;
+                return Ok(0u64);
+            }
+
+            // Group by (device_id, metric, hour_block)
+            let mut hour_blocks: std::collections::HashMap<(String, String, i64), Vec<&WarmRow>> =
+                std::collections::HashMap::new();
+
+            for row in &rows {
+                let hour_block = (row.bucket_start / 3600000) * 3600000;
+                let key = (row.device_id.clone(), row.metric.clone(), hour_block);
+                hour_blocks.entry(key).or_default().push(row);
+            }
+
+            let mut insert_stmt = tx.prepare(
+                "INSERT INTO telemetry_cold (device_id, metric, block_start, encoding, data_type, data, count, first_ts, last_ts)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            ).context("Prepare insert failed")?;
+
+            let mut compressed_count: u64 = 0;
+
+            for ((device_id, metric, hour_block), bucket_rows) in &hour_blocks {
+                let first_ts = bucket_rows.first().unwrap().bucket_start;
+                let last_ts = bucket_rows.last().unwrap().bucket_start;
+                let total_count: i64 = bucket_rows.iter().map(|r| r.count).sum();
+
+                // Determine if digital (binary) or analog
+                let is_digital = bucket_rows.iter().all(|r| {
+                    (r.close == 0.0 || r.close == 1.0) && r.close >= 0.0 && r.close <= 1.0
+                });
+
+                let (encoding, data) = if is_digital {
+                    let values: Vec<bool> = bucket_rows.iter().map(|r| r.close > 0.5).collect();
+                    let runs = crate::compression::rle_encode(&values);
+                    let data = crate::compression::rle_serialize(&runs);
+                    ("rle".to_string(), data)
+                } else {
+                    let timestamps: Vec<i64> = bucket_rows.iter().map(|r| r.bucket_start).collect();
+                    let values: Vec<f64> = bucket_rows.iter().map(|r| r.close).collect();
+                    let block = crate::compression::gorilla_encode(&timestamps, &values)
+                        .context("Gorilla encode failed")?;
+                    // Serialize: first_ts(8) + count(4) + first_value(8) + data
+                    let mut buf = Vec::new();
+                    buf.extend_from_slice(&block.first_ts.to_le_bytes());
+                    buf.extend_from_slice(&(block.count as u32).to_le_bytes());
+                    buf.extend_from_slice(&block.first_value.to_le_bytes());
+                    buf.extend_from_slice(&block.data);
+                    ("gorilla".to_string(), buf)
+                };
+
+                let data_type = if is_digital { "digital" } else { "analog" };
+
+                insert_stmt.execute(rusqlite::params![
+                    device_id, metric, hour_block,
+                    encoding, data_type, data,
+                    total_count, first_ts, last_ts
+                ]).context("Insert cold failed")?;
+
+                compressed_count += total_count as u64;
+            }
+
+            drop(insert_stmt);
+
+            tx.execute(
+                "DELETE FROM telemetry_warm WHERE bucket_start < ?1",
+                rusqlite::params![cutoff_ts],
+            ).context("Delete warm failed")?;
+
+            tx.commit().context("Commit failed")?;
+            Ok(compressed_count)
+        }).await.context("Task join failed")?
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
