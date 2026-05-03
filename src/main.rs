@@ -1,6 +1,7 @@
 mod api;
 mod auth;
 mod backup;
+mod bacnet;
 mod cache;
 mod config;
 mod config_export;
@@ -31,6 +32,7 @@ mod deadband;
 mod command_queue;
 mod recipe;
 mod video;
+mod ai_copilot;
 mod asset;
 
 use api::AppState;
@@ -726,6 +728,32 @@ EXAMPLES:
             if !configs.is_empty() {
                 tracing::warn!(
                     "OPC-UA devices configured but Professional tier required. Upgrade at https://voltrus.id"
+                );
+            }
+        }
+    }
+
+    // Start BACnet/IP pollers (Enterprise tier only)
+    {
+        if license_tier.bacnet() {
+            match storage.get_all_bacnet_device_configs().await {
+                Ok(bacnet_configs) => {
+                    for config in &bacnet_configs {
+                        poller_manager.start_bacnet(config.clone()).await;
+                        tracing::info!("Started BACnet/IP poller for device {}", config.id);
+                    }
+                    if !bacnet_configs.is_empty() {
+                        tracing::info!("Started {} BACnet/IP device(s)", bacnet_configs.len());
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load BACnet/IP device configs: {}", e);
+                }
+            }
+        } else if let Ok(configs) = storage.get_all_bacnet_device_configs().await {
+            if !configs.is_empty() {
+                tracing::warn!(
+                    "BACnet/IP devices configured but Enterprise tier required. Upgrade at https://voltrus.id"
                 );
             }
         }
