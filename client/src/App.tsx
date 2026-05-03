@@ -31,6 +31,7 @@ import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, u
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { TrialBanner } from './TrialBanner'
 import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
+import { VoltrusWebSocket } from './api/websocket'
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -80,6 +81,9 @@ function AppInner() {
   const [showSnapshotPanel, setShowSnapshotPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
+
+  // ── WebSocket ──────────────────────────────────────────────────
+  const wsRef = useRef<VoltrusWebSocket | null>(null)
 
   // ── URL sync ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -232,6 +236,33 @@ function AppInner() {
   }
 
   const handleLogout = async () => { await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user') }
+
+  // ── WebSocket connection ───────────────────────────────────────
+  useEffect(() => {
+    if (!authed) {
+      wsRef.current?.disconnect()
+      wsRef.current = null
+      return
+    }
+
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('voltrus_token='))
+      ?.split('=')[1]
+
+    if (!token) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/ws`
+    const ws = new VoltrusWebSocket()
+    ws.connect(wsUrl, token)
+    wsRef.current = ws
+
+    return () => {
+      ws.disconnect()
+      if (wsRef.current === ws) wsRef.current = null
+    }
+  }, [authed])
 
   // ── Handlers ─────────────────────────────────────────────────────
 
