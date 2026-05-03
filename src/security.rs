@@ -243,6 +243,19 @@ impl IntrusionDetector {
             tracing::warn!("SECURITY ALERT: {} failed auth attempts from IP {} in {}s", entries.len(), ip, SUSPICIOUS_WINDOW_SECS);
         }
     }
+
+    /// Record a 401 and persist the event to the security log database.
+    pub async fn record_401_with_storage(&self, ip: &str, storage: &crate::storage::Storage) {
+        self.record_401(ip);
+        let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "auth_401".into(),
+            severity: "warning".into(),
+            source_ip: Some(ip.to_string()),
+            user_agent: None,
+            username: None,
+            details: Some("Unauthorized request".into()),
+        }).await;
+    }
 }
 
 impl Default for IntrusionDetector {

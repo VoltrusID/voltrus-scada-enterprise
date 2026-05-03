@@ -3480,6 +3480,34 @@ fn init_schema(conn: &Connection) -> Result<()> {
     // Migration: add role_id column to users (roles table is created in main schema above)
     let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN role_id INTEGER REFERENCES roles(id)");
 
+    // Migration: v0.22.0 — IEC 62443 security audit mode
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS security_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            severity TEXT NOT NULL DEFAULT 'info',
+            source_ip TEXT,
+            user_agent TEXT,
+            username TEXT,
+            details TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_security_log_type ON security_log(event_type);
+        CREATE INDEX IF NOT EXISTS idx_security_log_created ON security_log(created_at);
+        CREATE INDEX IF NOT EXISTS idx_security_log_severity ON security_log(severity);
+
+        CREATE TABLE IF NOT EXISTS security_thresholds (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            failed_login_threshold INTEGER NOT NULL DEFAULT 5,
+            failed_login_window_secs INTEGER NOT NULL DEFAULT 60,
+            suspicious_401_threshold INTEGER NOT NULL DEFAULT 10,
+            suspicious_401_window_secs INTEGER NOT NULL DEFAULT 60,
+            rate_limit_threshold INTEGER NOT NULL DEFAULT 100,
+            rate_limit_window_secs INTEGER NOT NULL DEFAULT 60
+        );
+        INSERT OR IGNORE INTO security_thresholds (id) VALUES (1);"
+    );
+
         Ok(())
 }
 
@@ -6130,6 +6158,225 @@ impl Storage {
     }
 }
 
+// ── Security audit log (v0.22.0 IEC 62443) ──
+
+impl Storage {
+    /// Insert a security event into the append-only security_log table.
+    pub async fn insert_security_event(
+        &self,
+        event: &crate::models::CreateSecurityEvent,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let event_type = event.event_type.clone();
+        let severity = event.severity.clone();
+        let source_ip = event.source_ip.clone();
+        let user_agent = event.user_agent.clone();
+        let username = event.username.clone();
+        let details = event.details.clone();
+        let now = crate::timeutil::now_secs();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO security_log (event_type, severity, source_ip, user_agent, username, details, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![event_type, severity, source_ip, user_agent, username, details, now],
+            ).context("Insert security event failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    /// List security events with optional filters and pagination.
+    pub async fn list_security_events(
+        &self,
+        event_type: Option<&str>,
+        severity: Option<&str>,
+        from: Option<i64>,
+        to: Option<i64>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<crate::models::SecurityEvent>> {
+        let conn = self.conn.clone();
+        let event_type = event_type.map(|s| s.to_string());
+        let severity = severity.map(|s| s.to_string());
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut sql = String::from(
+                "SELECT id, event_type, severity, source_ip, user_agent, username, details, created_at \
+                 FROM security_log WHERE 1=1"
+            );
+            let mut param_idx = 1;
+            let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(et) = event_type {
+                sql.push_str(&format!(" AND event_type = ?{}", param_idx));
+                param_values.push(Box::new(et.to_string()));
+                param_idx += 1;
+            }
+            if let Some(sev) = severity {
+                sql.push_str(&format!(" AND severity = ?{}", param_idx));
+                param_values.push(Box::new(sev.to_string()));
+                param_idx += 1;
+            }
+            if let Some(f) = from {
+                sql.push_str(&format!(" AND created_at >= ?{}", param_idx));
+                param_values.push(Box::new(f));
+                param_idx += 1;
+            }
+            if let Some(t) = to {
+                sql.push_str(&format!(" AND created_at <= ?{}", param_idx));
+                param_values.push(Box::new(t));
+                param_idx += 1;
+            }
+
+            sql.push_str(&format!(" ORDER BY created_at DESC LIMIT ?{} OFFSET ?{}", param_idx, param_idx + 1));
+            param_values.push(Box::new(limit));
+            param_values.push(Box::new(offset));
+
+            let params: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+
+            let mut stmt = conn.prepare(&sql).context("Prepare security events query failed")?;
+            let events = stmt.query_map(params.as_slice(), |row| {
+                Ok(crate::models::SecurityEvent {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    severity: row.get(2)?,
+                    source_ip: row.get(3)?,
+                    user_agent: row.get(4)?,
+                    username: row.get(5)?,
+                    details: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            }).context("Query security events failed")?
+            .collect::<Result<Vec<_>, _>>()
+            .context("Map security events failed")?;
+
+            Ok(events)
+        }).await.context("Task join failed")?
+    }
+
+    /// Export security events as CSV string for external audit tools.
+    pub async fn export_security_events_csv(
+        &self,
+        from: Option<i64>,
+        to: Option<i64>,
+    ) -> Result<String> {
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut sql = String::from(
+                "SELECT id, event_type, severity, source_ip, user_agent, username, details, created_at \
+                 FROM security_log WHERE 1=1"
+            );
+            let mut param_idx = 1;
+            let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(f) = from {
+                sql.push_str(&format!(" AND created_at >= ?{}", param_idx));
+                param_values.push(Box::new(f));
+                param_idx += 1;
+            }
+            if let Some(t) = to {
+                sql.push_str(&format!(" AND created_at <= ?{}", param_idx));
+                param_values.push(Box::new(t));
+                param_idx += 1;
+            }
+
+            sql.push_str(" ORDER BY created_at ASC");
+            let params: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+
+            let mut stmt = conn.prepare(&sql).context("Prepare security CSV query failed")?;
+            let rows = stmt.query_map(params.as_slice(), |row| {
+                Ok(crate::models::SecurityEvent {
+                    id: row.get(0)?,
+                    event_type: row.get(1)?,
+                    severity: row.get(2)?,
+                    source_ip: row.get(3)?,
+                    user_agent: row.get(4)?,
+                    username: row.get(5)?,
+                    details: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            }).context("Query security CSV failed")?;
+
+            let mut csv = String::from("id,event_type,severity,source_ip,user_agent,username,details,created_at\n");
+            for row in rows {
+                let event = row.context("Map security CSV row failed")?;
+                csv.push_str(&format!(
+                    "{},\"{}\",\"{}\",{},{},{},{},{}\n",
+                    event.id,
+                    event.event_type.replace('"', "\"\""),
+                    event.severity.replace('"', "\"\""),
+                    event.source_ip.as_deref().unwrap_or(""),
+                    event.user_agent.as_deref().unwrap_or("").replace('"', "\"\""),
+                    event.username.as_deref().unwrap_or("").replace('"', "\"\""),
+                    event.details.as_deref().unwrap_or("").replace('"', "\"\"").replace('\n', "\\n"),
+                    event.created_at,
+                ));
+            }
+
+            Ok(csv)
+        }).await.context("Task join failed")?
+    }
+
+    /// Get the current security thresholds configuration.
+    pub async fn get_security_thresholds(&self) -> Result<crate::models::SecurityThresholds> {
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT failed_login_threshold, failed_login_window_secs, \
+                        suspicious_401_threshold, suspicious_401_window_secs, \
+                        rate_limit_threshold, rate_limit_window_secs \
+                 FROM security_thresholds WHERE id = 1"
+            ).context("Prepare thresholds query failed")?;
+
+            let thresholds = stmt.query_row([], |row| {
+                Ok(crate::models::SecurityThresholds {
+                    failed_login_threshold: row.get(0)?,
+                    failed_login_window_secs: row.get(1)?,
+                    suspicious_401_threshold: row.get(2)?,
+                    suspicious_401_window_secs: row.get(3)?,
+                    rate_limit_threshold: row.get(4)?,
+                    rate_limit_window_secs: row.get(5)?,
+                })
+            }).context("Query thresholds failed")?;
+
+            Ok(thresholds)
+        }).await.context("Task join failed")?
+    }
+
+    /// Update security thresholds configuration.
+    pub async fn update_security_thresholds(
+        &self,
+        thresholds: &crate::models::SecurityThresholds,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let t = thresholds.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE security_thresholds SET \
+                 failed_login_threshold = ?1, failed_login_window_secs = ?2, \
+                 suspicious_401_threshold = ?3, suspicious_401_window_secs = ?4, \
+                 rate_limit_threshold = ?5, rate_limit_window_secs = ?6 \
+                 WHERE id = 1",
+                rusqlite::params![
+                    t.failed_login_threshold, t.failed_login_window_secs,
+                    t.suspicious_401_threshold, t.suspicious_401_window_secs,
+                    t.rate_limit_threshold, t.rate_limit_window_secs,
+                ],
+            ).context("Update thresholds failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -6368,6 +6615,152 @@ mod tests {
         let storage = Storage::new_in_memory().unwrap();
         let count = storage.count_modbus_devices().await.unwrap();
         assert_eq!(count, 0);
+    }
+
+    // ── Security audit log tests ──
+
+    #[tokio::test]
+    async fn test_insert_and_list_security_events() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Insert events
+        storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_failed".into(),
+            severity: "warning".into(),
+            source_ip: Some("192.168.1.100".into()),
+            user_agent: None,
+            username: Some("admin".into()),
+            details: Some("Invalid password (attempt 1)".into()),
+        }).await.unwrap();
+
+        storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "auth_401".into(),
+            severity: "info".into(),
+            source_ip: Some("10.0.0.1".into()),
+            user_agent: None,
+            username: None,
+            details: Some("Unauthorized request".into()),
+        }).await.unwrap();
+
+        storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "config_change".into(),
+            severity: "info".into(),
+            source_ip: None,
+            user_agent: None,
+            username: Some("admin".into()),
+            details: Some("Updated branding".into()),
+        }).await.unwrap();
+
+        // List all
+        let events = storage.list_security_events(None, None, None, None, 100, 0).await.unwrap();
+        assert_eq!(events.len(), 3);
+
+        // Filter by event_type
+        let login_events = storage.list_security_events(Some("login_failed"), None, None, None, 100, 0).await.unwrap();
+        assert_eq!(login_events.len(), 1);
+        assert_eq!(login_events[0].event_type, "login_failed");
+
+        // Filter by severity
+        let warnings = storage.list_security_events(None, Some("warning"), None, None, 100, 0).await.unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].severity, "warning");
+
+        // Pagination
+        let page = storage.list_security_events(None, None, None, None, 2, 0).await.unwrap();
+        assert_eq!(page.len(), 2);
+        let page2 = storage.list_security_events(None, None, None, None, 2, 2).await.unwrap();
+        assert_eq!(page2.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_export_security_events_csv() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_failed".into(),
+            severity: "warning".into(),
+            source_ip: Some("192.168.1.100".into()),
+            user_agent: Some("Mozilla/5.0".into()),
+            username: Some("admin".into()),
+            details: Some("Invalid password".into()),
+        }).await.unwrap();
+
+        let csv = storage.export_security_events_csv(None, None).await.unwrap();
+
+        // Check CSV header
+        assert!(csv.starts_with("id,event_type,severity,source_ip,user_agent,username,details,created_at\n"));
+        // Check data row
+        assert!(csv.contains("login_failed"));
+        assert!(csv.contains("warning"));
+        assert!(csv.contains("192.168.1.100"));
+        assert!(csv.contains("admin"));
+    }
+
+    #[tokio::test]
+    async fn test_security_thresholds_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Get defaults
+        let thresholds = storage.get_security_thresholds().await.unwrap();
+        assert_eq!(thresholds.failed_login_threshold, 5);
+        assert_eq!(thresholds.suspicious_401_threshold, 10);
+        assert_eq!(thresholds.rate_limit_threshold, 100);
+
+        // Update
+        let updated = crate::models::SecurityThresholds {
+            failed_login_threshold: 10,
+            failed_login_window_secs: 120,
+            suspicious_401_threshold: 20,
+            suspicious_401_window_secs: 120,
+            rate_limit_threshold: 200,
+            rate_limit_window_secs: 30,
+        };
+        storage.update_security_thresholds(&updated).await.unwrap();
+
+        // Verify
+        let thresholds = storage.get_security_thresholds().await.unwrap();
+        assert_eq!(thresholds.failed_login_threshold, 10);
+        assert_eq!(thresholds.suspicious_401_threshold, 20);
+        assert_eq!(thresholds.rate_limit_threshold, 200);
+    }
+
+    #[tokio::test]
+    async fn test_security_events_append_only() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        // Insert multiple events
+        for i in 0..5 {
+            storage.insert_security_event(&crate::models::CreateSecurityEvent {
+                event_type: "auth_401".into(),
+                severity: "warning".into(),
+                source_ip: Some(format!("10.0.0.{}", i)),
+                user_agent: None,
+                username: None,
+                details: None,
+            }).await.unwrap();
+        }
+
+        // All events should be present (append-only, no deletion)
+        let events = storage.list_security_events(None, None, None, None, 100, 0).await.unwrap();
+        assert_eq!(events.len(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_security_events_csv_escapes_special_chars() {
+        let storage = Storage::new_in_memory().unwrap();
+
+        storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_failed".into(),
+            severity: "warning".into(),
+            source_ip: Some("192.168.1.1".into()),
+            user_agent: Some("Agent with \"quotes\"".into()),
+            username: Some("user,test".into()),
+            details: Some("Line1\nLine2".into()),
+        }).await.unwrap();
+
+        let csv = storage.export_security_events_csv(None, None).await.unwrap();
+        assert!(csv.contains("user,test"));
+        assert!(csv.contains("\\n"));
     }
 
     #[tokio::test]

@@ -12,12 +12,17 @@ import { OeePanel } from './OeePanel';
 import { AnalyticsPanel } from './AnalyticsPanel';
 import { RecipeManager } from './RecipeManager';
 import { CameraManager } from './CameraManager';
+import { S7DeviceManager } from './S7DeviceManager';
+import { EnipDeviceManager } from './EnipDeviceManager';
+import { SecurityAuditPanel } from './SecurityAuditPanel';
+import { CompliancePanel } from './CompliancePanel';
+import { RoleManager } from './RoleManager';
 import { btnStyle } from './styles';
 import { useLicense } from './LicenseContext';
 import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'opcua' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras';
+type Tab = 'sources' | 'modbus' | 'opcua' | 's7' | 'enip' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras' | 'security' | 'compliance' | 'roles';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -39,6 +44,10 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   const isAnalyticsDisabled = license?.feature_flags?.analytics === false;
   const isRecipesDisabled = license?.feature_flags?.recipes === false;
   const isCamerasDisabled = license?.feature_flags?.rtsp_video === false;
+  const isS7Disabled = license?.feature_flags?.s7_protocol === false;
+  const isEnipDisabled = license?.feature_flags?.ethernet_ip === false;
+  const isComplianceDisabled = license?.feature_flags?.cfr_part_11 === false;
+  const isRbacDisabled = license?.feature_flags?.rbac === false;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -96,16 +105,21 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginLeft: 8 }}>
             <button style={tabBtn('sources')} onClick={() => setTab('sources')} aria-selected={tab === 'sources'}>Sources</button>
             <button style={tabBtn('modbus')} onClick={() => setTab('modbus')} aria-selected={tab === 'modbus'}>Modbus</button>
+            {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA{isOpcUaDisabled && <FeatureBadge tier="Professional" />}</button>}
+            {isAdmin && <button style={tabBtn('s7')} onClick={() => setTab('s7')} aria-selected={tab === 's7'}>S7{isS7Disabled && <FeatureBadge tier="Enterprise" />}</button>}
+            {isAdmin && <button style={tabBtn('enip')} onClick={() => setTab('enip')} aria-selected={tab === 'enip'}>ENIP{isEnipDisabled && <FeatureBadge tier="Enterprise" />}</button>}
             {isAdmin && <button style={tabBtn('users')} onClick={() => setTab('users')} aria-selected={tab === 'users'}>Users</button>}
+            {isAdmin && <button style={tabBtn('roles')} onClick={() => setTab('roles')} aria-selected={tab === 'roles'}>Roles{isRbacDisabled && <FeatureBadge tier="Enterprise" />}</button>}
             {isAdmin && <button style={tabBtn('notifications')} onClick={() => setTab('notifications')} aria-selected={tab === 'notifications'}>Notifications</button>}
             {isAdmin && <button style={tabBtn('api-keys')} onClick={() => setTab('api-keys')} aria-selected={tab === 'api-keys'}>API Keys</button>}
-            {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA{isOpcUaDisabled && <FeatureBadge tier="Professional" />}</button>}
             {isAdmin && <button style={tabBtn('hub')} onClick={() => setTab('hub')} aria-selected={tab === 'hub'}>Hub{isHubDisabled && <FeatureBadge tier="Professional" />}</button>}
             {isAdmin && <button style={tabBtn('reports')} onClick={() => setTab('reports')} aria-selected={tab === 'reports'}>Reports{isReportsDisabled && <FeatureBadge tier="Professional" />}</button>}
             <button style={tabBtn('oee')} onClick={() => setTab('oee')} aria-selected={tab === 'oee'}>OEE{isOeeDisabled && <FeatureBadge tier="Starter" />}</button>
             <button style={tabBtn('analytics')} onClick={() => setTab('analytics')} aria-selected={tab === 'analytics'}>Analytics{isAnalyticsDisabled && <FeatureBadge tier="Starter" />}</button>
             {isAdmin && <button style={tabBtn('recipes')} onClick={() => setTab('recipes')} aria-selected={tab === 'recipes'}>Recipes{isRecipesDisabled && <FeatureBadge tier="Professional" />}</button>}
             {isAdmin && <button style={tabBtn('cameras')} onClick={() => setTab('cameras')} aria-selected={tab === 'cameras'}>Cameras{isCamerasDisabled && <FeatureBadge tier="Enterprise" />}</button>}
+            {isAdmin && <button style={tabBtn('security')} onClick={() => setTab('security')} aria-selected={tab === 'security'}>Security</button>}
+            {isAdmin && <button style={tabBtn('compliance')} onClick={() => setTab('compliance')} aria-selected={tab === 'compliance'}>Compliance{isComplianceDisabled && <FeatureBadge tier="Enterprise" />}</button>}
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: 16 }}>
@@ -151,6 +165,21 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'cameras' && isAdmin && (
             <CameraManager onClose={onClose} embedded />
+          )}
+          {tab === 's7' && isAdmin && (
+            <S7DeviceManager onClose={onClose} embedded />
+          )}
+          {tab === 'enip' && isAdmin && (
+            <EnipDeviceManager onClose={onClose} embedded />
+          )}
+          {tab === 'security' && isAdmin && (
+            <SecurityAuditPanel onClose={onClose} embedded />
+          )}
+          {tab === 'compliance' && isAdmin && (
+            <CompliancePanel onClose={onClose} embedded />
+          )}
+          {tab === 'roles' && isAdmin && (
+            <RoleManager onClose={onClose} embedded />
           )}
         </div>
       </div>

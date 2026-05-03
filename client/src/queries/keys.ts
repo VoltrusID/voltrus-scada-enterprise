@@ -24,4 +24,13 @@ export const queryKeys = {
   flowRuns: (id: string) => ['flowRuns', id] as const,
   notificationSettings: ['notificationSettings'] as const,
   apiKeys: ['api-keys'] as const,
+  securityEvents: ['securityEvents'] as const,
+  securityThresholds: ['securityThresholds'] as const,
+  s7Devices: ['s7Devices'] as const,
+  s7Device: (id: string) => ['s7Device', id] as const,
+  enipDevices: ['enipDevices'] as const,
+  enipDevice: (id: string) => ['enipDevice', id] as const,
+  complianceConfig: ['complianceConfig'] as const,
+  complianceSignatures: ['complianceSignatures'] as const,
+  roles: ['roles'] as const,
 }

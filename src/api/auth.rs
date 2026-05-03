@@ -135,6 +135,14 @@ pub async fn login(
             let now_secs = crate::timeutil::now_secs();
             if let Some(locked_until) = user.locked_until {
                 if locked_until > now_secs {
+                    let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
+                        event_type: "login_locked".into(),
+                        severity: "warning".into(),
+                        source_ip: None,
+                        user_agent: None,
+                        username: Some(body.username.clone()),
+                        details: Some("Attempted login on locked account".into()),
+                    }).await;
                     (StatusCode::FORBIDDEN, json!({"error": "Account locked. Please try again later."}), jar)
                 } else {
                     check_password_and_login(state, body, user, jar, &rate_key_user, now_secs).await
@@ -145,6 +153,14 @@ pub async fn login(
         }
         None => {
             state.login_rate_limiter.record_attempt(&rate_key_user);
+            let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
+                event_type: "login_failed".into(),
+                severity: "warning".into(),
+                source_ip: None,
+                user_agent: None,
+                username: Some(body.username.clone()),
+                details: Some("Unknown username".into()),
+            }).await;
             (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar)
         }
     };
@@ -176,6 +192,15 @@ async fn check_password_and_login(
             let _ = state.storage.lock_account(&body.username, lock_until).await;
             tracing::warn!("Account locked for user {} due to too many failed attempts", body.username);
         }
+
+        let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_failed".into(),
+            severity: "warning".into(),
+            source_ip: None,
+            user_agent: None,
+            username: Some(body.username.clone()),
+            details: Some(format!("Invalid password (attempt {})", user.failed_attempts + 1)),
+        }).await;
 
         return (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar);
     }

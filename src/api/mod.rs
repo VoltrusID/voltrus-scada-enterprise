@@ -26,6 +26,7 @@ mod compliance;
 mod enip_devices;
 mod s7_devices;
 mod video;
+mod security;
 
 use axum::{
     extract::{Request, State},
@@ -354,6 +355,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/compliance/config", get(compliance::get_compliance_config).put(compliance::update_compliance_config))
         .route("/api/v1/compliance/sign", post(compliance::create_electronic_signature))
         .route("/api/v1/compliance/signatures", get(compliance::list_electronic_signatures))
+        // Security audit routes (admin-only, Enterprise-gated)
+        .route("/api/v1/security/events", get(security::list_security_events))
+        .route("/api/v1/security/events/export", get(security::export_security_csv))
+        .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -456,7 +461,7 @@ async fn cookie_auth_middleware(
                 // Failed API key auth — record intrusion and reject immediately.
                 // If an API key was explicitly provided, it must be the sole auth method;
                 // do not fall through to cookie/JWT auth.
-                state.intrusion_detector.record_401(&client_ip);
+                state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
                 return (StatusCode::UNAUTHORIZED, "Invalid or expired API key").into_response();
             }
         }
@@ -485,7 +490,7 @@ async fn cookie_auth_middleware(
         .map(|c| c.value())
         .unwrap_or("");
     if token.is_empty() {
-        state.intrusion_detector.record_401(&client_ip);
+        state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
         return (
             StatusCode::UNAUTHORIZED,
             Json(json!({"error": "unauthorized"})),
@@ -501,7 +506,7 @@ async fn cookie_auth_middleware(
             next.run(req).await
         }
         None => {
-            state.intrusion_detector.record_401(&client_ip);
+            state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
             (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({"error": "unauthorized"})),
