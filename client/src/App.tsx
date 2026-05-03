@@ -10,6 +10,7 @@ import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
+import { CopilotPanel } from './copilot/CopilotPanel'
 import { AnnotationPanel } from './AnnotationPanel'
 import { ShiftHandoverPanel } from './ShiftHandoverPanel'
 import { DataExportPanel } from './DataExportPanel'
@@ -20,6 +21,7 @@ import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
 import { SystemPanel } from './components/SystemPanel'
 import { FlowManager } from './FlowManager'
+import { AssetInventory } from './views/AssetInventory'
 import { LayoutBreakpointSelector } from './components/LayoutBreakpointSelector'
 import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
@@ -52,9 +54,9 @@ function AppInner() {
   const [showDashSettings, setShowDashSettings] = useState(false)
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
   const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows'>(() => {
+  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows' | 'assets'>(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return (m === 'history' || m === 'system' || m === 'flows') ? m : 'live'
+    return (m === 'history' || m === 'system' || m === 'flows' || m === 'assets') ? m : 'live'
   })
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
@@ -76,6 +78,7 @@ function AppInner() {
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [showShiftHandover, setShowShiftHandover] = useState(false)
+  const [showCopilot, setShowCopilot] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
 
@@ -401,6 +404,7 @@ function AppInner() {
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => setShowDataManager(true)}
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
+        onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
@@ -408,6 +412,7 @@ function AppInner() {
         onExportClick={() => setShowExportPanel(true)}
         onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
         onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
+        onCopilotToggle={() => setShowCopilot(v => !v)}
       />
       </header>
 
@@ -415,7 +420,7 @@ function AppInner() {
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
-          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows') setMode('live') }}
+          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows' || mode === 'assets') setMode('live') }}
           onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
           onRenameScreen={handleRenameScreen}
           onDeleteScreen={handleDeleteScreen}
@@ -439,7 +444,8 @@ function AppInner() {
         }}>
           {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
           {mode === 'flows' && <FlowManager isAdmin={isAdmin} />}
-          {mode !== 'system' && mode !== 'flows' && (
+          {mode === 'assets' && <AssetInventory />}
+          {mode !== 'system' && mode !== 'flows' && mode !== 'assets' && (
             <MainContent
               viewMode={viewMode} mode={mode}
               screenSensors={screenSensors}
@@ -505,6 +511,7 @@ function AppInner() {
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
+        {showCopilot && <CopilotPanel onClose={() => setShowCopilot(false)} />}
         {showCommandPanel && <CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} />}
         {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
         {showAnnotationPanel && <AnnotationPanel onClose={() => setShowAnnotationPanel(false)} />}

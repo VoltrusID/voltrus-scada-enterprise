@@ -10,7 +10,7 @@ const ScadaView = lazy(() => import('../scada2/ScadaView').then(m => ({ default:
 
 interface Props {
   viewMode: 'cards' | 'canvas' | 'twin' | 'scada'
-  mode: 'live' | 'history' | 'system' | 'flows'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'assets'
   screenSensors: SensorConfig[]
   effectiveLayouts: ScreenLayouts
   canvasLayouts: CanvasLayoutItem[]
