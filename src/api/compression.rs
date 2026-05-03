@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::Serialize;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CompressionStatsResponse {
     pub hot_rows: i64,
     pub warm_rows: i64,
@@ -17,6 +17,16 @@ pub struct CompressionStatsResponse {
     pub estimated_cold_mb: f64,
 }
 
+/// GET /api/v1/compression/stats -- get compression statistics
+#[utoipa::path(
+    get,
+    path = "/api/v1/compression/stats",
+    responses(
+        (status = 200, body = CompressionStatsResponse),
+    ),
+    tag = "Compression",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_compression_stats(
     State(state): State<crate::api::AppState>,
 ) -> Result<impl IntoResponse, crate::api::AppError> {
@@ -34,7 +44,7 @@ pub async fn get_compression_stats(
     }))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CompressionConfigResponse {
     pub enabled: bool,
     pub hot_retention_secs: u64,
@@ -42,6 +52,16 @@ pub struct CompressionConfigResponse {
     pub cold_retention_secs: u64,
 }
 
+/// GET /api/v1/compression/config -- get compression configuration
+#[utoipa::path(
+    get,
+    path = "/api/v1/compression/config",
+    responses(
+        (status = 200, body = CompressionConfigResponse),
+    ),
+    tag = "Compression",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_compression_config(
     State(_state): State<crate::api::AppState>,
 ) -> Result<impl IntoResponse, crate::api::AppError> {
@@ -53,13 +73,23 @@ pub async fn get_compression_config(
     }))
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct MemoryStatsResponse {
     pub rss_mb: f64,
     pub hot_cache_entries: usize,
     pub connection_pool_size: usize,
 }
 
+/// GET /api/v1/system/memory -- get system memory usage
+#[utoipa::path(
+    get,
+    path = "/api/v1/system/memory",
+    responses(
+        (status = 200, body = MemoryStatsResponse),
+    ),
+    tag = "Compression",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_system_memory(
     State(_state): State<crate::api::AppState>,
 ) -> Result<impl IntoResponse, crate::api::AppError> {

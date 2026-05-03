@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::models::*;
 use super::{AppError, AppState, AuthUser};
 
-// ── Query params ──
+// -- Query params --
 
 #[derive(Debug, Deserialize)]
 pub struct ListAnnotationsQuery {
@@ -16,8 +16,19 @@ pub struct ListAnnotationsQuery {
     pub to: Option<i64>,
 }
 
-// ── Handlers ──
+// -- Handlers --
 
+/// POST /api/v1/annotations -- create annotation
+#[utoipa::path(
+    post,
+    path = "/api/v1/annotations",
+    request_body = CreateAnnotationRequest,
+    responses(
+        (status = 201, description = "Annotation created"),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_annotation(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -63,6 +74,21 @@ pub async fn create_annotation(
     ))
 }
 
+/// GET /api/v1/annotations -- list annotations
+#[utoipa::path(
+    get,
+    path = "/api/v1/annotations",
+    params(
+        ("tag_id" = Option<String>, Query, description = "Filter by tag ID"),
+        ("from" = Option<i64>, Query, description = "Start timestamp"),
+        ("to" = Option<i64>, Query, description = "End timestamp"),
+    ),
+    responses(
+        (status = 200, description = "Annotations list"),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_annotations(
     State(state): State<AppState>,
     Query(params): Query<ListAnnotationsQuery>,
@@ -78,6 +104,18 @@ pub async fn list_annotations(
     })))
 }
 
+/// GET /api/v1/annotations/{id} -- get annotation by ID
+#[utoipa::path(
+    get,
+    path = "/api/v1/annotations/{id}",
+    params(("id" = i64, Path, description = "Annotation ID")),
+    responses(
+        (status = 200, body = Annotation),
+        (status = 404, description = "Annotation not found")
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_annotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -91,6 +129,19 @@ pub async fn get_annotation(
     Ok(Json(json!(annotation)))
 }
 
+/// PUT /api/v1/annotations/{id} -- update annotation
+#[utoipa::path(
+    put,
+    path = "/api/v1/annotations/{id}",
+    params(("id" = i64, Path, description = "Annotation ID")),
+    request_body = UpdateAnnotationRequest,
+    responses(
+        (status = 200, description = "Annotation updated"),
+        (status = 404, description = "Annotation not found")
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_annotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -108,6 +159,18 @@ pub async fn update_annotation(
     Ok(Json(json!({ "ok": true })))
 }
 
+/// DELETE /api/v1/annotations/{id} -- delete annotation
+#[utoipa::path(
+    delete,
+    path = "/api/v1/annotations/{id}",
+    params(("id" = i64, Path, description = "Annotation ID")),
+    responses(
+        (status = 204, description = "Annotation deleted"),
+        (status = 404, description = "Annotation not found")
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_annotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -124,7 +187,7 @@ pub async fn delete_annotation(
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
-// ── Tests ──
+// -- Tests --
 
 #[cfg(test)]
 mod tests {
@@ -156,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_parse_mentions_not_in_word() {
-        // The @ must start a new mention — email-like strings should only
+        // The @ must start a new mention -- email-like strings should only
         // capture the part after @ if preceded by non-word chars.
         let mentions = parse_mentions("email@test.com @alice");
         assert_eq!(mentions, vec!["test", "alice"]);

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 // ── Electronic Signature (FDA 21 CFR Part 11) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ElectronicSignature {
     pub id: i64,
     pub user_id: String,
@@ -15,7 +15,7 @@ pub struct ElectronicSignature {
     pub created_at: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateSignatureRequest {
     pub resource_type: String,
     pub resource_id: String,
@@ -25,7 +25,7 @@ pub struct CreateSignatureRequest {
 
 // ── Compliance Configuration ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ComplianceConfig {
     pub auto_logout_minutes: u32,
     pub password_min_length: u8,
@@ -50,7 +50,7 @@ impl Default for ComplianceConfig {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateComplianceConfigRequest {
     pub auto_logout_minutes: Option<u32>,
     pub password_min_length: Option<u8>,
