@@ -7841,6 +7841,189 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
+
+    // ── Sim Profile CRUD methods ──
+
+    pub async fn list_sim_profiles(&self) -> anyhow::Result<Vec<crate::models::SimProfile>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, data_type, config, created_at FROM sim_profiles ORDER BY name")
+                .context("Prepare list_sim_profiles failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(crate::models::SimProfile {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        data_type: row.get(2)?,
+                        config: row.get(3)?,
+                        created_at: row.get(4)?,
+                    })
+                })
+                .context("Query list_sim_profiles failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row parse list_sim_profiles failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_sim_profile(&self, id: i64) -> anyhow::Result<Option<crate::models::SimProfile>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, data_type, config, created_at FROM sim_profiles WHERE id = ?1")
+                .context("Prepare get_sim_profile failed")?;
+            let mut rows = stmt
+                .query_map(rusqlite::params![id], |row| {
+                    Ok(crate::models::SimProfile {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        data_type: row.get(2)?,
+                        config: row.get(3)?,
+                        created_at: row.get(4)?,
+                    })
+                })
+                .context("Query get_sim_profile failed")?;
+            match rows.next() {
+                Some(row) => Ok(Some(row.context("Row parse get_sim_profile failed")?)),
+                None => Ok(None),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_sim_profile(
+        &self,
+        name: &str,
+        data_type: &str,
+        config: &str,
+    ) -> anyhow::Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let data_type = data_type.to_string();
+        let config = config.to_string();
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO sim_profiles (name, data_type, config, created_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![name, data_type, config, now],
+            )
+            .context("Insert sim_profile failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_sim_profile(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        data_type: Option<&str>,
+        config: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let data_type = data_type.map(|s| s.to_string());
+        let config = config.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let existing = conn
+                .query_row(
+                    "SELECT name, data_type, config FROM sim_profiles WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+                )
+                .ok();
+            match existing {
+                None => Ok(false),
+                Some((cur_name, cur_data_type, cur_config)) => {
+                    let name = name.unwrap_or(cur_name);
+                    let data_type = data_type.unwrap_or(cur_data_type);
+                    let config = config.unwrap_or(cur_config);
+                    let affected = conn
+                        .execute(
+                            "UPDATE sim_profiles SET name = ?1, data_type = ?2, config = ?3 WHERE id = ?4",
+                            rusqlite::params![name, data_type, config, id],
+                        )
+                        .context("Update sim_profile failed")?;
+                    Ok(affected > 0)
+                }
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_sim_profile(&self, id: i64) -> anyhow::Result<bool> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let affected = conn
+                .execute("DELETE FROM sim_profiles WHERE id = ?1", rusqlite::params![id])
+                .context("Delete sim_profile failed")?;
+            Ok(affected > 0)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Device simulation get/set ──
+
+    pub async fn set_device_simulation(
+        &self,
+        device_id: &str,
+        sim_mode: bool,
+        sim_profile_id: Option<i64>,
+        sim_config: Option<&str>,
+    ) -> anyhow::Result<bool> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let sim_config = sim_config.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let affected = conn
+                .execute(
+                    "UPDATE devices SET simulation_mode = ?1, sim_profile_id = ?2, sim_config = ?3 WHERE id = ?4",
+                    rusqlite::params![sim_mode as i32, sim_profile_id, sim_config, device_id],
+                )
+                .context("Update device simulation failed")?;
+            Ok(affected > 0)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_device_simulation(
+        &self,
+        device_id: &str,
+    ) -> anyhow::Result<Option<(bool, Option<i64>, Option<String>)>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT simulation_mode, sim_profile_id, sim_config FROM devices WHERE id = ?1",
+                rusqlite::params![device_id],
+                |row| {
+                    let mode: i32 = row.get(0)?;
+                    Ok((mode != 0, row.get(1)?, row.get(2)?))
+                },
+            );
+            match result {
+                Ok(row) => Ok(Some(row)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get device simulation failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
 }
 
 #[cfg(test)]
