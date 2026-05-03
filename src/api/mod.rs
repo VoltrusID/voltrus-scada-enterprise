@@ -34,6 +34,7 @@ mod commands;
 mod simulation;
 mod scripts;
 mod config_snapshots;
+mod websocket;
 
 use axum::{
     extract::{Request, State},
@@ -79,6 +80,7 @@ pub struct AppState {
     pub vapid_public_key: Option<String>,
     pub hub_manager: Option<hub::HubManager>,
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
+    pub ws_manager: Arc<crate::ws_manager::WsManager>,
 }
 
 #[derive(Debug)]
@@ -198,7 +200,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
-        .route("/api/license/status", get(license::get_license_status));
+        .route("/api/license/status", get(license::get_license_status))
+        .route("/api/v1/ws", get(websocket::websocket_handler));
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
@@ -653,6 +656,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         create_router(state)
     }
@@ -834,6 +838,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -902,6 +907,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -997,6 +1003,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1070,6 +1077,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1220,6 +1228,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1384,6 +1393,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         create_router(state)
     }

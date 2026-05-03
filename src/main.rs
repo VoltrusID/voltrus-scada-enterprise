@@ -994,6 +994,8 @@ EXAMPLES:
         });
     }
 
+    let ws_manager = Arc::new(crate::ws_manager::WsManager::new());
+
     let state = AppState {
         cache: cache.clone(),
         storage: storage.clone(),
@@ -1017,9 +1019,11 @@ EXAMPLES:
         vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
         hub_manager,
         stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
+        ws_manager: ws_manager.clone(),
     };
 
-    api::stream::spawn_sse_composer(cache, storage);
+    api::stream::spawn_sse_composer(cache.clone(), storage.clone());
+    crate::ws_manager::spawn_ws_broadcaster(cache, ws_manager);
     let app = api::create_router(state);
 
     let addr = format!("0.0.0.0:{}", app_config.server_port);
