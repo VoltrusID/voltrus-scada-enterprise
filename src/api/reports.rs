@@ -131,7 +131,7 @@ pub async fn create_report(
 
     match state
         .storage
-        .create_report(&name, &req.schedule, enabled, &device_ids, &req.email_recipients)
+        .create_report(&name, &req.schedule, enabled, &device_ids, &req.email_recipients, None, None)
         .await
     {
         Ok(id) => {

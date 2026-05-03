@@ -634,6 +634,115 @@ pub struct EnipDeviceConfig {
     pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
 }
 
+// ── BACnet/IP device types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BacnetDevice {
+    pub id: i64,
+    pub name: String,
+    pub ip: String,
+    pub port: u16,
+    pub device_instance: u32,
+    pub interval_ms: u64,
+    pub cov_enabled: bool,
+    pub cov_lifetime: u32,
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BacnetObject {
+    pub id: i64,
+    pub device_db_id: i64,
+    pub object_type: String,
+    pub object_instance: u32,
+    pub property: String,
+    pub name: String,
+    pub display_name: String,
+    pub cov_increment: f64,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct CreateBacnetDeviceRequest {
+    pub name: String,
+    pub ip: String,
+    #[serde(default = "default_bacnet_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub device_instance: u32,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default)]
+    pub cov_enabled: bool,
+    #[serde(default = "default_cov_lifetime")]
+    pub cov_lifetime: u32,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_bacnet_port() -> u16 { 47808 }
+fn default_cov_lifetime() -> u32 { 300 }
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct UpdateBacnetDeviceRequest {
+    pub name: Option<String>,
+    pub ip: Option<String>,
+    pub port: Option<u16>,
+    pub device_instance: Option<u32>,
+    pub interval_ms: Option<u64>,
+    pub cov_enabled: Option<bool>,
+    pub cov_lifetime: Option<u32>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct CreateBacnetObjectRequest {
+    pub object_type: String,
+    pub object_instance: u32,
+    #[serde(default = "default_bacnet_property")]
+    pub property: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub cov_increment: f64,
+}
+
+fn default_bacnet_property() -> String { "presentValue".to_string() }
+
+#[derive(Debug, Clone)]
+pub struct BacnetDeviceConfig {
+    pub id: String,
+    pub ip: String,
+    pub port: u16,
+    pub device_instance: u32,
+    pub interval_ms: u64,
+    pub cov_enabled: bool,
+    pub cov_lifetime: u32,
+    pub objects: Vec<BacnetObjectConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BacnetObjectConfig {
+    pub object_type: String,
+    pub object_instance: u32,
+    pub property: String,
+    pub name: String,
+    pub cov_increment: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct BacnetDiscoveredDevice {
+    pub device_instance: u32,
+    pub ip: String,
+    pub port: u16,
+    pub vendor_name: Option<String>,
+    pub model_name: Option<String>,
+    pub firmware_version: Option<String>,
+    pub object_list_count: Option<u32>,
+}
+
 // ── Runtime types ──
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
@@ -1716,6 +1825,13 @@ pub struct Report {
     pub email_recipients: String,
     pub last_generated: Option<i64>,
     pub created_at: i64,
+    #[serde(default = "default_report_type")]
+    pub report_type: Option<String>,
+    pub analytics_config: Option<String>,
+}
+
+fn default_report_type() -> Option<String> {
+    Some("pdf".to_string())
 }
 
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
@@ -2164,4 +2280,107 @@ pub struct Signal {
     pub start_idx: usize,
     pub end_idx: usize,
     pub description: String,
+}
+
+// ── AI Copilot types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct AiProposal {
+    pub id: i64,
+    pub proposal_type: String,
+    pub status: String,
+    pub title: String,
+    pub input_summary: String,
+    pub proposed_config: serde_json::Value,
+    pub applied_config: Option<serde_json::Value>,
+    pub target_entity_id: Option<String>,
+    pub error_message: Option<String>,
+    pub model_used: Option<String>,
+    pub tokens_used: Option<i64>,
+    pub created_at: i64,
+    pub reviewed_at: Option<i64>,
+    pub reviewed_by: Option<String>,
+    pub applied_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct AiSettingsUpdate {
+    pub provider: String,
+    pub api_key: Option<String>,
+    pub default_model: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+pub struct AiSettingsResponse {
+    pub provider: String,
+    pub api_key_set: bool,
+    pub api_key_preview: String,
+    pub default_model: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+pub struct EquipmentTemplate {
+    pub id: i64,
+    pub industry: String,
+    pub equipment_type: String,
+    pub name: String,
+    pub tag_template: serde_json::Value,
+    pub alarm_template: serde_json::Value,
+    pub dashboard_template: serde_json::Value,
+    pub flow_template: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct RegisterMapRequest {
+    pub file_content: String,
+    pub file_type: String,
+    pub device_name: String,
+    pub device_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct DashboardLayoutRequest {
+    pub description: String,
+    pub screen_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct AlarmThresholdRequest {
+    pub device_type: String,
+    pub tags: Vec<AlarmThresholdTag>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct AlarmThresholdTag {
+    pub source_key: String,
+    pub name: String,
+    pub unit: Option<String>,
+    pub min_val: Option<f64>,
+    pub max_val: Option<f64>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct TagRenameRequest {
+    pub tags: Vec<TagRenameEntry>,
+    pub convention: String,
+    pub custom_pattern: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
+pub struct TagRenameEntry {
+    pub current: String,
+    pub proposed: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct FlowRuleRequest {
+    pub description: String,
+    pub available_tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
+pub struct TemplateInstantiateRequest {
+    pub template_id: i64,
+    pub device_id: Option<String>,
+    pub prefix: Option<String>,
 }
