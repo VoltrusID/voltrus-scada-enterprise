@@ -32,6 +32,7 @@ mod shift_handover;
 mod user_notifications;
 mod commands;
 mod simulation;
+mod scripts;
 
 use axum::{
     extract::{Request, State},
@@ -394,6 +395,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/sim-profiles/{id}", put(simulation::update_sim_profile).delete(simulation::delete_sim_profile))
         .route("/api/v1/devices/{id}/simulate", post(simulation::toggle_simulation))
         .route("/api/v1/devices/{id}/go-live", post(simulation::go_live))
+        // Script routes (admin-only)
+        .route("/api/v1/scripts", get(scripts::list_scripts).post(scripts::create_script))
+        .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
+        .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
+        .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
