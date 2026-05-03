@@ -110,7 +110,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, value FROM telemetry
+                    "SELECT timestamp, value FROM telemetry_hot
                      WHERE device_id = ?1 AND metric = ?2
                      AND timestamp >= ?3 AND timestamp <= ?4
                      ORDER BY timestamp
@@ -7480,6 +7480,214 @@ impl Storage {
             ).context("Cleanup old notifications failed")?;
             Ok(affected as u64)
         }).await.context("Task join failed")?
+    }
+
+    // ── Unified compressed query path (v0.23.0) ──
+
+    /// Unified query across all compression tiers with transparent decompression.
+    pub async fn query_compressed(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<DataPoint>> {
+        let now = crate::timeutil::now_secs() * 1000;
+        let hot_cutoff = now - 24 * 3600 * 1000;
+        let warm_cutoff = now - 30 * 24 * 3600 * 1000;
+
+        let mut all_points = Vec::new();
+
+        // Hot tier (raw data, last 24h)
+        if to > hot_cutoff {
+            let qfrom = from.max(hot_cutoff);
+            let points = self.query_hot_tier(device_id, metric, qfrom, to).await?;
+            all_points.extend(points);
+        }
+
+        // Warm tier (1-min OHLC, 1-30 days)
+        if from < hot_cutoff && to > warm_cutoff {
+            let qfrom = from.max(warm_cutoff);
+            let qto = to.min(hot_cutoff);
+            let points = self.query_warm_tier(device_id, metric, qfrom, qto).await?;
+            all_points.extend(points);
+        }
+
+        // Cold tier (Gorilla/RLE, 30+ days)
+        if from < warm_cutoff {
+            let qto = to.min(warm_cutoff);
+            let points = self.query_cold_tier(device_id, metric, from, qto).await?;
+            all_points.extend(points);
+        }
+
+        all_points.sort_by_key(|p| p.timestamp);
+        all_points.truncate(10000);
+        Ok(all_points)
+    }
+
+    /// Query raw data from the hot tier (last 24h).
+    async fn query_hot_tier(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<DataPoint>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT timestamp, value FROM telemetry_hot
+                     WHERE device_id = ?1 AND metric = ?2
+                     AND timestamp >= ?3 AND timestamp <= ?4
+                     ORDER BY timestamp LIMIT 10000",
+                )
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![device_id, metric, from, to],
+                    |row| Ok(DataPoint { timestamp: row.get(0)?, value: row.get(1)? }),
+                )
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Query 1-min OHLC data from the warm tier (1-30 days).
+    async fn query_warm_tier(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<DataPoint>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT bucket_start, open, count, deltas FROM telemetry_warm
+                     WHERE device_id = ?1 AND metric = ?2
+                     AND bucket_start >= ?3 AND bucket_start <= ?4
+                     ORDER BY bucket_start LIMIT 10000",
+                )
+                .context("Prepare failed")?;
+            let rows: Vec<(i64, f64, i64, Option<Vec<u8>>)> = stmt
+                .query_map(
+                    rusqlite::params![device_id, metric, from / 60000 * 60000, to / 60000 * 60000],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )
+                .context("Query failed")?
+                .collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")?;
+
+            let mut points = Vec::new();
+            for (bucket_start, open, count, deltas) in rows {
+                if let Some(delta_bytes) = deltas {
+                    if let Ok(deltas) = crate::compression::varint_decode(&delta_bytes) {
+                        let step = if count > 1 { 60000 / (count as i64).max(1) } else { 0 };
+                        for (i, d) in deltas.iter().enumerate() {
+                            let ts = bucket_start + (i as i64) * step;
+                            points.push(DataPoint {
+                                timestamp: ts,
+                                value: open + (*d as f64 / 1000.0),
+                            });
+                        }
+                        continue;
+                    }
+                }
+                points.push(DataPoint { timestamp: bucket_start, value: open });
+            }
+            Ok(points)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Query Gorilla/RLE compressed data from the cold tier (30+ days).
+    async fn query_cold_tier(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<DataPoint>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT block_start, encoding, data_type, data, count, first_ts, last_ts
+                     FROM telemetry_cold
+                     WHERE device_id = ?1 AND metric = ?2
+                     AND block_start >= ?3 AND block_start <= ?4
+                     ORDER BY block_start",
+                )
+                .context("Prepare failed")?;
+            let rows: Vec<(i64, String, String, Vec<u8>, i64, i64, i64)> = stmt
+                .query_map(
+                    rusqlite::params![device_id, metric, from / 3600000 * 3600000, to / 3600000 * 3600000],
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                        ))
+                    },
+                )
+                .context("Query failed")?
+                .collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")?;
+
+            let mut points = Vec::new();
+            for (block_start, encoding, _data_type, data, _count, _first_ts, _last_ts) in rows {
+                if encoding == "gorilla" && data.len() >= 20 {
+                    let first_ts = i64::from_le_bytes(data[0..8].try_into().unwrap());
+                    let count = u32::from_le_bytes(data[8..12].try_into().unwrap()) as usize;
+                    let first_value =
+                        f64::from_bits(u64::from_le_bytes(data[12..20].try_into().unwrap()));
+                    let gorilla_data = data[20..].to_vec();
+                    let block = crate::compression::GorillaBlock {
+                        first_ts,
+                        count,
+                        first_value,
+                        data: gorilla_data,
+                    };
+                    if let Ok((timestamps, values)) = crate::compression::gorilla_decode(&block) {
+                        for (ts, v) in timestamps.iter().zip(values.iter()) {
+                            points.push(DataPoint { timestamp: *ts, value: *v });
+                        }
+                    }
+                } else if encoding == "rle" {
+                    if let Ok(runs) = crate::compression::rle_deserialize(&data) {
+                        let values = crate::compression::rle_decode(&runs);
+                        let step = if values.len() > 1 { 3600000i64 / values.len() as i64 } else { 0 };
+                        for (i, v) in values.iter().enumerate() {
+                            points.push(DataPoint {
+                                timestamp: block_start + (i as i64) * step,
+                                value: if *v { 1.0 } else { 0.0 },
+                            });
+                        }
+                    }
+                }
+            }
+            Ok(points)
+        })
+        .await
+        .context("Task join failed")?
     }
 }
 
