@@ -99,6 +99,8 @@ pub async fn create_device(
         )
         .await?;
 
+    crate::asset::sync::on_device_created(&state.storage.asset(), "enip", &id.to_string(), &req.name, None, "plc").await;
+
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_enip_device".to_string(),
         username: user.username.clone(),
@@ -202,6 +204,8 @@ pub async fn delete_device(
     state.poller_manager.stop(&device_key).await;
 
     state.storage.delete_enip_device(id).await?;
+
+    crate::asset::sync::on_device_deleted(&state.storage.asset(), "enip", &id.to_string()).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_enip_device".to_string(),
