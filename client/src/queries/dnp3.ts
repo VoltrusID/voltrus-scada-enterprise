@@ -37,6 +37,12 @@ export interface Dnp3GroupVariation {
   name: string
 }
 
+export interface Dnp3ScanResult {
+  ip: string
+  port: number
+  outstation_address: number
+}
+
 export function useDnp3Devices(enabled = true) {
   return useQuery({
     queryKey: queryKeys.dnp3Devices,
@@ -143,7 +149,7 @@ export function useScanDnp3Network() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ range, port: port || 20000 }),
       })
-      return res.json()
+      return res.json() as Promise<Dnp3ScanResult[]>
     },
   })
 }

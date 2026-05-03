@@ -265,4 +265,4 @@ export {
   useScanDnp3Network,
 } from './dnp3'
 
-export type { Dnp3Device, Dnp3Point, Dnp3GroupVariation } from './dnp3'
+export type { Dnp3Device, Dnp3Point, Dnp3GroupVariation, Dnp3ScanResult } from './dnp3'
