@@ -17,6 +17,16 @@ use crate::opcua::{security_mode_to_opcua, security_policy_to_str};
 // ── Device CRUD ──
 
 /// GET /api/v1/opcua/devices
+#[utoipa::path(
+    get,
+    path = "/api/v1/opcua/devices",
+    responses(
+        (status = 200, body = Vec<serde_json::Value>),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_devices(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -46,6 +56,18 @@ pub async fn list_devices(
 }
 
 /// POST /api/v1/opcua/devices
+#[utoipa::path(
+    post,
+    path = "/api/v1/opcua/devices",
+    request_body = CreateOpcUaDeviceRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -96,6 +118,21 @@ pub async fn create_device(
 }
 
 /// PUT /api/v1/opcua/devices/{id}
+#[utoipa::path(
+    put,
+    path = "/api/v1/opcua/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    request_body = UpdateOpcUaDeviceRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -138,6 +175,19 @@ pub async fn update_device(
 }
 
 /// DELETE /api/v1/opcua/devices/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/opcua/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -166,6 +216,19 @@ pub async fn delete_device(
 // ── Node CRUD ──
 
 /// GET /api/v1/opcua/devices/{id}/nodes
+#[utoipa::path(
+    get,
+    path = "/api/v1/opcua/devices/{id}/nodes",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = Vec<OpcUaNode>),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_nodes(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -180,6 +243,21 @@ pub async fn list_nodes(
 }
 
 /// POST /api/v1/opcua/devices/{id}/nodes
+#[utoipa::path(
+    post,
+    path = "/api/v1/opcua/devices/{id}/nodes",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    request_body = CreateOpcUaNodeRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn add_node(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -233,6 +311,20 @@ pub async fn add_node(
 }
 
 /// DELETE /api/v1/opcua/devices/{id}/nodes/{node_id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/opcua/devices/{id}/nodes/{node_id}",
+    params(
+        ("id" = i64, Path, description = "Device ID"),
+        ("node_id" = i64, Path, description = "Node ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn remove_node(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -253,6 +345,20 @@ pub async fn remove_node(
 ///
 /// Connects to the OPC-UA server using the device's stored config and returns
 /// available variable nodes from the ObjectsFolder.
+#[utoipa::path(
+    post,
+    path = "/api/v1/opcua/devices/{id}/browse",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+        (status = 500),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn browse_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -403,6 +509,20 @@ pub async fn browse_device(
 ///
 /// Starts the OPC-UA poller for the device. Converts the DB-stored device + nodes
 /// into an OpcUaDeviceConfig and starts the poller.
+#[utoipa::path(
+    post,
+    path = "/api/v1/opcua/devices/{id}/start",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -468,6 +588,19 @@ pub async fn start_device(
 }
 
 /// POST /api/v1/opcua/devices/{id}/stop
+#[utoipa::path(
+    post,
+    path = "/api/v1/opcua/devices/{id}/stop",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Devices",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
