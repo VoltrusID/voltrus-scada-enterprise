@@ -38,6 +38,7 @@ use models::DeviceStatus;
 use poller_manager::PollerManager;
 use std::sync::Arc;
 use storage::Storage;
+use utoipa::OpenApi;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -420,6 +421,11 @@ EXAMPLES:
                 } else {
                     eprintln!("Found {} device(s)", devices.len());
                 }
+                return Ok(());
+            }
+            "--dump-openapi" => {
+                let spec = crate::api::openapi::ApiDoc::openapi();
+                println!("{}", serde_json::to_string_pretty(&spec)?);
                 return Ok(());
             }
             "db" => {

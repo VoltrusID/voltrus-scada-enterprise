@@ -1,4 +1,4 @@
-mod openapi;
+pub(crate) mod openapi;
 pub(crate) mod auth;
 mod api_keys;
 mod push;
@@ -47,6 +47,8 @@ use axum_extra::extract::CookieJar;
 use serde_json::json;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::auth::oidc::{JwksManager, OidcConfig};
 use crate::cache::DeviceCache;
@@ -406,8 +408,13 @@ pub fn create_router(state: AppState) -> Router {
         )
     }
 
+    // Swagger UI
+    let swagger = SwaggerUi::new("/api/docs")
+        .url("/api/openapi.json", openapi::ApiDoc::openapi());
+
     // API router with CORS, rate limiting, security headers, body limit
     let api_router = Router::new()
+        .merge(swagger)
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
