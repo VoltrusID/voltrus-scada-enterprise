@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
+import { LicenseActivationScreen } from './LicenseActivationScreen'
 import { DashboardSettings } from './DashboardSettings'
 import { SensorDetail } from './SensorDetail'
 import { DataManager } from './DataManager'
@@ -9,7 +10,11 @@ import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
+import { AnnotationPanel } from './AnnotationPanel'
+import { ShiftHandoverPanel } from './ShiftHandoverPanel'
+import { DataExportPanel } from './DataExportPanel'
 import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
+import { CommandPanel } from './components/CommandPanel'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
@@ -23,9 +28,16 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
 import { useDashboardSystemInfo } from './store/dashboardStore'
 import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
+import { LicenseContext, type LicenseInfo } from './LicenseContext'
+import { TrialBanner } from './TrialBanner'
+import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
 
 function AppInner() {
   const queryClient = useQueryClient()
+
+  // ── License state ────────────────────────────────────────────────
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null)
+  const [showLicenseActivation, setShowLicenseActivation] = useState(false)
 
   // ── Auth state ───────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false)
@@ -61,6 +73,11 @@ function AppInner() {
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
+  const [showCommandPanel, setShowCommandPanel] = useState(false)
+  const [showExportPanel, setShowExportPanel] = useState(false)
+  const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
+  const [showShiftHandover, setShowShiftHandover] = useState(false)
+  const [showSnapshotPanel, setShowSnapshotPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
 
@@ -78,7 +95,7 @@ function AppInner() {
   const { data: screenSensors = [] } = useScreenSensors(activeScreen, authed)
   const { data: screens = [] } = useScreens(authed)
   const { data: serverLayouts } = useLayouts(activeScreen, authed)
-  const screenLayouts = localLayouts ?? (serverLayouts ?? { lg: [], md: [], sm: [] })
+  const screenLayouts = localLayouts ?? (serverLayouts ?? { lg: [], md: [], sm: [], xs: [] })
   const { data: twinLayoutsData } = useTwinLayouts(activeScreen, authed)
   const twinLayouts = twinLayoutsData?.items ?? []
   const twinCamera = twinLayoutsData?.camera
@@ -130,10 +147,10 @@ function AppInner() {
     return defaults
   }, [screens, navShortcuts])
 
-  const DEFAULT_COLS: Record<string, number> = { lg: 24, md: 12, sm: 4 }
+  const DEFAULT_COLS: Record<string, number> = { lg: 24, md: 12, sm: 4, xs: 2 }
   function generateDefaultLayout(sensorIds: number[], bp: string): LayoutItem[] {
     const cols = DEFAULT_COLS[bp] || 24
-    const defaultW = bp === 'lg' ? 6 : bp === 'md' ? 6 : 4
+    const defaultW = bp === 'lg' ? 6 : bp === 'md' ? 6 : bp === 'xs' ? 2 : 4
     const defaultH = 4
     let x = 0, y = 0
     return sensorIds.map(id => {
@@ -170,6 +187,7 @@ function AppInner() {
         const ct = s.chart_type || 'sparkline'
         let { w, h } = CHART_SIZES[ct] || { w: 6, h: 4 }
         if (bp === 'sm') { w = Math.min(w, 4); h = Math.max(h, 3) }
+        if (bp === 'xs') { w = 2; h = 3 }
         if (x + w > cols) { x = 0; rowY += maxRowH; maxRowH = 0 }
         items.push({ i: String(s.id), x, y: rowY, w, h })
         maxRowH = Math.max(maxRowH, h)
@@ -181,17 +199,25 @@ function AppInner() {
   }
 
   function autoArrangeAll(sensors: SensorConfig[]): ScreenLayouts {
-    return { lg: autoArrangeLayout(sensors, 'lg'), md: autoArrangeLayout(sensors, 'md'), sm: autoArrangeLayout(sensors, 'sm') }
+    return { lg: autoArrangeLayout(sensors, 'lg'), md: autoArrangeLayout(sensors, 'md'), sm: autoArrangeLayout(sensors, 'sm'), xs: autoArrangeLayout(sensors, 'xs') }
   }
 
   const defaultLayouts = useMemo(() => {
     if (screenLayouts.lg.length > 0) return null
     const ids = screenSensors.map(s => s.id)
     if (ids.length === 0) return null
-    return { lg: generateDefaultLayout(ids, 'lg'), md: generateDefaultLayout(ids, 'md'), sm: generateDefaultLayout(ids, 'sm') }
+    return { lg: generateDefaultLayout(ids, 'lg'), md: generateDefaultLayout(ids, 'md'), sm: generateDefaultLayout(ids, 'sm'), xs: generateDefaultLayout(ids, 'xs') }
   }, [screenSensors, screenLayouts])
 
   const effectiveLayouts = defaultLayouts ?? screenLayouts
+
+  // ── License check ────────────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/license/status')
+      .then(r => r.json())
+      .then(d => { setLicenseInfo(d) })
+      .catch(() => { setLicenseInfo({ status: 'Valid', tier: 'professional', feature_flags: {} }) })
+  }, [])
 
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -247,6 +273,7 @@ function AppInner() {
       lg: allLayouts.lg?.length > 0 ? normalize(allLayouts.lg) : [],
       md: allLayouts.md?.length > 0 ? normalize(allLayouts.md) : [],
       sm: allLayouts.sm?.length > 0 ? normalize(allLayouts.sm) : [],
+      xs: allLayouts.xs?.length > 0 ? normalize(allLayouts.xs) : [],
     }
     setLocalLayouts(prev => {
       const next = JSON.stringify(newLayouts)
@@ -324,6 +351,11 @@ function AppInner() {
   }, [activeAlarms.count, startAlarm, stopAlarm])
 
   // ── Render gates ─────────────────────────────────────────────────
+  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Checking license...</div>
+  const licenseStatus = licenseInfo.status
+  const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Trial' || licenseStatus === 'TrialExpired'
+  if (!isLicensed) return <LicenseActivationScreen />
+  if (showLicenseActivation) return <LicenseActivationScreen />
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
 
@@ -347,7 +379,13 @@ function AppInner() {
   }
 
   return (
+    <LicenseContext.Provider value={licenseInfo}>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <a href="#main-content" className="skip-to-content">Skip to content</a>
+      {(licenseStatus === 'Trial' || licenseStatus === 'TrialExpired') && (
+        <TrialBanner licenseInfo={licenseInfo} onActivate={() => setShowLicenseActivation(true)} />
+      )}
+      <header role="banner">
       <AppHeader
         branding={branding} editMode={editMode}
         onBrandingClick={() => { if (editMode) setShowBrandingDialog(true) }}
@@ -368,9 +406,15 @@ function AppInner() {
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
+        onCommandPanelToggle={() => setShowCommandPanel(v => !v)}
+        onExportClick={() => setShowExportPanel(true)}
+        onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
+        onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
+        onSnapshotsClick={() => setShowSnapshotPanel(v => !v)}
       />
+      </header>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }} className="main-content">
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
@@ -448,7 +492,7 @@ function AppInner() {
           }}>
             {(() => {
               const s = sensors.find(x => x.id === selectedSensor)
-              return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} /> : null
+              return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} isAdmin={isAdmin} /> : null
             })()}
           </div>
         )}
@@ -464,10 +508,26 @@ function AppInner() {
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
-      </div>
+        {showCommandPanel && <CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} />}
+        {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
+        {showAnnotationPanel && <AnnotationPanel onClose={() => setShowAnnotationPanel(false)} />}
+        {showShiftHandover && <ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} />}
+        {showSnapshotPanel && (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Config Snapshots</h2>
+              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowSnapshotPanel(false)}>Close</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <ConfigSnapshotPanel />
+            </div>
+          </div>
+        )}
+      </main>
 
       <Footer />
     </div>
+    </LicenseContext.Provider>
   )
 }
 
