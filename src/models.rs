@@ -1042,6 +1042,43 @@ pub struct AlarmQuery {
     pub limit: Option<i64>,
 }
 
+// ── Alarm Management Overhaul types (v0.23.0) ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmAuditEntry {
+    pub id: i64,
+    pub alarm_id: i64,
+    pub action: String,
+    pub performed_by: String,
+    pub details: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ShelfAlarmRequest {
+    pub duration_secs: u64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmSummary {
+    pub active_critical: i64,
+    pub active_warning: i64,
+    pub active_info: i64,
+    pub shelved: i64,
+    pub recent_24h: i64,
+    pub avg_ack_time_secs: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmAnalyticsEntry {
+    pub source_key: String,
+    pub source_name: String,
+    pub trigger_count: i64,
+    pub avg_time_to_ack_secs: f64,
+    pub last_triggered_at: i64,
+}
+
 // ── Notification settings ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
