@@ -4,6 +4,8 @@ use tokio::sync::{RwLock, broadcast, watch};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::models::{DeviceSnapshot, DeviceStatus};
+use crate::ws_manager::WsManager;
+use crate::ws_types::ServerMessage;
 
 const SSE_CHANNEL_CAPACITY: usize = 256;
 const SNAPSHOT_CHANNEL_CAPACITY: usize = 256;
@@ -14,6 +16,7 @@ pub struct DeviceCache {
     tx: broadcast::Sender<String>,
     snapshot_tx: broadcast::Sender<DeviceSnapshot>,
     trigger: watch::Sender<bool>,
+    ws_manager: Option<Arc<WsManager>>,
 }
 
 impl DeviceCache {
@@ -26,7 +29,14 @@ impl DeviceCache {
             tx,
             snapshot_tx,
             trigger,
+            ws_manager: None,
         }
+    }
+
+    /// Attach a WsManager so that device-status changes are broadcast over WebSocket.
+    pub fn with_ws_manager(mut self, ws_manager: Arc<WsManager>) -> Self {
+        self.ws_manager = Some(ws_manager);
+        self
     }
 
     pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>, simulated: bool) {
@@ -54,12 +64,31 @@ impl DeviceCache {
 
         let _ = self.snapshot_tx.send(snapshot);
         let _ = self.trigger.send(true);
+
+        // Broadcast device online status via WebSocket
+        if let Some(ref ws) = self.ws_manager {
+            ws.broadcast_device_status(ServerMessage::DeviceStatus {
+                device_id: device_id.to_string(),
+                online: true,
+                latency_ms: None,
+            });
+        }
     }
 
     pub async fn set_status(&self, device_id: &str, status: DeviceStatus) {
         let mut devices = self.devices.write().await;
         if let Some(entry) = devices.get_mut(device_id) {
-            entry.status = status;
+            entry.status = status.clone();
+        }
+        drop(devices);
+
+        // Broadcast device status change via WebSocket
+        if let Some(ref ws) = self.ws_manager {
+            ws.broadcast_device_status(ServerMessage::DeviceStatus {
+                device_id: device_id.to_string(),
+                online: status == DeviceStatus::Online,
+                latency_ms: None,
+            });
         }
     }
 

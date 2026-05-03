@@ -559,6 +559,8 @@ EXAMPLES:
     );
 
     let cache = DeviceCache::new();
+    let ws_manager = Arc::new(crate::ws_manager::WsManager::new());
+    let cache = cache.with_ws_manager(ws_manager.clone());
     let storage = Storage::new_with_key(
         &app_config.db_path,
         app_config.db_encryption_key.as_deref(),
@@ -735,6 +737,7 @@ EXAMPLES:
         let storage = storage.clone();
         let email_notifier = email_notifier.clone();
         let push_notifier = push_notifier.clone();
+        let alarm_ws_manager = ws_manager.clone();
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
@@ -827,7 +830,7 @@ EXAMPLES:
                                             priority: "critical".to_string(),
                                             value,
                                             threshold: source.crit_val,
-                                            message: msg,
+                                            message: msg.clone(),
                                             triggered_at: crate::timeutil::now_secs(),
                                             resolved_at: None,
                                             acknowledged_at: None,
@@ -839,6 +842,17 @@ EXAMPLES:
                                             deadband: 0.0,
                                             state: "active".to_string(),
                                         };
+                                        // Broadcast alarm via WebSocket
+                                        alarm_ws_manager.broadcast_alarm(
+                                            crate::ws_types::ServerMessage::Alarm {
+                                                alarm_id,
+                                                tag_id: source.key.clone(),
+                                                severity: "critical".to_string(),
+                                                message: msg,
+                                                value,
+                                                ts: alarm.triggered_at,
+                                            },
+                                        );
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
                                                 notif_storage,
@@ -874,7 +888,7 @@ EXAMPLES:
                                             priority: "warning".to_string(),
                                             value,
                                             threshold: source.warn_val,
-                                            message: msg,
+                                            message: msg.clone(),
                                             triggered_at: crate::timeutil::now_secs(),
                                             resolved_at: None,
                                             acknowledged_at: None,
@@ -886,6 +900,17 @@ EXAMPLES:
                                             deadband: 0.0,
                                             state: "active".to_string(),
                                         };
+                                        // Broadcast alarm via WebSocket
+                                        alarm_ws_manager.broadcast_alarm(
+                                            crate::ws_types::ServerMessage::Alarm {
+                                                alarm_id,
+                                                tag_id: source.key.clone(),
+                                                severity: "warning".to_string(),
+                                                message: msg,
+                                                value,
+                                                ts: alarm.triggered_at,
+                                            },
+                                        );
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
                                                 notif_storage,
@@ -932,7 +957,8 @@ EXAMPLES:
 
     // Spawn command queue processor
     {
-        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone());
+        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone())
+            .with_ws_manager(ws_manager.clone());
         tokio::spawn(async move {
             queue.run().await;
         });
@@ -993,8 +1019,6 @@ EXAMPLES:
             }
         });
     }
-
-    let ws_manager = Arc::new(crate::ws_manager::WsManager::new());
 
     let state = AppState {
         cache: cache.clone(),
