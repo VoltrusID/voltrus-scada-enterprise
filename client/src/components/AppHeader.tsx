@@ -26,7 +26,7 @@ interface Props {
   showShortcutsPanel: boolean
   onToggleShortcutsPanel: () => void
   shortcutsPanel: React.ReactNode
-  mode: 'live' | 'history' | 'system' | 'flows'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'assets'
   onModeChange: (mode: 'live' | 'history') => void
   historyRange: string
   onHistoryRangeChange: (range: string) => void
@@ -38,6 +38,7 @@ interface Props {
   onSettingsClick: () => void
   onDataManagerClick: () => void
   onFlowsClick: () => void
+  onAssetsClick: () => void
   isAdmin: boolean
   onLogout: () => void
   onAlarmPanelToggle: () => void
@@ -45,6 +46,7 @@ interface Props {
   onExportClick: () => void
   onAnnotationPanelToggle: () => void
   onShiftHandoverToggle: () => void
+  onCopilotToggle: () => void
 }
 
 export function AppHeader({
@@ -55,8 +57,8 @@ export function AppHeader({
   mode, onModeChange,
   historyRange, onHistoryRangeChange, historyDetail, onHistoryDetailChange, historyAutoAgg,
   turbo, onToggleTurbo,
-  onSettingsClick, onDataManagerClick, onFlowsClick, isAdmin,
-  onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onAnnotationPanelToggle, onShiftHandoverToggle,
+  onSettingsClick, onDataManagerClick, onFlowsClick, onAssetsClick, isAdmin,
+  onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onAnnotationPanelToggle, onShiftHandoverToggle, onCopilotToggle,
 }: Props) {
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -107,6 +109,10 @@ export function AppHeader({
               color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10,
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
             }}>{activeAlarmCount}</span>}
+          </button>
+          {/* AI Copilot button */}
+          <button onClick={onCopilotToggle} aria-label="AI Copilot" style={{ ...btnStyle }}>
+            <span style={{ fontSize: 14 }}>&#x1f916;</span>
           </button>
           {/* Annotation button */}
           <button onClick={onAnnotationPanelToggle} aria-label="Annotations" style={{
@@ -209,6 +215,21 @@ export function AppHeader({
                 <span>Flows</span>
               </button>
             )}
+            {isAdmin && (
+              <button
+                aria-label="Assets"
+                style={{
+                  ...btnStyle,
+                  borderColor: mode === 'assets' ? '#06b6d4' : 'var(--border)',
+                  color: mode === 'assets' ? '#06b6d4' : 'var(--fg)',
+                  background: mode === 'assets' ? 'rgba(6,182,212,.1)' : 'var(--card)',
+                }}
+                onClick={onAssetsClick}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span>Assets</span>
+              </button>
+            )}
             <div style={{ marginLeft: 'auto' }} />
             <button style={btnStyle} onClick={onLogout} aria-label="Logout">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -289,6 +310,12 @@ export function AppHeader({
               <button style={drawerItemStyle} onClick={() => { closeDrawer(); onFlowsClick(); }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 Flows
+              </button>
+            )}
+            {isAdmin && (
+              <button style={drawerItemStyle} onClick={() => { closeDrawer(); onAssetsClick(); }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                Assets
               </button>
             )}
           </div>
