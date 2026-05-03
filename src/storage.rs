@@ -374,7 +374,7 @@ impl Storage {
 
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut sql = String::from("SELECT COUNT(*) FROM telemetry WHERE 1=1");
+            let mut sql = String::from("SELECT COUNT(*) FROM telemetry_hot WHERE 1=1");
             if device_id.is_some() {
                 sql.push_str(" AND device_id = ?1");
             }
@@ -6348,12 +6348,12 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    /// Query distinct device IDs from telemetry table.
+    /// Query distinct device IDs from telemetry_hot table.
     pub async fn get_telemetry_device_ids(&self) -> Result<Vec<String>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare("SELECT DISTINCT device_id FROM telemetry ORDER BY device_id")
+            let mut stmt = conn.prepare("SELECT DISTINCT device_id FROM telemetry_hot ORDER BY device_id")
                 .context("Prepare get_telemetry_device_ids failed")?;
             let rows = stmt.query_map([], |row| row.get::<_, String>(0))
                 .context("Query get_telemetry_device_ids failed")?;
@@ -6365,14 +6365,14 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    /// Query distinct metrics for a device from telemetry table.
+    /// Query distinct metrics for a device from telemetry_hot table.
     pub async fn get_telemetry_metrics(&self, device_id: &str) -> Result<Vec<String>> {
         let conn = self.conn.clone();
         let device_id = device_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT DISTINCT metric FROM telemetry WHERE device_id = ?1 ORDER BY metric"
+                "SELECT DISTINCT metric FROM telemetry_hot WHERE device_id = ?1 ORDER BY metric"
             ).context("Prepare get_telemetry_metrics failed")?;
             let rows = stmt.query_map(rusqlite::params![device_id], |row| row.get::<_, String>(0))
                 .context("Query get_telemetry_metrics failed")?;
