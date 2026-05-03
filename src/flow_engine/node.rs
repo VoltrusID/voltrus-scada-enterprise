@@ -3,9 +3,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::cache::DeviceCache;
+use crate::models::Command;
 use crate::storage::Storage;
+use rand::Rng;
 use super::message::Message;
 use super::state::FlowState;
+
+fn default_flow_policy() -> String { "immediate".to_string() }
+fn default_flow_reason() -> String { "flow:unknown".to_string() }
 
 #[derive(Debug, Clone)]
 pub enum NodeResult {
@@ -52,6 +57,17 @@ pub enum NodeConfig {
     HttpOut { id: String, url: String, #[serde(default)] headers: HashMap<String, String>, timeout_ms: u64, retry_count: u64 },
     #[serde(rename = "alarm_out")]
     AlarmOut { id: String, severity: String, source_key: String, message: String },
+    #[serde(rename = "write_out")]
+    WriteOut {
+        id: String,
+        data_source_id: i64,
+        #[serde(default)]
+        value_expr: Option<String>,
+        #[serde(default = "default_flow_policy")]
+        policy: String,
+        #[serde(default = "default_flow_reason")]
+        reason: String,
+    },
 }
 
 impl NodeConfig {
@@ -149,6 +165,82 @@ impl NodeConfig {
                 let message = message.clone();
                 tokio::runtime::Handle::current().spawn(async move {
                     let _ = storage.create_alarm(&source_key, &severity, 0.0, 0.0, &message).await;
+                });
+                Ok(NodeResult::Continue(msg))
+            }
+            NodeConfig::WriteOut { data_source_id, value_expr, policy, reason, .. } => {
+                // 1. Resolve the write value
+                let value_str = if let Some(expr) = value_expr {
+                    let result = crate::expression::evaluate_json(expr, &msg.payload)?;
+                    match &result {
+                        Value::Number(n) => {
+                            let f = n.as_f64().ok_or_else(|| "Invalid number in expression result".to_string())?;
+                            format!("{}", f)
+                        }
+                        Value::String(s) => s.clone(),
+                        other => return Err(format!("WriteOut value_expr must evaluate to a number or string, got {:?}", other)),
+                    }
+                } else {
+                    // Take the first numeric value from message payload
+                    let mut found: Option<String> = None;
+                    if let Value::Object(map) = &msg.payload {
+                        for (_key, v) in map {
+                            if let Value::Number(n) = v {
+                                if let Some(f) = n.as_f64() {
+                                    found = Some(format!("{}", f));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    found.ok_or_else(|| "WriteOut: no numeric value found in message payload".to_string())?
+                };
+
+                // 2. Look up device info
+                let ds_id = *data_source_id;
+                let storage = ctx.storage.clone();
+                let policy = policy.clone();
+                let reason = reason.clone();
+                tokio::runtime::Handle::current().spawn(async move {
+                    match storage.get_data_source_device_id(ds_id).await {
+                        Ok(Some((device_id, protocol))) => {
+                            // 3. Generate command ID
+                            let command_id: String = rand::rng()
+                                .sample_iter(&rand::distr::Alphanumeric)
+                                .take(21)
+                                .map(char::from)
+                                .collect::<String>()
+                                .to_lowercase();
+                            let now = crate::timeutil::now_secs();
+                            let cmd = Command {
+                                id: format!("cmd_{}", command_id),
+                                data_source_id: ds_id,
+                                device_id,
+                                protocol,
+                                value: value_str,
+                                status: "pending".to_string(),
+                                policy,
+                                scheduled_at: None,
+                                retry_count: 0,
+                                max_retries: 3,
+                                error_message: None,
+                                created_at: now,
+                                sent_at: None,
+                                acked_at: None,
+                                resolved_at: None,
+                                created_by: reason,
+                            };
+                            if let Err(e) = storage.insert_command(&cmd).await {
+                                tracing::warn!("WriteOut node: failed to insert command: {}", e);
+                            }
+                        }
+                        Ok(None) => {
+                            tracing::warn!("WriteOut node: device not found for data_source_id {}", ds_id);
+                        }
+                        Err(e) => {
+                            tracing::warn!("WriteOut node: error looking up device: {}", e);
+                        }
+                    }
                 });
                 Ok(NodeResult::Continue(msg))
             }

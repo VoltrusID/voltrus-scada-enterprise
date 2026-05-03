@@ -190,5 +190,6 @@ fn node_id(node: &NodeConfig) -> String {
         NodeConfig::DataSourceOut { id, .. } => id.clone(),
         NodeConfig::HttpOut { id, .. } => id.clone(),
         NodeConfig::AlarmOut { id, .. } => id.clone(),
+        NodeConfig::WriteOut { id, .. } => id.clone(),
     }
 }
