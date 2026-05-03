@@ -35,51 +35,32 @@ pub async fn run_retention_task(storage: Storage, config: RetentionConfig) {
 
 async fn run_retention_cycle(storage: &Storage, config: &RetentionConfig) -> Result<()> {
     let now = timeutil::now_secs();
-    tracing::info!("Starting retention cycle");
+    tracing::info!("Starting retention/compression cycle");
 
-    let raw_keep = get_tier_keep(&config.tiers, "raw");
-    let hourly_keep = get_tier_keep(&config.tiers, "hourly");
-    let daily_keep = get_tier_keep(&config.tiers, "daily");
-    let should_archive = get_tier_archive(&config.tiers, "raw");
+    // Hot → Warm compression (data older than 24 hours)
+    let hot_cutoff = (now - 86400) * 1000; // convert to ms
+    match storage.compress_hot_to_warm(hot_cutoff).await {
+        Ok(count) => tracing::info!("Hot→Warm: compressed {count} rows"),
+        Err(e) => tracing::error!("Hot→Warm failed: {e}"),
+    }
 
-    // Step 1: Downsample raw -> hourly
-    if let Some(raw_keep_secs) = raw_keep {
-        let cutoff = now - raw_keep_secs as i64;
-        tracing::info!("Downsampling raw telemetry older than {}s (cutoff={})", raw_keep_secs, cutoff);
+    // Warm → Cold compression (data older than 30 days)
+    let warm_cutoff = (now - 2592000) * 1000; // convert to ms
+    match storage.compress_warm_to_cold(warm_cutoff).await {
+        Ok(count) => tracing::info!("Warm→Cold: compressed {count} rows"),
+        Err(e) => tracing::error!("Warm→Cold failed: {e}"),
+    }
 
-        if should_archive {
+    // Archive old cold data if configured
+    let cold_keep = get_tier_keep(&config.tiers, "daily");
+    if let Some(cold_keep_secs) = cold_keep {
+        let cutoff = now - cold_keep_secs as i64;
+        if get_tier_archive(&config.tiers, "daily") {
             archive_raw(storage, cutoff, &config.archive_dir).await?;
         }
-
-        let count = storage.downsample_raw_to_hourly(cutoff).await?;
-        tracing::info!("Downsampled {count} raw rows to hourly");
-
-        let deleted = storage.delete_raw_older_than(cutoff).await?;
-        tracing::info!("Deleted {deleted} raw rows older than cutoff");
     }
 
-    // Step 2: Downsample hourly -> daily
-    if let Some(hourly_keep_secs) = hourly_keep {
-        let cutoff = now - hourly_keep_secs as i64;
-        tracing::info!("Downsampling hourly telemetry older than {}s (cutoff={})", hourly_keep_secs, cutoff);
-
-        let count = storage.downsample_hourly_to_daily(cutoff).await?;
-        tracing::info!("Downsampled {count} hourly rows to daily");
-
-        let deleted = storage.delete_hourly_older_than(cutoff).await?;
-        tracing::info!("Deleted {deleted} hourly rows older than cutoff");
-    }
-
-    // Step 3: Cleanup daily if configured
-    if let Some(daily_keep_secs) = daily_keep {
-        let cutoff = now - daily_keep_secs as i64;
-        let deleted = storage.delete_daily_older_than(cutoff).await?;
-        if deleted > 0 {
-            tracing::info!("Deleted {deleted} daily rows older than cutoff");
-        }
-    }
-
-    tracing::info!("Retention cycle complete");
+    tracing::info!("Retention/compression cycle complete");
     Ok(())
 }
 
