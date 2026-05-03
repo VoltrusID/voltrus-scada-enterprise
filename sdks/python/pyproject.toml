@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "voltrus"
+version = "0.27.0"
+description = "Official Python SDK for Voltrus SCADA"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = ["urllib3>=2.0", "pydantic>=2.0"]
+
+[project.urls]
+Homepage = "https://voltrus.com"
+Documentation = "https://voltrus.com/docs"
+Repository = "https://github.com/dzulfikar08/voltrus"
