@@ -84,7 +84,7 @@ impl Storage {
             let tx = conn.unchecked_transaction().context("Begin tx failed")?;
             for (device_id, timestamp, metric, value) in &records {
                 tx.execute(
-                    "INSERT INTO telemetry (device_id, timestamp, metric, value) VALUES (?1, ?2, ?3, ?4)",
+                    "INSERT INTO telemetry_hot (device_id, timestamp, metric, value) VALUES (?1, ?2, ?3, ?4)",
                     rusqlite::params![device_id, timestamp, metric, value],
                 )
                 .context("Insert failed")?;
@@ -3358,6 +3358,119 @@ impl Storage {
         .context("Task join failed")?
         .map(|_| ())
     }
+
+    // ── Compression Tier Helpers ──
+
+    /// Insert telemetry records into the hot tier.
+    pub async fn insert_batch_hot(&self, records: &[(String, i64, String, f64)]) -> Result<()> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let conn = self.conn.clone();
+        let records = records.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            for (device_id, timestamp, metric, value) in &records {
+                tx.execute(
+                    "INSERT INTO telemetry_hot (device_id, timestamp, metric, value) VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![device_id, timestamp, metric, value],
+                )
+                .context("Insert failed")?;
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Load all deadband configurations from the database.
+    pub async fn get_deadband_configs(&self) -> Result<Vec<(String, String, String, f64)>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT device_id, metric, deadband_type, deadband_value FROM deadband_config",
+                )
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Upsert a deadband configuration for a device/metric pair.
+    pub async fn set_deadband_config(
+        &self,
+        device_id: &str,
+        metric: &str,
+        deadband_type: &str,
+        deadband_value: f64,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+        let deadband_type = deadband_type.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO deadband_config (device_id, metric, deadband_type, deadband_value) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![device_id, metric, deadband_type, deadband_value],
+            )
+            .context("Insert deadband config failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Get compression statistics across all tiers.
+    pub async fn get_compression_stats(&self) -> Result<CompressionStats> {
+        let conn = self.conn.clone();
+        let db_path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let hot_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM telemetry_hot", [], |row| row.get(0))
+                .unwrap_or(0);
+            let warm_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM telemetry_warm", [], |row| row.get(0))
+                .unwrap_or(0);
+            let cold_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM telemetry_cold", [], |row| row.get(0))
+                .unwrap_or(0);
+            let db_size_bytes = std::fs::metadata(&db_path)
+                .map(|m| m.len())
+                .unwrap_or(0);
+            Ok(CompressionStats {
+                hot_rows,
+                warm_rows,
+                cold_rows,
+                db_size_bytes,
+                last_hot_to_warm: None,
+                last_warm_to_cold: None,
+            })
+        })
+        .await
+        .context("Task join failed")?
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CompressionStats {
+    pub hot_rows: i64,
+    pub warm_rows: i64,
+    pub cold_rows: i64,
+    pub db_size_bytes: u64,
+    pub last_hot_to_warm: Option<i64>,
+    pub last_warm_to_cold: Option<i64>,
 }
 
 fn init_schema(conn: &Connection) -> Result<()> {
@@ -3546,6 +3659,48 @@ fn init_schema(conn: &Connection) -> Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_daily_dev_metric
             ON telemetry_daily(device_id, metric, bucket_start);
+        CREATE TABLE IF NOT EXISTS telemetry_hot (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            value REAL NOT NULL,
+            quality INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_hot_time ON telemetry_hot(device_id, metric, timestamp);
+        CREATE TABLE IF NOT EXISTS telemetry_warm (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            bucket_start INTEGER NOT NULL,
+            open REAL NOT NULL,
+            high REAL NOT NULL,
+            low REAL NOT NULL,
+            close REAL NOT NULL,
+            count INTEGER NOT NULL,
+            deltas BLOB
+        );
+        CREATE INDEX IF NOT EXISTS idx_warm_time ON telemetry_warm(device_id, metric, bucket_start);
+        CREATE TABLE IF NOT EXISTS telemetry_cold (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            block_start INTEGER NOT NULL,
+            encoding TEXT NOT NULL,
+            data_type TEXT NOT NULL,
+            data BLOB NOT NULL,
+            count INTEGER NOT NULL,
+            first_ts INTEGER NOT NULL,
+            last_ts INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cold_time ON telemetry_cold(device_id, metric, block_start);
+        CREATE TABLE IF NOT EXISTS deadband_config (
+            device_id TEXT NOT NULL,
+            metric TEXT NOT NULL,
+            deadband_type TEXT NOT NULL DEFAULT 'percent',
+            deadband_value REAL NOT NULL DEFAULT 0.1,
+            PRIMARY KEY (device_id, metric)
+        );
         CREATE TABLE IF NOT EXISTS flows (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -3927,6 +4082,39 @@ fn init_schema(conn: &Connection) -> Result<()> {
             CREATE INDEX IF NOT EXISTS idx_alarm_audit_action_time
                 ON alarm_audit_log(action, created_at);"
         );
+
+    // Migration: rename old telemetry to telemetry_hot if telemetry_hot doesn't exist yet
+    {
+        let has_hot: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='telemetry_hot'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        let has_old: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='telemetry'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(false);
+
+        if !has_hot && has_old {
+            tracing::info!("Migrating telemetry → telemetry_hot");
+            let _ = conn.execute_batch(
+                "ALTER TABLE telemetry RENAME TO telemetry_hot;
+                 ALTER TABLE telemetry_hourly RENAME TO telemetry_hourly_backup;
+                 ALTER TABLE telemetry_daily RENAME TO telemetry_daily_backup;"
+            );
+        }
+    }
+
+    // WAL mode pragmas for better write performance
+    conn.execute_batch(
+        "PRAGMA journal_mode=WAL;
+         PRAGMA synchronous=NORMAL;
+         PRAGMA wal_autocheckpoint=1000;
+         PRAGMA cache_size=-32000;
+         PRAGMA temp_store=MEMORY;"
+    ).ok(); // Don't fail on pragma errors
 
         Ok(())
 }
