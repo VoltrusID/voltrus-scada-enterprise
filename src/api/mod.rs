@@ -27,12 +27,15 @@ mod compliance;
 mod compression;
 mod enip_devices;
 mod s7_devices;
+mod dnp3_devices;
+mod bacnet_devices;
 mod video;
 mod security;
 mod annotations;
 mod shift_handover;
 mod user_notifications;
 mod commands;
+mod ai_copilot;
 
 use axum::{
     extract::{Request, State},
@@ -355,6 +358,24 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
         .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
         .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
+        // DNP3 (IEEE 1815) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/dnp3/devices", get(dnp3_devices::list_devices).post(dnp3_devices::create_device))
+        .route("/api/v1/dnp3/devices/{id}", get(dnp3_devices::get_device).put(dnp3_devices::update_device).delete(dnp3_devices::delete_device))
+        .route("/api/v1/dnp3/devices/{id}/points", post(dnp3_devices::add_point))
+        .route("/api/v1/dnp3/devices/{id}/points/{point_id}", delete(dnp3_devices::remove_point))
+        .route("/api/v1/dnp3/scan", post(dnp3_devices::scan_network))
+        .route("/api/v1/dnp3/devices/{id}/integrity", post(dnp3_devices::trigger_integrity))
+        .route("/api/v1/dnp3/devices/{id}/freeze", post(dnp3_devices::trigger_freeze))
+        .route("/api/v1/dnp3/group-variations", get(dnp3_devices::list_group_variations))
+        // BACnet/IP routes (admin-only, Enterprise-gated)
+        .route("/api/v1/bacnet/discover", post(bacnet_devices::discover_network))
+        .route("/api/v1/bacnet/devices", get(bacnet_devices::list_devices).post(bacnet_devices::create_device))
+        .route("/api/v1/bacnet/devices/{id}", put(bacnet_devices::update_device).delete(bacnet_devices::delete_device))
+        .route("/api/v1/bacnet/devices/{id}/objects", get(bacnet_devices::list_objects).post(bacnet_devices::add_object))
+        .route("/api/v1/bacnet/devices/{id}/objects/{object_id}", delete(bacnet_devices::remove_object))
+        .route("/api/v1/bacnet/devices/{id}/browse", post(bacnet_devices::browse_device))
+        .route("/api/v1/bacnet/devices/{id}/start", post(bacnet_devices::start_device))
+        .route("/api/v1/bacnet/devices/{id}/stop", post(bacnet_devices::stop_device))
         // RTSP Video / Camera routes (admin-only, Enterprise-gated)
         .route("/api/v1/cameras", get(video::list_cameras).post(video::create_camera))
         .route("/api/v1/cameras/{id}", put(video::update_camera).delete(video::delete_camera))
@@ -403,6 +424,21 @@ pub fn create_router(state: AppState) -> Router {
         // Analytics custom metrics write routes (admin-only, Professional-gated)
         .route("/api/v1/analytics/custom-metrics", post(analytics::create_custom_metric))
         .route("/api/v1/analytics/custom-metrics/{id}", put(analytics::update_custom_metric).delete(analytics::delete_custom_metric))
+        // AI Copilot routes (admin-only, Starter+ license-gated)
+        .route("/api/v1/ai/settings", get(ai_copilot::get_ai_settings).put(ai_copilot::update_ai_settings))
+        .route("/api/v1/ai/settings/test", post(ai_copilot::test_ai_settings))
+        .route("/api/v1/ai/proposals", get(ai_copilot::list_proposals))
+        .route("/api/v1/ai/proposals/{id}", get(ai_copilot::get_proposal))
+        .route("/api/v1/ai/proposals/{id}/approve", post(ai_copilot::approve_proposal))
+        .route("/api/v1/ai/proposals/{id}/reject", post(ai_copilot::reject_proposal))
+        .route("/api/v1/ai/proposals/{id}/apply", post(ai_copilot::apply_proposal))
+        .route("/api/v1/ai/generate/register-map", post(ai_copilot::generate_register_map))
+        .route("/api/v1/ai/generate/dashboard-layout", post(ai_copilot::generate_dashboard_layout))
+        .route("/api/v1/ai/generate/alarm-thresholds", post(ai_copilot::generate_alarm_thresholds))
+        .route("/api/v1/ai/generate/tag-rename", post(ai_copilot::generate_tag_rename))
+        .route("/api/v1/ai/generate/flow-rule", post(ai_copilot::generate_flow_rule))
+        .route("/api/v1/ai/templates", get(ai_copilot::list_templates))
+        .route("/api/v1/ai/generate/from-template", post(ai_copilot::generate_from_template))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
