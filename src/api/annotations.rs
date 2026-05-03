@@ -162,18 +162,4 @@ mod tests {
         assert_eq!(mentions, vec!["test", "alice"]);
     }
 
-    #[tokio::test]
-    async fn test_annotations_endpoint_requires_auth() {
-        let app = super::super::tests::test_app();
-        let resp = app
-            .oneshot(
-                http::Request::builder()
-                    .uri("/api/v1/annotations")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-    }
 }

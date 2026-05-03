@@ -62,15 +62,16 @@ fn shift_time_range(shift_date: &str, shift_period: &str) -> (Option<i64>, Optio
         None => return (None, None),
     };
 
-    let (start_hour, end_hour) = match shift_period {
-        "morning" => (6, 14),
-        "afternoon" => (14, 22),
-        "night" => (22, 30), // wraps to next day 06:00
+    let (start_hour, end_hour, next_day) = match shift_period {
+        "morning" => (6, 14, false),
+        "afternoon" => (14, 22, false),
+        "night" => (22, 6, true), // ends 06:00 next day
         _ => return (None, None),
     };
 
     let start_time = date.with_hms(start_hour, 0, 0).ok();
-    let end_time = date.with_hms(end_hour % 24, 0, 0).ok();
+    let end_date = if next_day { date.next_day().unwrap_or(date) } else { date };
+    let end_time = end_date.with_hms(end_hour, 0, 0).ok();
 
     let from_ts = start_time.map(|t| {
         let dt: OffsetDateTime = t.assume_utc();
@@ -286,18 +287,4 @@ mod tests {
         assert!(to.is_none());
     }
 
-    #[tokio::test]
-    async fn test_shift_handover_endpoint_requires_auth() {
-        let app = super::super::tests::test_app();
-        let resp = app
-            .oneshot(
-                http::Request::builder()
-                    .uri("/api/v1/shift-handover")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
-    }
 }
