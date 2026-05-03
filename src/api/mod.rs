@@ -23,6 +23,7 @@ mod analytics;
 mod recipes;
 mod rbac;
 mod compliance;
+mod compression;
 mod enip_devices;
 mod s7_devices;
 mod video;
@@ -250,6 +251,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
         .route("/api/v1/analytics/compare", get(analytics::get_compare))
+        .route("/api/v1/compression/stats", get(compression::get_compression_stats))
+        .route("/api/v1/compression/config", get(compression::get_compression_config))
+        .route("/api/v1/system/memory", get(compression::get_system_memory))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
