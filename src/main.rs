@@ -31,6 +31,7 @@ mod deadband;
 mod command_queue;
 mod recipe;
 mod video;
+mod asset;
 
 use api::AppState;
 use base64::Engine;
