@@ -27,6 +27,9 @@ mod enip_devices;
 mod s7_devices;
 mod video;
 mod security;
+mod annotations;
+mod shift_handover;
+mod user_notifications;
 
 use axum::{
     extract::{Request, State},
@@ -238,6 +241,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
         .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
         .route("/api/v1/notifications/settings", get(notifications::list_notification_settings))
+        // User notifications (any authenticated user sees their own)
+        .route("/api/v1/user-notifications", get(user_notifications::list_notifications))
+        .route("/api/v1/user-notifications/{id}/read", put(user_notifications::mark_read))
+        .route("/api/v1/user-notifications/{id}", delete(user_notifications::dismiss_notification))
         .route("/api/v1/oee/metrics", get(oee::get_oee_metrics))
         .route("/api/v1/oee/downtime", get(oee::list_downtime))
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
@@ -359,6 +366,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/security/events", get(security::list_security_events))
         .route("/api/v1/security/events/export", get(security::export_security_csv))
         .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
+        // Annotation routes (admin-only, Professional-gated)
+        .route("/api/v1/annotations", get(annotations::list_annotations).post(annotations::create_annotation))
+        .route("/api/v1/annotations/{id}", get(annotations::get_annotation).put(annotations::update_annotation).delete(annotations::delete_annotation))
+        // Shift Handover routes (admin-only, Professional-gated)
+        .route("/api/v1/shift-handover", get(shift_handover::list_shift_handovers).post(shift_handover::create_shift_handover))
+        .route("/api/v1/shift-handover/auto-report", get(shift_handover::auto_shift_report))
+        .route("/api/v1/shift-handover/{id}", get(shift_handover::get_shift_handover))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
