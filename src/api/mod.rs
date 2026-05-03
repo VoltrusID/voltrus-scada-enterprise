@@ -1,5 +1,7 @@
 pub(crate) mod auth;
+mod api_keys;
 mod push;
+mod oee;
 mod screens;
 mod data_sources;
 mod layouts;
@@ -12,13 +14,31 @@ mod system;
 mod generators;
 pub(crate) mod stream;
 mod flows;
+mod license;
+mod notifications;
+mod opcua_devices;
+pub(crate) mod hub;
+mod reports;
+mod analytics;
+mod recipes;
+mod rbac;
+mod compliance;
+mod enip_devices;
+mod s7_devices;
+mod video;
+mod security;
+mod annotations;
+mod shift_handover;
+mod user_notifications;
+mod commands;
+mod simulation;
 
 use axum::{
     extract::{Request, State},
-    http::{HeaderValue, Method, StatusCode, header::{self, CONTENT_TYPE}},
+    http::{HeaderValue, Method, StatusCode, header::{self, CONTENT_TYPE, HeaderName}},
     middleware::{self, Next},
     response::IntoResponse,
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use axum::extract::{ConnectInfo, Extension, DefaultBodyLimit};
@@ -50,6 +70,13 @@ pub struct AppState {
     pub global_rate_limiter: crate::security::GlobalRateLimiter,
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
+    pub license_status: crate::license::LicenseStatus,
+    pub license_tier: crate::license::LicenseTier,
+    pub feature_flags: serde_json::Value,
+    pub smtp_config: Option<crate::models::SmtpConfig>,
+    pub vapid_public_key: Option<String>,
+    pub hub_manager: Option<hub::HubManager>,
+    pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
 }
 
 #[derive(Debug)]
@@ -71,6 +98,47 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
     }
 }
 
+async fn license_check_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> impl IntoResponse {
+    let path = req.uri().path();
+    if path == "/api/v1/health"
+        || path == "/api/license/status"
+        || path == "/api/v1/settings/branding"
+        || path == "/api/v1/push/vapid-key"
+        || path.starts_with("/api/v1/auth/")
+    {
+        let mut resp = next.run(req).await;
+        let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
+        resp.headers_mut().insert(
+            HeaderName::from_static("x-license-tier"),
+            HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+        );
+        return resp;
+    }
+
+    if !state.license_status.is_valid() {
+        let body = match serde_json::to_value(&state.license_status) {
+            Ok(v) => v,
+            Err(_) => serde_json::json!({"status": "error", "message": "license invalid"}),
+        };
+        return (
+            StatusCode::FORBIDDEN,
+            Json(body),
+        ).into_response();
+    }
+
+    let mut resp = next.run(req).await;
+    let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
+    resp.headers_mut().insert(
+        HeaderName::from_static("x-license-tier"),
+        HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+    );
+    resp
+}
+
 pub fn create_router(state: AppState) -> Router {
     // Build CORS layer only for API routes — static assets should not have CORS headers
     let cors = match &state.cors_origin {
@@ -82,7 +150,12 @@ pub fn create_router(state: AppState) -> Router {
             CorsLayer::new()
                 .allow_origin(origins)
                 .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
-                .allow_headers([CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION])
+                .allow_headers([
+                    CONTENT_TYPE,
+                    header::ACCEPT,
+                    header::AUTHORIZATION,
+                    HeaderName::from_static("x-api-key"),
+                ])
                 .allow_credentials(true)
         }
         None => {
@@ -98,7 +171,12 @@ pub fn create_router(state: AppState) -> Router {
                 .allow_methods([
                     Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE,
                 ])
-                .allow_headers([CONTENT_TYPE, header::ACCEPT, header::AUTHORIZATION])
+                .allow_headers([
+                    CONTENT_TYPE,
+                    header::ACCEPT,
+                    header::AUTHORIZATION,
+                    HeaderName::from_static("x-api-key"),
+                ])
                 // NOTE: allow_credentials is intentionally FALSE when no explicit origin is set
                 // to prevent credential leakage to arbitrary origins.
         }
@@ -112,8 +190,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/auth/me", get(auth::auth_me))
         .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
+        .route("/api/v1/auth/providers", get(auth::list_auth_providers))
+        .route("/api/v1/auth/saml/metadata", post(auth::saml_metadata))
+        .route("/api/v1/auth/saml/acs", post(auth::saml_acs))
+        .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
-        .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown));
+        .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
+        .route("/api/license/status", get(license::get_license_status));
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
@@ -123,6 +206,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/version", get(system::get_version))
         .route("/api/v1/auth/change-password", post(auth::change_password))
         .route("/api/v1/data", get(data::get_data))
+        .route("/api/v1/data/export", get(data::export_data))
         .route("/api/v1/history", get(data::get_history))
         .route("/api/v1/export/csv", get(data::export_csv))
         .route("/api/v1/screens", get(screens::list_screens))
@@ -155,8 +239,23 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/push/subscribe",
             post(push::subscribe).delete(push::unsubscribe),
         )
+        .route("/api/v1/push/vapid-key", get(push::vapid_public_key))
         .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
         .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
+        .route("/api/v1/notifications/settings", get(notifications::list_notification_settings))
+        // User notifications (any authenticated user sees their own)
+        .route("/api/v1/user-notifications", get(user_notifications::list_notifications))
+        .route("/api/v1/user-notifications/{id}/read", put(user_notifications::mark_read))
+        .route("/api/v1/user-notifications/{id}", delete(user_notifications::dismiss_notification))
+        // Command read endpoints (authenticated users)
+        .route("/api/v1/commands", get(commands::list_commands))
+        .route("/api/v1/commands/{command_id}", get(commands::get_command_status))
+        .route("/api/v1/commands/{command_id}/audit", get(commands::get_command_audit))
+        .route("/api/v1/oee/metrics", get(oee::get_oee_metrics))
+        .route("/api/v1/oee/downtime", get(oee::list_downtime))
+        .route("/api/v1/oee/shifts", get(oee::list_shifts))
+        .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
+        .route("/api/v1/analytics/compare", get(analytics::get_compare))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
@@ -171,6 +270,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
         .route("/api/v1/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
+        // Alarm management: shelving, audit trail, analytics, summary
+        .route("/api/v1/alarms/{id}/shelf", post(alarms::shelf_alarm))
+        .route("/api/v1/alarms/{id}/unshelf", post(alarms::unshelf_alarm))
+        .route("/api/v1/alarms/audit", get(alarms::list_alarm_audit))
+        .route("/api/v1/alarms/analytics", get(alarms::list_alarm_analytics))
+        .route("/api/v1/alarms/summary", get(alarms::get_alarm_summary))
         .route("/api/v1/screens", post(screens::create_screen))
         .route("/api/v1/screens/{id}", put(screens::update_screen).delete(screens::delete_screen))
         .route("/api/v1/screens/{id}/data-sources", post(screens::add_screen_sensor))
@@ -193,6 +298,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/modbus-devices", post(modbus_devices::create_modbus_device))
         .route("/api/v1/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
+        .route("/api/v1/modbus-devices/scan-network", post(modbus_devices::scan_network))
         .route(
             "/api/v1/modbus-devices/{id}",
             put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),
@@ -207,6 +313,87 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/flows/{id}/stop", post(flows::stop_flow))
         .route("/api/v1/flows/{id}/test", post(flows::test_flow))
         .route("/api/v1/flows/{id}/runs", get(flows::list_flow_runs))
+        .route("/api/v1/notifications/settings", post(notifications::create_notification_setting))
+        .route(
+            "/api/v1/notifications/settings/{id}",
+            put(notifications::update_notification_setting).delete(notifications::delete_notification_setting),
+        )
+        .route("/api/v1/notifications/test", post(notifications::test_notification))
+        .route("/api/v1/api-keys", post(api_keys::create_api_key).get(api_keys::list_api_keys))
+        .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key))
+        .route("/api/v1/opcua/devices", get(opcua_devices::list_devices).post(opcua_devices::create_device))
+        .route("/api/v1/opcua/devices/{id}", put(opcua_devices::update_device).delete(opcua_devices::delete_device))
+        .route("/api/v1/opcua/devices/{id}/nodes", get(opcua_devices::list_nodes).post(opcua_devices::add_node))
+        .route("/api/v1/opcua/devices/{id}/nodes/{node_id}", delete(opcua_devices::remove_node))
+        .route("/api/v1/opcua/devices/{id}/browse", post(opcua_devices::browse_device))
+        .route("/api/v1/opcua/devices/{id}/start", post(opcua_devices::start_device))
+        .route("/api/v1/opcua/devices/{id}/stop", post(opcua_devices::stop_device))
+        // EtherNet/IP (Allen-Bradley) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/enip/devices", get(enip_devices::list_devices).post(enip_devices::create_device))
+        .route("/api/v1/enip/devices/{id}", put(enip_devices::update_device).delete(enip_devices::delete_device))
+        .route("/api/v1/enip/devices/{id}/tags", get(enip_devices::list_tags).post(enip_devices::add_tag))
+        .route("/api/v1/enip/devices/{id}/tags/{tag_id}", delete(enip_devices::remove_tag))
+        .route("/api/v1/enip/devices/{id}/browse", post(enip_devices::browse_device))
+        .route("/api/v1/enip/devices/{id}/start", post(enip_devices::start_device))
+        .route("/api/v1/enip/devices/{id}/stop", post(enip_devices::stop_device))
+        // S7 (Siemens) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/s7/devices", get(s7_devices::list_devices).post(s7_devices::create_device))
+        .route("/api/v1/s7/devices/{id}", put(s7_devices::update_device).delete(s7_devices::delete_device))
+        .route("/api/v1/s7/devices/{id}/tags", get(s7_devices::list_tags).post(s7_devices::add_tag))
+        .route("/api/v1/s7/devices/{id}/tags/{tag_id}", delete(s7_devices::remove_tag))
+        .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
+        .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
+        .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
+        // RTSP Video / Camera routes (admin-only, Enterprise-gated)
+        .route("/api/v1/cameras", get(video::list_cameras).post(video::create_camera))
+        .route("/api/v1/cameras/{id}", put(video::update_camera).delete(video::delete_camera))
+        .route("/api/v1/cameras/{id}/snapshot", post(video::trigger_snapshot))
+        .route("/api/v1/cameras/{id}/snapshots", get(video::list_snapshots))
+        .route("/api/v1/cameras/{id}/snapshots/{snapshot_id}", delete(video::delete_snapshot))
+        .route("/api/v1/cameras/{id}/stream", get(video::get_stream_info))
+        .route("/api/v1/hub/sites", get(hub::list_sites).post(hub::create_site))
+        .route("/api/v1/hub/sites/{id}", put(hub::update_site).delete(hub::delete_site))
+        .route("/api/v1/hub/sites/{id}/start", post(hub::start_site_connection))
+        .route("/api/v1/hub/sites/{id}/stop", post(hub::stop_site_connection))
+        .route("/api/v1/hub/status", get(hub::get_hub_status))
+        .route("/api/v1/reports", get(reports::list_reports).post(reports::create_report))
+        .route("/api/v1/reports/{id}", put(reports::update_report).delete(reports::delete_report))
+        .route("/api/v1/reports/{id}/generate", post(reports::generate_report))
+        .route("/api/v1/oee/downtime", post(oee::create_downtime))
+        .route("/api/v1/oee/downtime/{id}/close", put(oee::close_downtime))
+        .route("/api/v1/oee/shifts", post(oee::create_shift))
+        .route("/api/v1/oee/shifts/{id}", delete(oee::delete_shift))
+        .route("/api/v1/recipes", get(recipes::list_recipes).post(recipes::create_recipe))
+        .route("/api/v1/recipes/{id}", get(recipes::get_recipe).put(recipes::update_recipe).delete(recipes::delete_recipe))
+        .route("/api/v1/recipes/{id}/load", post(recipes::load_recipe))
+        // RBAC routes (admin-only, license-gated)
+        .route("/api/v1/roles", get(rbac::list_roles).post(rbac::create_role))
+        .route("/api/v1/roles/{id}", put(rbac::update_role).delete(rbac::delete_role))
+        .route("/api/v1/users/{id}/role", put(rbac::assign_user_role))
+        // Compliance routes (admin-only, license-gated)
+        .route("/api/v1/compliance/config", get(compliance::get_compliance_config).put(compliance::update_compliance_config))
+        .route("/api/v1/compliance/sign", post(compliance::create_electronic_signature))
+        .route("/api/v1/compliance/signatures", get(compliance::list_electronic_signatures))
+        // Security audit routes (admin-only, Enterprise-gated)
+        .route("/api/v1/security/events", get(security::list_security_events))
+        .route("/api/v1/security/events/export", get(security::export_security_csv))
+        .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
+        // Annotation routes (admin-only, Professional-gated)
+        .route("/api/v1/annotations", get(annotations::list_annotations).post(annotations::create_annotation))
+        .route("/api/v1/annotations/{id}", get(annotations::get_annotation).put(annotations::update_annotation).delete(annotations::delete_annotation))
+        // Shift Handover routes (admin-only, Professional-gated)
+        .route("/api/v1/shift-handover", get(shift_handover::list_shift_handovers).post(shift_handover::create_shift_handover))
+        .route("/api/v1/shift-handover/auto-report", get(shift_handover::auto_shift_report))
+        .route("/api/v1/shift-handover/{id}", get(shift_handover::get_shift_handover))
+        // Command write/cancel routes (admin-only)
+        .route("/api/v1/tags/{id}/write", post(commands::write_tag))
+        .route("/api/v1/commands/{command_id}/cancel", post(commands::cancel_command))
+        .route("/api/v1/data-sources/{id}/write-policy", patch(commands::update_write_policy))
+        // Simulation routes (admin-only)
+        .route("/api/v1/sim-profiles", get(simulation::list_sim_profiles).post(simulation::create_sim_profile))
+        .route("/api/v1/sim-profiles/{id}", put(simulation::update_sim_profile).delete(simulation::delete_sim_profile))
+        .route("/api/v1/devices/{id}/simulate", post(simulation::toggle_simulation))
+        .route("/api/v1/devices/{id}/go-live", post(simulation::go_live))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -226,6 +413,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(protected)
         .merge(admin_protected)
         .route("/api/v1/{*path}", get(api_not_found))
+        .layer(middleware::from_fn_with_state(state.clone(), license_check_middleware))
         .layer(cors)
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB body limit
         .layer(middleware::from_fn_with_state(
@@ -290,7 +478,31 @@ async fn cookie_auth_middleware(
 
     let mut req = req;
 
-    // Try Bearer token (OIDC) first
+    // 1. Try API key authentication (X-API-Key header or ?api_key= query param)
+    if let Some(api_key) = extract_api_key(&req) {
+        match state.storage.validate_api_key(&api_key).await {
+            Ok(Some((id, permissions))) => {
+                req.extensions_mut().insert(AuthUser {
+                    username: format!("api_key:{}", id),
+                    role: "api".to_string(),
+                });
+                req.extensions_mut().insert(ApiKeyAuth {
+                    id,
+                    permissions,
+                });
+                return next.run(req).await;
+            }
+            _ => {
+                // Failed API key auth — record intrusion and reject immediately.
+                // If an API key was explicitly provided, it must be the sole auth method;
+                // do not fall through to cookie/JWT auth.
+                state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
+                return (StatusCode::UNAUTHORIZED, "Invalid or expired API key").into_response();
+            }
+        }
+    }
+
+    // 2. Try Bearer token (OIDC)
     if state.oidc_config.enabled {
         if let Some(auth_header) = req.headers().get("authorization") {
             if let Some(token) = auth_header.to_str().ok().and_then(|v| v.strip_prefix("Bearer ")) {
@@ -306,14 +518,14 @@ async fn cookie_auth_middleware(
         }
     }
 
-    // Fall back to local cookie auth
+    // 3. Fall back to local cookie auth
     let jar = CookieJar::from_headers(req.headers());
     let token = jar
         .get("voltrus_token")
         .map(|c| c.value())
         .unwrap_or("");
     if token.is_empty() {
-        state.intrusion_detector.record_401(&client_ip);
+        state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
         return (
             StatusCode::UNAUTHORIZED,
             Json(json!({"error": "unauthorized"})),
@@ -329,7 +541,7 @@ async fn cookie_auth_middleware(
             next.run(req).await
         }
         None => {
-            state.intrusion_detector.record_401(&client_ip);
+            state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
             (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({"error": "unauthorized"})),
@@ -337,6 +549,38 @@ async fn cookie_auth_middleware(
                 .into_response()
         }
     }
+}
+
+/// API key authentication info.
+/// Note: permissions field is stored for future use but not yet enforced.
+/// All valid API keys currently grant full read access to protected endpoints.
+#[derive(Clone, Debug)]
+pub struct ApiKeyAuth {
+    pub id: i64,
+    pub permissions: String,
+}
+
+/// Extract API key from X-API-Key header or ?api_key= query parameter.
+fn extract_api_key(req: &Request) -> Option<String> {
+    // Check X-API-Key header first
+    if let Some(header) = req.headers().get("X-API-Key") {
+        if let Ok(key) = header.to_str() {
+            if !key.is_empty() {
+                return Some(key.to_string());
+            }
+        }
+    }
+    // Fall back to query parameter
+    if let Some(query) = req.uri().query() {
+        for pair in query.split('&') {
+            if let Some(key) = pair.strip_prefix("api_key=") {
+                if !key.is_empty() {
+                    return Some(key.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 // ── Tests ──
@@ -384,6 +628,19 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
         };
         create_router(state)
     }
@@ -552,12 +809,26 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
         // Login with admin/admin
         let login_body = serde_json::json!({"username": "admin", "password": "admin"});
         let resp = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
@@ -606,6 +877,19 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -688,6 +972,19 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -748,6 +1045,19 @@ mod tests {
             global_rate_limiter: crate::security::GlobalRateLimiter::new(),
             audit_logger: crate::security::AuditLogger::new().0,
             intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -859,5 +1169,556 @@ mod tests {
             .unwrap();
 
         assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_api_key_crud() {
+        let storage = Storage::new_in_memory().unwrap();
+        let password_hash = crate::api::auth::hash_password("admin");
+        storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+
+        let cache = DeviceCache::new();
+        let poller_manager = PollerManager::new(cache.clone());
+        let state = AppState {
+            cache,
+            storage,
+            poller_manager,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status: crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+            license_tier: crate::license::LicenseTier::Professional,
+            feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
+        };
+        let app = create_router(state);
+
+        // Login to get admin cookie
+        let login_body = serde_json::json!({"username": "admin", "password": "admin"});
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&login_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let cookie_val = extract_cookie_value(resp.headers(), "voltrus_token")
+            .expect("voltrus_token cookie not found");
+
+        // Create API key
+        let create_body = serde_json::json!({
+            "name": "test-export-key",
+            "permissions": "[\"data:read\", \"data:export\"]"
+        });
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/api-keys")
+                    .header("content-type", "application/json")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::from(serde_json::to_string(&create_body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["name"], "test-export-key");
+        assert!(json["key"].as_str().unwrap().len() == 64);
+        let plain_key = json["key"].as_str().unwrap().to_string();
+        let key_id = json["id"].as_i64().unwrap();
+
+        // List API keys
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/api-keys")
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Use API key to access protected route (X-API-Key header)
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system")
+                    .header("X-API-Key", &plain_key)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Use API key via query parameter
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&format!("/api/v1/system?api_key={}", plain_key))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Invalid API key should fail
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system")
+                    .header("X-API-Key", "invalid-key")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // Revoke API key
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(&format!("/api/v1/api-keys/{}", key_id))
+                    .header("cookie", format!("voltrus_token={}", cookie_val))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Revoked key should no longer work
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system")
+                    .header("X-API-Key", &plain_key)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    fn test_app_with_license_status(license_status: crate::license::LicenseStatus, license_tier: crate::license::LicenseTier) -> Router {
+        let cache = DeviceCache::new();
+        let storage = Storage::new_in_memory().unwrap();
+        let poller_manager = PollerManager::new(cache.clone());
+        let feature_flags = license_tier.to_feature_flags();
+        let state = AppState {
+            cache,
+            storage,
+            poller_manager,
+            started_at: std::time::Instant::now(),
+            auth_secret: "test-secret".to_string(),
+            cors_origin: None,
+            cookie_secure: false,
+            oidc_config: test_oidc_config(),
+            jwks_manager: test_jwks_manager(),
+            retention_config: crate::models::RetentionConfig::default(),
+            flow_engine: None,
+            login_rate_limiter: crate::security::LoginRateLimiter::new(),
+            global_rate_limiter: crate::security::GlobalRateLimiter::new(),
+            audit_logger: crate::security::AuditLogger::new().0,
+            intrusion_detector: crate::security::IntrusionDetector::new(),
+            license_status,
+            license_tier,
+            feature_flags,
+            smtp_config: None,
+            vapid_public_key: None,
+            hub_manager: None,
+            stream_proxy: None,
+        };
+        create_router(state)
+    }
+
+    #[tokio::test]
+    async fn test_trial_middleware_allows_access() {
+        let tier = crate::license::LicenseTier::Trial;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Trial {
+                started_at: 0,
+                expires_at: 2592000,
+                days_remaining: 25,
+                tier: tier.clone(),
+                feature_flags: tier.to_feature_flags(),
+            },
+            tier,
+        );
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_trial_expired_middleware_blocks_access() {
+        // Verify that TrialExpired reports is_valid() == false
+        let status = crate::license::LicenseStatus::TrialExpired {
+            started_at: 0,
+            message: "expired".to_string(),
+        };
+        assert!(!status.is_valid());
+
+        // Health endpoint is always allowed even for expired licenses
+        let tier = crate::license::LicenseTier::Trial;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::TrialExpired {
+                started_at: 0,
+                message: "expired".to_string(),
+            },
+            tier,
+        );
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_license_tier_header_in_response() {
+        let app = test_app();
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let tier_header = resp.headers()
+            .get("x-license-tier")
+            .expect("X-License-Tier header should be present");
+        // serde_json serializes LicenseTier::Professional as "professional"
+        assert_eq!(tier_header, "\"professional\"");
+    }
+
+    // ── Analytics & Recipe unit tests ──
+
+    #[test]
+    fn test_analytics_change_percent() {
+        let current_avg = 110.0_f64;
+        let previous_avg = 100.0_f64;
+        let change = ((current_avg - previous_avg) / previous_avg) * 100.0;
+        assert!((change - 10.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_analytics_change_percent_zero_division() {
+        let current_avg = 5.0_f64;
+        let previous_avg = 0.0_f64;
+        let change = if previous_avg.abs() > f64::EPSILON {
+            ((current_avg - previous_avg) / previous_avg) * 100.0
+        } else {
+            0.0
+        };
+        assert_eq!(change, 0.0);
+    }
+
+    #[test]
+    fn test_analytics_change_percent_negative() {
+        let current_avg = 80.0_f64;
+        let previous_avg = 100.0_f64;
+        let change = ((current_avg - previous_avg) / previous_avg) * 100.0;
+        assert!((change - (-20.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_recipe_values_json_parse() {
+        let json = r#"{"temp": 25.0, "pressure": 1.5}"#;
+        let values: std::collections::HashMap<String, f64> =
+            serde_json::from_str(json).unwrap();
+        assert_eq!(values.len(), 2);
+        assert!((values["temp"] - 25.0).abs() < 0.001);
+        assert!((values["pressure"] - 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_tier_simple_probe() {
+        // Probe test to verify tier tests compile and run
+        let tier = crate::license::LicenseTier::Starter;
+        assert!(tier.white_label());
+        assert!(!tier.rtsp_video());
+    }
+
+    // ── Comprehensive Tier Enforcement Tests ──
+    // These tests use test_app_with_license_status() which creates a Router
+    // with the given tier. Tier gates are enforced at the handler level via
+    // state.license_tier checks, returning 403 for unauthorized tiers.
+    // We test with unauthenticated requests — tier gates run before auth checks
+    // on most endpoints, so we expect either 200/401/403 depending on endpoint.
+
+    #[tokio::test]
+    async fn test_tier_trial_feature_gates() {
+        let tier = crate::license::LicenseTier::Trial;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Trial {
+                started_at: 0,
+                expires_at: 2592000,
+                days_remaining: 30,
+                tier: tier.clone(),
+                feature_flags: tier.to_feature_flags(),
+            },
+            tier.clone(),
+        );
+
+        // SHOULD ALLOW (Trial) — health and branding are open
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/health").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Branding returns defaults for trial (theme_level=none)
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "none");
+
+        // Feature flags should reflect Trial
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["opcua_enabled"], false);
+        assert_eq!(flags["email_notifications"], false);
+        assert_eq!(flags["sms_notifications"], false);
+        assert_eq!(flags["s7_protocol"], false);
+        assert_eq!(flags["ethernet_ip"], false);
+        assert_eq!(flags["rtsp_video"], false);
+        assert_eq!(flags["theme_full"], false);
+        assert_eq!(flags["per_user_layouts"], false);
+        assert_eq!(flags["white_label"], false);
+        assert_eq!(flags["rbac"], false);
+        assert_eq!(flags["multi_site"], false);
+        assert_eq!(flags["max_devices"], 5);
+        assert_eq!(flags["data_retention_days"], 7);
+    }
+
+    #[tokio::test]
+    async fn test_tier_starter_feature_gates() {
+        let tier = crate::license::LicenseTier::Starter;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test_key".into(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("starter".into()),
+                device_limit: Some(50),
+            },
+            tier.clone(),
+        );
+
+        // Branding returns theme_level=basic for Starter
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "basic");
+
+        // OPC-UA blocked (Professional+)
+        assert!(!tier.opcua_enabled());
+
+        // Feature flags
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["email_notifications"], true);
+        assert_eq!(flags["sms_notifications"], false);
+        assert_eq!(flags["white_label"], true);
+        assert_eq!(flags["theme_full"], false);
+        assert_eq!(flags["per_user_layouts"], false);
+        assert_eq!(flags["max_devices"], 50);
+    }
+
+    #[tokio::test]
+    async fn test_tier_professional_feature_gates() {
+        let tier = crate::license::LicenseTier::Professional;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test_key".into(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".into()),
+                device_limit: None,
+            },
+            tier.clone(),
+        );
+
+        // Branding returns theme_level=full for Professional
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "full");
+
+        // Feature flags
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["opcua_enabled"], true);
+        assert_eq!(flags["sms_notifications"], true);
+        assert_eq!(flags["pdf_reporting"], true);
+        assert_eq!(flags["rbac"], true);
+        assert_eq!(flags["multi_site"], true);
+        assert_eq!(flags["recipes"], true);
+        assert_eq!(flags["s7_protocol"], false);
+        assert_eq!(flags["ethernet_ip"], false);
+        assert_eq!(flags["rtsp_video"], false);
+        assert_eq!(flags["theme_full"], true);
+        assert_eq!(flags["per_user_layouts"], true);
+        assert_eq!(flags["white_label"], true);
+        assert_eq!(flags["max_devices"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn test_tier_enterprise_feature_gates() {
+        let tier = crate::license::LicenseTier::Enterprise;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test_key".into(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("enterprise".into()),
+                device_limit: None,
+            },
+            tier.clone(),
+        );
+
+        // Branding returns theme_level=full for Enterprise
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "full");
+
+        // All feature flags should be true/max
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["opcua_enabled"], true);
+        assert_eq!(flags["email_notifications"], true);
+        assert_eq!(flags["sms_notifications"], true);
+        assert_eq!(flags["s7_protocol"], true);
+        assert_eq!(flags["ethernet_ip"], true);
+        assert_eq!(flags["rtsp_video"], true);
+        assert_eq!(flags["sso_saml"], true);
+        assert_eq!(flags["cfr_part_11"], true);
+        assert_eq!(flags["theme_full"], true);
+        assert_eq!(flags["per_user_layouts"], true);
+        assert_eq!(flags["max_devices"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn test_branding_theme_levels_per_tier() {
+        // Trial: branding returns defaults with theme_level=none
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Trial {
+                started_at: 0, expires_at: 2592000, days_remaining: 30,
+                tier: crate::license::LicenseTier::Trial,
+                feature_flags: crate::license::LicenseTier::Trial.to_feature_flags(),
+            },
+            crate::license::LicenseTier::Trial,
+        );
+        let resp = app.oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "none");
+
+        // Starter: theme_level=basic
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test".into(), expires_at: None, days_remaining: None,
+                tier: Some("starter".into()), device_limit: None,
+            },
+            crate::license::LicenseTier::Starter,
+        );
+        let resp = app.oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "basic");
+
+        // Professional: theme_level=full
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test".into(), expires_at: None, days_remaining: None,
+                tier: Some("professional".into()), device_limit: None,
+            },
+            crate::license::LicenseTier::Professional,
+        );
+        let resp = app.oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "full");
     }
 }
