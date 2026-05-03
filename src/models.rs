@@ -878,7 +878,7 @@ pub struct UpdateUserRequest {
     pub password: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct ChangePasswordRequest {
     pub new_password: String,
 }

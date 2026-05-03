@@ -108,6 +108,13 @@ pub fn verify_token(token: &str, secret: &str) -> Option<TokenClaims> {
     Some(claims)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/login",
+    request_body = crate::models::LoginRequest,
+    responses((status = 200, body = crate::models::LoginResponse), (status = 401)),
+    tag = "Auth"
+)]
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -254,6 +261,13 @@ async fn check_password_and_login(
     )
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    responses((status = 200)),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     // Revoke refresh token if present
     if let Some(refresh_cookie) = jar.get("voltrus_refresh") {
@@ -272,6 +286,13 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoR
     (jar.add(access_cookie).add(refresh_cookie), Json(json!({"ok": true})))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/me",
+    responses((status = 200)),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     let token = jar
         .get("voltrus_token")
@@ -286,6 +307,13 @@ pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl Into
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/csrf-token",
+    responses((status = 200)),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     let token = jar
         .get("voltrus_token")
@@ -303,6 +331,12 @@ pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> im
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/refresh",
+    responses((status = 200, body = crate::models::LoginResponse), (status = 401)),
+    tag = "Auth"
+)]
 pub async fn refresh_token(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -378,11 +412,25 @@ pub async fn refresh_token(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/seed",
+    responses((status = 200), (status = 409)),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     state.storage.seed_database().await?;
     Ok(Json(json!({"ok": true})))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/change-password",
+    responses((status = 200), (status = 401)),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn change_password(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -492,6 +540,12 @@ pub async fn delete_user_handler(
 // ── SSO / SAML / LDAP endpoints (Enterprise-tier gated) ──
 
 /// GET /api/v1/auth/providers — lists enabled auth providers.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/providers",
+    responses((status = 200)),
+    tag = "Auth"
+)]
 pub async fn list_auth_providers(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -534,6 +588,12 @@ pub async fn list_auth_providers(
 }
 
 /// POST /api/v1/auth/saml/metadata — returns SP metadata XML.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/saml/metadata",
+    responses((status = 200)),
+    tag = "Auth"
+)]
 pub async fn saml_metadata(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -561,6 +621,12 @@ pub async fn saml_metadata(
 }
 
 /// POST /api/v1/auth/saml/acs — SAML Assertion Consumer Service.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/saml/acs",
+    responses((status = 200), (status = 302)),
+    tag = "Auth"
+)]
 pub async fn saml_acs(
     State(state): State<AppState>,
     Json(body): Json<SamlAcsRequest>,
@@ -609,6 +675,12 @@ pub async fn saml_acs(
 }
 
 /// POST /api/v1/auth/ldap/login — LDAP authentication endpoint.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/ldap/login",
+    responses((status = 200, body = crate::models::LoginResponse), (status = 401)),
+    tag = "Auth"
+)]
 pub async fn ldap_login(
     State(state): State<AppState>,
     Json(body): Json<LdapLoginRequest>,
@@ -688,14 +760,14 @@ pub async fn ldap_login(
 
 // ── SSO request types ──
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SamlAcsRequest {
     pub saml_response: String,
     #[serde(default)]
     pub relay_state: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct LdapLoginRequest {
     pub username: String,
     pub password: String,

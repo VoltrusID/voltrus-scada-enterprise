@@ -6,6 +6,12 @@ use serde_json::json;
 use super::{AppState, AppError, AuthUser};
 
 /// GET /api/settings/branding — get branding settings with defaults
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/branding",
+    responses((status = 200, body = crate::models::BrandingSettings)),
+    tag = "Settings"
+)]
 pub async fn get_branding(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -52,6 +58,13 @@ pub async fn get_branding(
 }
 
 /// PUT /api/settings/branding — update branding settings
+#[utoipa::path(
+    put,
+    path = "/api/v1/settings/branding",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_branding(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -101,6 +114,13 @@ pub async fn update_branding(
 }
 
 /// GET /api/settings/alarm-cooldown — get alarm cooldown in seconds
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/alarm-cooldown",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_alarm_cooldown(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -114,6 +134,13 @@ pub async fn get_alarm_cooldown(
 }
 
 /// PUT /api/settings/alarm-cooldown — set alarm cooldown in seconds
+#[utoipa::path(
+    put,
+    path = "/api/v1/settings/alarm-cooldown",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_alarm_cooldown(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

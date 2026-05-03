@@ -4,17 +4,37 @@ use axum::Json;
 use crate::models::*;
 use super::{AppState, AppError};
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/version",
+    responses((status = 200, description = "Version info")),
+    tag = "System",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_version() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "version": env!("CARGO_PKG_VERSION"),
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/live",
+    responses((status = 200, body = crate::models::LiveResponse)),
+    tag = "System",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_live(State(state): State<AppState>) -> Json<LiveResponse> {
     let devices = state.cache.get_all().await;
     Json(LiveResponse { devices })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/health",
+    responses((status = 200, description = "Health check", body = crate::models::HealthResponse)),
+    tag = "System"
+)]
 pub async fn get_health(State(state): State<AppState>) -> Json<HealthResponse> {
     let statuses = state.cache.get_statuses().await;
     Json(HealthResponse {
@@ -108,6 +128,13 @@ pub async fn compute_system_info(state: &AppState) -> Result<SystemResponse, App
     })
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/system",
+    responses((status = 200, body = crate::models::SystemResponse)),
+    tag = "System",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResponse>, AppError> {
     compute_system_info(&state).await.map(Json)
 }
