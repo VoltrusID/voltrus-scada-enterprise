@@ -818,6 +818,7 @@ EXAMPLES:
                                             source_key: source.key.clone(),
                                             source_name: source.name.clone(),
                                             severity: "critical".to_string(),
+                                            priority: "critical".to_string(),
                                             value,
                                             threshold: source.crit_val,
                                             message: msg,
@@ -826,6 +827,11 @@ EXAMPLES:
                                             acknowledged_at: None,
                                             acknowledged_by: None,
                                             cooldown_until: None,
+                                            shelved_until: None,
+                                            shelved_by: None,
+                                            shelved_reason: None,
+                                            deadband: 0.0,
+                                            state: "active".to_string(),
                                         };
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
@@ -858,6 +864,7 @@ EXAMPLES:
                                             source_key: source.key.clone(),
                                             source_name: source.name.clone(),
                                             severity: "warning".to_string(),
+                                            priority: "warning".to_string(),
                                             value,
                                             threshold: source.warn_val,
                                             message: msg,
@@ -866,6 +873,11 @@ EXAMPLES:
                                             acknowledged_at: None,
                                             acknowledged_by: None,
                                             cooldown_until: None,
+                                            shelved_until: None,
+                                            shelved_by: None,
+                                            shelved_reason: None,
+                                            deadband: 0.0,
+                                            state: "active".to_string(),
                                         };
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(

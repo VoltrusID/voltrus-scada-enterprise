@@ -1026,6 +1026,7 @@ pub struct Alarm {
     pub source_key: String,
     pub source_name: String,
     pub severity: String,
+    pub priority: String,
     pub value: f64,
     pub threshold: f64,
     pub message: String,
@@ -1034,6 +1035,11 @@ pub struct Alarm {
     pub acknowledged_at: Option<i64>,
     pub acknowledged_by: Option<String>,
     pub cooldown_until: Option<i64>,
+    pub shelved_until: Option<i64>,
+    pub shelved_by: Option<String>,
+    pub shelved_reason: Option<String>,
+    pub deadband: f64,
+    pub state: String,
 }
 
 #[derive(Debug, serde::Deserialize)]

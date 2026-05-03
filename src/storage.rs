@@ -2462,24 +2462,27 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let (sql, params): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match &status {
                 Some(s) if s == "active" => (
-                    "SELECT id, source_key, COALESCE(source_name, ''), severity, value, threshold, message,
-                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active')
                      FROM alarms
                      WHERE acknowledged_at IS NULL
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
                 ),
                 Some(s) if s == "acknowledged" => (
-                    "SELECT id, source_key, COALESCE(source_name, ''), severity, value, threshold, message,
-                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active')
                      FROM alarms
                      WHERE acknowledged_at IS NOT NULL
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
                 ),
                 _ => (
-                    "SELECT id, source_key, COALESCE(source_name, ''), severity, value, threshold, message,
-                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active')
                      FROM alarms
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
@@ -2494,14 +2497,20 @@ impl Storage {
                         source_key: row.get(1)?,
                         source_name: row.get(2)?,
                         severity: row.get(3)?,
-                        value: row.get(4)?,
-                        threshold: row.get(5)?,
-                        message: row.get(6)?,
-                        triggered_at: row.get(7)?,
-                        resolved_at: row.get(8)?,
-                        acknowledged_at: row.get(9)?,
-                        acknowledged_by: row.get(10)?,
-                        cooldown_until: row.get(11)?,
+                        priority: row.get(4)?,
+                        value: row.get(5)?,
+                        threshold: row.get(6)?,
+                        message: row.get(7)?,
+                        triggered_at: row.get(8)?,
+                        resolved_at: row.get(9)?,
+                        acknowledged_at: row.get(10)?,
+                        acknowledged_by: row.get(11)?,
+                        cooldown_until: row.get(12)?,
+                        shelved_until: row.get(13)?,
+                        shelved_by: row.get(14)?,
+                        shelved_reason: row.get(15)?,
+                        deadband: row.get(16)?,
+                        state: row.get(17)?,
                     })
                 })
                 .context("Query failed")?;
