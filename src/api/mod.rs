@@ -1,3 +1,4 @@
+mod openapi;
 pub(crate) mod auth;
 mod api_keys;
 mod push;

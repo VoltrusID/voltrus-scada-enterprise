@@ -14,7 +14,7 @@ pub async fn active_alarm_count(
     Ok(Json(json!({ "count": count })))
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmListQuery {
     pub status: Option<String>,
     pub priority: Option<String>,

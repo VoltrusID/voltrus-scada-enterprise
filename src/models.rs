@@ -245,7 +245,7 @@ impl RegisterConfig {
 
 // ── DB-persisted Modbus types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ModbusDevice {
     pub id: String,
     pub name: String,
@@ -357,7 +357,7 @@ fn default_scan_register_area() -> String {
     "holding".to_string()
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct ScannedRegister {
     pub address: u16,
     pub raw_value: Option<u16>,
@@ -368,7 +368,7 @@ pub struct ScannedRegister {
     pub interpreted_value: Option<f64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct PollerStatus {
     pub device_id: String,
     pub running: bool,
@@ -377,7 +377,7 @@ pub struct PollerStatus {
 
 // ── OPC-UA config types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum OpcUaSecurityPolicy {
     None,
     #[serde(rename = "basic256sha256")]
@@ -388,7 +388,7 @@ impl Default for OpcUaSecurityPolicy {
     fn default() -> Self { Self::None }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum OpcUaSecurityMode {
     None,
     Sign,
@@ -424,7 +424,7 @@ pub struct OpcUaDeviceConfig {
 }
 
 /// Database row for opcua_devices table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct OpcUaDevice {
     pub id: i64,
     pub name: String,
@@ -636,7 +636,7 @@ pub struct EnipDeviceConfig {
 
 // ── Runtime types ──
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct DeviceSnapshot {
     pub device_id: String,
     pub status: DeviceStatus,
@@ -644,7 +644,7 @@ pub struct DeviceSnapshot {
     pub metrics: HashMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum DeviceStatus {
     Online,
@@ -653,12 +653,12 @@ pub enum DeviceStatus {
 
 // ── API response types ──
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct LiveResponse {
     pub devices: Vec<DeviceSnapshot>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct HealthResponse {
     pub status: String,
     pub devices: HashMap<String, String>,
@@ -680,7 +680,7 @@ pub struct HistoryQuery {
 
 // ── System response types ──
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct SystemResponse {
     pub hostname: String,
     pub os: String,
@@ -696,7 +696,7 @@ pub struct SystemResponse {
     pub process: ProcessInfo,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ProcessInfo {
     pub pid: u32,
     pub memory_mb: f64,
@@ -849,13 +849,13 @@ pub struct Setting {
 
 // ── Request/Response types ──
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct LoginResponse {
     pub ok: bool,
     pub username: String,
@@ -901,14 +901,14 @@ pub struct RefreshToken {
     pub revoked_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct BrandingSettings {
     pub title: String,
     pub subtitle: String,
     pub logo: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct DataSourceData {
     pub id: i64,
     pub key: String,
@@ -919,7 +919,7 @@ pub struct DataSourceData {
     pub status: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct HistoryResponse {
     pub sensors: Vec<DataSourceSummary>,
     pub data: serde_json::Value,
@@ -927,7 +927,7 @@ pub struct HistoryResponse {
     pub interval: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct DataSourceSummary {
     pub id: i64,
     pub key: String,
@@ -940,7 +940,7 @@ pub struct DataSourceSummary {
     pub source_type: String,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct DataQuery {
     pub screen: Option<String>,
     pub device: Option<String>,
@@ -979,7 +979,7 @@ pub struct ExportQuery {
 }
 
 /// A single telemetry row for export responses.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct TelemetryExportRow {
     pub timestamp: i64,
     pub device: String,
@@ -988,7 +988,7 @@ pub struct TelemetryExportRow {
 }
 
 /// Paginated meta information for export responses.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ExportMeta {
     pub total: i64,
     pub limit: usize,
@@ -998,7 +998,7 @@ pub struct ExportMeta {
 }
 
 /// The standard envelope for JSON export responses.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ExportResponse {
     pub data: Vec<TelemetryExportRow>,
     pub meta: ExportMeta,
@@ -1061,7 +1061,7 @@ fn default_push_subject() -> String {
 
 // ── Alarm types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Alarm {
     pub id: i64,
     pub source_key: String,
@@ -1091,7 +1091,7 @@ pub struct AlarmQuery {
 
 // ── Alarm Management Overhaul types (v0.23.0) ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmAuditEntry {
     pub id: i64,
     pub alarm_id: i64,
@@ -1107,7 +1107,7 @@ pub struct ShelfAlarmRequest {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmSummary {
     pub active_critical: i64,
     pub active_warning: i64,
@@ -1117,7 +1117,7 @@ pub struct AlarmSummary {
     pub avg_ack_time_secs: f64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmAnalyticsEntry {
     pub source_key: String,
     pub source_name: String,
@@ -1158,7 +1158,7 @@ fn default_retention_hours() -> u32 { 72 }
 // ── RTSP Video / Camera types ──
 
 /// Database row for cameras table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Camera {
     pub id: i64,
     pub name: String,
@@ -1529,7 +1529,7 @@ impl CommandStatus {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Command {
     pub id: String,
     pub data_source_id: i64,
@@ -1549,7 +1549,7 @@ pub struct Command {
     pub created_by: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct CommandAuditEntry {
     pub id: i64,
     pub command_id: String,
@@ -1583,7 +1583,7 @@ impl Default for WritePolicy {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct WriteRequest {
     pub value: serde_json::Value,
     #[serde(default = "default_write_policy")]
@@ -1596,7 +1596,7 @@ fn default_write_policy() -> String {
     "immediate".to_string()
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct CommandQuery {
     pub tag: Option<String>,
     pub status: Option<String>,
@@ -1738,7 +1738,7 @@ pub struct UpdateReportRequest {
 
 // ── Hub (Multi-Site) types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct HubSite {
     pub id: i64,
     pub name: String,
@@ -1768,7 +1768,7 @@ pub struct UpdateHubSiteRequest {
 
 // ── RBAC types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Role {
     pub id: i64,
     pub name: String,
