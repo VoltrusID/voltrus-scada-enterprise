@@ -41,4 +41,11 @@ export const queryKeys = {
   shiftHandovers: ['shiftHandovers'] as const,
   shiftHandoversFiltered: (date?: string, period?: string) => ['shiftHandovers', date, period] as const,
   shiftAutoReport: ['shiftAutoReport'] as const,
+  aiSettings: ['aiSettings'] as const,
+  aiProposals: (type?: string, status?: string) => ['aiProposals', type, status] as const,
+  aiProposal: (id: number) => ['aiProposal', id] as const,
+  aiTemplates: (industry?: string) => ['aiTemplates', industry] as const,
+  dnp3Devices: ['dnp3Devices'] as const,
+  dnp3Device: (id: string) => ['dnp3Device', id] as const,
+  dnp3GroupVariations: ['dnp3GroupVariations'] as const,
 }

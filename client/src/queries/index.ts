@@ -252,3 +252,17 @@ export {
 } from './shift_handover'
 
 export type { ShiftHandover, ShiftAutoReport } from './shift_handover'
+
+export {
+  useDnp3Devices,
+  useDnp3Device,
+  useDnp3GroupVariations,
+  useCreateDnp3Device,
+  useUpdateDnp3Device,
+  useDeleteDnp3Device,
+  useAddDnp3Point,
+  useRemoveDnp3Point,
+  useScanDnp3Network,
+} from './dnp3'
+
+export type { Dnp3Device, Dnp3Point, Dnp3GroupVariation } from './dnp3'
