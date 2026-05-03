@@ -230,3 +230,12 @@ export {
 } from './roles'
 
 export type { Role } from './roles'
+
+export {
+  useAnnotations,
+  useCreateAnnotation,
+  useUpdateAnnotation,
+  useDeleteAnnotation,
+} from './annotations'
+
+export type { Annotation } from './annotations'
