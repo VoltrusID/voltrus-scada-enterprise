@@ -29,6 +29,7 @@ mod command_queue;
 mod recipe;
 mod video;
 mod sim_engine;
+mod script_engine;
 
 use api::AppState;
 use base64::Engine;
