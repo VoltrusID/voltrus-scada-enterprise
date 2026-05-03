@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::Serialize;
 use web_push::{
-    ContentEncoding, IsahcWebPushClient, SubscriptionInfo, VapidSignatureBuilder,
+    ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignatureBuilder,
     WebPushClient, WebPushMessageBuilder, WebPushError,
 };
 
@@ -40,7 +40,7 @@ pub struct PushNotifier {
     vapid_private_key: String,
     vapid_public_key: String,
     vapid_subject: String,
-    client: IsahcWebPushClient,
+    client: HyperWebPushClient,
 }
 
 impl PushNotifier {
@@ -52,8 +52,7 @@ impl PushNotifier {
         let _partial = VapidSignatureBuilder::from_base64_no_sub(&config.vapid_private_key)
             .map_err(|e| anyhow::anyhow!("Invalid VAPID private key: {}", e))?;
 
-        let client = IsahcWebPushClient::new()
-            .map_err(|e| anyhow::anyhow!("Failed to create web push client: {}", e))?;
+        let client = HyperWebPushClient::new();
 
         Ok(Self {
             vapid_private_key: config.vapid_private_key.clone(),
