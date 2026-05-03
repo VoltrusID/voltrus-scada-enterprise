@@ -1555,7 +1555,7 @@ fn default_write_policy() -> String {
     "immediate".to_string()
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct CommandQuery {
     pub tag: Option<String>,
     pub status: Option<String>,
