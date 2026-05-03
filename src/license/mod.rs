@@ -98,6 +98,18 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    /// Full theme editor (colors, fonts, layouts).
+    /// Starter gets basic (logo swap), Professional+ gets full theme control.
+    pub fn theme_full(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
+    /// Per-user screen layouts (each user gets their own layout).
+    /// Professional tier and above.
+    pub fn per_user_layouts(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
     pub fn rbac(&self) -> bool {
         matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
     }
@@ -160,6 +172,8 @@ impl LicenseTier {
             "backup_restore": self.backup_restore(),
             "auto_discovery": self.auto_discovery(),
             "white_label": self.white_label(),
+            "theme_full": self.theme_full(),
+            "per_user_layouts": self.per_user_layouts(),
             "rbac": self.rbac(),
             "multi_site": self.multi_site(),
             "recipes": self.recipes(),
@@ -600,6 +614,30 @@ mod tests {
         assert!(!LicenseTier::Starter.rtsp_video());
         assert!(!LicenseTier::Professional.rtsp_video());
         assert!(LicenseTier::Enterprise.rtsp_video());
+    }
+
+    #[test]
+    fn test_theme_full_professional_and_above() {
+        assert!(!LicenseTier::Trial.theme_full());
+        assert!(!LicenseTier::Starter.theme_full());
+        assert!(LicenseTier::Professional.theme_full());
+        assert!(LicenseTier::Enterprise.theme_full());
+    }
+
+    #[test]
+    fn test_per_user_layouts_professional_and_above() {
+        assert!(!LicenseTier::Trial.per_user_layouts());
+        assert!(!LicenseTier::Starter.per_user_layouts());
+        assert!(LicenseTier::Professional.per_user_layouts());
+        assert!(LicenseTier::Enterprise.per_user_layouts());
+    }
+
+    #[test]
+    fn test_white_label_starter_and_above() {
+        assert!(!LicenseTier::Trial.white_label());
+        assert!(LicenseTier::Starter.white_label());
+        assert!(LicenseTier::Professional.white_label());
+        assert!(LicenseTier::Enterprise.white_label());
     }
 
     #[test]
