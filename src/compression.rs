@@ -664,4 +664,34 @@ mod tests {
         let decoded = varint_decode(&encoded).unwrap();
         assert_eq!(decoded, values);
     }
+
+    // -----------------------------------------------------------------------
+    // Compression ratio integration test
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_gorilla_compression_ratio() {
+        // 1 hour of SCADA data (3600 readings) at 1s intervals.
+        // Realistic sensor pattern: mostly constant temperature with occasional
+        // small step changes. Gorilla encoding excels here because XOR deltas
+        // are zero for repeated values and small for nearby values, while
+        // constant-rate timestamps compress to ~1 bit each.
+        let mut values = Vec::with_capacity(3600);
+        let mut current = 25.0f64;
+        for i in 0..3600 {
+            // Mostly constant, with a small step every ~60s
+            if i > 0 && i % 60 == 0 {
+                current += 0.1;
+            }
+            values.push(current);
+        }
+
+        let timestamps: Vec<i64> = (0..3600).map(|i| 1700000000000 + i * 1000).collect();
+        let block = gorilla_encode(&timestamps, &values).unwrap();
+        let raw_size = timestamps.len() * 16; // 8 bytes ts + 8 bytes value
+        let compressed_size = block.data.len();
+        let ratio = raw_size as f64 / compressed_size as f64;
+
+        assert!(ratio > 5.0, "Compression ratio too low: {:.1}:1", ratio);
+    }
 }
