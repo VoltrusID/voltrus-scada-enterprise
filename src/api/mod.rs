@@ -623,7 +623,7 @@ mod tests {
     pub fn test_app() -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -804,7 +804,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -872,7 +872,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -967,7 +967,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -1040,7 +1040,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -1190,7 +1190,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -1359,7 +1359,7 @@ mod tests {
     fn test_app_with_license_status(license_status: crate::license::LicenseStatus, license_tier: crate::license::LicenseTier) -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let poller_manager = PollerManager::new(cache.clone());
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let feature_flags = license_tier.to_feature_flags();
         let state = AppState {
             cache,
