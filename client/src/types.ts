@@ -9,7 +9,7 @@ export interface SensorConfig {
 }
 
 export interface SensorData {
-  id: number; key: string; value: number; warn: number; crit: number; source_type: string; status: string;
+  id: number; key: string; value: number; warn: number; crit: number; source_type: string; status: string; simulated?: boolean;
 }
 
 export interface SystemInfo {
@@ -33,13 +33,13 @@ export interface SystemInfo {
   }
 }
 
-export interface DataPoint { value: number; ts: number }
+export interface DataPoint { value: number; ts: number; simulated?: boolean }
 
 export interface Screen { id: string; name: string; type: string; sort_order: number }
 
 export interface LayoutItem { i: string; x: number; y: number; w: number; h: number }
 
-export type ScreenLayouts = { lg: LayoutItem[]; md: LayoutItem[]; sm: LayoutItem[] }
+export type ScreenLayouts = { lg: LayoutItem[]; md: LayoutItem[]; sm: LayoutItem[]; xs: LayoutItem[] }
 
 export interface CanvasLayoutItem {
   data_source_id: number
@@ -97,6 +97,7 @@ export interface Alarm {
   source_key: string
   source_name: string
   severity: 'warning' | 'critical'
+  priority: 'critical' | 'warning' | 'info'
   value: number
   threshold: number
   message: string
@@ -105,6 +106,34 @@ export interface Alarm {
   acknowledged_at: number | null
   acknowledged_by: string | null
   cooldown_until: number | null
+  shelved_until: number | null
+  shelved_reason: string | null
+}
+
+export interface AlarmSummary {
+  active_critical: number
+  active_warning: number
+  active_info: number
+  shelved: number
+  recent_24h: number
+  avg_ack_time_secs: number
+}
+
+export interface AlarmAuditEntry {
+  id: number
+  alarm_id: number
+  action: string
+  performed_by: string
+  details: string
+  created_at: number
+}
+
+export interface AlarmAnalyticsEntry {
+  source_key: string
+  source_name: string
+  trigger_count: number
+  avg_time_to_ack_secs: number
+  last_triggered_at: number
 }
 
 export interface ModbusDevice {
@@ -230,6 +259,7 @@ export type FlowNodeType =
   | 'threshold'
   | 'lookup'
   | 'expression'
+  | 'script'
   | 'data_source_out'
   | 'http_out'
   | 'alarm_out'
@@ -245,4 +275,15 @@ export interface FlowNodeConfig {
 export interface FlowTriggerConfig {
   type: FlowTriggerType
   [key: string]: any
+}
+
+// -- Notification Settings types --
+
+export interface NotificationSetting {
+  id: number
+  source_key: string
+  channel_type: 'email' | 'webhook' | 'push' | 'sms'
+  config: string  // JSON string: email/webhook/push use string arrays; sms uses object array '[{"phone":"5551234567","carrier":"att"}]'
+  enabled: boolean
+  created_at: number
 }
