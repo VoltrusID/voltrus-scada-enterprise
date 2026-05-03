@@ -23,6 +23,7 @@ use crate::models::{
     UserNotification, CreateNotificationRequest,
     AlarmAuditEntry, AlarmSummary, AlarmAnalyticsEntry,
     Command, CommandAuditEntry, WritePolicy, WritePolicyUpdate, CommandQuery,
+    CustomMetric,
 };
 
 #[derive(Clone)]
@@ -4381,7 +4382,19 @@ fn init_schema(conn: &Connection) -> Result<()> {
             reason TEXT,
             created_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_command_audit_command ON command_audit_log(command_id);"
+        CREATE INDEX IF NOT EXISTS idx_command_audit_command ON command_audit_log(command_id);
+
+        CREATE TABLE IF NOT EXISTS custom_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            formula TEXT NOT NULL,
+            unit TEXT,
+            tag_refs TEXT NOT NULL DEFAULT '[]',
+            validation_error TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );"
     );
 
     // Migration: v0.24.0 — Write policy columns on data_sources
@@ -8368,6 +8381,183 @@ impl Storage {
         })
         .await
         .context("Task join failed")?
+    }
+
+    // ── Custom Metrics (v0.28.0) ──
+
+    pub async fn list_custom_metrics(&self) -> Result<Vec<CustomMetric>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, name, description, formula, unit, tag_refs, validation_error, created_at, updated_at FROM custom_metrics ORDER BY name"
+            ).context("Prepare list_custom_metrics failed")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(CustomMetric {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2)?,
+                    formula: row.get(3)?,
+                    unit: row.get(4)?,
+                    tag_refs: row.get(5)?,
+                    validation_error: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            }).context("Query list_custom_metrics failed")?;
+            let mut metrics = Vec::new();
+            for row in rows {
+                metrics.push(row.context("Row parse list_custom_metrics failed")?);
+            }
+            Ok(metrics)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn get_custom_metric(&self, id: i64) -> Result<Option<CustomMetric>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, description, formula, unit, tag_refs, validation_error, created_at, updated_at FROM custom_metrics WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(CustomMetric {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        description: row.get(2)?,
+                        formula: row.get(3)?,
+                        unit: row.get(4)?,
+                        tag_refs: row.get(5)?,
+                        validation_error: row.get(6)?,
+                        created_at: row.get(7)?,
+                        updated_at: row.get(8)?,
+                    })
+                },
+            );
+            match result {
+                Ok(m) => Ok(Some(m)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get custom metric failed"),
+            }
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn create_custom_metric(
+        &self,
+        name: &str,
+        description: &str,
+        formula: &str,
+        unit: Option<&str>,
+        tag_refs: &str,
+        validation_error: Option<&str>,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let description = description.to_string();
+        let formula = formula.to_string();
+        let unit = unit.map(|s| s.to_string());
+        let tag_refs = tag_refs.to_string();
+        let validation_error = validation_error.map(|s| s.to_string());
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO custom_metrics (name, description, formula, unit, tag_refs, validation_error, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+                rusqlite::params![name, description, formula, unit, tag_refs, validation_error, now],
+            ).context("Insert custom metric failed")?;
+            Ok(conn.last_insert_rowid())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn update_custom_metric(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        description: Option<&str>,
+        formula: Option<&str>,
+        unit: Option<&str>,
+        tag_refs: Option<&str>,
+        validation_error: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let description = description.map(|s| s.to_string());
+        let formula = formula.map(|s| s.to_string());
+        let unit = unit.map(|s| s.to_string());
+        let tag_refs = tag_refs.map(|s| s.to_string());
+        let validation_error = validation_error.map(|s| s.to_string());
+        let now = crate::timeutil::now_secs();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(name) = name {
+                conn.execute("UPDATE custom_metrics SET name = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![name, now, id])
+                    .context("Update custom metric name failed")?;
+            }
+            if let Some(description) = description {
+                conn.execute("UPDATE custom_metrics SET description = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![description, now, id])
+                    .context("Update custom metric description failed")?;
+            }
+            if let Some(formula) = formula {
+                conn.execute("UPDATE custom_metrics SET formula = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![formula, now, id])
+                    .context("Update custom metric formula failed")?;
+            }
+            if let Some(unit) = unit {
+                conn.execute("UPDATE custom_metrics SET unit = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![unit, now, id])
+                    .context("Update custom metric unit failed")?;
+            }
+            if let Some(tag_refs) = tag_refs {
+                conn.execute("UPDATE custom_metrics SET tag_refs = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![tag_refs, now, id])
+                    .context("Update custom metric tag_refs failed")?;
+            }
+            if let Some(validation_error) = validation_error {
+                conn.execute("UPDATE custom_metrics SET validation_error = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![validation_error, now, id])
+                    .context("Update custom metric validation_error failed")?;
+            }
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn delete_custom_metric(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM custom_metrics WHERE id = ?1", rusqlite::params![id])
+                .context("Delete custom metric failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn get_telemetry_series(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+        limit: i64,
+    ) -> Result<Vec<DataPoint>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT timestamp, value FROM telemetry
+                 WHERE device_id = ?1 AND metric = ?2
+                 AND timestamp >= ?3 AND timestamp <= ?4
+                 ORDER BY timestamp
+                 LIMIT ?5"
+            ).context("Prepare get_telemetry_series failed")?;
+            let rows = stmt.query_map(
+                rusqlite::params![device_id, metric, from, to, limit],
+                |row| Ok(DataPoint { timestamp: row.get(0)?, value: row.get(1)? })
+            ).context("Query get_telemetry_series failed")?;
+            let mut points = Vec::new();
+            for row in rows {
+                points.push(row.context("Row parse get_telemetry_series failed")?);
+            }
+            Ok(points)
+        }).await.context("Task join failed")?
     }
 }
 
