@@ -1,6 +1,6 @@
 [package]
 name = "voltrus-lite-rust-service"
-version = "0.28.0"
+version = "0.28.1"
 edition = "2024"
 license = "MIT"
 
@@ -66,6 +66,8 @@ openssl = { version = "0.10", features = ["vendored"] }
 tempfile = "=3.27.0"
 async-opcua = { version = "=0.18.0", default-features = false, features = ["client", "server"] }
 bacnet-rs = "0.3"
+snmp = "0.2"
+calamine = "0.26"
 
 [dev-dependencies]
 http = "=1.4.0"
