@@ -553,4 +553,394 @@ impl AssetStorage {
         .await
         .context("Task join failed")?
     }
+
+    // ── Maintenance Logs ──
+
+    pub async fn create_maintenance_log(
+        &self,
+        asset_id: &str,
+        req: &CreateMaintenanceRequest,
+        created_by: &str,
+    ) -> Result<MaintenanceLog> {
+        let conn = self.conn.clone();
+        let asset_id = asset_id.to_string();
+        let description = req.description.clone();
+        let technician = req.technician.clone();
+        let performed_at = req.performed_at.clone();
+        let created_by = created_by.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let id = generate_id();
+            let now = now_iso();
+
+            conn.execute(
+                "INSERT INTO maintenance_logs (id, asset_id, description, technician, performed_at, created_by, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![id, asset_id, description, technician, performed_at, created_by, now],
+            )
+            .context("Failed to insert maintenance log")?;
+
+            conn.execute(
+                "UPDATE assets SET last_maintenance = ?1, updated_at = ?2 WHERE id = ?3",
+                rusqlite::params![performed_at, now, asset_id],
+            )
+            .context("Failed to update asset last_maintenance")?;
+
+            Ok(MaintenanceLog {
+                id,
+                asset_id,
+                description,
+                technician,
+                performed_at,
+                created_by,
+                created_at: now,
+            })
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_maintenance_logs(&self, asset_id: &str) -> Result<Vec<MaintenanceLog>> {
+        let conn = self.conn.clone();
+        let asset_id = asset_id.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, asset_id, description, technician, performed_at, created_by, created_at
+                     FROM maintenance_logs WHERE asset_id = ?1 ORDER BY performed_at DESC",
+                )
+                .context("Failed to prepare maintenance logs query")?;
+
+            let rows = stmt
+                .query_map(rusqlite::params![asset_id], |row| {
+                    Ok(MaintenanceLog {
+                        id: row.get(0)?,
+                        asset_id: row.get(1)?,
+                        description: row.get(2)?,
+                        technician: row.get(3)?,
+                        performed_at: row.get(4)?,
+                        created_by: row.get(5)?,
+                        created_at: row.get(6)?,
+                    })
+                })
+                .context("Failed to query maintenance logs")?;
+
+            let mut logs = Vec::new();
+            for row in rows {
+                logs.push(row.context("Failed to map maintenance log row")?);
+            }
+            Ok(logs)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Firmware Catalog ──
+
+    pub async fn list_firmware_catalog(
+        &self,
+        vendor: Option<&str>,
+    ) -> Result<Vec<FirmwareCatalogEntry>> {
+        let conn = self.conn.clone();
+        let vendor = vendor.map(|s| s.to_string());
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) =
+                if let Some(ref v) = vendor {
+                    (
+                        "SELECT id, vendor, model, latest_version, release_date, notes, updated_at
+                         FROM firmware_catalog WHERE vendor = ? ORDER BY vendor, model"
+                            .to_string(),
+                        vec![Box::new(v.clone())],
+                    )
+                } else {
+                    (
+                        "SELECT id, vendor, model, latest_version, release_date, notes, updated_at
+                         FROM firmware_catalog ORDER BY vendor, model"
+                            .to_string(),
+                        vec![],
+                    )
+                };
+
+            let mut stmt = conn.prepare(&sql).context("Failed to prepare firmware catalog query")?;
+            let rows = stmt
+                .query_map(rusqlite::params_from_iter(params.iter()), |row| {
+                    Ok(FirmwareCatalogEntry {
+                        id: row.get(0)?,
+                        vendor: row.get(1)?,
+                        model: row.get(2)?,
+                        latest_version: row.get(3)?,
+                        release_date: row.get(4)?,
+                        notes: row.get(5)?,
+                        updated_at: row.get(6)?,
+                    })
+                })
+                .context("Failed to query firmware catalog")?;
+
+            let mut entries = Vec::new();
+            for row in rows {
+                entries.push(row.context("Failed to map firmware catalog row")?);
+            }
+            Ok(entries)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_firmware_catalog_entry(
+        &self,
+        req: &CreateFirmwareCatalogRequest,
+    ) -> Result<FirmwareCatalogEntry> {
+        let conn = self.conn.clone();
+        let vendor = req.vendor.clone();
+        let model = req.model.clone();
+        let latest_version = req.latest_version.clone();
+        let release_date = req.release_date.clone();
+        let notes = req.notes.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let id = generate_id();
+            let now = now_iso();
+
+            conn.execute(
+                "INSERT INTO firmware_catalog (id, vendor, model, latest_version, release_date, notes, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![id, vendor, model, latest_version, release_date, notes, now],
+            )
+            .context("Failed to insert firmware catalog entry")?;
+
+            Ok(FirmwareCatalogEntry {
+                id,
+                vendor,
+                model,
+                latest_version,
+                release_date,
+                notes,
+                updated_at: now,
+            })
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_firmware_catalog_entry(
+        &self,
+        id: &str,
+        fields: &serde_json::Value,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+        let fields = fields.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let allowed = ["latest_version", "release_date", "notes"];
+
+            let mut set_clauses: Vec<String> = Vec::new();
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(obj) = fields.as_object() {
+                for &key in &allowed {
+                    if let Some(value) = obj.get(key) {
+                        set_clauses.push(format!("{key} = ?"));
+                        match value {
+                            serde_json::Value::Null => params.push(Box::new(Option::<String>::None)),
+                            serde_json::Value::String(s) => params.push(Box::new(s.clone())),
+                            other => params.push(Box::new(other.to_string())),
+                        }
+                    }
+                }
+            }
+
+            if set_clauses.is_empty() {
+                return Ok(());
+            }
+
+            let now = now_iso();
+            set_clauses.push("updated_at = ?".to_string());
+            params.push(Box::new(now));
+            params.push(Box::new(id));
+
+            let sql = format!(
+                "UPDATE firmware_catalog SET {} WHERE id = ?",
+                set_clauses.join(", ")
+            );
+
+            conn.execute(&sql, rusqlite::params_from_iter(params.iter()))
+                .context("Failed to update firmware catalog entry")?;
+
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_firmware_catalog_entry(&self, id: &str) -> Result<()> {
+        let conn = self.conn.clone();
+        let id = id.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "DELETE FROM firmware_catalog WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Failed to delete firmware catalog entry")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_latest_firmware(
+        &self,
+        vendor: &str,
+        model: &str,
+    ) -> Result<Option<String>> {
+        let conn = self.conn.clone();
+        let vendor = vendor.to_string();
+        let model = model.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT latest_version FROM firmware_catalog WHERE vendor = ?1 AND model = ?2",
+                rusqlite::params![vendor, model],
+                |row| row.get::<_, String>(0),
+            );
+
+            match result {
+                Ok(version) => Ok(Some(version)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Failed to get latest firmware"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── SNMP Scan Results ──
+
+    pub async fn clear_scan_results(&self) -> Result<()> {
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM snmp_scan_results", [])
+                .context("Failed to clear scan results")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn insert_scan_result(&self, r: &SnmpScanResult) -> Result<()> {
+        let conn = self.conn.clone();
+        let ip = r.ip.clone();
+        let sys_descr = r.sys_descr.clone();
+        let sys_name = r.sys_name.clone();
+        let sys_uptime = r.sys_uptime.clone();
+        let vendor = r.vendor.clone();
+        let model = r.model.clone();
+        let firmware = r.firmware.clone();
+        let mac_address = r.mac_address.clone();
+        let scanned_at = r.scanned_at.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            conn.execute(
+                "INSERT OR REPLACE INTO snmp_scan_results (ip, sys_descr, sys_name, sys_uptime, vendor, model, firmware, mac_address, scanned_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                rusqlite::params![ip, sys_descr, sys_name, sys_uptime, vendor, model, firmware, mac_address, scanned_at],
+            )
+            .context("Failed to insert scan result")?;
+
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_scan_results(&self) -> Result<Vec<SnmpScanResult>> {
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let mut stmt = conn
+                .prepare(
+                    "SELECT ip, sys_descr, sys_name, sys_uptime, vendor, model, firmware, mac_address, scanned_at
+                     FROM snmp_scan_results ORDER BY ip",
+                )
+                .context("Failed to prepare scan results query")?;
+
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok(SnmpScanResult {
+                        ip: row.get(0)?,
+                        sys_descr: row.get(1)?,
+                        sys_name: row.get(2)?,
+                        sys_uptime: row.get(3)?,
+                        vendor: row.get(4)?,
+                        model: row.get(5)?,
+                        firmware: row.get(6)?,
+                        mac_address: row.get(7)?,
+                        scanned_at: row.get(8)?,
+                    })
+                })
+                .context("Failed to query scan results")?;
+
+            let mut results = Vec::new();
+            for row in rows {
+                results.push(row.context("Failed to map scan result row")?);
+            }
+            Ok(results)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_scan_result(&self, ip: &str) -> Result<Option<SnmpScanResult>> {
+        let conn = self.conn.clone();
+        let ip = ip.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT ip, sys_descr, sys_name, sys_uptime, vendor, model, firmware, mac_address, scanned_at
+                 FROM snmp_scan_results WHERE ip = ?1",
+                rusqlite::params![ip],
+                |row| {
+                    Ok(SnmpScanResult {
+                        ip: row.get(0)?,
+                        sys_descr: row.get(1)?,
+                        sys_name: row.get(2)?,
+                        sys_uptime: row.get(3)?,
+                        vendor: row.get(4)?,
+                        model: row.get(5)?,
+                        firmware: row.get(6)?,
+                        mac_address: row.get(7)?,
+                        scanned_at: row.get(8)?,
+                    })
+                },
+            );
+
+            match result {
+                Ok(scan_result) => Ok(Some(scan_result)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Failed to get scan result"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
 }
