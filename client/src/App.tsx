@@ -10,6 +10,7 @@ import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
+import { AnnotationPanel } from './AnnotationPanel'
 import { DataExportPanel } from './DataExportPanel'
 import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
@@ -70,6 +71,7 @@ function AppInner() {
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
   const [showExportPanel, setShowExportPanel] = useState(false)
+  const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
 
@@ -399,6 +401,7 @@ function AppInner() {
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
         onExportClick={() => setShowExportPanel(true)}
+        onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
       />
       </header>
 
@@ -497,6 +500,7 @@ function AppInner() {
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
         {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
+        {showAnnotationPanel && <AnnotationPanel onClose={() => setShowAnnotationPanel(false)} />}
       </main>
 
       <Footer />
