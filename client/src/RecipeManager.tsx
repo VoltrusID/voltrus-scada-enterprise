@@ -3,6 +3,7 @@ import { useRecipes, useCreateRecipe, useDeleteRecipe, useLoadRecipe, useUpdateR
 import { useModbusDevices } from './queries/modbus';
 import { useLicense } from './LicenseContext';
 import { FeatureBadge } from './components/FeatureBadge';
+import { RecipeLoadStatus } from './components/RecipeLoadStatus';
 import { btnStyle } from './styles';
 
 export function RecipeManager() {
@@ -18,6 +19,7 @@ export function RecipeManager() {
   const [newCategory, setNewCategory] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [confirmLoadId, setConfirmLoadId] = useState<number | null>(null);
+  const [loadCommandIds, setLoadCommandIds] = useState<string[] | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
@@ -77,7 +79,12 @@ export function RecipeManager() {
 
   const handleLoad = (id: number) => {
     loadRecipe.mutate(id, {
-      onSuccess: () => setConfirmLoadId(null),
+      onSuccess: (data) => {
+        setConfirmLoadId(null);
+        if (data.command_ids && data.command_ids.length > 0) {
+          setLoadCommandIds(data.command_ids);
+        }
+      },
     });
   };
 
@@ -274,6 +281,14 @@ export function RecipeManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Recipe load status */}
+      {loadCommandIds && (
+        <RecipeLoadStatus
+          commandIds={loadCommandIds}
+          onComplete={() => setLoadCommandIds(null)}
+        />
       )}
     </div>
   );

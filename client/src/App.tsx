@@ -14,6 +14,7 @@ import { AnnotationPanel } from './AnnotationPanel'
 import { ShiftHandoverPanel } from './ShiftHandoverPanel'
 import { DataExportPanel } from './DataExportPanel'
 import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
+import { CommandPanel } from './components/CommandPanel'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
@@ -71,6 +72,7 @@ function AppInner() {
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
+  const [showCommandPanel, setShowCommandPanel] = useState(false)
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [showShiftHandover, setShowShiftHandover] = useState(false)
@@ -402,6 +404,7 @@ function AppInner() {
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
+        onCommandPanelToggle={() => setShowCommandPanel(v => !v)}
         onExportClick={() => setShowExportPanel(true)}
         onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
         onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
@@ -486,7 +489,7 @@ function AppInner() {
           }}>
             {(() => {
               const s = sensors.find(x => x.id === selectedSensor)
-              return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} /> : null
+              return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} isAdmin={isAdmin} /> : null
             })()}
           </div>
         )}
@@ -502,6 +505,7 @@ function AppInner() {
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
+        {showCommandPanel && <CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} />}
         {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
         {showAnnotationPanel && <AnnotationPanel onClose={() => setShowAnnotationPanel(false)} />}
         {showShiftHandover && <ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} />}

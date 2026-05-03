@@ -11,7 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::cache::DeviceCache;
-use crate::models::{DeviceStatus, EnipDeviceConfig};
+use crate::models::{DeviceStatus, EnipDeviceConfig, WriteResult};
 
 // ── EtherNet/IP command codes ──
 
@@ -801,6 +801,83 @@ async fn try_poll_cycle(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -
     }
 
     Ok(())
+}
+
+// ── One-shot write function ──
+
+/// Write a single f64 value to an EtherNet/IP CIP tag.
+///
+/// Connects to the PLC at `ip:port`, writes the value as a DINT (i32) to the
+/// named tag, and returns a `WriteResult`.
+pub async fn write_tag(
+    ip: &str,
+    port: u16,
+    tag_name: &str,
+    value: f64,
+) -> WriteResult {
+    let start = std::time::Instant::now();
+    let url = format!("{}:{}", ip, port);
+
+    // Connect with timeout
+    let mut client = EthernetIpClient::new(&url);
+    let connect_result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.connect(),
+    ).await;
+
+    match connect_result {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            return WriteResult {
+                success: false,
+                device_response: None,
+                error: Some(format!("EtherNet/IP connection failed: {e}")),
+                latency_ms: start.elapsed().as_millis() as u64,
+            }
+        }
+        Err(_) => {
+            return WriteResult {
+                success: false,
+                device_response: None,
+                error: Some("EtherNet/IP connect timeout (5s)".into()),
+                latency_ms: start.elapsed().as_millis() as u64,
+            }
+        }
+    }
+
+    // Write as DINT (i32) -- most common CIP data type for integer values
+    let cip_value = CipValue::Dint(value as i32);
+
+    let write_result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.write_tag(tag_name, &cip_value),
+    ).await;
+
+    let _ = client.disconnect().await;
+
+    match write_result {
+        Ok(Ok(())) => WriteResult {
+            success: true,
+            device_response: Some(format!(
+                "Wrote tag '{}' = {} (DINT)",
+                tag_name, value
+            )),
+            error: None,
+            latency_ms: start.elapsed().as_millis() as u64,
+        },
+        Ok(Err(e)) => WriteResult {
+            success: false,
+            device_response: None,
+            error: Some(format!("EtherNet/IP write failed: {e}")),
+            latency_ms: start.elapsed().as_millis() as u64,
+        },
+        Err(_) => WriteResult {
+            success: false,
+            device_response: None,
+            error: Some("EtherNet/IP write timeout (5s)".into()),
+            latency_ms: start.elapsed().as_millis() as u64,
+        },
+    }
 }
 
 // ── Backoff helper ──
