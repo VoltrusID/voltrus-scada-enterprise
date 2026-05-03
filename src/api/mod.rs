@@ -27,6 +27,7 @@ mod enip_devices;
 mod s7_devices;
 mod video;
 mod security;
+mod annotations;
 
 use axum::{
     extract::{Request, State},
@@ -359,6 +360,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/security/events", get(security::list_security_events))
         .route("/api/v1/security/events/export", get(security::export_security_csv))
         .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
+        // Annotation routes (admin-only, Professional-gated)
+        .route("/api/v1/annotations", get(annotations::list_annotations).post(annotations::create_annotation))
+        .route("/api/v1/annotations/{id}", get(annotations::get_annotation).put(annotations::update_annotation).delete(annotations::delete_annotation))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
