@@ -3461,6 +3461,84 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
+
+    pub async fn compress_hot_to_warm(&self, cutoff_ts: i64) -> Result<u64> {
+        let conn = self.conn.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+
+            // Fetch all hot rows older than cutoff
+            let mut stmt = tx.prepare(
+                "SELECT device_id, metric, timestamp, value FROM telemetry_hot
+                 WHERE timestamp < ?1
+                 ORDER BY device_id, metric, timestamp"
+            ).context("Prepare failed")?;
+
+            let rows: Vec<(String, String, i64, f64)> = stmt.query_map(
+                rusqlite::params![cutoff_ts],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            ).context("Query failed")?
+            .collect::<Result<Vec<_>, _>>().context("Row mapping failed")?;
+
+            drop(stmt);
+
+            if rows.is_empty() {
+                tx.commit()?;
+                return Ok(0u64);
+            }
+
+            // Group by (device_id, metric, bucket_start) where bucket_start = minute-aligned timestamp
+            let mut buckets: std::collections::HashMap<(String, String, i64), Vec<(i64, f64)>> =
+                std::collections::HashMap::new();
+
+            for (device_id, metric, ts, value) in &rows {
+                let bucket_start = (ts / 60000) * 60000;
+                let key = (device_id.clone(), metric.clone(), bucket_start);
+                buckets.entry(key).or_default().push((*ts, *value));
+            }
+
+            let mut insert_stmt = tx.prepare(
+                "INSERT INTO telemetry_warm (device_id, metric, bucket_start, open, high, low, close, count, deltas)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            ).context("Prepare insert failed")?;
+
+            let mut compressed_count: u64 = 0;
+
+            for ((device_id, metric, bucket_start), points) in &buckets {
+                let open = points.first().unwrap().1;
+                let close = points.last().unwrap().1;
+                let high = points.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
+                let low = points.iter().map(|(_, v)| *v).fold(f64::INFINITY, f64::min);
+                let count = points.len() as i64;
+
+                // Delta-encode individual values relative to open (3 decimal precision)
+                let deltas: Vec<i64> = points.iter()
+                    .map(|(_, v)| ((v - open) * 1000.0).round() as i64)
+                    .collect();
+                let delta_bytes = crate::compression::varint_encode(&deltas);
+
+                insert_stmt.execute(rusqlite::params![
+                    device_id, metric, bucket_start,
+                    open, high, low, close, count, delta_bytes
+                ]).context("Insert warm failed")?;
+
+                compressed_count += count as u64;
+            }
+
+            drop(insert_stmt);
+
+            // Delete compressed rows from hot
+            tx.execute(
+                "DELETE FROM telemetry_hot WHERE timestamp < ?1",
+                rusqlite::params![cutoff_ts],
+            ).context("Delete hot failed")?;
+
+            tx.commit().context("Commit failed")?;
+            Ok(compressed_count)
+        }).await.context("Task join failed")?
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
