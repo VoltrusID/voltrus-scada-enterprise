@@ -266,3 +266,35 @@ export {
 } from './dnp3'
 
 export type { Dnp3Device, Dnp3Point, Dnp3GroupVariation, Dnp3ScanResult } from './dnp3'
+
+export {
+  useAssets,
+  useAsset,
+  useCreateAsset,
+  useUpdateAsset,
+  useDeleteAsset,
+  useMaintenanceLogs,
+  useCreateMaintenanceLog,
+  useFirmwareCatalog,
+  useCreateFirmwareEntry,
+  useUpdateFirmwareEntry,
+  useDeleteFirmwareEntry,
+  useStartScan,
+  useScanStatus,
+  useScanResults,
+  useImportScannedDevice,
+  useImportAssets,
+  useConfirmImport,
+  useNis2Export,
+  useIpConflicts,
+} from './assets'
+
+export type {
+  Asset,
+  MaintenanceLog,
+  FirmwareCatalogEntry,
+  SnmpScanResult,
+  ScanStatus,
+} from './assets'
+
+export { ASSET_TYPES, CRITICALITY_LEVELS } from './assets'
