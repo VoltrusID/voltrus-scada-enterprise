@@ -145,10 +145,11 @@ pub async fn load_recipe(
         .await?
         .ok_or_else(|| AppError(anyhow::anyhow!("Recipe not found")))?;
 
-    crate::recipe::load_recipe_to_plc(&recipe, &state.storage).await?;
+    let command_ids = crate::recipe::load_recipe_to_plc(&recipe, &state.storage).await?;
 
     Ok(Json(serde_json::json!({
         "ok": true,
-        "message": format!("Recipe '{}' loaded to device '{}'", recipe.name, recipe.device_id),
+        "command_ids": command_ids,
+        "message": format!("Recipe load queued: {} commands", command_ids.len()),
     })))
 }
