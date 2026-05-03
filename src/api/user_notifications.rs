@@ -1,0 +1,171 @@
+use axum::extract::{Extension, Json, Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
+use serde::Deserialize;
+use serde_json::json;
+
+use super::{AppError, AppState, AuthUser};
+
+// ── Query params ──
+
+#[derive(Debug, Deserialize)]
+pub struct ListNotificationsQuery {
+    pub unread_only: Option<bool>,
+}
+
+// ── Handlers ──
+
+pub async fn list_notifications(
+    State(state): State<AppState>,
+    Extension(auth_user): Extension<AuthUser>,
+    Query(params): Query<ListNotificationsQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    // Resolve current user ID from authenticated username
+    let user = state
+        .storage
+        .get_user_by_username(&auth_user.username)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Authenticated user not found"))?;
+    let user_id = user.id;
+
+    let unread_only = params.unread_only.unwrap_or(false);
+
+    // Auto-cleanup old notifications (best-effort, ignore errors)
+    let _ = state.storage.cleanup_old_notifications().await;
+
+    let notifications = state
+        .storage
+        .list_user_notifications(user_id, unread_only)
+        .await?;
+
+    Ok(Json(json!({
+        "notifications": notifications,
+        "count": notifications.len(),
+    })))
+}
+
+pub async fn mark_read(
+    State(state): State<AppState>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    // Resolve current user ID from authenticated username
+    let user = state
+        .storage
+        .get_user_by_username(&auth_user.username)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Authenticated user not found"))?;
+    let user_id = user.id;
+
+    // Verify ownership: list user's notifications and find the target
+    let user_notifications = state
+        .storage
+        .list_user_notifications(user_id, false)
+        .await?;
+
+    let owned = user_notifications
+        .iter()
+        .any(|n| n.id == id);
+
+    if !owned {
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "Notification not found"})),
+        )
+            .into_response());
+    }
+
+    state.storage.mark_notification_read(id).await?;
+
+    Ok(Json(json!({ "ok": true })).into_response())
+}
+
+pub async fn dismiss_notification(
+    State(state): State<AppState>,
+    Extension(auth_user): Extension<AuthUser>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    // Resolve current user ID from authenticated username
+    let user = state
+        .storage
+        .get_user_by_username(&auth_user.username)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Authenticated user not found"))?;
+    let user_id = user.id;
+
+    // Verify ownership: list user's notifications and find the target
+    let user_notifications = state
+        .storage
+        .list_user_notifications(user_id, false)
+        .await?;
+
+    let owned = user_notifications
+        .iter()
+        .any(|n| n.id == id);
+
+    if !owned {
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "Notification not found"})),
+        )
+            .into_response());
+    }
+
+    state.storage.dismiss_notification(id).await?;
+
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+// ── Tests ──
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_user_notifications_endpoint_requires_auth() {
+        let app = super::super::tests::test_app();
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .uri("/api/v1/user-notifications")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_mark_read_requires_auth() {
+        let app = super::super::tests::test_app();
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("PUT")
+                    .uri("/api/v1/user-notifications/1/read")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_dismiss_requires_auth() {
+        let app = super::super::tests::test_app();
+        let resp = app
+            .oneshot(
+                http::Request::builder()
+                    .method("DELETE")
+                    .uri("/api/v1/user-notifications/1")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+}
