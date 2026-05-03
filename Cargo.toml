@@ -1,6 +1,6 @@
 [package]
 name = "voltrus-lite-rust-service"
-version = "0.27.0"
+version = "0.28.0"
 edition = "2024"
 license = "MIT"
 
@@ -23,6 +23,10 @@ path = "src/bin/opcua-sim.rs"
 [[bin]]
 name = "mqtt-sim"
 path = "src/bin/mqtt-sim.rs"
+
+[[bin]]
+name = "bacnet-sim"
+path = "src/bin/bacnet-sim.rs"
 
 [dependencies]
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
@@ -61,6 +65,7 @@ web-push = { version = "=0.11.0", default-features = false, features = ["hyper-c
 openssl = { version = "0.10", features = ["vendored"] }
 tempfile = "=3.27.0"
 async-opcua = { version = "=0.18.0", default-features = false, features = ["client", "server"] }
+bacnet-rs = "0.3"
 
 [dev-dependencies]
 http = "=1.4.0"
