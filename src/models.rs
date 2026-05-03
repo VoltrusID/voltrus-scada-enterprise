@@ -1351,7 +1351,7 @@ mod tests {
     fn test_permission_constants() {
         assert_eq!(PERM_SCREENS_READ, "screens:read");
         assert_eq!(PERM_SCREENS_WRITE, "screens:write");
-        assert_eq!(ALL_PERMISSIONS.len(), 14);
+        assert_eq!(ALL_PERMISSIONS.len(), 18);
         assert!(ALL_PERMISSIONS.contains(&PERM_USERS_MANAGE));
     }
 
@@ -1412,6 +1412,134 @@ impl MachineState {
             _ => None,
         }
     }
+}
+
+// ── Command & Control types (v0.24.0) ──
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandStatus {
+    Pending,
+    Queued,
+    Sent,
+    Acked,
+    Failed,
+    Expired,
+    Cancelled,
+}
+
+impl CommandStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Queued => "queued",
+            Self::Sent => "sent",
+            Self::Acked => "acked",
+            Self::Failed => "failed",
+            Self::Expired => "expired",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Acked | Self::Failed | Self::Expired | Self::Cancelled)
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Command {
+    pub id: String,
+    pub data_source_id: i64,
+    pub device_id: i64,
+    pub protocol: String,
+    pub value: String,
+    pub status: String,
+    pub policy: String,
+    pub scheduled_at: Option<i64>,
+    pub retry_count: i32,
+    pub max_retries: i32,
+    pub error_message: Option<String>,
+    pub created_at: i64,
+    pub sent_at: Option<i64>,
+    pub acked_at: Option<i64>,
+    pub resolved_at: Option<i64>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CommandAuditEntry {
+    pub id: i64,
+    pub command_id: String,
+    pub old_status: String,
+    pub new_status: String,
+    pub changed_by: String,
+    pub reason: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WritePolicy {
+    pub writable: bool,
+    pub write_min: Option<f64>,
+    pub write_max: Option<f64>,
+    pub write_max_rate: Option<i64>,
+    pub write_requires_reason: bool,
+    pub write_deadband: Option<f64>,
+}
+
+impl Default for WritePolicy {
+    fn default() -> Self {
+        Self {
+            writable: false,
+            write_min: None,
+            write_max: None,
+            write_max_rate: None,
+            write_requires_reason: false,
+            write_deadband: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WriteRequest {
+    pub value: serde_json::Value,
+    #[serde(default = "default_write_policy")]
+    pub policy: String,
+    pub scheduled_at: Option<i64>,
+    pub reason: Option<String>,
+}
+
+fn default_write_policy() -> String {
+    "immediate".to_string()
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CommandQuery {
+    pub tag: Option<String>,
+    pub status: Option<String>,
+    pub device: Option<String>,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WritePolicyUpdate {
+    pub writable: Option<bool>,
+    pub write_min: Option<Option<f64>>,
+    pub write_max: Option<Option<f64>>,
+    pub write_max_rate: Option<Option<i64>>,
+    pub write_requires_reason: Option<bool>,
+    pub write_deadband: Option<Option<f64>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WriteResult {
+    pub success: bool,
+    pub device_response: Option<String>,
+    pub error: Option<String>,
+    pub latency_ms: u64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -1572,6 +1700,10 @@ pub const PERM_NOTIFICATIONS_MANAGE: &str = "notifications:manage";
 pub const PERM_HUB_MANAGE: &str = "hub:manage";
 pub const PERM_REPORTS_MANAGE: &str = "reports:manage";
 pub const PERM_RECIPES_MANAGE: &str = "recipes:manage";
+pub const PERM_COMMANDS_WRITE: &str = "commands:write";
+pub const PERM_COMMANDS_READ: &str = "commands:read";
+pub const PERM_COMMANDS_CANCEL: &str = "commands:cancel";
+pub const PERM_TAGS_WRITE_POLICY: &str = "tags:write_policy";
 
 /// All available permission constants for seeding.
 pub const ALL_PERMISSIONS: &[&str] = &[
@@ -1585,6 +1717,9 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     PERM_HUB_MANAGE,
     PERM_REPORTS_MANAGE,
     PERM_RECIPES_MANAGE,
+    PERM_COMMANDS_WRITE, PERM_COMMANDS_READ,
+    PERM_COMMANDS_CANCEL,
+    PERM_TAGS_WRITE_POLICY,
 ];
 
 /// Read-only permissions for the Viewer role.
@@ -1597,6 +1732,7 @@ pub const VIEWER_PERMISSIONS: &[&str] = &[
 pub const OPERATOR_PERMISSIONS: &[&str] = &[
     PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
     PERM_ALARMS_ACK, PERM_SETTINGS_READ,
+    PERM_COMMANDS_WRITE, PERM_COMMANDS_READ,
 ];
 
 // ── Recipe types ──
