@@ -801,9 +801,10 @@ EXAMPLES:
                         };
 
                         if source.crit_val > 0.0 && value >= source.crit_val {
-                            let has_active = storage.has_active_alarm(&source.key, "critical").await.unwrap_or(false);
+                            // Non-repeating: check for any unresolved alarm (not just un-acked)
+                            let has_unresolved = storage.has_unresolved_alarm(&source.key, "critical").await.unwrap_or(false);
                             let in_cooldown = storage.is_in_cooldown(&source.key, "critical").await.unwrap_or(false);
-                            if !has_active && !in_cooldown {
+                            if !has_unresolved && !in_cooldown {
                                 let msg = format!(
                                     "{} reached {}{} (critical: {}{})",
                                     source.name, value, source.unit, source.crit_val, source.unit
@@ -818,6 +819,7 @@ EXAMPLES:
                                             source_key: source.key.clone(),
                                             source_name: source.name.clone(),
                                             severity: "critical".to_string(),
+                                            priority: "critical".to_string(),
                                             value,
                                             threshold: source.crit_val,
                                             message: msg,
@@ -826,6 +828,11 @@ EXAMPLES:
                                             acknowledged_at: None,
                                             acknowledged_by: None,
                                             cooldown_until: None,
+                                            shelved_until: None,
+                                            shelved_by: None,
+                                            shelved_reason: None,
+                                            deadband: 0.0,
+                                            state: "active".to_string(),
                                         };
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
@@ -841,9 +848,10 @@ EXAMPLES:
                                 }
                             }
                         } else if source.warn_val > 0.0 && value >= source.warn_val {
-                            let has_active = storage.has_active_alarm(&source.key, "warning").await.unwrap_or(false);
+                            // Non-repeating: check for any unresolved alarm (not just un-acked)
+                            let has_unresolved = storage.has_unresolved_alarm(&source.key, "warning").await.unwrap_or(false);
                             let in_cooldown = storage.is_in_cooldown(&source.key, "warning").await.unwrap_or(false);
-                            if !has_active && !in_cooldown {
+                            if !has_unresolved && !in_cooldown {
                                 let msg = format!(
                                     "{} reached {}{} (warning: {}{})",
                                     source.name, value, source.unit, source.warn_val, source.unit
@@ -858,6 +866,7 @@ EXAMPLES:
                                             source_key: source.key.clone(),
                                             source_name: source.name.clone(),
                                             severity: "warning".to_string(),
+                                            priority: "warning".to_string(),
                                             value,
                                             threshold: source.warn_val,
                                             message: msg,
@@ -866,6 +875,11 @@ EXAMPLES:
                                             acknowledged_at: None,
                                             acknowledged_by: None,
                                             cooldown_until: None,
+                                            shelved_until: None,
+                                            shelved_by: None,
+                                            shelved_reason: None,
+                                            deadband: 0.0,
+                                            state: "active".to_string(),
                                         };
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
@@ -881,7 +895,10 @@ EXAMPLES:
                                 }
                             }
                         } else {
-                            let _ = storage.resolve_active_alarms(&source.key).await;
+                            // Value below thresholds — resolve active alarms with deadband hysteresis.
+                            // Only resolves alarms where value < threshold - deadband.
+                            // Since deadband defaults to 0, existing behavior is unchanged.
+                            let _ = storage.resolve_active_alarms(&source.key, Some(value)).await;
                         }
                     }
                 }
