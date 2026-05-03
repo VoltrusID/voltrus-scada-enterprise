@@ -4,6 +4,44 @@ use utoipa::{Modify, OpenApi};
 #[derive(OpenApi)]
 #[openapi(
     modifiers(&SecurityAddon),
+    paths(
+        // System
+        crate::api::system::get_health,
+        crate::api::system::get_live,
+        crate::api::system::get_system,
+        crate::api::system::get_version,
+        // Auth
+        crate::api::auth::login,
+        crate::api::auth::refresh_token,
+        crate::api::auth::logout,
+        crate::api::auth::auth_me,
+        crate::api::auth::get_csrf_token,
+        crate::api::auth::list_auth_providers,
+        crate::api::auth::saml_metadata,
+        crate::api::auth::saml_acs,
+        crate::api::auth::ldap_login,
+        crate::api::auth::change_password,
+        crate::api::auth::seed,
+        // Settings
+        crate::api::settings::get_branding,
+        crate::api::settings::get_alarm_cooldown,
+        crate::api::settings::update_branding,
+        crate::api::settings::update_alarm_cooldown,
+        // License
+        crate::api::license::get_license_status,
+    ),
+    components(schemas(
+        crate::models::HealthResponse,
+        crate::models::SystemResponse,
+        crate::models::ProcessInfo,
+        crate::models::LiveResponse,
+        crate::models::LoginResponse,
+        crate::models::BrandingSettings,
+        crate::models::LoginRequest,
+        crate::models::ChangePasswordRequest,
+        crate::api::auth::SamlAcsRequest,
+        crate::api::auth::LdapLoginRequest,
+    )),
     tags(
         (name = "Auth", description = "Authentication and user management"),
         (name = "Data", description = "Real-time data and history queries"),
