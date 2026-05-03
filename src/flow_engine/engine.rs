@@ -147,6 +147,7 @@ fn device_snapshot_to_message(snapshot: crate::models::DeviceSnapshot) -> Messag
         },
         "timestamp": snapshot.timestamp,
         "metrics": snapshot.metrics,
+        "simulated": snapshot.simulated,
     });
     let mut msg = Message::new(payload);
     msg.metadata = metadata;

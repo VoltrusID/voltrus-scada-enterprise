@@ -135,7 +135,7 @@ impl NodeConfig {
                 metrics.insert(source_key.clone(), numeric_value);
                 let cache = ctx.cache.clone();
                 tokio::runtime::Handle::current().spawn(async move {
-                    cache.update(&device_id, metrics).await;
+                    cache.update(&device_id, metrics, false).await;
                 });
                 Ok(NodeResult::Continue(msg))
             }

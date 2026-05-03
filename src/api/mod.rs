@@ -662,7 +662,7 @@ mod tests {
             ("voltage".to_string(), 220.5),
             ("current".to_string(), 5.2),
         ]);
-        cache.update("plts_1", metrics).await;
+        cache.update("plts_1", metrics, false).await;
     }
 
     #[tokio::test]
