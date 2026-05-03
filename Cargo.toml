@@ -1,6 +1,6 @@
 [package]
 name = "voltrus-lite-rust-service"
-version = "0.28.1"
+version = "0.30.0"
 edition = "2024"
 license = "MIT"
 
@@ -27,6 +27,10 @@ path = "src/bin/mqtt-sim.rs"
 [[bin]]
 name = "bacnet-sim"
 path = "src/bin/bacnet-sim.rs"
+
+[[bin]]
+name = "dnp3-sim"
+path = "src/bin/dnp3-sim.rs"
 
 [dependencies]
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
