@@ -37,6 +37,10 @@ pub struct AppConfig {
     pub oidc_admin_role: String,
     #[serde(default)]
     pub db_encryption_key: Option<String>,
+    #[serde(default)]
+    pub smtp: Option<SmtpConfig>,
+    #[serde(default)]
+    pub push: Option<PushConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -328,6 +332,265 @@ pub struct PollerStatus {
     pub device_id: String,
     pub running: bool,
     pub status: String,
+}
+
+// ── OPC-UA config types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum OpcUaSecurityPolicy {
+    None,
+    #[serde(rename = "basic256sha256")]
+    Basic256Sha256,
+}
+
+impl Default for OpcUaSecurityPolicy {
+    fn default() -> Self { Self::None }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum OpcUaSecurityMode {
+    None,
+    Sign,
+    #[serde(rename = "signandencrypt")]
+    SignAndEncrypt,
+}
+
+impl Default for OpcUaSecurityMode {
+    fn default() -> Self { Self::None }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpcUaNodeConfig {
+    pub node_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+/// Runtime config for an OPC-UA device, used by the poller.
+#[derive(Debug, Clone)]
+pub struct OpcUaDeviceConfig {
+    pub id: String,
+    pub url: String,
+    pub security_policy: OpcUaSecurityPolicy,
+    pub security_mode: OpcUaSecurityMode,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub interval_ms: u64,
+    pub nodes: Vec<OpcUaNodeConfig>,
+}
+
+/// Database row for opcua_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpcUaDevice {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    pub security_policy: OpcUaSecurityPolicy,
+    pub security_mode: OpcUaSecurityMode,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+/// Database row for opcua_nodes table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpcUaNode {
+    pub id: i64,
+    pub device_id: i64,
+    pub node_id: String,
+    pub name: String,
+    pub display_name: String,
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateOpcUaDeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default)]
+    pub security_policy: OpcUaSecurityPolicy,
+    #[serde(default)]
+    pub security_mode: OpcUaSecurityMode,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateOpcUaDeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub security_policy: Option<OpcUaSecurityPolicy>,
+    pub security_mode: Option<OpcUaSecurityMode>,
+    pub username: Option<Option<String>>,
+    pub password: Option<Option<String>>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateOpcUaNodeRequest {
+    pub node_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+// ── S7 (Siemens) device types ──
+
+/// Database row for s7_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct S7Device {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_s7_rack")]
+    pub rack: u8,
+    #[serde(default = "default_s7_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+fn default_s7_rack() -> u8 { 0 }
+fn default_s7_slot() -> u8 { 1 }
+
+/// Database row for s7_tags table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct S7TagRow {
+    pub id: i64,
+    pub device_id: i64,
+    pub tag_address: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateS7DeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_s7_rack")]
+    pub rack: u8,
+    #[serde(default = "default_s7_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateS7DeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub rack: Option<u8>,
+    pub slot: Option<u8>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateS7TagRequest {
+    pub tag_address: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+// ── EtherNet/IP (Allen-Bradley) device types ──
+
+/// Database row for enip_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnipDevice {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_enip_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+fn default_enip_slot() -> u8 { 0 }
+
+/// Database row for enip_tags table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnipTag {
+    pub id: i64,
+    pub device_id: i64,
+    pub tag_name: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateEnipDeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_enip_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateEnipDeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub slot: Option<u8>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateEnipTagRequest {
+    pub tag_name: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+/// Runtime config for an EtherNet/IP device, used by the poller.
+#[derive(Debug, Clone)]
+pub struct EnipDeviceConfig {
+    pub id: String,
+    pub url: String,
+    pub slot: u8,
+    pub interval_ms: u64,
+    pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
 }
 
 // ── Runtime types ──
@@ -650,6 +913,111 @@ pub struct DataQuery {
     pub agg: Option<String>,
 }
 
+/// Query parameters for the /api/v1/data/export endpoint.
+#[derive(Debug, serde::Deserialize)]
+pub struct ExportQuery {
+    /// Start time: ISO 8601 string or unix timestamp (seconds).
+    /// Parsed to i64 unix timestamp.
+    pub from: Option<String>,
+    /// End time: ISO 8601 string or unix timestamp (seconds).
+    pub to: Option<String>,
+    /// Filter by device ID.
+    pub device: Option<String>,
+    /// Filter by metric name.
+    pub metric: Option<String>,
+    /// Aggregation function: avg, min, max, count, sum. Default: raw (no aggregation).
+    pub aggregation: Option<String>,
+    /// Aggregation window: 1m, 5m, 15m, 1h, 1d.
+    pub interval: Option<String>,
+    /// Pagination: max rows to return (default 1000, max 10000).
+    pub limit: Option<usize>,
+    /// Pagination: rows to skip (default 0).
+    pub offset: Option<usize>,
+    /// Response format: json (default) or csv.
+    pub format: Option<String>,
+}
+
+/// A single telemetry row for export responses.
+#[derive(Debug, serde::Serialize)]
+pub struct TelemetryExportRow {
+    pub timestamp: i64,
+    pub device: String,
+    pub metric: String,
+    pub value: f64,
+}
+
+/// Paginated meta information for export responses.
+#[derive(Debug, serde::Serialize)]
+pub struct ExportMeta {
+    pub total: i64,
+    pub limit: usize,
+    pub offset: usize,
+    pub aggregation: String,
+    pub interval: String,
+}
+
+/// The standard envelope for JSON export responses.
+#[derive(Debug, serde::Serialize)]
+pub struct ExportResponse {
+    pub data: Vec<TelemetryExportRow>,
+    pub meta: ExportMeta,
+}
+
+// ── SMTP notification config ──
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SmtpConfig {
+    pub host: String,
+    #[serde(default = "default_smtp_port")]
+    pub port: u16,
+    pub username: String,
+    pub password: String,
+    #[serde(default = "default_smtp_from_address")]
+    pub from_address: String,
+    #[serde(default = "default_smtp_from_name")]
+    pub from_name: String,
+    #[serde(default = "default_smtp_encryption")]
+    pub encryption: SmtpEncryption,
+}
+
+fn default_smtp_port() -> u16 {
+    587
+}
+
+fn default_smtp_from_address() -> String {
+    "voltrus@example.com".to_string()
+}
+
+fn default_smtp_from_name() -> String {
+    "Voltrus Lite".to_string()
+}
+
+fn default_smtp_encryption() -> SmtpEncryption {
+    SmtpEncryption::StartTls
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum SmtpEncryption {
+    StartTls,
+    ImplicitTls,
+    None,
+}
+
+// ── Push notification config ──
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PushConfig {
+    pub vapid_private_key: String,
+    pub vapid_public_key: String,
+    #[serde(default = "default_push_subject")]
+    pub vapid_subject: String,
+}
+
+fn default_push_subject() -> String {
+    "mailto:admin@example.com".to_string()
+}
+
 // ── Alarm types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -658,6 +1026,7 @@ pub struct Alarm {
     pub source_key: String,
     pub source_name: String,
     pub severity: String,
+    pub priority: String,
     pub value: f64,
     pub threshold: f64,
     pub message: String,
@@ -666,12 +1035,147 @@ pub struct Alarm {
     pub acknowledged_at: Option<i64>,
     pub acknowledged_by: Option<String>,
     pub cooldown_until: Option<i64>,
+    pub shelved_until: Option<i64>,
+    pub shelved_by: Option<String>,
+    pub shelved_reason: Option<String>,
+    pub deadband: f64,
+    pub state: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct AlarmQuery {
     pub status: Option<String>,
     pub limit: Option<i64>,
+}
+
+// ── Alarm Management Overhaul types (v0.23.0) ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmAuditEntry {
+    pub id: i64,
+    pub alarm_id: i64,
+    pub action: String,
+    pub performed_by: String,
+    pub details: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ShelfAlarmRequest {
+    pub duration_secs: u64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmSummary {
+    pub active_critical: i64,
+    pub active_warning: i64,
+    pub active_info: i64,
+    pub shelved: i64,
+    pub recent_24h: i64,
+    pub avg_ack_time_secs: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmAnalyticsEntry {
+    pub source_key: String,
+    pub source_name: String,
+    pub trigger_count: i64,
+    pub avg_time_to_ack_secs: f64,
+    pub last_triggered_at: i64,
+}
+
+// ── Notification settings ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NotificationSetting {
+    pub id: i64,
+    pub source_key: String,
+    pub channel_type: String,
+    pub config: String,
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateNotificationSettingRequest {
+    pub source_key: String,
+    pub channel_type: String,
+    pub config: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_interval_ms() -> u64 { 1000 }
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_retention_hours() -> u32 { 72 }
+
+// ── RTSP Video / Camera types ──
+
+/// Database row for cameras table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Camera {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub snapshot_on_alarm: bool,
+    #[serde(default = "default_retention_hours")]
+    pub retention_hours: u32,
+    pub created_at: i64,
+}
+
+/// Database row for camera_snapshots table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CameraSnapshot {
+    pub id: i64,
+    pub camera_id: i64,
+    pub timestamp: i64,
+    pub alarm_source: Option<String>,
+    pub file_path: String,
+    pub file_size: u64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateCameraRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub snapshot_on_alarm: bool,
+    #[serde(default = "default_retention_hours")]
+    pub retention_hours: u32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateCameraRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub enabled: Option<bool>,
+    pub snapshot_on_alarm: Option<bool>,
+    pub retention_hours: Option<u32>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateNotificationSettingRequest {
+    pub source_key: Option<String>,
+    pub channel_type: Option<String>,
+    pub config: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TestNotificationRequest {
+    pub channel_type: String,
+    pub config: String,
+    pub source_key: Option<String>,
 }
 
 // ── Push subscription (groundwork for Web Push) ──
@@ -801,6 +1305,540 @@ mod tests {
         let back: DataPoint = serde_json::from_str(&json).unwrap();
         assert_eq!(back, dp);
     }
+
+    #[test]
+    fn test_machine_state_serde() {
+        let state = MachineState::Running;
+        let json = serde_json::to_string(&state).unwrap();
+        let expected = r#""running""#;
+        assert_eq!(json, expected);
+        let back: MachineState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MachineState::Running);
+        assert!(MachineState::from_str("running").unwrap() == MachineState::Running);
+        assert!(MachineState::from_str("idle").unwrap() == MachineState::Idle);
+        assert!(MachineState::from_str("faulted").unwrap() == MachineState::Faulted);
+        assert!(MachineState::from_str("setup").unwrap() == MachineState::Setup);
+        assert!(MachineState::from_str("maintenance").unwrap() == MachineState::Maintenance);
+        assert!(MachineState::from_str("unknown").is_none());
+    }
+
+    #[test]
+    fn test_create_downtime_event_request_deserialize() {
+        let json = r#"{"device_id":"dev1","state":"faulted"}"#;
+        let req: CreateDowntimeEventRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.device_id, "dev1");
+        assert_eq!(req.state, "faulted");
+    }
+
+    #[test]
+    fn test_oee_metrics_structure() {
+        let metrics = OeeMetrics {
+            availability: 0.85,
+            performance: 0.90,
+            quality: 0.95,
+            oee: 0.85 * 0.90 * 0.95,
+            total_running_secs: 3600,
+            total_planned_secs: 4235,
+            downtime_count: 3,
+        };
+        let json = serde_json::to_string(&metrics).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["availability"], 0.85);
+        assert_eq!(parsed["total_running_secs"], 3600);
+    }
+
+    #[test]
+    fn test_permission_constants() {
+        assert_eq!(PERM_SCREENS_READ, "screens:read");
+        assert_eq!(PERM_SCREENS_WRITE, "screens:write");
+        assert_eq!(ALL_PERMISSIONS.len(), 18);
+        assert!(ALL_PERMISSIONS.contains(&PERM_USERS_MANAGE));
+    }
+
+    #[test]
+    fn test_role_serde() {
+        let role = Role {
+            id: 1,
+            name: "Admin".to_string(),
+            permissions: r#"["screens:read"]"#.to_string(),
+            created_at: 1000,
+        };
+        let json = serde_json::to_string(&role).unwrap();
+        assert!(json.contains("\"name\":\"Admin\""));
+        let back: Role = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.id, 1);
+        assert_eq!(back.name, "Admin");
+    }
+
+    #[test]
+    fn test_create_role_request_deserialize() {
+        let json = r#"{"name":"Operator","permissions":"[\"screens:read\"]"}"#;
+        let req: CreateRoleRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.name, "Operator");
+        assert_eq!(req.permissions, r#"["screens:read"]"#);
+    }
+
+    #[test]
+    fn test_command_status_roundtrip() {
+        for status in [
+            CommandStatus::Pending, CommandStatus::Queued, CommandStatus::Sent,
+            CommandStatus::Acked, CommandStatus::Failed, CommandStatus::Expired,
+            CommandStatus::Cancelled,
+        ] {
+            let s = status.as_str();
+            assert_eq!(CommandStatus::from_str(s), Some(status.clone()));
+            // serde round-trip
+            let json = serde_json::to_string(&status).unwrap();
+            let parsed: CommandStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, status);
+        }
+        assert!(CommandStatus::from_str("unknown").is_none());
+        assert!(CommandStatus::Acked.is_terminal());
+        assert!(!CommandStatus::Pending.is_terminal());
+    }
+
+    #[test]
+    fn test_write_policy_update_serde() {
+        let json = r#"{"writable": true, "write_min": null}"#;
+        let parsed: WritePolicyUpdate = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.writable, Some(true));
+        assert_eq!(parsed.write_min, Some(None));
+        // Fields not in JSON should be None (not provided)
+        assert_eq!(parsed.write_max, None);
+    }
+}
+
+// -- OEE / Downtime types --
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MachineState {
+    Running,
+    Idle,
+    Faulted,
+    Setup,
+    Maintenance,
+}
+
+impl MachineState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MachineState::Running => "running",
+            MachineState::Idle => "idle",
+            MachineState::Faulted => "faulted",
+            MachineState::Setup => "setup",
+            MachineState::Maintenance => "maintenance",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "running" => Some(MachineState::Running),
+            "idle" => Some(MachineState::Idle),
+            "faulted" => Some(MachineState::Faulted),
+            "setup" => Some(MachineState::Setup),
+            "maintenance" => Some(MachineState::Maintenance),
+            _ => None,
+        }
+    }
+}
+
+// ── Command & Control types (v0.24.0) ──
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandStatus {
+    Pending,
+    Queued,
+    Sent,
+    Acked,
+    Failed,
+    Expired,
+    Cancelled,
+}
+
+impl CommandStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Queued => "queued",
+            Self::Sent => "sent",
+            Self::Acked => "acked",
+            Self::Failed => "failed",
+            Self::Expired => "expired",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, Self::Acked | Self::Failed | Self::Expired | Self::Cancelled)
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "pending" => Some(Self::Pending),
+            "queued" => Some(Self::Queued),
+            "sent" => Some(Self::Sent),
+            "acked" => Some(Self::Acked),
+            "failed" => Some(Self::Failed),
+            "expired" => Some(Self::Expired),
+            "cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Command {
+    pub id: String,
+    pub data_source_id: i64,
+    pub device_id: i64,
+    pub protocol: String,
+    pub value: String,
+    pub status: String,
+    pub policy: String,
+    pub scheduled_at: Option<i64>,
+    pub retry_count: i32,
+    pub max_retries: i32,
+    pub error_message: Option<String>,
+    pub created_at: i64,
+    pub sent_at: Option<i64>,
+    pub acked_at: Option<i64>,
+    pub resolved_at: Option<i64>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CommandAuditEntry {
+    pub id: i64,
+    pub command_id: String,
+    pub old_status: String,
+    pub new_status: String,
+    pub changed_by: String,
+    pub reason: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WritePolicy {
+    pub writable: bool,
+    pub write_min: Option<f64>,
+    pub write_max: Option<f64>,
+    pub write_max_rate: Option<i64>,
+    pub write_requires_reason: bool,
+    pub write_deadband: Option<f64>,
+}
+
+impl Default for WritePolicy {
+    fn default() -> Self {
+        Self {
+            writable: false,
+            write_min: None,
+            write_max: None,
+            write_max_rate: None,
+            write_requires_reason: false,
+            write_deadband: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WriteRequest {
+    pub value: serde_json::Value,
+    #[serde(default = "default_write_policy")]
+    pub policy: String,
+    pub scheduled_at: Option<i64>,
+    pub reason: Option<String>,
+}
+
+fn default_write_policy() -> String {
+    "immediate".to_string()
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct CommandQuery {
+    pub tag: Option<String>,
+    pub status: Option<String>,
+    pub device: Option<String>,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// Serde helper: deserialize missing JSON field as `None`, JSON `null` as `Some(None)`,
+/// and a present value as `Some(Some(value))`. This enables three-state semantics for
+/// `Option<Option<T>>` fields (absent / explicitly cleared / explicitly set).
+mod option_option {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<T: serde::Serialize, S: Serializer>(
+        val: &Option<Option<T>>, s: S,
+    ) -> Result<S::Ok, S::Error> {
+        match val {
+            None => s.serialize_none(),
+            Some(inner) => s.serialize_some(inner),
+        }
+    }
+
+    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<Option<T>>, D::Error> {
+        Ok(Some(Option::<T>::deserialize(d)?))
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WritePolicyUpdate {
+    pub writable: Option<bool>,
+    #[serde(default, with = "option_option")]
+    pub write_min: Option<Option<f64>>,
+    #[serde(default, with = "option_option")]
+    pub write_max: Option<Option<f64>>,
+    #[serde(default, with = "option_option")]
+    pub write_max_rate: Option<Option<i64>>,
+    pub write_requires_reason: Option<bool>,
+    #[serde(default, with = "option_option")]
+    pub write_deadband: Option<Option<f64>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WriteResult {
+    pub success: bool,
+    pub device_response: Option<String>,
+    pub error: Option<String>,
+    pub latency_ms: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DowntimeEvent {
+    pub id: i64,
+    pub device_id: String,
+    pub state: String,
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
+    pub duration_secs: Option<i64>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateDowntimeEventRequest {
+    pub device_id: String,
+    pub state: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CloseDowntimeEventRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct OeeMetrics {
+    pub availability: f64,
+    pub performance: f64,
+    pub quality: f64,
+    pub oee: f64,
+    pub total_running_secs: i64,
+    pub total_planned_secs: i64,
+    pub downtime_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ShiftConfig {
+    pub id: i64,
+    pub name: String,
+    pub start_hour: u32,
+    pub start_minute: u32,
+    pub duration_hours: u32,
+    pub days_mask: u32,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateShiftRequest {
+    pub name: String,
+    pub start_hour: u32,
+    pub start_minute: u32,
+    pub duration_hours: u32,
+    pub days_mask: u32,
+}
+
+// ── Report types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Report {
+    pub id: i64,
+    pub name: String,
+    pub schedule: String,
+    pub enabled: bool,
+    pub device_ids: String,
+    pub email_recipients: String,
+    pub last_generated: Option<i64>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateReportRequest {
+    pub name: String,
+    pub schedule: String,
+    pub device_ids: Option<String>,
+    pub email_recipients: String,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateReportRequest {
+    pub name: Option<String>,
+    pub schedule: Option<String>,
+    pub device_ids: Option<String>,
+    pub email_recipients: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+// ── Hub (Multi-Site) types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HubSite {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(skip_serializing)]
+    pub api_key: String,
+    pub enabled: bool,
+    pub last_seen: Option<i64>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateHubSiteRequest {
+    pub name: String,
+    pub url: String,
+    pub api_key: String,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateHubSiteRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub api_key: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+// ── RBAC types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Role {
+    pub id: i64,
+    pub name: String,
+    pub permissions: String, // JSON array: ["screens:read", "screens:write", ...]
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateRoleRequest {
+    pub name: String,
+    pub permissions: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateRoleRequest {
+    pub name: Option<String>,
+    pub permissions: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AssignRoleRequest {
+    pub role_id: i64,
+}
+
+// ── Permission constants ──
+
+pub const PERM_SCREENS_READ: &str = "screens:read";
+pub const PERM_SCREENS_WRITE: &str = "screens:write";
+pub const PERM_DEVICES_READ: &str = "devices:read";
+pub const PERM_DEVICES_WRITE: &str = "devices:write";
+pub const PERM_ALARMS_READ: &str = "alarms:read";
+pub const PERM_ALARMS_ACK: &str = "alarms:ack";
+pub const PERM_SETTINGS_READ: &str = "settings:read";
+pub const PERM_SETTINGS_WRITE: &str = "settings:write";
+pub const PERM_USERS_MANAGE: &str = "users:manage";
+pub const PERM_FLOWS_MANAGE: &str = "flows:manage";
+pub const PERM_NOTIFICATIONS_MANAGE: &str = "notifications:manage";
+pub const PERM_HUB_MANAGE: &str = "hub:manage";
+pub const PERM_REPORTS_MANAGE: &str = "reports:manage";
+pub const PERM_RECIPES_MANAGE: &str = "recipes:manage";
+pub const PERM_COMMANDS_WRITE: &str = "commands:write";
+pub const PERM_COMMANDS_READ: &str = "commands:read";
+pub const PERM_COMMANDS_CANCEL: &str = "commands:cancel";
+pub const PERM_TAGS_WRITE_POLICY: &str = "tags:write_policy";
+pub const PERM_SIM_READ: &str = "sim:read";
+pub const PERM_SIM_WRITE: &str = "sim:write";
+pub const PERM_SCRIPTS_READ: &str = "scripts:read";
+pub const PERM_SCRIPTS_WRITE: &str = "scripts:write";
+pub const PERM_CONFIG_READ: &str = "config:read";
+pub const PERM_CONFIG_WRITE: &str = "config:write";
+
+/// All available permission constants for seeding.
+pub const ALL_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_SCREENS_WRITE,
+    PERM_DEVICES_READ, PERM_DEVICES_WRITE,
+    PERM_ALARMS_READ, PERM_ALARMS_ACK,
+    PERM_SETTINGS_READ, PERM_SETTINGS_WRITE,
+    PERM_USERS_MANAGE,
+    PERM_FLOWS_MANAGE,
+    PERM_NOTIFICATIONS_MANAGE,
+    PERM_HUB_MANAGE,
+    PERM_REPORTS_MANAGE,
+    PERM_RECIPES_MANAGE,
+    PERM_COMMANDS_WRITE, PERM_COMMANDS_READ,
+    PERM_COMMANDS_CANCEL,
+    PERM_TAGS_WRITE_POLICY,
+    PERM_SIM_READ, PERM_SIM_WRITE,
+    PERM_SCRIPTS_READ, PERM_SCRIPTS_WRITE,
+    PERM_CONFIG_READ, PERM_CONFIG_WRITE,
+];
+
+/// Read-only permissions for the Viewer role.
+pub const VIEWER_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
+    PERM_SETTINGS_READ,
+];
+
+/// Read + ack permissions for the Operator role.
+pub const OPERATOR_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
+    PERM_ALARMS_ACK, PERM_SETTINGS_READ,
+    PERM_COMMANDS_WRITE, PERM_COMMANDS_READ,
+    PERM_SIM_READ, PERM_SCRIPTS_READ, PERM_CONFIG_READ,
+];
+
+// ── Recipe types ──
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Recipe {
+    pub id: i64,
+    pub name: String,
+    pub category: Option<String>,
+    pub device_id: String,
+    pub values: String,
+    pub version: i32,
+    pub description: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateRecipeRequest {
+    pub name: String,
+    pub category: Option<String>,
+    pub device_id: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LoadRecipeRequest {
+    pub recipe_id: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -815,4 +1853,274 @@ pub struct LicenseActivationRow {
     pub fingerprint_machine_id: String,
     pub activated_at: String,
     pub expires_at: Option<String>,
+    pub tier: Option<String>,
+    pub device_limit: Option<u32>,
+}
+
+// ── Security Audit types (v0.22.0 IEC 62443) ──
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SecurityEvent {
+    pub id: i64,
+    pub event_type: String,
+    pub severity: String,
+    pub source_ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub username: Option<String>,
+    pub details: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSecurityEvent {
+    pub event_type: String,
+    #[serde(default = "default_severity")]
+    pub severity: String,
+    pub source_ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub username: Option<String>,
+    pub details: Option<String>,
+}
+
+fn default_severity() -> String {
+    "info".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityThresholds {
+    pub failed_login_threshold: u32,
+    pub failed_login_window_secs: u64,
+    pub suspicious_401_threshold: u32,
+    pub suspicious_401_window_secs: u64,
+    pub rate_limit_threshold: u32,
+    pub rate_limit_window_secs: u64,
+}
+
+impl Default for SecurityThresholds {
+    fn default() -> Self {
+        Self {
+            failed_login_threshold: 5,
+            failed_login_window_secs: 60,
+            suspicious_401_threshold: 10,
+            suspicious_401_window_secs: 60,
+            rate_limit_threshold: 100,
+            rate_limit_window_secs: 60,
+        }
+    }
+}
+
+// ── Annotation types (v0.23.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Annotation {
+    pub id: i64,
+    pub tag_id: String,
+    pub annotation_text: String,
+    pub data_timestamp: i64,
+    pub author_id: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAnnotationRequest {
+    pub tag_id: String,
+    pub annotation_text: String,
+    pub data_timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAnnotationRequest {
+    pub annotation_text: Option<String>,
+}
+
+// ── Shift Handover types (v0.23.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShiftHandover {
+    pub id: i64,
+    pub author_id: i64,
+    pub shift_date: String,
+    pub shift_period: String,
+    pub what_happened: String,
+    pub whats_pending: String,
+    pub what_to_watch: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateShiftHandoverRequest {
+    pub shift_date: String,
+    pub shift_period: String,
+    pub what_happened: Option<String>,
+    pub whats_pending: Option<String>,
+    pub what_to_watch: Option<String>,
+}
+
+// ── User Notification types (v0.23.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserNotification {
+    pub id: i64,
+    pub user_id: i64,
+    pub from_user_id: i64,
+    pub notification_type: String,
+    pub message: String,
+    pub reference_id: Option<i64>,
+    pub read: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateNotificationRequest {
+    pub user_id: i64,
+    pub from_user_id: i64,
+    pub notification_type: String,
+    pub message: String,
+    pub reference_id: Option<i64>,
+}
+
+/// Extract `@username` patterns from text, returning a deduplicated list of usernames.
+pub fn parse_mentions(text: &str) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut result = Vec::new();
+    let bytes = text.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    while i < len {
+        if bytes[i] == b'@' {
+            let start = i + 1;
+            let mut end = start;
+            while end < len && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+                end += 1;
+            }
+            if end > start {
+                let name = text[start..end].to_string();
+                if seen.insert(name.clone()) {
+                    result.push(name);
+                }
+            }
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    result
+}
+
+// ── Simulation types (v0.26.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SimProfile {
+    pub id: i64,
+    pub name: String,
+    pub data_type: String,
+    pub config: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSimProfileRequest {
+    pub name: String,
+    pub data_type: String,
+    pub config: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSimProfileRequest {
+    pub name: Option<String>,
+    pub data_type: Option<String>,
+    pub config: Option<String>,
+}
+
+// ── Script types (v0.26.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Script {
+    pub id: i64,
+    pub name: String,
+    pub source: String,
+    pub syntax_error: Option<String>,
+    pub cpu_limit_ms: i64,
+    pub memory_limit_bytes: i64,
+    pub enabled: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateScriptRequest {
+    pub name: String,
+    pub source: String,
+    #[serde(default = "default_cpu_limit")]
+    pub cpu_limit_ms: Option<i64>,
+    #[serde(default = "default_memory_limit")]
+    pub memory_limit_bytes: Option<i64>,
+}
+
+fn default_cpu_limit() -> Option<i64> { Some(1000) }
+fn default_memory_limit() -> Option<i64> { Some(1048576) }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateScriptRequest {
+    pub name: Option<String>,
+    pub source: Option<String>,
+    pub cpu_limit_ms: Option<i64>,
+    pub memory_limit_bytes: Option<i64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestScriptRequest {
+    pub input: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptExecution {
+    pub id: i64,
+    pub script_id: i64,
+    pub flow_id: Option<String>,
+    pub trigger_type: Option<String>,
+    pub duration_ms: i64,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub output: Option<String>,
+    pub created_at: i64,
+}
+
+// ── Config Snapshot types (v0.26.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSnapshot {
+    pub id: i64,
+    pub label: Option<String>,
+    pub description: Option<String>,
+    pub snapshot_data: String,
+    pub trigger: String,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSnapshotRequest {
+    pub label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigDiffEntry {
+    pub field: String,
+    pub from: serde_json::Value,
+    pub to: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigTableDiff {
+    pub added: Vec<serde_json::Value>,
+    pub removed: Vec<serde_json::Value>,
+    pub changed: Vec<ConfigDiffEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigDiff {
+    pub tables: std::collections::HashMap<String, ConfigTableDiff>,
 }
