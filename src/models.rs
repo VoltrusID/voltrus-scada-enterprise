@@ -24,6 +24,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub retention: RetentionConfig,
     #[serde(default)]
+    pub compression: CompressionConfig,
+    #[serde(default)]
     pub oidc_enabled: bool,
     #[serde(default)]
     pub oidc_issuer: String,
@@ -69,6 +71,45 @@ impl Default for RetentionConfig {
 fn default_retention_enabled() -> bool { true }
 fn default_run_interval() -> u64 { 21600 }
 fn default_archive_dir() -> String { "./archive".to_string() }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CompressionConfig {
+    #[serde(default = "default_compression_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_hot_retention_secs")]
+    pub hot_retention_secs: u64,
+    #[serde(default = "default_warm_retention_secs")]
+    pub warm_retention_secs: u64,
+    #[serde(default = "default_cold_retention_secs")]
+    pub cold_retention_secs: u64,
+    #[serde(default = "default_compress_interval_secs")]
+    pub hot_to_warm_interval_secs: u64,
+    #[serde(default = "default_compress_cold_interval_secs")]
+    pub warm_to_cold_interval_secs: u64,
+    #[serde(default)]
+    pub edge_mode: bool,
+}
+
+fn default_compression_enabled() -> bool { true }
+fn default_hot_retention_secs() -> u64 { 86400 }
+fn default_warm_retention_secs() -> u64 { 2592000 }
+fn default_cold_retention_secs() -> u64 { 31536000 }
+fn default_compress_interval_secs() -> u64 { 3600 }
+fn default_compress_cold_interval_secs() -> u64 { 86400 }
+
+impl Default for CompressionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_compression_enabled(),
+            hot_retention_secs: default_hot_retention_secs(),
+            warm_retention_secs: default_warm_retention_secs(),
+            cold_retention_secs: default_cold_retention_secs(),
+            hot_to_warm_interval_secs: default_compress_interval_secs(),
+            warm_to_cold_interval_secs: default_compress_cold_interval_secs(),
+            edge_mode: false,
+        }
+    }
+}
 
 fn default_tiers() -> Vec<RetentionTier> {
     vec![

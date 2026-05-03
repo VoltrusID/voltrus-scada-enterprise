@@ -421,6 +421,69 @@ EXAMPLES:
                 }
                 return Ok(());
             }
+            "db" => {
+                let subcommand = args.get(2).map(|s| s.as_str()).unwrap_or("");
+                let config_path = args.get(3).map(|s| s.as_str()).unwrap_or("config.yaml");
+                match subcommand {
+                    "stats" => {
+                        let config = config::load_config(config_path)?;
+                        let storage = Storage::new(&config.db_path)?;
+                        let stats = storage.get_compression_stats().await?;
+                        println!("=== Voltrus Database Stats ===");
+                        println!("Hot  (raw, <24h):  {} rows", stats.hot_rows);
+                        println!("Warm (1min OHLC):  {} rows", stats.warm_rows);
+                        println!("Cold (compressed): {} rows", stats.cold_rows);
+                        println!("DB size: {} bytes ({:.2} MB)", stats.db_size_bytes, stats.db_size_bytes as f64 / 1_048_576.0);
+                    }
+                    "compress" => {
+                        let config = config::load_config(config_path)?;
+                        let storage = Storage::new(&config.db_path)?;
+                        let now = crate::timeutil::now_secs() * 1000;
+                        let hot_cutoff = now - (config.compression.hot_retention_secs as i64 * 1000);
+                        let warm_cutoff = now - (config.compression.warm_retention_secs as i64 * 1000);
+                        println!("Compressing hot -> warm...");
+                        let count = storage.compress_hot_to_warm(hot_cutoff).await?;
+                        println!("Compressed {} hot rows to warm", count);
+                        println!("Compressing warm -> cold...");
+                        let count = storage.compress_warm_to_cold(warm_cutoff).await?;
+                        println!("Compressed {} warm rows to cold", count);
+                    }
+                    _ => {
+                        eprintln!("Usage: {} db [stats|compress]", args[0]);
+                        std::process::exit(1);
+                    }
+                }
+                return Ok(());
+            }
+            "archive" => {
+                let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
+                let config = config::load_config(config_path)?;
+                let storage = Storage::new(&config.db_path)?;
+                let cutoff = crate::timeutil::now_secs() - (config.compression.cold_retention_secs as i64);
+                let rows = storage.query_raw_for_archive(cutoff).await?;
+                if rows.is_empty() {
+                    println!("No data to archive");
+                } else {
+                    println!("Archiving {} records...", rows.len());
+                    use std::io::Write;
+                    let archive_dir = &config.retention.archive_dir;
+                    let _ = std::fs::create_dir_all(archive_dir);
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let filename = format!("{}/archive-{}.csv.gz", archive_dir, ts);
+                    let file = std::fs::File::create(&filename)?;
+                    let mut encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+                    writeln!(encoder, "device_id,metric,timestamp,value")?;
+                    for (device_id, metric, ts_val, value) in &rows {
+                        writeln!(encoder, "{},{},{},{}", device_id, metric, ts_val, value)?;
+                    }
+                    encoder.finish()?;
+                    println!("Archived to {}", filename);
+                }
+                return Ok(());
+            }
             "backup" => {
                 let mut config_path = "config.yaml".to_string();
                 let mut output_path: Option<String> = None;
