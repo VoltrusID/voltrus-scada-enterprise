@@ -21,6 +21,14 @@ pub struct WsManager {
     connections: DashMap<String, WsConnection>,
 }
 
+impl std::fmt::Debug for WsManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WsManager")
+            .field("connection_count", &self.connections.len())
+            .finish()
+    }
+}
+
 impl WsManager {
     pub fn new() -> Self {
         Self {
