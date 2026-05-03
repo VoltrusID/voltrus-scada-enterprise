@@ -7196,64 +7196,67 @@ impl Storage {
         let reason = reason.map(|s| s.to_string());
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
             let now = crate::timeutil::now_secs();
 
             // Fetch current status for audit log
-            let old_status: String = conn
+            let old_status: String = tx
                 .query_row(
-                    "SELECT status FROM commands WHERE id = ?1",
+                    "SELECT status FROM commands WHERE id = ?",
                     rusqlite::params![command_id],
                     |row| row.get(0),
                 )
                 .context("Command not found")?;
 
-            // Build dynamic SET clause based on new status
-            let sql = match new_status.as_str() {
-                "sent" => "UPDATE commands SET status = ?1, sent_at = ?2, error_message = ?3 WHERE id = ?4",
-                "acked" => "UPDATE commands SET status = ?1, acked_at = ?2, resolved_at = ?2, error_message = ?3 WHERE id = ?4",
+            // Build SQL and params based on new status (using unnumbered ? placeholders
+            // bound positionally by rusqlite to avoid off-by-one errors).
+            match new_status.as_str() {
+                "sent" => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, sent_at = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, now, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
+                "acked" => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, acked_at = ?, resolved_at = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, now, now, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
                 "failed" | "expired" | "cancelled" => {
-                    "UPDATE commands SET status = ?1, resolved_at = ?2, error_message = ?3 WHERE id = ?4"
+                    tx.execute(
+                        "UPDATE commands SET status = ?, resolved_at = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, now, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
                 }
                 "queued" => {
-                    "UPDATE commands SET status = ?1, retry_count = retry_count + 1, error_message = ?3 WHERE id = ?4"
+                    tx.execute(
+                        "UPDATE commands SET status = ?, retry_count = retry_count + 1, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
                 }
-                _ => "UPDATE commands SET status = ?1, error_message = ?3 WHERE id = ?4",
-            };
-
-            if new_status == "queued" {
-                conn.execute(
-                    sql,
-                    rusqlite::params![new_status, error_message, command_id],
-                )
-                .context("Update command status failed")?;
-            } else if new_status == "sent" {
-                conn.execute(
-                    sql,
-                    rusqlite::params![new_status, now, error_message, command_id],
-                )
-                .context("Update command status failed")?;
-            } else if matches!(new_status.as_str(), "acked" | "failed" | "expired" | "cancelled") {
-                conn.execute(
-                    sql,
-                    rusqlite::params![new_status, now, error_message, command_id],
-                )
-                .context("Update command status failed")?;
-            } else {
-                conn.execute(
-                    sql,
-                    rusqlite::params![new_status, error_message, command_id],
-                )
-                .context("Update command status failed")?;
+                _ => {
+                    tx.execute(
+                        "UPDATE commands SET status = ?, error_message = ? WHERE id = ?",
+                        rusqlite::params![new_status, error_message, command_id],
+                    )
+                    .context("Update command status failed")?;
+                }
             }
 
             // Insert audit log entry
-            conn.execute(
+            tx.execute(
                 "INSERT INTO command_audit_log (command_id, old_status, new_status, changed_by, reason, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                 VALUES (?, ?, ?, ?, ?, ?)",
                 rusqlite::params![command_id, old_status, new_status, changed_by, reason, now],
             )
             .context("Insert command audit log failed")?;
 
+            tx.commit().context("Commit failed")?;
             Ok(())
         })
         .await
@@ -7328,12 +7331,12 @@ impl Storage {
             }
             if let Some(ref d) = device {
                 // device_id is INTEGER in commands; the query param is a device identifier string
-                sql.push_str(" AND device_id = ?");
                 if let Ok(id) = d.parse::<i64>() {
+                    sql.push_str(" AND device_id = ?");
                     params.push(Box::new(id));
                 } else {
-                    // Non-numeric device id; use data_source_id lookup or skip
-                    sql.push_str(" AND 0=1"); // no match
+                    // Non-numeric device id; no match possible
+                    sql.push_str(" AND 0=1");
                 }
             }
             if let Some(f) = from {
@@ -7549,9 +7552,15 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
             let cutoff = now - window_secs;
+            // NOTE: We count by created_at (when the command was queued) rather than
+            // sent_at (when it was actually sent). This means commands still sitting in
+            // "pending"/"queued" also count against the rate limit. The trade-off is that
+            // a burst of queued commands won't slip past the limit — the user gets rate-
+            // limited at submission time. If we used sent_at only, a flood of pending
+            // commands could all be dispatched once the processor catches up.
             let count: i64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM commands WHERE data_source_id = ?1 AND created_at >= ?2",
+                    "SELECT COUNT(*) FROM commands WHERE data_source_id = ? AND created_at >= ?",
                     rusqlite::params![data_source_id, cutoff],
                     |row| row.get(0),
                 )
