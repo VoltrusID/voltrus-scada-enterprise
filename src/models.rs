@@ -1599,3 +1599,55 @@ pub struct LicenseActivationRow {
     pub tier: Option<String>,
     pub device_limit: Option<u32>,
 }
+
+// ── Security Audit types (v0.22.0 IEC 62443) ──
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SecurityEvent {
+    pub id: i64,
+    pub event_type: String,
+    pub severity: String,
+    pub source_ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub username: Option<String>,
+    pub details: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSecurityEvent {
+    pub event_type: String,
+    #[serde(default = "default_severity")]
+    pub severity: String,
+    pub source_ip: Option<String>,
+    pub user_agent: Option<String>,
+    pub username: Option<String>,
+    pub details: Option<String>,
+}
+
+fn default_severity() -> String {
+    "info".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityThresholds {
+    pub failed_login_threshold: u32,
+    pub failed_login_window_secs: u64,
+    pub suspicious_401_threshold: u32,
+    pub suspicious_401_window_secs: u64,
+    pub rate_limit_threshold: u32,
+    pub rate_limit_window_secs: u64,
+}
+
+impl Default for SecurityThresholds {
+    fn default() -> Self {
+        Self {
+            failed_login_threshold: 5,
+            failed_login_window_secs: 60,
+            suspicious_401_threshold: 10,
+            suspicious_401_window_secs: 60,
+            rate_limit_threshold: 100,
+            rate_limit_window_secs: 60,
+        }
+    }
+}
