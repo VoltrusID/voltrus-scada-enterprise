@@ -25,6 +25,7 @@ mod report;
 mod report_scheduler;
 mod analytics;
 mod compliance;
+mod compression;
 mod recipe;
 mod video;
 
