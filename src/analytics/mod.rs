@@ -1,3 +1,8 @@
+pub mod spc;
+pub mod histogram;
+pub mod runchart;
+pub mod custom;
+
 use anyhow::Result;
 use serde::Serialize;
 
