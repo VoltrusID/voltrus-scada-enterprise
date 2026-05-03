@@ -2379,34 +2379,72 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn resolve_active_alarms(&self, source_key: &str) -> Result<()> {
+    /// Resolve all unresolved alarms for a source_key, applying deadband hysteresis.
+    /// Only resolves alarms where `value < threshold - deadband`.
+    /// Pass `None` for current_value to resolve unconditionally (no deadband check).
+    /// Resolves regardless of acknowledgment status — once the value is back to
+    /// normal, the alarm should clear so a new one can fire later.
+    pub async fn resolve_active_alarms(&self, source_key: &str, current_value: Option<f64>) -> Result<()> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
 
-            // Find alarms that will be resolved, for audit entries
-            let alarm_ids: Vec<i64> = {
-                let mut stmt = conn.prepare(
-                    "SELECT id FROM alarms WHERE source_key = ?1 AND resolved_at IS NULL AND acknowledged_at IS NOT NULL",
-                )?;
-                let rows = stmt.query_map(rusqlite::params![source_key], |row| row.get::<_, i64>(0))?;
-                rows.collect::<Result<Vec<_>, _>>().unwrap_or_default()
+            // Build the query: resolve unresolved alarms where value < threshold - deadband.
+            // When current_value is None, resolve all unresolved alarms (no deadband check).
+            let (alarm_ids, details_json): (Vec<i64>, Vec<String>) = {
+                let sql = match current_value {
+                    Some(_) => {
+                        "SELECT id, '{\"value\":' || ?1 || ', \"threshold\":' || threshold || ', \"deadband\":' || COALESCE(deadband, 0) || '}'
+                         FROM alarms WHERE source_key = ?2 AND resolved_at IS NULL
+                           AND ?1 < threshold - COALESCE(deadband, 0)"
+                    }
+                    None => {
+                        "SELECT id, '{}' FROM alarms WHERE source_key = ?1 AND resolved_at IS NULL"
+                    }
+                };
+                let mut stmt = conn.prepare(sql)?;
+                let rows = match current_value {
+                    Some(cv) => {
+                        let rows = stmt.query_map(rusqlite::params![cv, source_key], |row| {
+                            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                        })?;
+                        rows.collect::<Result<Vec<_>, _>>().unwrap_or_default()
+                    }
+                    None => {
+                        let rows = stmt.query_map(rusqlite::params![source_key], |row| {
+                            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+                        })?;
+                        rows.collect::<Result<Vec<_>, _>>().unwrap_or_default()
+                    }
+                };
+                rows.into_iter().unzip()
             };
 
-            conn.execute(
-                "UPDATE alarms SET resolved_at = ?1, state = 'resolved'
-                 WHERE source_key = ?2 AND resolved_at IS NULL AND acknowledged_at IS NOT NULL",
-                rusqlite::params![now, source_key],
-            )
-            .context("Resolve alarms failed")?;
+            if alarm_ids.is_empty() {
+                return Ok(());
+            }
+
+            // Resolve the matched alarms
+            let placeholders: Vec<String> = alarm_ids.iter().map(|_| "?".to_string()).collect();
+            let sql = format!(
+                "UPDATE alarms SET resolved_at = ?, state = 'resolved' WHERE id IN ({})",
+                placeholders.join(",")
+            );
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(now)];
+            for id in &alarm_ids {
+                params.push(Box::new(*id));
+            }
+            conn.execute(&sql, rusqlite::params_from_iter(params))
+                .context("Resolve alarms failed")?;
 
             // Create audit entries for each resolved alarm
-            for alarm_id in alarm_ids {
+            for (i, alarm_id) in alarm_ids.iter().enumerate() {
+                let details = details_json.get(i).map(|s| s.as_str()).unwrap_or("{}");
                 let _ = conn.execute(
-                    "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'resolved', 'system', '{}', ?2)",
-                    rusqlite::params![alarm_id, now],
+                    "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'auto_resolved', 'system', ?2, ?3)",
+                    rusqlite::params![alarm_id, details, now],
                 );
             }
 
@@ -2434,7 +2472,11 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn has_active_alarm(&self, source_key: &str, severity: &str) -> Result<bool> {
+    /// Check if there is any unresolved alarm for this source_key+severity.
+    /// Uses `resolved_at IS NULL` (regardless of acknowledgment status) so that
+    /// a new alarm cannot fire until the previous one is fully resolved.
+    /// This implements non-repeating alarm behavior.
+    pub async fn has_unresolved_alarm(&self, source_key: &str, severity: &str) -> Result<bool> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();
         let severity = severity.to_string();
@@ -2444,7 +2486,7 @@ impl Storage {
                 .query_row(
                     "SELECT COUNT(*) FROM alarms
                      WHERE source_key = ?1 AND severity = ?2
-                       AND acknowledged_at IS NULL AND resolved_at IS NULL",
+                       AND resolved_at IS NULL",
                     rusqlite::params![source_key, severity],
                     |row| row.get(0),
                 )
