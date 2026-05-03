@@ -347,6 +347,67 @@ fn decode_dod(reader: &mut BitReader) -> Option<i64> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// RLE (Run-Length Encoding) for digital/binary tags
+// ---------------------------------------------------------------------------
+
+/// RLE-encode boolean values into (value, count) pairs.
+pub fn rle_encode(values: &[bool]) -> Vec<(bool, u32)> {
+    if values.is_empty() {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    let mut current = values[0];
+    let mut count: u32 = 1;
+    for &v in &values[1..] {
+        if v == current && count < u32::MAX {
+            count += 1;
+        } else {
+            result.push((current, count));
+            current = v;
+            count = 1;
+        }
+    }
+    result.push((current, count));
+    result
+}
+
+/// Decode RLE (value, count) pairs back to booleans.
+pub fn rle_decode(runs: &[(bool, u32)]) -> Vec<bool> {
+    let total: usize = runs.iter().map(|(_, c)| *c as usize).sum();
+    let mut result = Vec::with_capacity(total);
+    for (value, count) in runs {
+        for _ in 0..*count {
+            result.push(*value);
+        }
+    }
+    result
+}
+
+/// Serialize RLE runs to binary: per run: 1 byte (0/1) + 4 bytes (u32 LE)
+pub fn rle_serialize(runs: &[(bool, u32)]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(runs.len() * 5);
+    for (value, count) in runs {
+        buf.push(if *value { 1 } else { 0 });
+        buf.extend_from_slice(&count.to_le_bytes());
+    }
+    buf
+}
+
+/// Deserialize RLE runs from binary.
+pub fn rle_deserialize(data: &[u8]) -> Result<Vec<(bool, u32)>> {
+    if data.len() % 5 != 0 {
+        bail!("Invalid RLE data length: {}", data.len());
+    }
+    let mut runs = Vec::with_capacity(data.len() / 5);
+    for chunk in data.chunks_exact(5) {
+        let value = chunk[0] != 0;
+        let count = u32::from_le_bytes([chunk[1], chunk[2], chunk[3], chunk[4]]);
+        runs.push((value, count));
+    }
+    Ok(runs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -477,5 +538,57 @@ mod tests {
             gorilla_decode(&block).expect("decode single value");
         assert_eq!(dec_ts, timestamps);
         assert_eq!(dec_vals, values);
+    }
+
+    // -----------------------------------------------------------------------
+    // RLE encoder/decoder tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_rle_encode_decode_roundtrip() {
+        // Pump running 8 hours at 1Hz then off 1 hour
+        let mut values: Vec<bool> = vec![true; 28800];
+        values.extend(vec![false; 3600]);
+        let encoded = rle_encode(&values);
+        let decoded = rle_decode(&encoded);
+        assert_eq!(decoded, values);
+        assert!(
+            encoded.len() < 20,
+            "RLE should compress to <20 bytes, got {}",
+            encoded.len()
+        );
+    }
+
+    #[test]
+    fn test_rle_alternating() {
+        let values: Vec<bool> = (0..100).map(|i| i % 2 == 0).collect();
+        let encoded = rle_encode(&values);
+        let decoded = rle_decode(&encoded);
+        assert_eq!(decoded, values);
+    }
+
+    #[test]
+    fn test_rle_single_value() {
+        let values = vec![true];
+        let encoded = rle_encode(&values);
+        let decoded = rle_decode(&encoded);
+        assert_eq!(decoded, values);
+    }
+
+    #[test]
+    fn test_rle_all_same() {
+        let values = vec![false; 100000];
+        let encoded = rle_encode(&values);
+        let decoded = rle_decode(&encoded);
+        assert_eq!(decoded, values);
+        assert!(encoded.len() < 10);
+    }
+
+    #[test]
+    fn test_rle_serialize_deserialize_roundtrip() {
+        let runs = vec![(true, 28800u32), (false, 3600u32)];
+        let data = rle_serialize(&runs);
+        let decoded = rle_deserialize(&data).unwrap();
+        assert_eq!(decoded, runs);
     }
 }
