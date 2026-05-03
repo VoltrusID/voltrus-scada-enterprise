@@ -29,7 +29,7 @@ impl DeviceCache {
         }
     }
 
-    pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>) {
+    pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>, simulated: bool) {
         let snapshot = {
             let mut devices = self.devices.write().await;
             let timestamp = crate::timeutil::now_secs();
@@ -40,12 +40,14 @@ impl DeviceCache {
                     e.status = DeviceStatus::Online;
                     e.timestamp = timestamp;
                     e.metrics = metrics.clone();
+                    e.simulated = simulated;
                 })
                 .or_insert_with(|| DeviceSnapshot {
                     device_id: device_id.to_string(),
                     status: DeviceStatus::Online,
                     timestamp,
                     metrics,
+                    simulated,
                 })
                 .clone()
         };
@@ -80,6 +82,23 @@ impl DeviceCache {
             .collect()
     }
 
+    pub async fn is_device_online(&self, device_id: &str) -> bool {
+        let devices = self.devices.read().await;
+        devices
+            .get(device_id)
+            .map_or(false, |s| s.status == DeviceStatus::Online)
+    }
+
+    pub async fn get_metric_value(&self, key: &str) -> Option<f64> {
+        let devices = self.devices.read().await;
+        for snapshot in devices.values() {
+            if let Some(v) = snapshot.metrics.get(key) {
+                return Some(*v);
+            }
+        }
+        None
+    }
+
     pub fn publish_sse_payload(&self, payload: String) {
         let _ = self.tx.send(payload);
     }
@@ -110,7 +129,7 @@ mod tests {
             ("current".to_string(), 5.2),
         ]);
 
-        cache.update("plts_1", metrics).await;
+        cache.update("plts_1", metrics, false).await;
 
         let all = cache.get_all().await;
         assert_eq!(all.len(), 1);
@@ -126,8 +145,8 @@ mod tests {
 
         let m1 = HashMap::from([("voltage".into(), 220.0)]);
         let m2 = HashMap::from([("voltage".into(), 380.0)]);
-        cache.update("dev1", m1).await;
-        cache.update("dev2", m2).await;
+        cache.update("dev1", m1, false).await;
+        cache.update("dev2", m2, false).await;
 
         let all = cache.get_all().await;
         assert_eq!(all.len(), 2);
@@ -139,8 +158,8 @@ mod tests {
 
         let m1 = HashMap::from([("voltage".into(), 220.0)]);
         let m2 = HashMap::from([("voltage".into(), 225.0)]);
-        cache.update("dev1", m1).await;
-        cache.update("dev1", m2).await;
+        cache.update("dev1", m1, false).await;
+        cache.update("dev1", m2, false).await;
 
         let all = cache.get_all().await;
         assert_eq!(all.len(), 1);
@@ -152,7 +171,7 @@ mod tests {
         let cache = DeviceCache::new();
 
         let metrics = HashMap::from([("voltage".into(), 220.0)]);
-        cache.update("dev1", metrics).await;
+        cache.update("dev1", metrics, false).await;
         cache.set_status("dev1", DeviceStatus::Offline).await;
 
         let all = cache.get_all().await;
@@ -168,8 +187,8 @@ mod tests {
 
         let m1 = HashMap::from([("voltage".into(), 220.0)]);
         let m2 = HashMap::from([("voltage".into(), 380.0)]);
-        cache.update("dev1", m1).await;
-        cache.update("dev2", m2).await;
+        cache.update("dev1", m1, false).await;
+        cache.update("dev2", m2, false).await;
         cache.set_status("dev2", DeviceStatus::Offline).await;
 
         let statuses = cache.get_statuses().await;
@@ -212,7 +231,7 @@ mod tests {
         let mut rx = cache.trigger_receiver();
 
         let metrics = HashMap::from([("voltage".into(), 220.0)]);
-        cache.update("dev1", metrics).await;
+        cache.update("dev1", metrics, false).await;
 
         tokio::time::timeout(
             std::time::Duration::from_millis(50),
@@ -221,5 +240,46 @@ mod tests {
         .await
         .expect("trigger should fire on update")
         .expect("should succeed");
+    }
+
+    #[tokio::test]
+    async fn test_simulated_flag_defaults_false() {
+        let cache = DeviceCache::new();
+
+        let metrics = HashMap::from([("voltage".into(), 220.0)]);
+        cache.update("dev1", metrics, false).await;
+
+        let all = cache.get_all().await;
+        assert_eq!(all.len(), 1);
+        assert!(!all[0].simulated);
+    }
+
+    #[tokio::test]
+    async fn test_simulated_flag_set_true() {
+        let cache = DeviceCache::new();
+
+        let metrics = HashMap::from([("voltage".into(), 220.0)]);
+        cache.update("dev1", metrics, true).await;
+
+        let all = cache.get_all().await;
+        assert_eq!(all.len(), 1);
+        assert!(all[0].simulated);
+    }
+
+    #[tokio::test]
+    async fn test_simulated_flag_toggles() {
+        let cache = DeviceCache::new();
+
+        let m1 = HashMap::from([("voltage".into(), 220.0)]);
+        let m2 = HashMap::from([("voltage".into(), 225.0)]);
+
+        cache.update("dev1", m1, false).await;
+        assert!(!cache.get_all().await[0].simulated);
+
+        cache.update("dev1", m2.clone(), true).await;
+        assert!(cache.get_all().await[0].simulated);
+
+        cache.update("dev1", m2, false).await;
+        assert!(!cache.get_all().await[0].simulated);
     }
 }

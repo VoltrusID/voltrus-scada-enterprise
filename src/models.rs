@@ -601,6 +601,8 @@ pub struct DeviceSnapshot {
     pub status: DeviceStatus,
     pub timestamp: i64,
     pub metrics: HashMap<String, f64>,
+    #[serde(default)]
+    pub simulated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
