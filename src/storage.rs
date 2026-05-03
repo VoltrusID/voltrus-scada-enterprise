@@ -1015,6 +1015,48 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    pub async fn get_data_source_by_id(&self, id: i64) -> Result<Option<DataSource>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, key, name, unit, color, min_val, max_val,
+                        warn_val, crit_val, base_val, sort_order, decimals,
+                        source_type, source_config, device_id, equipment_id, chart_type
+                 FROM data_sources WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(DataSource {
+                        id: row.get(0)?,
+                        key: row.get(1)?,
+                        name: row.get(2)?,
+                        unit: row.get(3)?,
+                        color: row.get(4)?,
+                        min_val: row.get(5)?,
+                        max_val: row.get(6)?,
+                        warn_val: row.get(7)?,
+                        crit_val: row.get(8)?,
+                        base_val: row.get(9)?,
+                        sort_order: row.get(10)?,
+                        decimals: row.get(11)?,
+                        source_type: row.get(12)?,
+                        source_config: row.get(13)?,
+                        device_id: row.get(14)?,
+                        equipment_id: row.get(15)?,
+                        chart_type: row.get(16)?,
+                    })
+                },
+            );
+            match result {
+                Ok(ds) => Ok(Some(ds)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get data source by id failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn list_data_sources(&self, screen_id: Option<&str>) -> Result<Vec<DataSource>> {
         let conn = self.conn.clone();
         let screen_id = screen_id.map(|s| s.to_string());
@@ -4291,6 +4333,40 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    pub async fn get_opcua_device(&self, id: i64) -> Result<Option<OpcUaDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, url, security_policy, security_mode, username, password, interval_ms, enabled, created_at FROM opcua_devices WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    let policy_str: String = row.get(3)?;
+                    let mode_str: String = row.get(4)?;
+                    Ok(OpcUaDevice {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        url: row.get(2)?,
+                        security_policy: serde_json::from_str(&policy_str).unwrap_or(OpcUaSecurityPolicy::None),
+                        security_mode: serde_json::from_str(&mode_str).unwrap_or(OpcUaSecurityMode::None),
+                        username: row.get(5)?,
+                        password: row.get(6)?,
+                        interval_ms: row.get(7)?,
+                        enabled: row.get::<_, i64>(8)? != 0,
+                        created_at: row.get(9)?,
+                    })
+                },
+            );
+            match result {
+                Ok(device) => Ok(Some(device)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get opcua device failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn list_opcua_devices(&self) -> Result<Vec<OpcUaDevice>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
@@ -4591,6 +4667,35 @@ impl Storage {
             )
             .context("Insert enip device failed")?;
             Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_enip_device(&self, id: i64) -> Result<Option<EnipDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, url, slot, interval_ms, enabled, created_at FROM enip_devices WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(EnipDevice {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        url: row.get(2)?,
+                        slot: row.get(3)?,
+                        interval_ms: row.get(4)?,
+                        enabled: row.get::<_, i64>(5)? != 0,
+                        created_at: row.get(6)?,
+                    })
+                },
+            );
+            match result {
+                Ok(device) => Ok(Some(device)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get enip device failed"),
+            }
         })
         .await
         .context("Task join failed")?
