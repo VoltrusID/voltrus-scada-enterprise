@@ -14,10 +14,19 @@ pub async fn active_alarm_count(
     Ok(Json(json!({ "count": count })))
 }
 
-/// GET /api/alarms?status=active|acknowledged|all&limit=50
+#[derive(Debug, serde::Deserialize)]
+pub struct AlarmListQuery {
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub state: Option<String>,
+    pub shelved: Option<bool>,
+    pub limit: Option<i64>,
+}
+
+/// GET /api/alarms?status=active|acknowledged|all&priority=...&state=...&shelved=true|false&limit=50
 pub async fn list_alarms(
     State(state): State<AppState>,
-    Query(params): Query<AlarmQuery>,
+    Query(params): Query<AlarmListQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let status = params.status.as_deref();
     let limit = params.limit.unwrap_or(50);
@@ -36,6 +45,29 @@ pub async fn list_alarms(
         } else {
             alarm.source_name = alarm.source_key.clone();
         }
+    }
+
+    // Apply additional in-memory filters (priority, state, shelved)
+    if params.priority.is_some() || params.state.is_some() || params.shelved.is_some() {
+        alarms.retain(|a| {
+            if let Some(ref p) = params.priority {
+                if &a.priority != p {
+                    return false;
+                }
+            }
+            if let Some(ref s) = params.state {
+                if &a.state != s {
+                    return false;
+                }
+            }
+            if let Some(shelved) = params.shelved {
+                let is_shelved = a.shelved_until.is_some();
+                if is_shelved != shelved {
+                    return false;
+                }
+            }
+            true
+        });
     }
 
     Ok(Json(alarms))
@@ -70,4 +102,76 @@ pub async fn acknowledge_all(
     let cooldown = get_cooldown_secs(&state.storage).await;
     state.storage.acknowledge_all(&user.username, cooldown).await?;
     Ok(Json(json!({"ok": true})))
+}
+
+/// POST /api/v1/alarms/{id}/shelf
+pub async fn shelf_alarm(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<i64>,
+    Json(body): Json<ShelfAlarmRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let now = crate::timeutil::now_secs();
+    let shelved_until = now + body.duration_secs as i64;
+    state
+        .storage
+        .shelf_alarm(id, shelved_until, &user.username, &body.reason)
+        .await?;
+    Ok(Json(json!({"ok": true, "shelved_until": shelved_until})))
+}
+
+/// POST /api/v1/alarms/{id}/unshelf
+pub async fn unshelf_alarm(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    state.storage.unshelf_alarm(id).await?;
+    Ok(Json(json!({"ok": true})))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AuditQuery {
+    pub alarm_id: Option<i64>,
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+    pub limit: Option<u32>,
+}
+
+/// GET /api/v1/alarms/audit?alarm_id=X&from=TS&to=TS
+pub async fn list_alarm_audit(
+    State(state): State<AppState>,
+    Query(params): Query<AuditQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let limit = params.limit.unwrap_or(100);
+    let entries = state
+        .storage
+        .list_alarm_audit(params.alarm_id, params.from, params.to, limit)
+        .await?;
+    Ok(Json(entries))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AnalyticsQuery {
+    pub from: Option<i64>,
+    pub to: Option<i64>,
+}
+
+/// GET /api/v1/alarms/analytics?from=TS&to=TS
+pub async fn list_alarm_analytics(
+    State(state): State<AppState>,
+    Query(params): Query<AnalyticsQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let entries = state
+        .storage
+        .get_alarm_analytics(params.from, params.to)
+        .await?;
+    Ok(Json(entries))
+}
+
+/// GET /api/v1/alarms/summary
+pub async fn get_alarm_summary(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let summary = state.storage.get_alarm_summary().await?;
+    Ok(Json(summary))
 }
