@@ -1651,3 +1651,102 @@ impl Default for SecurityThresholds {
         }
     }
 }
+
+// ── Annotation types (v0.23.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Annotation {
+    pub id: i64,
+    pub tag_id: String,
+    pub annotation_text: String,
+    pub data_timestamp: i64,
+    pub author_id: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateAnnotationRequest {
+    pub tag_id: String,
+    pub annotation_text: String,
+    pub data_timestamp: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAnnotationRequest {
+    pub annotation_text: Option<String>,
+}
+
+// ── Shift Handover types (v0.23.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShiftHandover {
+    pub id: i64,
+    pub author_id: i64,
+    pub shift_date: String,
+    pub shift_period: String,
+    pub what_happened: String,
+    pub whats_pending: String,
+    pub what_to_watch: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateShiftHandoverRequest {
+    pub shift_date: String,
+    pub shift_period: String,
+    pub what_happened: Option<String>,
+    pub whats_pending: Option<String>,
+    pub what_to_watch: Option<String>,
+}
+
+// ── User Notification types (v0.23.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserNotification {
+    pub id: i64,
+    pub user_id: i64,
+    pub from_user_id: i64,
+    pub notification_type: String,
+    pub message: String,
+    pub reference_id: Option<i64>,
+    pub read: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateNotificationRequest {
+    pub user_id: i64,
+    pub from_user_id: i64,
+    pub notification_type: String,
+    pub message: String,
+    pub reference_id: Option<i64>,
+}
+
+/// Extract `@username` patterns from text, returning a deduplicated list of usernames.
+pub fn parse_mentions(text: &str) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut result = Vec::new();
+    let bytes = text.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    while i < len {
+        if bytes[i] == b'@' {
+            let start = i + 1;
+            let mut end = start;
+            while end < len && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+                end += 1;
+            }
+            if end > start {
+                let name = text[start..end].to_string();
+                if seen.insert(name.clone()) {
+                    result.push(name);
+                }
+            }
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    result
+}

@@ -33,4 +33,9 @@ export const queryKeys = {
   complianceConfig: ['complianceConfig'] as const,
   complianceSignatures: ['complianceSignatures'] as const,
   roles: ['roles'] as const,
+  annotations: ['annotations'] as const,
+  annotationsFiltered: (tagId?: string, from?: number, to?: number) => ['annotations', tagId, from, to] as const,
+  shiftHandovers: ['shiftHandovers'] as const,
+  shiftHandoversFiltered: (date?: string, period?: string) => ['shiftHandovers', date, period] as const,
+  shiftAutoReport: ['shiftAutoReport'] as const,
 }
