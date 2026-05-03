@@ -33,6 +33,7 @@ mod user_notifications;
 mod commands;
 mod simulation;
 mod scripts;
+mod config_snapshots;
 
 use axum::{
     extract::{Request, State},
@@ -400,6 +401,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
         .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
         .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
+        // Config snapshot routes (admin-only)
+        .route("/api/v1/config/snapshots", get(config_snapshots::list_snapshots).post(config_snapshots::create_snapshot))
+        .route("/api/v1/config/snapshots/{id}", get(config_snapshots::get_snapshot))
+        .route("/api/v1/config/snapshots/{from_id}/diff/{to_id}", get(config_snapshots::diff_snapshots))
+        .route("/api/v1/config/snapshots/{id}/rollback", post(config_snapshots::rollback))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
