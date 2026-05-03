@@ -33,6 +33,7 @@ allow = [
     "MPL-2.0",
     "OpenSSL",
     "CC0-1.0",
+    "0BSD",
     "NOASSERTION",
     "CDLA-Permissive-2.0",
 ]
