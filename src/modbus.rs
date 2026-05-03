@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use tokio_modbus::client::tcp;
@@ -6,6 +8,63 @@ use tokio_modbus::prelude::*;
 
 use crate::cache::DeviceCache;
 use crate::models::*;
+
+// ── Connection Pool ──────────────────────────────────────────────────
+
+struct PooledConnection {
+    ctx: tokio_modbus::client::Context,
+    last_used: Instant,
+}
+
+pub struct ModbusPool {
+    connections: Arc<tokio::sync::Mutex<HashMap<String, PooledConnection>>>,
+    max_idle: Duration,
+}
+
+impl ModbusPool {
+    pub fn new() -> Self {
+        Self {
+            connections: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            max_idle: Duration::from_secs(60),
+        }
+    }
+
+    pub async fn get_or_connect(
+        &self,
+        device_id: &str,
+        addr: std::net::SocketAddr,
+        unit_id: u8,
+    ) -> anyhow::Result<tokio_modbus::client::Context> {
+        let mut conns = self.connections.lock().await;
+        if let Some(pooled) = conns.remove(device_id) {
+            if pooled.last_used.elapsed() < self.max_idle {
+                tracing::debug!("Reusing connection for device {device_id}");
+                return Ok(pooled.ctx);
+            }
+            tracing::debug!("Dropping idle connection for device {device_id}");
+        }
+
+        tracing::debug!("Connecting to device {device_id} at {addr}");
+        let ctx = tcp::connect_slave(addr, Slave(unit_id)).await?;
+        Ok(ctx)
+    }
+
+    pub async fn return_connection(&self, device_id: &str, ctx: tokio_modbus::client::Context) {
+        let mut conns = self.connections.lock().await;
+        conns.insert(
+            device_id.to_string(),
+            PooledConnection {
+                ctx,
+                last_used: Instant::now(),
+            },
+        );
+    }
+
+    pub async fn remove(&self, device_id: &str) {
+        let mut conns = self.connections.lock().await;
+        conns.remove(device_id);
+    }
+}
 
 pub fn parse_register(words: &[u16], reg_type: &RegisterType, endianness: &Endianness) -> f64 {
     match reg_type {
@@ -34,16 +93,17 @@ fn combine_u16(high: u16, low: u16, endianness: &Endianness) -> u32 {
     }
 }
 
-pub async fn poll_device(config: DeviceConfig, cache: DeviceCache) {
+pub async fn poll_device(config: DeviceConfig, cache: DeviceCache, pool: Arc<ModbusPool>) {
     let device_id = config.id.clone();
     let mut backoff = Backoff::new();
 
     loop {
-        match try_poll(&config, &cache).await {
+        match try_poll(&config, &cache, &pool).await {
             Ok(()) => backoff.reset(),
             Err(e) => {
                 tracing::warn!("Device {device_id} error: {e}");
                 cache.set_status(&device_id, DeviceStatus::Offline).await;
+                pool.remove(&device_id).await;
                 let delay = backoff.next();
                 tracing::info!("Device {device_id} retrying in {delay}ms");
                 tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
@@ -52,17 +112,18 @@ pub async fn poll_device(config: DeviceConfig, cache: DeviceCache) {
     }
 }
 
-async fn try_poll(config: &DeviceConfig, cache: &DeviceCache) -> Result<()> {
+async fn try_poll(config: &DeviceConfig, cache: &DeviceCache, pool: &ModbusPool) -> Result<()> {
     let addr = format!("{}:{}", config.ip, config.port);
     let socket_addr: std::net::SocketAddr = addr.parse().context("Invalid address")?;
 
-    let mut ctx = tcp::connect_slave(socket_addr, Slave(config.unit_id))
-        .await
-        .context("Modbus connection failed")?;
-
-    tracing::info!("Connected to device {} at {}", config.id, addr);
+    tracing::info!("Polling device {} at {}", config.id, addr);
 
     loop {
+        let mut ctx = pool
+            .get_or_connect(&config.id, socket_addr, config.unit_id)
+            .await
+            .context("Modbus connection failed")?;
+
         let mut metrics = HashMap::new();
 
         for reg in &config.registers {
@@ -101,6 +162,7 @@ async fn try_poll(config: &DeviceConfig, cache: &DeviceCache) -> Result<()> {
         cache.update(&config.id, metrics).await;
         tracing::debug!("Device {} polled successfully", config.id);
 
+        pool.return_connection(&config.id, ctx).await;
         tokio::time::sleep(std::time::Duration::from_millis(config.interval_ms)).await;
     }
 }

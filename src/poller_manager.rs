@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
+use crate::modbus::ModbusPool;
 use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig};
 use crate::s7::S7DeviceConfig;
 
@@ -11,13 +12,15 @@ use crate::s7::S7DeviceConfig;
 pub struct PollerManager {
     handles: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
     cache: DeviceCache,
+    modbus_pool: Arc<ModbusPool>,
 }
 
 impl PollerManager {
-    pub fn new(cache: DeviceCache) -> Self {
+    pub fn new(cache: DeviceCache, modbus_pool: Arc<ModbusPool>) -> Self {
         Self {
             handles: Arc::new(RwLock::new(HashMap::new())),
             cache,
+            modbus_pool,
         }
     }
 
@@ -27,8 +30,9 @@ impl PollerManager {
             self.stop(&device_id).await;
         }
         let cache = self.cache.clone();
+        let pool = self.modbus_pool.clone();
         let handle = tokio::spawn(async move {
-            crate::modbus::poll_device(config, cache).await;
+            crate::modbus::poll_device(config, cache, pool).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }
