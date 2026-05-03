@@ -127,6 +127,8 @@ pub async fn create_modbus_device(
         state.poller_manager.start(dc.clone()).await;
     }
 
+    crate::asset::sync::on_device_created(&state.storage.asset(), "modbus", &id, &name, Some(&ip), "plc").await;
+
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_modbus_device".to_string(),
         username: auth.username.clone(),
@@ -209,6 +211,8 @@ pub async fn delete_modbus_device(
 ) -> Result<impl IntoResponse, AppError> {
     state.storage.delete_modbus_device(&id).await?;
     state.poller_manager.stop(&id).await;
+
+    crate::asset::sync::on_device_deleted(&state.storage.asset(), "modbus", &id).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_modbus_device".to_string(),
