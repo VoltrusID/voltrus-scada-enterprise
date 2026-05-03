@@ -7724,6 +7724,48 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    /// Find a data source by device_id and key. Returns the data source ID if found.
+    pub async fn find_data_source_by_device_and_key(&self, device_id: &str, key: &str) -> Result<Option<DataSource>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, key, name, unit, color, min_val, max_val, warn_val, crit_val, base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id, chart_type FROM data_sources WHERE device_id = ?1 AND key = ?2",
+                rusqlite::params![device_id, key],
+                |row| {
+                    Ok(DataSource {
+                        id: row.get(0)?,
+                        key: row.get(1)?,
+                        name: row.get(2)?,
+                        unit: row.get(3)?,
+                        color: row.get(4)?,
+                        min_val: row.get(5)?,
+                        max_val: row.get(6)?,
+                        warn_val: row.get(7)?,
+                        crit_val: row.get(8)?,
+                        base_val: row.get(9)?,
+                        sort_order: row.get(10)?,
+                        decimals: row.get(11)?,
+                        source_type: row.get(12)?,
+                        source_config: row.get(13)?,
+                        device_id: row.get(14)?,
+                        equipment_id: row.get(15)?,
+                        chart_type: row.get(16)?,
+                    })
+                },
+            );
+            match result {
+                Ok(ds) => Ok(Some(ds)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Find data source by device and key failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     /// Get the key of a data source by its ID. Returns None if not found.
     pub async fn get_data_source_key(&self, data_source_id: i64) -> Result<Option<String>> {
         let conn = self.conn.clone();
