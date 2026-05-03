@@ -17,6 +17,7 @@ use crate::models::{
     Role,
     S7Device, S7TagRow,
     EnipDevice, EnipTag, EnipDeviceConfig,
+    BacnetDevice, BacnetObject, BacnetDeviceConfig, BacnetObjectConfig,
     Camera, CameraSnapshot,
     Annotation, CreateAnnotationRequest, UpdateAnnotationRequest,
     ShiftHandover, CreateShiftHandoverRequest,
@@ -4050,6 +4051,31 @@ fn init_schema(conn: &Connection) -> Result<()> {
             UNIQUE(device_id, tag_name)
         );
         CREATE INDEX IF NOT EXISTS idx_enip_tags_device ON enip_tags(device_id);
+        CREATE TABLE IF NOT EXISTS bacnet_devices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            ip TEXT NOT NULL,
+            port INTEGER NOT NULL DEFAULT 47808,
+            device_instance INTEGER NOT NULL DEFAULT 0,
+            interval_ms INTEGER NOT NULL DEFAULT 1000,
+            cov_enabled INTEGER NOT NULL DEFAULT 0,
+            cov_lifetime INTEGER NOT NULL DEFAULT 300,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS bacnet_objects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_db_id INTEGER NOT NULL REFERENCES bacnet_devices(id) ON DELETE CASCADE,
+            object_type TEXT NOT NULL,
+            object_instance INTEGER NOT NULL,
+            property TEXT NOT NULL DEFAULT 'presentValue',
+            name TEXT NOT NULL,
+            display_name TEXT NOT NULL DEFAULT '',
+            cov_increment REAL NOT NULL DEFAULT 0.0,
+            created_at INTEGER NOT NULL,
+            UNIQUE(device_db_id, object_type, object_instance, property)
+        );
+        CREATE INDEX IF NOT EXISTS idx_bacnet_objects_device ON bacnet_objects(device_db_id);
         CREATE TABLE IF NOT EXISTS hub_sites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -4068,7 +4094,9 @@ fn init_schema(conn: &Connection) -> Result<()> {
             device_ids TEXT NOT NULL DEFAULT 'all',
             email_recipients TEXT NOT NULL,
             last_generated INTEGER,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            report_type TEXT NOT NULL DEFAULT 'pdf',
+            analytics_config TEXT
         );
         CREATE TABLE IF NOT EXISTS downtime_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -4394,6 +4422,43 @@ fn init_schema(conn: &Connection) -> Result<()> {
             validation_error TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
+        );
+
+        -- AI Copilot tables (v0.26.5)
+        CREATE TABLE IF NOT EXISTS ai_copilot_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ai_proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            proposal_type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            title TEXT NOT NULL,
+            input_summary TEXT NOT NULL,
+            proposed_config TEXT NOT NULL,
+            applied_config TEXT,
+            target_entity_id TEXT,
+            error_message TEXT,
+            model_used TEXT,
+            tokens_used INTEGER,
+            created_at INTEGER NOT NULL,
+            reviewed_at INTEGER,
+            reviewed_by TEXT,
+            applied_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_ai_proposals_status ON ai_proposals(status);
+        CREATE INDEX IF NOT EXISTS idx_ai_proposals_type ON ai_proposals(proposal_type);
+        CREATE INDEX IF NOT EXISTS idx_ai_proposals_created ON ai_proposals(created_at DESC);
+        CREATE TABLE IF NOT EXISTS ai_equipment_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            industry TEXT NOT NULL,
+            equipment_type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            tag_template TEXT NOT NULL,
+            alarm_template TEXT NOT NULL DEFAULT '[]',
+            dashboard_template TEXT NOT NULL DEFAULT '{}',
+            flow_template TEXT,
+            created_at INTEGER NOT NULL
         );"
     );
 
@@ -4404,6 +4469,22 @@ fn init_schema(conn: &Connection) -> Result<()> {
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_max_rate INTEGER");
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_requires_reason INTEGER NOT NULL DEFAULT 0");
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_deadband REAL");
+
+    // Migration: add report_type and analytics_config columns to reports
+    let _ = conn.execute_batch("ALTER TABLE reports ADD COLUMN report_type TEXT NOT NULL DEFAULT 'pdf'");
+    let _ = conn.execute_batch("ALTER TABLE reports ADD COLUMN analytics_config TEXT");
+
+    // Seed equipment templates (v0.26.5 AI Copilot)
+    let _ = conn.execute_batch(
+        "INSERT OR IGNORE INTO ai_equipment_templates (industry, equipment_type, name, tag_template, alarm_template, dashboard_template, created_at) VALUES
+        ('water_wastewater','pump_station','Pump Station','[{\"name_pattern\":\"PMP{n}_RUN\",\"register_area\":\"coil\",\"default_type\":\"bool\",\"unit\":\"\"},{\"name_pattern\":\"PMP{n}_FLOW\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"m³/h\"}]','[]','{}', 0),
+        ('power','power_meter','Power Meter','[{\"name_pattern\":\"VOLTAGE_L{n}\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"V\"},{\"name_pattern\":\"CURRENT_L{n}\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"A\"},{\"name_pattern\":\"POWER_ACTIVE\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"kW\"}]','[]','{}', 0),
+        ('manufacturing','vfd','VFD','[{\"name_pattern\":\"VFD{n}_RUN\",\"register_area\":\"coil\",\"default_type\":\"bool\",\"unit\":\"\"},{\"name_pattern\":\"VFD{n}_FREQ_ACTUAL\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"Hz\"},{\"name_pattern\":\"VFD{n}_CURRENT\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"A\"}]','[]','{}', 0),
+        ('manufacturing','motor_controller','Motor Controller','[{\"name_pattern\":\"MTR{n}_RUN\",\"register_area\":\"coil\",\"default_type\":\"bool\",\"unit\":\"\"},{\"name_pattern\":\"MTR{n}_TEMPERATURE\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"°C\"}]','[]','{}', 0),
+        ('water_wastewater','flow_meter','Flow Meter','[{\"name_pattern\":\"FLOW{n}_INSTANT\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"m³/h\"}]','[]','{}', 0),
+        ('hvac','ahu','Air Handling Unit','[{\"name_pattern\":\"AHU{n}_SUPPLY_TEMP\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"°C\"},{\"name_pattern\":\"AHU{n}_HUMIDITY\",\"register_area\":\"holding\",\"default_type\":\"float32\",\"unit\":\"%\"}]','[]','{}', 0),
+        ('manufacturing','plc_digital_io','PLC Digital I/O','[{\"name_pattern\":\"DI{n}\",\"register_area\":\"discrete\",\"default_type\":\"bool\",\"unit\":\"\"},{\"name_pattern\":\"DO{n}\",\"register_area\":\"coil\",\"default_type\":\"bool\",\"unit\":\"\"}]','[]','{}', 0)"
+    );
 
         Ok(())
 }
@@ -5338,6 +5419,354 @@ impl Storage {
         }
         Ok(configs)
     }
+
+    // ── BACnet/IP device management ──
+
+    pub async fn create_bacnet_device(
+        &self,
+        name: &str,
+        ip: &str,
+        port: u16,
+        device_instance: u32,
+        interval_ms: u64,
+        cov_enabled: bool,
+        cov_lifetime: u32,
+        enabled: bool,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let ip = ip.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO bacnet_devices (name, ip, port, device_instance, interval_ms, cov_enabled, cov_lifetime, enabled, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                rusqlite::params![name, ip, port, device_instance, interval_ms, cov_enabled as i64, cov_lifetime, enabled as i64, now],
+            )
+            .context("Insert bacnet device failed")?;
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_bacnet_devices(&self) -> Result<Vec<BacnetDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, name, ip, port, device_instance, interval_ms, cov_enabled, cov_lifetime, enabled, created_at FROM bacnet_devices ORDER BY created_at"
+                )
+                .context("Prepare list_bacnet_devices failed")?;
+
+            let rows = stmt.query_map([], |row| {
+                Ok(BacnetDevice {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    ip: row.get(2)?,
+                    port: row.get(3)?,
+                    device_instance: row.get(4)?,
+                    interval_ms: row.get(5)?,
+                    cov_enabled: row.get::<_, i64>(6)? != 0,
+                    cov_lifetime: row.get(7)?,
+                    enabled: row.get::<_, i64>(8)? != 0,
+                    created_at: row.get(9)?,
+                })
+            })
+            .context("Query list_bacnet_devices failed")?;
+
+            let mut devices = Vec::new();
+            for row in rows {
+                devices.push(row.context("Row list_bacnet_devices failed")?);
+            }
+            Ok(devices)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_bacnet_device(&self, id: i64) -> Result<Option<BacnetDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, ip, port, device_instance, interval_ms, cov_enabled, cov_lifetime, enabled, created_at FROM bacnet_devices WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(BacnetDevice {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        ip: row.get(2)?,
+                        port: row.get(3)?,
+                        device_instance: row.get(4)?,
+                        interval_ms: row.get(5)?,
+                        cov_enabled: row.get::<_, i64>(6)? != 0,
+                        cov_lifetime: row.get(7)?,
+                        enabled: row.get::<_, i64>(8)? != 0,
+                        created_at: row.get(9)?,
+                    })
+                },
+            );
+            match result {
+                Ok(device) => Ok(Some(device)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e).context("Get bacnet device failed"),
+            }
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn update_bacnet_device(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        ip: Option<&str>,
+        port: Option<u16>,
+        device_instance: Option<u32>,
+        interval_ms: Option<u64>,
+        cov_enabled: Option<bool>,
+        cov_lifetime: Option<u32>,
+        enabled: Option<bool>,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let ip = ip.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let Some(ref v) = name {
+                conn.execute("UPDATE bacnet_devices SET name = ?1 WHERE id = ?2", rusqlite::params![v, id])
+                    .context("Update bacnet device name failed")?;
+            }
+            if let Some(ref v) = ip {
+                conn.execute("UPDATE bacnet_devices SET ip = ?1 WHERE id = ?2", rusqlite::params![v, id])
+                    .context("Update bacnet device ip failed")?;
+            }
+            if let Some(v) = port {
+                conn.execute("UPDATE bacnet_devices SET port = ?1 WHERE id = ?2", rusqlite::params![v, id])
+                    .context("Update bacnet device port failed")?;
+            }
+            if let Some(v) = device_instance {
+                conn.execute("UPDATE bacnet_devices SET device_instance = ?1 WHERE id = ?2", rusqlite::params![v, id])
+                    .context("Update bacnet device device_instance failed")?;
+            }
+            if let Some(v) = interval_ms {
+                conn.execute("UPDATE bacnet_devices SET interval_ms = ?1 WHERE id = ?2", rusqlite::params![v, id])
+                    .context("Update bacnet device interval_ms failed")?;
+            }
+            if let Some(v) = cov_enabled {
+                conn.execute("UPDATE bacnet_devices SET cov_enabled = ?1 WHERE id = ?2", rusqlite::params![v as i64, id])
+                    .context("Update bacnet device cov_enabled failed")?;
+            }
+            if let Some(v) = cov_lifetime {
+                conn.execute("UPDATE bacnet_devices SET cov_lifetime = ?1 WHERE id = ?2", rusqlite::params![v, id])
+                    .context("Update bacnet device cov_lifetime failed")?;
+            }
+            if let Some(v) = enabled {
+                conn.execute("UPDATE bacnet_devices SET enabled = ?1 WHERE id = ?2", rusqlite::params![v as i64, id])
+                    .context("Update bacnet device enabled failed")?;
+            }
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_bacnet_device(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let device_name: Option<String> = conn
+                .query_row(
+                    "SELECT name FROM bacnet_devices WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| row.get(0),
+                )
+                .ok();
+
+            if let Some(device_name) = &device_name {
+                let mut stmt = conn
+                    .prepare("SELECT name FROM bacnet_objects WHERE device_db_id = ?1")
+                    .context("Prepare select bacnet objects failed")?;
+
+                let obj_rows = stmt
+                    .query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
+                    .context("Query bacnet objects failed")?;
+
+                for obj_row in obj_rows {
+                    if let Ok(obj_name) = obj_row {
+                        let source_key = format!("{}:{}", device_name, obj_name);
+                        let _ = conn.execute(
+                            "DELETE FROM data_sources WHERE key = ?1",
+                            rusqlite::params![source_key],
+                        );
+                    }
+                }
+            }
+
+            conn.execute("DELETE FROM bacnet_devices WHERE id = ?1", rusqlite::params![id])
+                .context("Delete bacnet device failed")
+                .map(|_| ())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn create_bacnet_object(
+        &self,
+        device_db_id: i64,
+        device_name: &str,
+        object_type: &str,
+        object_instance: u32,
+        property: &str,
+        name: &str,
+        display_name: &str,
+        cov_increment: f64,
+    ) -> Result<i64> {
+        let conn = self.conn.clone();
+        let object_type = object_type.to_string();
+        let property = property.to_string();
+        let name = name.to_string();
+        let display_name = display_name.to_string();
+        let device_name = device_name.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO bacnet_objects (device_db_id, object_type, object_instance, property, name, display_name, cov_increment, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![device_db_id, object_type, object_instance, property, name, display_name, cov_increment, now],
+            )
+            .context("Insert bacnet object failed")?;
+
+            let source_key = format!("{}:{}", device_name, name);
+            let ds_name = if display_name.is_empty() {
+                name.clone()
+            } else {
+                display_name.clone()
+            };
+            let source_config = serde_json::json!({
+                "object_type": object_type,
+                "object_instance": object_instance,
+                "property": property,
+            }).to_string();
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO data_sources (key, name, unit, color, min_val, max_val, warn_val, crit_val,
+                 base_val, sort_order, decimals, source_type, source_config, device_id, chart_type)
+                 VALUES (?1, ?2, '', '#f97316', 0, 0, 0, 0, 0, 0, 1, 'bacnet', ?3, ?4, 'sparkline')",
+                rusqlite::params![source_key, ds_name, source_config, device_name],
+            );
+
+            Ok(conn.last_insert_rowid())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn list_bacnet_objects(&self, device_db_id: i64) -> Result<Vec<BacnetObject>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, device_db_id, object_type, object_instance, property, name, display_name, cov_increment, created_at FROM bacnet_objects WHERE device_db_id = ?1 ORDER BY created_at"
+                )
+                .context("Prepare list_bacnet_objects failed")?;
+
+            let rows = stmt
+                .query_map(rusqlite::params![device_db_id], |row| {
+                    Ok(BacnetObject {
+                        id: row.get(0)?,
+                        device_db_id: row.get(1)?,
+                        object_type: row.get(2)?,
+                        object_instance: row.get(3)?,
+                        property: row.get(4)?,
+                        name: row.get(5)?,
+                        display_name: row.get(6)?,
+                        cov_increment: row.get(7)?,
+                        created_at: row.get(8)?,
+                    })
+                })
+                .context("Query list_bacnet_objects failed")?;
+
+            let mut objects = Vec::new();
+            for row in rows {
+                objects.push(row.context("Row list_bacnet_objects failed")?);
+            }
+            Ok(objects)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn delete_bacnet_object(&self, id: i64) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let obj_info: Option<(i64, String)> = conn
+                .query_row(
+                    "SELECT device_db_id, name FROM bacnet_objects WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+                )
+                .ok();
+
+            if let Some((device_db_id, obj_name)) = &obj_info {
+                let device_name: Option<String> = conn
+                    .query_row(
+                        "SELECT name FROM bacnet_devices WHERE id = ?1",
+                        rusqlite::params![device_db_id],
+                        |row| row.get(0),
+                    )
+                    .ok();
+                if let Some(dn) = &device_name {
+                    let source_key = format!("{}:{}", dn, obj_name);
+                    let _ = conn.execute(
+                        "DELETE FROM data_sources WHERE key = ?1",
+                        rusqlite::params![source_key],
+                    );
+                }
+            }
+
+            conn.execute("DELETE FROM bacnet_objects WHERE id = ?1", rusqlite::params![id])
+                .context("Delete bacnet object failed")
+                .map(|_| ())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn get_all_bacnet_device_configs(&self) -> Result<Vec<BacnetDeviceConfig>> {
+        let devices = self.list_bacnet_devices().await?;
+        let mut configs = Vec::new();
+        for device in &devices {
+            if !device.enabled { continue; }
+            let objects = self.list_bacnet_objects(device.id).await?;
+            let device_key = format!("bacnet_{}", device.id);
+            configs.push(BacnetDeviceConfig {
+                id: device_key,
+                ip: device.ip.clone(),
+                port: device.port,
+                device_instance: device.device_instance,
+                interval_ms: device.interval_ms,
+                cov_enabled: device.cov_enabled,
+                cov_lifetime: device.cov_lifetime,
+                objects: objects.iter().map(|o| BacnetObjectConfig {
+                    object_type: o.object_type.clone(),
+                    object_instance: o.object_instance,
+                    property: o.property.clone(),
+                    name: o.name.clone(),
+                    cov_increment: o.cov_increment,
+                }).collect(),
+            });
+        }
+        Ok(configs)
+    }
+
     // ── S7 (Siemens) device management ──
 
     pub async fn create_s7_device(
@@ -6003,7 +6432,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, name, schedule, enabled, device_ids, email_recipients, last_generated, created_at FROM reports ORDER BY id"
+                "SELECT id, name, schedule, enabled, device_ids, email_recipients, last_generated, created_at, report_type, analytics_config FROM reports ORDER BY id"
             ).context("Prepare list_reports failed")?;
             let rows = stmt.query_map([], |row| {
                 Ok(Report {
@@ -6015,6 +6444,8 @@ impl Storage {
                     email_recipients: row.get(5)?,
                     last_generated: row.get(6)?,
                     created_at: row.get(7)?,
+                    report_type: row.get(8)?,
+                    analytics_config: row.get(9)?,
                 })
             }).context("Query list_reports failed")?;
             let mut reports = Vec::new();
@@ -6030,7 +6461,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, name, schedule, enabled, device_ids, email_recipients, last_generated, created_at FROM reports WHERE id = ?1"
+                "SELECT id, name, schedule, enabled, device_ids, email_recipients, last_generated, created_at, report_type, analytics_config FROM reports WHERE id = ?1"
             ).context("Prepare get_report failed")?;
             let result = stmt.query_row(rusqlite::params![id], |row| {
                 Ok(Report {
@@ -6042,6 +6473,8 @@ impl Storage {
                     email_recipients: row.get(5)?,
                     last_generated: row.get(6)?,
                     created_at: row.get(7)?,
+                    report_type: row.get(8)?,
+                    analytics_config: row.get(9)?,
                 })
             }).ok();
             Ok(result)
@@ -6055,19 +6488,23 @@ impl Storage {
         enabled: bool,
         device_ids: &str,
         email_recipients: &str,
+        report_type: Option<&str>,
+        analytics_config: Option<&str>,
     ) -> Result<i64> {
         let conn = self.conn.clone();
         let name = name.to_string();
         let schedule = schedule.to_string();
         let device_ids = device_ids.to_string();
         let email_recipients = email_recipients.to_string();
+        let report_type = report_type.map(|s| s.to_string());
+        let analytics_config = analytics_config.map(|s| s.to_string());
         let now = crate::timeutil::now_secs();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT INTO reports (name, schedule, enabled, device_ids, email_recipients, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![name, schedule, enabled as i64, device_ids, email_recipients, now],
+                "INSERT INTO reports (name, schedule, enabled, device_ids, email_recipients, created_at, report_type, analytics_config)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![name, schedule, enabled as i64, device_ids, email_recipients, now, report_type, analytics_config],
             ).context("Insert report failed")?;
             Ok(conn.last_insert_rowid())
         }).await.context("Task join failed")?
@@ -9337,5 +9774,266 @@ mod tests {
 
         let queued = storage.get_queued_commands().await.unwrap();
         assert_eq!(queued.len(), 2);
+    }
+}
+
+// ── AI Copilot storage methods ──
+
+impl Storage {
+    pub async fn get_ai_setting(&self, key: &str) -> anyhow::Result<Option<String>> {
+        let conn = self.conn.clone();
+        let key = key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare("SELECT value FROM ai_copilot_settings WHERE key = ?1")?;
+            Ok(stmt.query_row(rusqlite::params![key], |row| row.get::<_, String>(0)).ok())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn set_ai_setting(&self, key: &str, value: &str) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let key = key.to_string();
+        let value = value.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO ai_copilot_settings (key, value) VALUES (?1, ?2)",
+                rusqlite::params![key, value],
+            )?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn create_ai_proposal(
+        &self,
+        proposal_type: &str,
+        title: &str,
+        input_summary: &str,
+        proposed_config: &str,
+        target_entity_id: Option<&str>,
+        model_used: &str,
+        tokens_used: i64,
+    ) -> anyhow::Result<i64> {
+        let conn = self.conn.clone();
+        let proposal_type = proposal_type.to_string();
+        let title = title.to_string();
+        let input_summary = input_summary.to_string();
+        let proposed_config = proposed_config.to_string();
+        let target_entity_id = target_entity_id.map(|s| s.to_string());
+        let model_used = model_used.to_string();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT INTO ai_proposals (proposal_type, status, title, input_summary, proposed_config, target_entity_id, model_used, tokens_used, created_at)
+                 VALUES (?1, 'pending', ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![proposal_type, title, input_summary, proposed_config, target_entity_id, model_used, tokens_used, now],
+            )?;
+            Ok(conn.last_insert_rowid())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn get_ai_proposal(&self, id: i64) -> anyhow::Result<Option<crate::models::AiProposal>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, proposal_type, status, title, input_summary, proposed_config, applied_config,
+                        target_entity_id, error_message, model_used, tokens_used,
+                        created_at, reviewed_at, reviewed_by, applied_at
+                 FROM ai_proposals WHERE id = ?1"
+            )?;
+            let result = stmt.query_row(rusqlite::params![id], |row| {
+                Ok(crate::models::AiProposal {
+                    id: row.get(0)?,
+                    proposal_type: row.get(1)?,
+                    status: row.get(2)?,
+                    title: row.get(3)?,
+                    input_summary: row.get(4)?,
+                    proposed_config: serde_json::from_str(&row.get::<_, String>(5)?).unwrap_or(serde_json::Value::Null),
+                    applied_config: row.get::<_, Option<String>>(6)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    target_entity_id: row.get(7)?,
+                    error_message: row.get(8)?,
+                    model_used: row.get(9)?,
+                    tokens_used: row.get(10)?,
+                    created_at: row.get(11)?,
+                    reviewed_at: row.get(12)?,
+                    reviewed_by: row.get(13)?,
+                    applied_at: row.get(14)?,
+                })
+            }).ok();
+            Ok(result)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn list_ai_proposals(
+        &self,
+        proposal_type: Option<&str>,
+        status: Option<&str>,
+        limit: i64,
+    ) -> anyhow::Result<Vec<crate::models::AiProposal>> {
+        let conn = self.conn.clone();
+        let proposal_type = proposal_type.map(|s| s.to_string());
+        let status = status.map(|s| s.to_string());
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut sql = String::from(
+                "SELECT id, proposal_type, status, title, input_summary, proposed_config, applied_config,
+                        target_entity_id, error_message, model_used, tokens_used,
+                        created_at, reviewed_at, reviewed_by, applied_at
+                 FROM ai_proposals WHERE 1=1"
+            );
+            if proposal_type.is_some() { sql.push_str(" AND proposal_type = ?"); }
+            if status.is_some() { sql.push_str(" AND status = ?"); }
+            sql.push_str(" ORDER BY created_at DESC LIMIT ?");
+
+            let mut stmt = conn.prepare(&sql)?;
+            let mut rows = match (&proposal_type, &status) {
+                (Some(pt), Some(st)) => stmt.query(rusqlite::params![pt, st, limit])?,
+                (Some(pt), None) => stmt.query(rusqlite::params![pt, limit])?,
+                (None, Some(st)) => stmt.query(rusqlite::params![st, limit])?,
+                (None, None) => stmt.query(rusqlite::params![limit])?,
+            };
+
+            let mut proposals = Vec::new();
+            while let Some(row) = rows.next()? {
+                proposals.push(crate::models::AiProposal {
+                    id: row.get(0)?,
+                    proposal_type: row.get(1)?,
+                    status: row.get(2)?,
+                    title: row.get(3)?,
+                    input_summary: row.get(4)?,
+                    proposed_config: serde_json::from_str(&row.get::<_, String>(5)?).unwrap_or(serde_json::Value::Null),
+                    applied_config: row.get::<_, Option<String>>(6)?.and_then(|s| serde_json::from_str(&s).ok()),
+                    target_entity_id: row.get(7)?,
+                    error_message: row.get(8)?,
+                    model_used: row.get(9)?,
+                    tokens_used: row.get(10)?,
+                    created_at: row.get(11)?,
+                    reviewed_at: row.get(12)?,
+                    reviewed_by: row.get(13)?,
+                    applied_at: row.get(14)?,
+                });
+            }
+            Ok(proposals)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn update_ai_proposal_status(
+        &self,
+        id: i64,
+        status: &str,
+        reviewed_by: Option<&str>,
+        applied_config: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let status = status.to_string();
+        let reviewed_by = reviewed_by.map(|s| s.to_string());
+        let applied_config = applied_config.map(|s| s.to_string());
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            if let (Some(by), Some(cfg)) = (&reviewed_by, &applied_config) {
+                conn.execute("UPDATE ai_proposals SET status=?1, reviewed_by=?2, reviewed_at=?3, applied_config=?4 WHERE id=?5",
+                    rusqlite::params![status, by, now, cfg, id])?;
+            } else if let (Some(by), None) = (&reviewed_by, &applied_config) {
+                conn.execute("UPDATE ai_proposals SET status=?1, reviewed_by=?2, reviewed_at=?3 WHERE id=?4",
+                    rusqlite::params![status, by, now, id])?;
+            } else {
+                conn.execute("UPDATE ai_proposals SET status=?1, reviewed_at=?2 WHERE id=?3",
+                    rusqlite::params![status, now, id])?;
+            }
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn mark_ai_proposal_applied(&self, id: i64, applied_config: Option<&str>) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let applied_config = applied_config.map(|s| s.to_string());
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE ai_proposals SET status='applied', applied_at=?1, applied_config=COALESCE(?2, proposed_config) WHERE id=?3",
+                rusqlite::params![now, applied_config, id],
+            )?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn list_equipment_templates(&self, industry: Option<&str>) -> anyhow::Result<Vec<crate::models::EquipmentTemplate>> {
+        let conn = self.conn.clone();
+        let industry = industry.map(|s| s.to_string());
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let sql = if industry.is_some() {
+                "SELECT id, industry, equipment_type, name, tag_template, alarm_template, dashboard_template, flow_template FROM ai_equipment_templates WHERE industry=?1"
+            } else {
+                "SELECT id, industry, equipment_type, name, tag_template, alarm_template, dashboard_template, flow_template FROM ai_equipment_templates"
+            };
+            let mut stmt = conn.prepare(sql)?;
+            let mut rows = if let Some(ind) = &industry { stmt.query(rusqlite::params![ind])? } else { stmt.query([])? };
+            let mut templates = Vec::new();
+            while let Some(row) = rows.next()? {
+                templates.push(crate::models::EquipmentTemplate {
+                    id: row.get(0)?, industry: row.get(1)?, equipment_type: row.get(2)?, name: row.get(3)?,
+                    tag_template: serde_json::from_str(&row.get::<_, String>(4)?).unwrap_or(serde_json::Value::Array(vec![])),
+                    alarm_template: serde_json::from_str(&row.get::<_, String>(5)?).unwrap_or(serde_json::Value::Array(vec![])),
+                    dashboard_template: serde_json::from_str(&row.get::<_, String>(6)?).unwrap_or(serde_json::Value::Object(Default::default())),
+                    flow_template: row.get::<_, Option<String>>(7)?.and_then(|s| serde_json::from_str(&s).ok()),
+                });
+            }
+            Ok(templates)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn seed_equipment_templates(&self) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let now = time::OffsetDateTime::now_utc().unix_timestamp();
+
+        let templates = vec![
+            ("water_wastewater", "pump_station", "Pump Station (Standard)",
+             r#"[{"name_pattern":"PMP{n}_RUN","register_area":"coil","default_type":"bool","unit":""},{"name_pattern":"PMP{n}_FLOW","register_area":"holding","default_type":"float32","unit":"m³/h"},{"name_pattern":"PMP{n}_PRESSURE","register_area":"holding","default_type":"float32","unit":"bar"},{"name_pattern":"TANK_LEVEL","register_area":"holding","default_type":"float32","unit":"%"}]"#,
+             r#"[{"tag_pattern":"PMP{n}_AMPS","severity":"warning","threshold":">45"},{"tag_pattern":"TANK_LEVEL","severity":"critical","threshold":">95"}]"#,
+             r#"{"widgets":[{"chart_type":"gauge","group":"pump_{n}"}]}"#),
+            ("power", "power_meter", "Power Meter (3-Phase)",
+             r#"[{"name_pattern":"VOLTAGE_L{n}","register_area":"holding","default_type":"float32","unit":"V"},{"name_pattern":"CURRENT_L{n}","register_area":"holding","default_type":"float32","unit":"A"},{"name_pattern":"POWER_ACTIVE","register_area":"holding","default_type":"float32","unit":"kW"},{"name_pattern":"POWER_FACTOR","register_area":"holding","default_type":"float32","unit":""},{"name_pattern":"FREQUENCY","register_area":"holding","default_type":"float32","unit":"Hz"},{"name_pattern":"ENERGY_TOTAL","register_area":"holding","default_type":"float32","unit":"kWh"}]"#,
+             r#"[{"tag_pattern":"VOLTAGE_L{n}","severity":"warning","threshold":"<200 or >250"},{"tag_pattern":"FREQUENCY","severity":"critical","threshold":"<49 or >51"}]"#,
+             r#"{"widgets":[{"chart_type":"sparkline","group":"voltage"},{"chart_type":"big_number","group":"totals"}]}"#),
+            ("manufacturing", "vfd", "VFD (Variable Frequency Drive)",
+             r#"[{"name_pattern":"VFD{n}_RUN","register_area":"coil","default_type":"bool","unit":""},{"name_pattern":"VFD{n}_FREQ_SETPOINT","register_area":"holding","default_type":"float32","unit":"Hz"},{"name_pattern":"VFD{n}_FREQ_ACTUAL","register_area":"holding","default_type":"float32","unit":"Hz"},{"name_pattern":"VFD{n}_CURRENT","register_area":"holding","default_type":"float32","unit":"A"},{"name_pattern":"VFD{n}_POWER","register_area":"holding","default_type":"float32","unit":"kW"}]"#,
+             r#"[{"tag_pattern":"VFD{n}_CURRENT","severity":"warning","threshold":">nominal*1.1"}]"#,
+             r#"{"widgets":[{"chart_type":"gauge","group":"vfd_{n}"}]}"#),
+            ("manufacturing", "motor_controller", "Motor Controller",
+             r#"[{"name_pattern":"MTR{n}_RUN","register_area":"coil","default_type":"bool","unit":""},{"name_pattern":"MTR{n}_TEMPERATURE","register_area":"holding","default_type":"float32","unit":"°C"},{"name_pattern":"MTR{n}_VIBRATION","register_area":"holding","default_type":"float32","unit":"mm/s"}]"#,
+             r#"[{"tag_pattern":"MTR{n}_TEMPERATURE","severity":"warning","threshold":">80"},{"tag_pattern":"MTR{n}_TEMPERATURE","severity":"critical","threshold":">95"}]"#,
+             r#"{"widgets":[{"chart_type":"gauge","group":"motor_{n}_temp"}]}"#),
+            ("water_wastewater", "flow_meter", "Flow Meter",
+             r#"[{"name_pattern":"FLOW{n}_INSTANT","register_area":"holding","default_type":"float32","unit":"m³/h"},{"name_pattern":"FLOW{n}_TOTAL","register_area":"holding","default_type":"float32","unit":"m³"}]"#,
+             "[]", r#"{"widgets":[{"chart_type":"sparkline","group":"flow_{n}"}]}"#),
+            ("hvac", "ahu", "Air Handling Unit (AHU)",
+             r#"[{"name_pattern":"AHU{n}_SUPPLY_TEMP","register_area":"holding","default_type":"float32","unit":"°C"},{"name_pattern":"AHU{n}_RETURN_TEMP","register_area":"holding","default_type":"float32","unit":"°C"},{"name_pattern":"AHU{n}_FILTER_DP","register_area":"holding","default_type":"float32","unit":"Pa"},{"name_pattern":"AHU{n}_HUMIDITY","register_area":"holding","default_type":"float32","unit":"%"}]"#,
+             r#"[{"tag_pattern":"AHU{n}_FILTER_DP","severity":"warning","threshold":">300"}]"#,
+             r#"{"widgets":[{"chart_type":"sparkline","group":"ahu_{n}"}]}"#),
+            ("manufacturing", "plc_digital_io", "PLC Digital I/O Module",
+             r#"[{"name_pattern":"DI{n}","register_area":"discrete","default_type":"bool","unit":""},{"name_pattern":"DO{n}","register_area":"coil","default_type":"bool","unit":""}]"#,
+             "[]", r#"{"widgets":[{"chart_type":"led","group":"digital_io"}]}"#),
+        ];
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            for (ind, etype, name, tags, alarms, dash) in &templates {
+                let _ = conn.execute(
+                    "INSERT OR IGNORE INTO ai_equipment_templates (industry, equipment_type, name, tag_template, alarm_template, dashboard_template, created_at) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                    rusqlite::params![ind, etype, name, tags, alarms, dash, now],
+                );
+            }
+            Ok(())
+        }).await.context("Task join failed")?
     }
 }

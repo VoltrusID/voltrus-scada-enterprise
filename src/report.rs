@@ -413,6 +413,146 @@ fn build_ascii_chart(points: &[DataPoint]) -> String {
     chart
 }
 
+/// Generate an analytics digest HTML email.
+///
+/// Produces a dark-themed HTML email summarising telemetry metrics,
+/// custom metric values, and SPC alert counts.
+pub fn generate_analytics_digest_html(
+    metrics_summary: &[(String, f64, f64, f64, f64)], // (name, min, max, avg, current)
+    custom_metrics: &[(String, f64, Option<String>)],  // (name, value, unit)
+    spc_alerts: &[(String, usize)],                    // (metric, violation_count)
+) -> String {
+    let now_ts = crate::timeutil::now_secs();
+    let timestamp = format_timestamp(now_ts);
+
+    // Metrics summary rows
+    let mut metrics_rows = String::new();
+    for (name, min, max, avg, current) in metrics_summary {
+        metrics_rows.push_str(&format!(
+            r#"<tr>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#e2e8f0;">{name}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;text-align:right;color:#94a3b8;">{min:.2}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;text-align:right;color:#94a3b8;">{max:.2}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;text-align:right;color:#94a3b8;">{avg:.2}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;text-align:right;color:#00d4aa;font-weight:600;">{current:.2}</td>
+            </tr>"#,
+            name = html_escape(name),
+        ));
+    }
+
+    // Custom metrics rows
+    let mut custom_rows = String::new();
+    for (name, value, unit) in custom_metrics {
+        let unit_str = unit.as_deref().unwrap_or("");
+        custom_rows.push_str(&format!(
+            r#"<tr>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#e2e8f0;">{name}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;text-align:right;color:#00d4aa;font-weight:600;">{value:.2} {unit}</td>
+            </tr>"#,
+            name = html_escape(name),
+            unit = html_escape(unit_str),
+        ));
+    }
+
+    // SPC alerts section
+    let spc_section = if spc_alerts.is_empty() {
+        r#"<p style="color:#64748b;font-style:italic;">No SPC violations detected.</p>"#.to_string()
+    } else {
+        let mut alert_rows = String::new();
+        for (metric, count) in spc_alerts {
+            alert_rows.push_str(&format!(
+                r#"<tr>
+                    <td style="padding:8px 12px;border-bottom:1px solid #333;color:#e2e8f0;">{metric}</td>
+                    <td style="padding:8px 12px;border-bottom:1px solid #333;text-align:right;color:#f59e0b;font-weight:600;">{count}</td>
+                </tr>"#,
+                metric = html_escape(metric),
+            ));
+        }
+        format!(
+            r#"<table style="width:100%;border-collapse:collapse;margin-top:12px;">
+                <thead>
+                    <tr style="background:#1a1a1e;">
+                        <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Metric</th>
+                        <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Violations</th>
+                    </tr>
+                </thead>
+                <tbody>{alert_rows}</tbody>
+            </table>"#
+        )
+    };
+
+    let metrics_table = if metrics_rows.is_empty() {
+        r#"<p style="color:#64748b;font-style:italic;">No telemetry data available for the reporting period.</p>"#.to_string()
+    } else {
+        format!(
+            r#"<table style="width:100%;border-collapse:collapse;margin-top:12px;">
+                <thead>
+                    <tr style="background:#1a1a1e;">
+                        <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Metric</th>
+                        <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Min</th>
+                        <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Max</th>
+                        <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Avg</th>
+                        <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Current</th>
+                    </tr>
+                </thead>
+                <tbody>{metrics_rows}</tbody>
+            </table>"#
+        )
+    };
+
+    let custom_section = if custom_rows.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<h2 style="color:#f1f5f9;border-bottom:2px solid #333;padding-bottom:8px;margin-top:28px;font-size:18px;">Custom Metrics</h2>
+            <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+                <thead>
+                    <tr style="background:#1a1a1e;">
+                        <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Metric</th>
+                        <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #333;color:#94a3b8;font-size:12px;text-transform:uppercase;">Value</th>
+                    </tr>
+                </thead>
+                <tbody>{custom_rows}</tbody>
+            </table>"#
+        )
+    };
+
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:24px;background:#1a1a1e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#e2e8f0;line-height:1.5;">
+<div style="max-width:720px;margin:0 auto;background:#1a1a1e;border-radius:12px;border:1px solid #333;overflow:hidden;">
+
+    <div style="background:linear-gradient(135deg,#00d4aa,#0a7e5e);padding:28px 32px;">
+        <h1 style="margin:0 0 8px 0;font-size:22px;color:#ffffff;">Voltrus Analytics Digest</h1>
+        <p style="margin:0;opacity:0.9;font-size:14px;color:#ffffff;">Generated {timestamp}</p>
+    </div>
+
+    <div style="padding:28px 32px;">
+        <h2 style="color:#f1f5f9;border-bottom:2px solid #333;padding-bottom:8px;font-size:18px;">Metrics Summary</h2>
+        {metrics_table}
+
+        {custom_section}
+
+        <h2 style="color:#f1f5f9;border-bottom:2px solid #333;padding-bottom:8px;margin-top:28px;font-size:18px;">SPC Alerts</h2>
+        {spc_section}
+    </div>
+
+    <div style="padding:16px 32px;background:#111;border-top:1px solid #333;font-size:12px;color:#64748b;text-align:center;">
+        Voltrus SCADA Monitoring System &middot; Analytics Digest
+    </div>
+
+</div>
+</body>
+</html>"#,
+        timestamp = timestamp,
+        metrics_table = metrics_table,
+        custom_section = custom_section,
+        spc_section = spc_section,
+    )
+}
+
 // ── Tests ──
 
 #[cfg(test)]
@@ -454,6 +594,8 @@ mod tests {
             email_recipients: "[]".to_string(),
             last_generated: None,
             created_at: 1700000000,
+            report_type: None,
+            analytics_config: None,
         };
         let filename = report_filename(&report);
         assert!(filename.starts_with("report_"));
@@ -471,6 +613,8 @@ mod tests {
             email_recipients: "[]".to_string(),
             last_generated: None,
             created_at: 1700000000,
+            report_type: None,
+            analytics_config: None,
         };
         let filename = report_filename(&report);
         assert!(filename.ends_with("_weekly.html"));
