@@ -308,6 +308,30 @@ pub(crate) fn security_mode_to_opcua(mode: &OpcUaSecurityMode) -> MessageSecurit
     }
 }
 
+// ── One-shot write function ──
+
+/// Write a single f64 value to an OPC UA node.
+///
+/// This is currently a stub because the `async-opcua` 0.18.0 client requires a
+/// running session event-loop for write operations. The subscription-based
+/// polling model in `try_connect_and_subscribe` holds a long-lived session;
+/// performing an ad-hoc write requires building a separate client + event loop
+/// which adds significant complexity.
+///
+/// Returns `WriteResult` with `success: false` and an explanatory error.
+pub async fn write_tag(
+    _endpoint: &str,
+    _node_id: &str,
+    _value: f64,
+) -> WriteResult {
+    WriteResult {
+        success: false,
+        device_response: None,
+        error: Some("OPC UA write not yet supported: requires session-based write service (async-opcua 0.18.0)".into()),
+        latency_ms: 0,
+    }
+}
+
 /// Exponential backoff for connection retries.
 struct Backoff {
     attempt: u32,

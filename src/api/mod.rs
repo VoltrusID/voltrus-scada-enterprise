@@ -31,6 +31,7 @@ mod security;
 mod annotations;
 mod shift_handover;
 mod user_notifications;
+mod commands;
 
 use axum::{
     extract::{Request, State},
@@ -246,6 +247,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/user-notifications", get(user_notifications::list_notifications))
         .route("/api/v1/user-notifications/{id}/read", put(user_notifications::mark_read))
         .route("/api/v1/user-notifications/{id}", delete(user_notifications::dismiss_notification))
+        // Command read endpoints (authenticated users)
+        .route("/api/v1/commands", get(commands::list_commands))
+        .route("/api/v1/commands/{command_id}", get(commands::get_command_status))
+        .route("/api/v1/commands/{command_id}/audit", get(commands::get_command_audit))
         .route("/api/v1/oee/metrics", get(oee::get_oee_metrics))
         .route("/api/v1/oee/downtime", get(oee::list_downtime))
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
@@ -383,6 +388,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/shift-handover", get(shift_handover::list_shift_handovers).post(shift_handover::create_shift_handover))
         .route("/api/v1/shift-handover/auto-report", get(shift_handover::auto_shift_report))
         .route("/api/v1/shift-handover/{id}", get(shift_handover::get_shift_handover))
+        // Command write/cancel routes (admin-only)
+        .route("/api/v1/tags/{id}/write", post(commands::write_tag))
+        .route("/api/v1/commands/{command_id}/cancel", post(commands::cancel_command))
+        .route("/api/v1/data-sources/{id}/write-policy", patch(commands::update_write_policy))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

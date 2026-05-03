@@ -27,6 +27,7 @@ mod analytics;
 mod compliance;
 mod compression;
 mod deadband;
+mod command_queue;
 mod recipe;
 mod video;
 
@@ -1014,6 +1015,15 @@ EXAMPLES:
             oee::run_oee_monitor(oee_cache, oee_storage).await;
         });
         tracing::info!("OEE monitor started");
+    }
+
+    // Spawn command queue processor
+    {
+        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone());
+        tokio::spawn(async move {
+            queue.run().await;
+        });
+        tracing::info!("Command queue processor started");
     }
 
     let auth_secret = match &app_config.auth_secret {
