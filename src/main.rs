@@ -798,6 +798,21 @@ EXAMPLES:
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
+
+            // Initialize deadband filter
+            let deadband_filter = crate::deadband::DeadbandFilter::new();
+            match storage.get_deadband_configs().await {
+                Ok(configs) => {
+                    deadband_filter.load_configs(
+                        configs.into_iter().map(|(d, m, t, v)| (d, m, crate::deadband::DeadbandEntry {
+                            deadband_type: if t == "absolute" { crate::deadband::DeadbandType::Absolute } else { crate::deadband::DeadbandType::Percent },
+                            deadband_value: v,
+                        })).collect()
+                    ).await;
+                }
+                Err(e) => tracing::warn!("Failed to load deadband configs: {e}"),
+            }
+
             loop {
                 ticker.tick().await;
                 let snapshots = cache.get_all().await;
@@ -815,7 +830,8 @@ EXAMPLES:
                         ));
                     }
                 }
-                if let Err(e) = storage.insert_batch(&records).await {
+                let filtered = deadband_filter.filter_batch(&records).await;
+                if let Err(e) = storage.insert_batch_hot(&filtered).await {
                     tracing::error!("Persistence error: {e}");
                 }
 
@@ -980,6 +996,15 @@ EXAMPLES:
         });
     }
 
+    // Compression workers
+    if app_config.compression.enabled {
+        let storage = storage.clone();
+        let config = app_config.compression.clone();
+        tokio::spawn(async move {
+            run_compression_task(storage, config).await;
+        });
+    }
+
     // Spawn OEE monitor (Starter tier and above)
     if license_tier.oee() {
         let oee_cache = cache.clone();
@@ -1096,4 +1121,40 @@ EXAMPLES:
 
     tracing::info!("Server shutdown complete");
     Ok(())
+}
+
+async fn run_compression_task(storage: Storage, config: crate::models::CompressionConfig) {
+    tracing::info!(
+        "Compression task started (hot→warm: {}s, warm→cold: {}s)",
+        config.hot_to_warm_interval_secs,
+        config.warm_to_cold_interval_secs,
+    );
+
+    let mut hot_interval = tokio::time::interval(
+        std::time::Duration::from_secs(config.hot_to_warm_interval_secs)
+    );
+    let mut cold_interval = tokio::time::interval(
+        std::time::Duration::from_secs(config.warm_to_cold_interval_secs)
+    );
+
+    loop {
+        tokio::select! {
+            _ = hot_interval.tick() => {
+                let now = crate::timeutil::now_secs() * 1000;
+                let cutoff = now - (config.hot_retention_secs as i64 * 1000);
+                match storage.compress_hot_to_warm(cutoff).await {
+                    Ok(count) => tracing::info!("Hot→Warm: compressed {count} rows"),
+                    Err(e) => tracing::error!("Hot→Warm compression failed: {e}"),
+                }
+            }
+            _ = cold_interval.tick() => {
+                let now = crate::timeutil::now_secs() * 1000;
+                let cutoff = now - (config.warm_retention_secs as i64 * 1000);
+                match storage.compress_warm_to_cold(cutoff).await {
+                    Ok(count) => tracing::info!("Warm→Cold: compressed {count} rows"),
+                    Err(e) => tracing::error!("Warm→Cold compression failed: {e}"),
+                }
+            }
+        }
+    }
 }
