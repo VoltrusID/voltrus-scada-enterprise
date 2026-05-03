@@ -5,7 +5,14 @@ use serde_json::json;
 
 use super::{AppState, AppError, AuthUser};
 
-/// GET /api/shortcuts — get shortcuts for the current user
+/// GET /api/v1/shortcuts — get shortcuts for the current user
+#[utoipa::path(
+    get,
+    path = "/api/v1/shortcuts",
+    responses((status = 200, description = "User keyboard shortcuts map")),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,
@@ -21,8 +28,15 @@ pub async fn get_shortcuts(
     Ok(Json(serde_json::Value::Object(map)))
 }
 
-/// PUT /api/shortcuts — save shortcuts, accept map of {data_source_id: shortcut}
+/// PUT /api/v1/shortcuts — save shortcuts, accept map of {data_source_id: shortcut}
 /// If value is null or empty string, delete the entry
+#[utoipa::path(
+    put,
+    path = "/api/v1/shortcuts",
+    responses((status = 200, description = "Shortcuts saved")),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,
@@ -66,8 +80,15 @@ pub async fn save_shortcuts(
     Ok(Json(json!({"ok": true})))
 }
 
-/// GET /api/nav-shortcuts — get fully resolved navigation shortcuts
+/// GET /api/v1/nav-shortcuts — get fully resolved navigation shortcuts
 /// Returns defaults merged with user overrides.
+#[utoipa::path(
+    get,
+    path = "/api/v1/nav-shortcuts",
+    responses((status = 200, description = "Navigation shortcuts map")),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_nav_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,
@@ -104,7 +125,14 @@ pub async fn get_nav_shortcuts(
     Ok(Json(serde_json::Value::Object(map)))
 }
 
-/// PUT /api/nav-shortcuts — save navigation shortcuts, accept map of {target: shortcut}
+/// PUT /api/v1/nav-shortcuts — save navigation shortcuts, accept map of {target: shortcut}
+#[utoipa::path(
+    put,
+    path = "/api/v1/nav-shortcuts",
+    responses((status = 200, description = "Navigation shortcuts saved")),
+    tag = "Settings",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_nav_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,

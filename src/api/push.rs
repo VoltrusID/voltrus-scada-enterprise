@@ -10,6 +10,12 @@ use super::{AppError, AppState, AuthUser};
 ///
 /// Returns the VAPID public key for frontend push subscription.
 /// Public endpoint (no auth required) — the key is not a secret.
+#[utoipa::path(
+    get,
+    path = "/api/v1/push/vapid-key",
+    responses((status = 200, description = "VAPID public key for push subscriptions")),
+    tag = "Notifications"
+)]
 pub async fn vapid_public_key(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -20,6 +26,14 @@ pub async fn vapid_public_key(
 }
 
 /// POST /api/v1/push/subscribe
+#[utoipa::path(
+    post,
+    path = "/api/v1/push/subscribe",
+    request_body = PushSubscribeRequest,
+    responses((status = 200, description = "Push subscription saved")),
+    tag = "Notifications",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn subscribe(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -33,6 +47,13 @@ pub async fn subscribe(
 }
 
 /// DELETE /api/v1/push/subscribe
+#[utoipa::path(
+    delete,
+    path = "/api/v1/push/subscribe",
+    responses((status = 200, description = "Push subscription removed")),
+    tag = "Notifications",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn unsubscribe(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,

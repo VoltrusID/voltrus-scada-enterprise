@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::{AppError, AuthUser, AppState};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateApiKeyRequest {
     pub name: String,
     #[serde(default)]
@@ -20,6 +20,15 @@ fn default_permissions() -> String {
     "[]".to_string()
 }
 
+/// POST /api/v1/api-keys
+#[utoipa::path(
+    post,
+    path = "/api/v1/api-keys",
+    request_body = CreateApiKeyRequest,
+    responses((status = 200, description = "API key created")),
+    tag = "API Keys",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_api_key(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -56,6 +65,14 @@ pub async fn create_api_key(
     .into_response())
 }
 
+/// GET /api/v1/api-keys
+#[utoipa::path(
+    get,
+    path = "/api/v1/api-keys",
+    responses((status = 200, description = "List API keys")),
+    tag = "API Keys",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_api_keys(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -63,6 +80,15 @@ pub async fn list_api_keys(
     Ok(Json(json!({ "keys": keys })))
 }
 
+/// DELETE /api/v1/api-keys/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/api-keys/{id}",
+    params(("id" = i64, Path, description = "API key ID")),
+    responses((status = 200, description = "API key revoked")),
+    tag = "API Keys",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn revoke_api_key(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

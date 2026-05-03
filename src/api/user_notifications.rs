@@ -15,6 +15,14 @@ pub struct ListNotificationsQuery {
 
 // ── Handlers ──
 
+/// GET /api/v1/user-notifications
+#[utoipa::path(
+    get,
+    path = "/api/v1/user-notifications",
+    responses((status = 200, description = "List user notifications")),
+    tag = "Notifications",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_notifications(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -44,6 +52,15 @@ pub async fn list_notifications(
     })))
 }
 
+/// PUT /api/v1/user-notifications/{id}/read
+#[utoipa::path(
+    put,
+    path = "/api/v1/user-notifications/{id}/read",
+    params(("id" = i64, Path, description = "Notification ID")),
+    responses((status = 200, description = "Notification marked as read")),
+    tag = "Notifications",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn mark_read(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -80,6 +97,15 @@ pub async fn mark_read(
     Ok(Json(json!({ "ok": true })).into_response())
 }
 
+/// DELETE /api/v1/user-notifications/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/user-notifications/{id}",
+    params(("id" = i64, Path, description = "Notification ID")),
+    responses((status = 204, description = "Notification dismissed")),
+    tag = "Notifications",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn dismiss_notification(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -116,4 +142,4 @@ pub async fn dismiss_notification(
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
-// ── Tests ──
+// ── Tests ─

@@ -7,6 +7,14 @@ use tokio_stream::StreamExt;
 
 use crate::api::AppState;
 
+/// GET /api/v1/stream — SSE stream of real-time events
+#[utoipa::path(
+    get,
+    path = "/api/v1/stream",
+    responses((status = 200, description = "SSE stream of real-time events")),
+    tag = "Stream",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stream(State(state): State<AppState>) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let stream = state
         .cache

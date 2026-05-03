@@ -7,6 +7,14 @@ use crate::models::*;
 use super::{AppError, AppState};
 
 /// GET /api/screens/{id}/layouts — get layouts for a screen, returned as {lg:[], md:[], sm:[]}
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/layouts",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Screen layouts by breakpoint")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -32,6 +40,14 @@ pub async fn get_layouts(
 }
 
 /// PUT /api/screens/{id}/layouts — accept {lg:[], md:[], sm:[]} and upsert per breakpoint
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/layouts",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Layouts saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -55,6 +71,14 @@ pub async fn save_layouts(
 }
 
 /// GET /api/screens/{id}/twin-layouts — get twin layouts and camera for a screen
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/twin-layouts",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Twin layouts and camera settings")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_twin_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -71,6 +95,14 @@ pub async fn get_twin_layouts(
 }
 
 /// PUT /api/screens/{id}/twin-layouts — accept {items: [...], camera?: {x,y,z}}
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/twin-layouts",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Twin layouts saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_twin_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -108,6 +140,14 @@ pub async fn save_twin_layouts(
 }
 
 /// GET /api/screens/{id}/canvas-layouts — get canvas layouts for a screen
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/canvas-layouts",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, body = Vec<crate::models::CanvasLayoutItem>)),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_canvas_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -117,6 +157,14 @@ pub async fn get_canvas_layouts(
 }
 
 /// PUT /api/screens/{id}/canvas-layouts — accept array of {data_source_id, x, y, width, height}
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/canvas-layouts",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Canvas layouts saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_canvas_layouts(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -145,6 +193,14 @@ pub async fn save_canvas_layouts(
 }
 
 /// GET /api/screens/{id}/twin-connections
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/twin-connections",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, body = Vec<crate::models::TwinConnection>)),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_twin_connections(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -154,6 +210,14 @@ pub async fn get_twin_connections(
 }
 
 /// PUT /api/screens/{id}/twin-connections — accept array of {from_id, to_id}
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/twin-connections",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Twin connections saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_twin_connections(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -177,6 +241,14 @@ pub async fn save_twin_connections(
 }
 
 /// PUT /api/screens/{id}/twin-camera — save camera position {x, y, z}
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/twin-camera",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Twin camera position saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_twin_camera(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -189,6 +261,14 @@ pub async fn save_twin_camera(
 }
 
 /// GET /api/screens/{id}/scada-equipment
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/scada-equipment",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, body = Vec<crate::models::ScadaEquipment>)),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_scada_equipment(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -198,6 +278,14 @@ pub async fn get_scada_equipment(
 }
 
 /// PUT /api/screens/{id}/scada-equipment
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/scada-equipment",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "SCADA equipment saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_scada_equipment(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -232,6 +320,14 @@ pub async fn save_scada_equipment(
 }
 
 /// GET /api/screens/{id}/scada-connections
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/scada-connections",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, body = Vec<crate::models::ScadaConnection>)),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_scada_connections(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -241,6 +337,14 @@ pub async fn get_scada_connections(
 }
 
 /// PUT /api/screens/{id}/scada-connections
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/scada-connections",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "SCADA connections saved")),
+    tag = "Layouts",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn save_scada_connections(
     State(state): State<AppState>,
     Path(id): Path<String>,

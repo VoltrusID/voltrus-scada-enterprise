@@ -8,12 +8,26 @@ use crate::models::*;
 use super::{AppError, AppState, AuthUser};
 
 /// GET /api/screens — list all screens (devices)
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens",
+    responses((status = 200, body = Vec<crate::models::Device>)),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_screens(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let devices = state.storage.list_devices().await?;
     Ok(Json(devices))
 }
 
 /// POST /api/screens — create a new screen
+#[utoipa::path(
+    post,
+    path = "/api/v1/screens",
+    responses((status = 201, body = crate::models::Device)),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_screen(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -69,6 +83,14 @@ pub async fn create_screen(
 }
 
 /// PUT /api/screens/{id} — update a screen
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Screen updated")),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_screen(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -94,6 +116,14 @@ pub async fn update_screen(
 }
 
 /// DELETE /api/screens/{id} — delete a screen and its data source associations
+#[utoipa::path(
+    delete,
+    path = "/api/v1/screens/{id}",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, description = "Screen deleted")),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_screen(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -117,6 +147,14 @@ pub async fn delete_screen(
 }
 
 /// GET /api/screens/{id}/data-sources — list data sources for a screen
+#[utoipa::path(
+    get,
+    path = "/api/v1/screens/{id}/data-sources",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 200, body = Vec<crate::models::DataSource>)),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_screen_sensors(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -126,6 +164,14 @@ pub async fn list_screen_sensors(
 }
 
 /// POST /api/screens/{id}/data-sources — add a data source to a screen
+#[utoipa::path(
+    post,
+    path = "/api/v1/screens/{id}/data-sources",
+    params(("id" = String, Path, description = "Screen ID")),
+    responses((status = 201, description = "Data source added to screen")),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn add_screen_sensor(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -151,6 +197,17 @@ pub async fn add_screen_sensor(
 }
 
 /// PUT /api/screens/{id}/data-sources/{data_source_id} — update screen data source sort order
+#[utoipa::path(
+    put,
+    path = "/api/v1/screens/{id}/data-sources/{sensor_id}",
+    params(
+        ("id" = String, Path, description = "Screen ID"),
+        ("sensor_id" = i64, Path, description = "Data source ID")
+    ),
+    responses((status = 200, description = "Screen data source updated")),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_screen_sensor(
     State(state): State<AppState>,
     Path((id, data_source_id)): Path<(String, i64)>,
@@ -169,6 +226,17 @@ pub async fn update_screen_sensor(
 }
 
 /// DELETE /api/screens/{id}/data-sources/{data_source_id} — remove data source from screen
+#[utoipa::path(
+    delete,
+    path = "/api/v1/screens/{id}/data-sources/{sensor_id}",
+    params(
+        ("id" = String, Path, description = "Screen ID"),
+        ("sensor_id" = i64, Path, description = "Data source ID")
+    ),
+    responses((status = 200, description = "Data source removed from screen")),
+    tag = "Screens",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn remove_screen_sensor(
     State(state): State<AppState>,
     Path((id, data_source_id)): Path<(String, i64)>,
