@@ -29,6 +29,23 @@ use utoipa::{Modify, OpenApi};
         crate::api::settings::update_alarm_cooldown,
         // License
         crate::api::license::get_license_status,
+        // Alarms
+        crate::api::alarms::active_alarm_count,
+        crate::api::alarms::list_alarms,
+        crate::api::alarms::acknowledge_alarm,
+        crate::api::alarms::acknowledge_all,
+        crate::api::alarms::shelf_alarm,
+        crate::api::alarms::unshelf_alarm,
+        crate::api::alarms::list_alarm_audit,
+        crate::api::alarms::list_alarm_analytics,
+        crate::api::alarms::get_alarm_summary,
+        // Commands
+        crate::api::commands::write_tag,
+        crate::api::commands::get_command_status,
+        crate::api::commands::list_commands,
+        crate::api::commands::cancel_command,
+        crate::api::commands::get_command_audit,
+        crate::api::commands::update_write_policy,
     ),
     components(schemas(
         crate::models::HealthResponse,
@@ -41,6 +58,19 @@ use utoipa::{Modify, OpenApi};
         crate::models::ChangePasswordRequest,
         crate::api::auth::SamlAcsRequest,
         crate::api::auth::LdapLoginRequest,
+        // Alarm schemas
+        crate::models::Alarm,
+        crate::models::AlarmAuditEntry,
+        crate::models::AlarmSummary,
+        crate::models::AlarmAnalyticsEntry,
+        crate::models::ShelfAlarmRequest,
+        crate::api::alarms::AlarmListQuery,
+        // Command schemas
+        crate::models::Command,
+        crate::models::CommandAuditEntry,
+        crate::models::WriteRequest,
+        crate::models::CommandQuery,
+        crate::models::WritePolicyUpdate,
     )),
     tags(
         (name = "Auth", description = "Authentication and user management"),

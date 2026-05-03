@@ -7,6 +7,12 @@ use crate::models::*;
 use super::{AppError, AppState, AuthUser};
 
 /// GET /api/alarms/active/count
+#[utoipa::path(
+    get,
+    path = "/api/v1/alarms/active/count",
+    responses((status = 200, description = "Active alarm count")),
+    tag = "Alarms"
+)]
 pub async fn active_alarm_count(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -14,7 +20,7 @@ pub async fn active_alarm_count(
     Ok(Json(json!({ "count": count })))
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct AlarmListQuery {
     pub status: Option<String>,
     pub priority: Option<String>,
@@ -24,6 +30,13 @@ pub struct AlarmListQuery {
 }
 
 /// GET /api/alarms?status=active|acknowledged|all&priority=...&state=...&shelved=true|false&limit=50
+#[utoipa::path(
+    get,
+    path = "/api/v1/alarms",
+    params(AlarmListQuery),
+    responses((status = 200, body = Vec<crate::models::Alarm>)),
+    tag = "Alarms"
+)]
 pub async fn list_alarms(
     State(state): State<AppState>,
     Query(params): Query<AlarmListQuery>,
@@ -84,6 +97,13 @@ async fn get_cooldown_secs(storage: &crate::storage::Storage) -> i64 {
 }
 
 /// POST /api/alarms/{id}/acknowledge
+#[utoipa::path(
+    post,
+    path = "/api/v1/alarms/{id}/acknowledge",
+    params(("id" = i64, Path, description = "Alarm ID")),
+    responses((status = 200, description = "Alarm acknowledged"), (status = 404)),
+    tag = "Alarms"
+)]
 pub async fn acknowledge_alarm(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -95,6 +115,12 @@ pub async fn acknowledge_alarm(
 }
 
 /// POST /api/alarms/acknowledge-all
+#[utoipa::path(
+    post,
+    path = "/api/v1/alarms",
+    responses((status = 200, description = "All alarms acknowledged")),
+    tag = "Alarms"
+)]
 pub async fn acknowledge_all(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -105,6 +131,14 @@ pub async fn acknowledge_all(
 }
 
 /// POST /api/v1/alarms/{id}/shelf
+#[utoipa::path(
+    post,
+    path = "/api/v1/alarms/{id}/shelf",
+    params(("id" = i64, Path, description = "Alarm ID")),
+    request_body = crate::models::ShelfAlarmRequest,
+    responses((status = 200, description = "Alarm shelved"), (status = 404)),
+    tag = "Alarms"
+)]
 pub async fn shelf_alarm(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -121,6 +155,13 @@ pub async fn shelf_alarm(
 }
 
 /// POST /api/v1/alarms/{id}/unshelf
+#[utoipa::path(
+    post,
+    path = "/api/v1/alarms/{id}/unshelf",
+    params(("id" = i64, Path, description = "Alarm ID")),
+    responses((status = 200, description = "Alarm unshelved"), (status = 404)),
+    tag = "Alarms"
+)]
 pub async fn unshelf_alarm(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -138,6 +179,12 @@ pub struct AuditQuery {
 }
 
 /// GET /api/v1/alarms/audit?alarm_id=X&from=TS&to=TS
+#[utoipa::path(
+    get,
+    path = "/api/v1/alarms/audit",
+    responses((status = 200, body = Vec<crate::models::AlarmAuditEntry>)),
+    tag = "Alarms"
+)]
 pub async fn list_alarm_audit(
     State(state): State<AppState>,
     Query(params): Query<AuditQuery>,
@@ -157,6 +204,12 @@ pub struct AnalyticsQuery {
 }
 
 /// GET /api/v1/alarms/analytics?from=TS&to=TS
+#[utoipa::path(
+    get,
+    path = "/api/v1/alarms/analytics",
+    responses((status = 200, body = Vec<crate::models::AlarmAnalyticsEntry>)),
+    tag = "Alarms"
+)]
 pub async fn list_alarm_analytics(
     State(state): State<AppState>,
     Query(params): Query<AnalyticsQuery>,
@@ -169,6 +222,12 @@ pub async fn list_alarm_analytics(
 }
 
 /// GET /api/v1/alarms/summary
+#[utoipa::path(
+    get,
+    path = "/api/v1/alarms/summary",
+    responses((status = 200, body = crate::models::AlarmSummary)),
+    tag = "Alarms"
+)]
 pub async fn get_alarm_summary(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
