@@ -2,10 +2,22 @@ use anyhow::Context;
 use axum::extract::{Extension, Path, State};
 use axum::response::IntoResponse;
 use axum::Json;
+use serde::Deserialize;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
 use crate::models::{ModbusRegisterInput, ScanRegisterRequest, Endianness};
+
+#[derive(Debug, Deserialize)]
+pub struct ScanNetworkRequest {
+    pub range: String,
+    #[serde(default = "default_scan_port")]
+    pub port: u16,
+}
+
+fn default_scan_port() -> u16 {
+    502
+}
 
 pub async fn list_modbus_devices(
     State(state): State<AppState>,
@@ -222,4 +234,36 @@ pub async fn scan_modbus_registers(
         body.start_addr, body.end_addr, &endianness, &body.register_area, body.scan_delay_ms,
     ).await?;
     Ok(Json(results))
+}
+
+/// POST /api/v1/modbus-devices/scan-network
+/// Scan a subnet for Modbus TCP devices (Starter+ license required).
+pub async fn scan_network(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<ScanNetworkRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.auto_discovery() {
+        return Err(AppError(anyhow::anyhow!(
+            "Network discovery requires Starter tier or higher. Upgrade at https://voltrus.id"
+        )));
+    }
+
+    if body.range.is_empty() {
+        return Err(AppError(anyhow::anyhow!("Range (CIDR) is required")));
+    }
+
+    let devices = crate::discovery::scan_network(&body.range, body.port, 500).await?;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "scan_network".to_string(),
+        username: auth.username.clone(),
+        resource: format!("range:{}", body.range),
+        details: Some(format!("found {} device(s)", devices.len())),
+    });
+
+    Ok(Json(json!({
+        "devices": devices,
+        "count": devices.len(),
+    })))
 }

@@ -15,6 +15,7 @@ pub async fn get_branding(
             "title": "Voltrus Lite",
             "subtitle": "Monitoring Dashboard",
             "logo": "",
+            "theme_level": "none",
         })));
     }
 
@@ -36,10 +37,17 @@ pub async fn get_branding(
         }
     }
 
+    let theme_level = if state.license_tier.theme_full() {
+        "full"
+    } else {
+        "basic"
+    };
+
     Ok(Json(json!({
         "title": title,
         "subtitle": subtitle,
         "logo": logo,
+        "theme_level": theme_level,
     })))
 }
 
@@ -51,6 +59,19 @@ pub async fn update_branding(
 ) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.white_label() {
         return Err(AppError(anyhow::anyhow!("White-label branding requires Starter tier or above. Upgrade at https://voltrus.id")));
+    }
+
+    // Starter tier can only update logo (basic branding).
+    // Professional+ can update title, subtitle, and logo (full theme).
+    let full_theme = state.license_tier.theme_full();
+
+    if !full_theme {
+        // Starter: only logo updates allowed
+        if body.get("title").is_some() || body.get("subtitle").is_some() {
+            return Err(AppError(anyhow::anyhow!(
+                "Full theme customization requires Professional tier. Starter can only update the logo."
+            )));
+        }
     }
 
     if let Some(title) = body.get("title").and_then(|v| v.as_str()) {
