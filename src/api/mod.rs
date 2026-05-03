@@ -36,6 +36,12 @@ mod shift_handover;
 mod user_notifications;
 mod commands;
 mod ai_copilot;
+mod assets;
+mod maintenance;
+mod firmware_catalog;
+mod snmp_scan;
+mod asset_import;
+mod nis2_export;
 
 use axum::{
     extract::{Request, State},
@@ -274,6 +280,15 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
         )
+        // Asset inventory read routes (authenticated users)
+        .route("/api/v1/assets", get(assets::list_assets))
+        .route("/api/v1/assets/{id}", get(assets::get_asset))
+        .route("/api/v1/assets/{id}/maintenance", get(maintenance::list_maintenance))
+        .route("/api/v1/assets/ip-conflicts", get(assets::get_ip_conflicts))
+        .route("/api/v1/firmware-catalog", get(firmware_catalog::list_firmware_catalog))
+        .route("/api/v1/snmp/scan/status", get(snmp_scan::get_scan_status))
+        .route("/api/v1/snmp/scan/results", get(snmp_scan::list_scan_results))
+        .route("/api/v1/assets/nis2-export", get(nis2_export::nis2_export))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -439,6 +454,16 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/ai/generate/flow-rule", post(ai_copilot::generate_flow_rule))
         .route("/api/v1/ai/templates", get(ai_copilot::list_templates))
         .route("/api/v1/ai/generate/from-template", post(ai_copilot::generate_from_template))
+        // Asset inventory admin routes (write operations)
+        .route("/api/v1/assets", post(assets::create_asset))
+        .route("/api/v1/assets/{id}", patch(assets::update_asset).delete(assets::delete_asset))
+        .route("/api/v1/assets/{id}/maintenance", post(maintenance::create_maintenance))
+        .route("/api/v1/firmware-catalog", post(firmware_catalog::create_firmware_catalog))
+        .route("/api/v1/firmware-catalog/{id}", patch(firmware_catalog::update_firmware_catalog).delete(firmware_catalog::delete_firmware_catalog))
+        .route("/api/v1/snmp/scan", post(snmp_scan::start_scan))
+        .route("/api/v1/snmp/scan/{ip}/import", post(snmp_scan::import_scanned_device))
+        .route("/api/v1/assets/import", post(asset_import::upload_import))
+        .route("/api/v1/assets/import/confirm", post(asset_import::confirm_import))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
