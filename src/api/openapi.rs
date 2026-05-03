@@ -212,3 +212,45 @@ impl Modify for SecurityAddon {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_openapi_spec_generates_valid_json() {
+        let spec = ApiDoc::openapi();
+        let json = serde_json::to_string_pretty(&spec)
+            .expect("OpenAPI spec should serialize to JSON");
+        assert!(!json.is_empty());
+        assert!(json.contains("\"openapi\""));
+        assert!(json.contains("\"paths\""));
+        assert!(json.contains("\"components\""));
+        assert!(json.contains("\"securitySchemes\""));
+        assert!(json.contains("\"api_key\""));
+        assert!(json.contains("\"cookie_auth\""));
+    }
+
+    #[test]
+    fn test_openapi_spec_has_tags() {
+        let spec = ApiDoc::openapi();
+        let tags = spec.tags.as_ref().expect("should have tags");
+        let tag_names: Vec<&str> = tags.iter().map(|t| t.name.as_str()).collect();
+        assert!(tag_names.contains(&"Auth"));
+        assert!(tag_names.contains(&"Data"));
+        assert!(tag_names.contains(&"Devices"));
+        assert!(tag_names.contains(&"Alarms"));
+        assert!(tag_names.contains(&"Commands"));
+        assert!(tag_names.contains(&"System"));
+    }
+
+    #[test]
+    fn test_openapi_spec_has_paths() {
+        let spec = ApiDoc::openapi();
+        let paths = &spec.paths;
+        assert!(paths.paths.len() > 20, "Should have at least 20 paths, got {}", paths.paths.len());
+        assert!(paths.paths.contains_key("/api/v1/health"), "Should have /api/v1/health");
+        assert!(paths.paths.contains_key("/api/v1/data"), "Should have /api/v1/data");
+        assert!(paths.paths.contains_key("/api/v1/auth/login"), "Should have /api/v1/auth/login");
+    }
+}
