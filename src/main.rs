@@ -30,6 +30,7 @@ mod recipe;
 mod video;
 mod sim_engine;
 mod script_engine;
+mod ws_manager;
 mod ws_types;
 
 use api::AppState;
