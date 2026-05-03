@@ -97,6 +97,7 @@ export interface Alarm {
   source_key: string
   source_name: string
   severity: 'warning' | 'critical'
+  priority: 'critical' | 'warning' | 'info'
   value: number
   threshold: number
   message: string
@@ -105,6 +106,34 @@ export interface Alarm {
   acknowledged_at: number | null
   acknowledged_by: string | null
   cooldown_until: number | null
+  shelved_until: number | null
+  shelved_reason: string | null
+}
+
+export interface AlarmSummary {
+  active_critical: number
+  active_warning: number
+  active_info: number
+  shelved: number
+  recent_24h: number
+  avg_ack_time_secs: number
+}
+
+export interface AlarmAuditEntry {
+  id: number
+  alarm_id: number
+  action: string
+  performed_by: string
+  details: string
+  created_at: number
+}
+
+export interface AlarmAnalyticsEntry {
+  source_key: string
+  source_name: string
+  trigger_count: number
+  avg_time_to_ack_secs: number
+  last_triggered_at: number
 }
 
 export interface ModbusDevice {
