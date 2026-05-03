@@ -1026,6 +1026,7 @@ pub struct Alarm {
     pub source_key: String,
     pub source_name: String,
     pub severity: String,
+    pub priority: String,
     pub value: f64,
     pub threshold: f64,
     pub message: String,
@@ -1034,12 +1035,54 @@ pub struct Alarm {
     pub acknowledged_at: Option<i64>,
     pub acknowledged_by: Option<String>,
     pub cooldown_until: Option<i64>,
+    pub shelved_until: Option<i64>,
+    pub shelved_by: Option<String>,
+    pub shelved_reason: Option<String>,
+    pub deadband: f64,
+    pub state: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct AlarmQuery {
     pub status: Option<String>,
     pub limit: Option<i64>,
+}
+
+// ── Alarm Management Overhaul types (v0.23.0) ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmAuditEntry {
+    pub id: i64,
+    pub alarm_id: i64,
+    pub action: String,
+    pub performed_by: String,
+    pub details: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ShelfAlarmRequest {
+    pub duration_secs: u64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmSummary {
+    pub active_critical: i64,
+    pub active_warning: i64,
+    pub active_info: i64,
+    pub shelved: i64,
+    pub recent_24h: i64,
+    pub avg_ack_time_secs: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlarmAnalyticsEntry {
+    pub source_key: String,
+    pub source_name: String,
+    pub trigger_count: i64,
+    pub avg_time_to_ack_secs: f64,
+    pub last_triggered_at: i64,
 }
 
 // ── Notification settings ──
