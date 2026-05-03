@@ -1,14 +1,13 @@
-use axum::extract::{Extension, Query, State};
+use axum::extract::{Extension, Json, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::compliance::*;
-use super::{AppError, AppState};
+use crate::models::*;
+use super::{AppError, AppState, AuthUser};
 
-// ── Query params for listing signatures ──
+// -- Query params for listing signatures --
 
 #[derive(Debug, Deserialize)]
 pub struct SignatureQuery {
@@ -20,8 +19,19 @@ fn license_forbidden() -> Response {
     (StatusCode::FORBIDDEN, Json(json!({"error": "CFR Part 11 requires Enterprise license"}))).into_response()
 }
 
-// ── Get compliance config ──
+// -- Get compliance config --
 
+/// GET /api/v1/compliance/config -- get compliance configuration
+#[utoipa::path(
+    get,
+    path = "/api/v1/compliance/config",
+    responses(
+        (status = 200, body = crate::compliance::ComplianceConfig),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_compliance_config(
     State(state): State<AppState>,
 ) -> Result<Response, AppError> {
@@ -30,16 +40,29 @@ pub async fn get_compliance_config(
     }
     match state.storage.get_compliance_config().await? {
         Some(config) => Ok(Json(config).into_response()),
-        None => Ok(Json(ComplianceConfig::default()).into_response()),
+        None => Ok(Json(crate::compliance::ComplianceConfig::default()).into_response()),
     }
 }
 
-// ── Update compliance config (admin-only) ──
+// -- Update compliance config (admin-only) --
 
+/// PUT /api/v1/compliance/config -- update compliance configuration
+#[utoipa::path(
+    put,
+    path = "/api/v1/compliance/config",
+    request_body = crate::compliance::UpdateComplianceConfigRequest,
+    responses(
+        (status = 200, description = "Config updated"),
+        (status = 400, description = "Invalid parameters"),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_compliance_config(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
-    Json(body): Json<UpdateComplianceConfigRequest>,
+    Json(body): Json<crate::compliance::UpdateComplianceConfigRequest>,
 ) -> Result<Response, AppError> {
     if !state.license_tier.cfr_part_11() {
         return Ok(license_forbidden());
@@ -47,7 +70,7 @@ pub async fn update_compliance_config(
 
     let current = state.storage.get_compliance_config().await?.unwrap_or_default();
 
-    let updated = ComplianceConfig {
+    let updated = crate::compliance::ComplianceConfig {
         auto_logout_minutes: body.auto_logout_minutes.unwrap_or(current.auto_logout_minutes),
         password_min_length: body.password_min_length.unwrap_or(current.password_min_length),
         password_require_uppercase: body.password_require_uppercase.unwrap_or(current.password_require_uppercase),
@@ -81,12 +104,25 @@ pub async fn update_compliance_config(
     Ok(Json(json!({"ok": true})).into_response())
 }
 
-// ── Create electronic signature ──
+// -- Create electronic signature --
 
+/// POST /api/v1/compliance/sign -- create electronic signature
+#[utoipa::path(
+    post,
+    path = "/api/v1/compliance/sign",
+    request_body = crate::compliance::CreateSignatureRequest,
+    responses(
+        (status = 200, description = "Signature created"),
+        (status = 400, description = "Invalid request"),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_electronic_signature(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
-    Json(body): Json<CreateSignatureRequest>,
+    Json(body): Json<crate::compliance::CreateSignatureRequest>,
 ) -> Result<Response, AppError> {
     if !state.license_tier.cfr_part_11() {
         return Ok(license_forbidden());
@@ -101,7 +137,7 @@ pub async fn create_electronic_signature(
     }
 
     let now = crate::timeutil::now_secs();
-    let signature_hash = generate_signature_hash(
+    let signature_hash = crate::compliance::generate_signature_hash(
         &auth.username,
         "sign",
         &body.resource_type,
@@ -139,8 +175,23 @@ pub async fn create_electronic_signature(
     })).into_response())
 }
 
-// ── List electronic signatures ──
+// -- List electronic signatures --
 
+/// GET /api/v1/compliance/signatures -- list electronic signatures
+#[utoipa::path(
+    get,
+    path = "/api/v1/compliance/signatures",
+    params(
+        ("resource_type" = Option<String>, Query, description = "Filter by resource type"),
+        ("resource_id" = Option<String>, Query, description = "Filter by resource ID"),
+    ),
+    responses(
+        (status = 200, body = Vec<crate::compliance::ElectronicSignature>),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_electronic_signatures(
     State(state): State<AppState>,
     Query(query): Query<SignatureQuery>,
@@ -160,7 +211,7 @@ pub async fn list_electronic_signatures(
     Ok(Json(signatures).into_response())
 }
 
-// ── Tests ──
+// -- Tests --
 
 #[cfg(test)]
 mod tests {
@@ -169,7 +220,7 @@ mod tests {
     #[test]
     fn test_update_compliance_config_request_deserialize() {
         let json = r#"{"auto_logout_minutes": 10}"#;
-        let req: UpdateComplianceConfigRequest = serde_json::from_str(json).unwrap();
+        let req: crate::compliance::UpdateComplianceConfigRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.auto_logout_minutes, Some(10));
         assert!(req.password_min_length.is_none());
     }
@@ -177,7 +228,7 @@ mod tests {
     #[test]
     fn test_create_signature_request_deserialize() {
         let json = r#"{"resource_type":"recipe","resource_id":"42","reason":"QA review","meaning":"Verified"}"#;
-        let req: CreateSignatureRequest = serde_json::from_str(json).unwrap();
+        let req: crate::compliance::CreateSignatureRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.resource_type, "recipe");
         assert_eq!(req.resource_id, "42");
         assert_eq!(req.reason, "QA review");

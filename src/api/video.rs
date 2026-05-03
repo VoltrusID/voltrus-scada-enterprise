@@ -7,9 +7,19 @@ use serde_json::json;
 use crate::api::{AppError, AppState, AuthUser};
 use crate::models::*;
 
-// ── Camera CRUD ──
+// -- Camera CRUD --
 
 /// GET /api/v1/cameras
+#[utoipa::path(
+    get,
+    path = "/api/v1/cameras",
+    responses(
+        (status = 200, description = "List of cameras"),
+        (status = 403, description = "Enterprise tier required")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_cameras(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -48,6 +58,18 @@ pub async fn list_cameras(
 }
 
 /// POST /api/v1/cameras
+#[utoipa::path(
+    post,
+    path = "/api/v1/cameras",
+    request_body = CreateCameraRequest,
+    responses(
+        (status = 201, description = "Camera created"),
+        (status = 400, description = "Invalid request"),
+        (status = 403, description = "Enterprise tier required")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_camera(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -123,6 +145,19 @@ pub async fn create_camera(
 }
 
 /// PUT /api/v1/cameras/{id}
+#[utoipa::path(
+    put,
+    path = "/api/v1/cameras/{id}",
+    params(("id" = i64, Path, description = "Camera ID")),
+    request_body = UpdateCameraRequest,
+    responses(
+        (status = 200, description = "Camera updated"),
+        (status = 400, description = "Invalid request"),
+        (status = 403, description = "Enterprise tier required")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_camera(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -174,6 +209,17 @@ pub async fn update_camera(
 }
 
 /// DELETE /api/v1/cameras/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/cameras/{id}",
+    params(("id" = i64, Path, description = "Camera ID")),
+    responses(
+        (status = 200, description = "Camera deleted"),
+        (status = 403, description = "Enterprise tier required")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_camera(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -206,9 +252,21 @@ pub async fn delete_camera(
     Ok(Json(json!({"ok": true})))
 }
 
-// ── Snapshot endpoints ──
+// -- Snapshot endpoints --
 
 /// POST /api/v1/cameras/{id}/snapshot
+#[utoipa::path(
+    post,
+    path = "/api/v1/cameras/{id}/snapshot",
+    params(("id" = i64, Path, description = "Camera ID")),
+    responses(
+        (status = 200, description = "Snapshot captured"),
+        (status = 403, description = "Enterprise tier required"),
+        (status = 404, description = "Camera not found")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn trigger_snapshot(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -297,6 +355,17 @@ pub async fn trigger_snapshot(
 }
 
 /// GET /api/v1/cameras/{id}/snapshots
+#[utoipa::path(
+    get,
+    path = "/api/v1/cameras/{id}/snapshots",
+    params(("id" = i64, Path, description = "Camera ID")),
+    responses(
+        (status = 200, body = Vec<CameraSnapshot>),
+        (status = 403, description = "Enterprise tier required")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_snapshots(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -317,6 +386,20 @@ pub async fn list_snapshots(
 }
 
 /// DELETE /api/v1/cameras/{id}/snapshots/{snapshot_id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/cameras/{id}/snapshots/{snapshot_id}",
+    params(
+        ("id" = i64, Path, description = "Camera ID"),
+        ("snapshot_id" = i64, Path, description = "Snapshot ID"),
+    ),
+    responses(
+        (status = 200, description = "Snapshot deleted"),
+        (status = 403, description = "Enterprise tier required")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_snapshot(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -347,6 +430,18 @@ pub async fn delete_snapshot(
 /// GET /api/v1/cameras/{id}/stream
 ///
 /// Returns the RTSP stream URL for the camera (client-side playback).
+#[utoipa::path(
+    get,
+    path = "/api/v1/cameras/{id}/stream",
+    params(("id" = i64, Path, description = "Camera ID")),
+    responses(
+        (status = 200, description = "Stream info with RTSP URL"),
+        (status = 403, description = "Enterprise tier required"),
+        (status = 404, description = "Camera not found")
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_stream_info(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,

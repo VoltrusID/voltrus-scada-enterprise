@@ -158,6 +158,78 @@ use utoipa::{Modify, OpenApi};
         crate::api::user_notifications::list_notifications,
         crate::api::user_notifications::mark_read,
         crate::api::user_notifications::dismiss_notification,
+        // OEE
+        crate::api::oee::get_oee_metrics,
+        crate::api::oee::list_downtime,
+        crate::api::oee::create_downtime,
+        crate::api::oee::close_downtime,
+        crate::api::oee::list_shifts,
+        crate::api::oee::create_shift,
+        crate::api::oee::delete_shift,
+        // Analytics
+        crate::api::analytics::get_aggregate,
+        crate::api::analytics::get_compare,
+        // Hub
+        crate::api::hub::list_sites,
+        crate::api::hub::create_site,
+        crate::api::hub::update_site,
+        crate::api::hub::delete_site,
+        crate::api::hub::start_site_connection,
+        crate::api::hub::stop_site_connection,
+        crate::api::hub::get_hub_status,
+        // Reports
+        crate::api::reports::list_reports,
+        crate::api::reports::create_report,
+        crate::api::reports::update_report,
+        crate::api::reports::delete_report,
+        crate::api::reports::generate_report,
+        // Recipes
+        crate::api::recipes::list_recipes,
+        crate::api::recipes::create_recipe,
+        crate::api::recipes::get_recipe,
+        crate::api::recipes::update_recipe,
+        crate::api::recipes::delete_recipe,
+        crate::api::recipes::load_recipe,
+        // RBAC
+        crate::api::rbac::list_roles,
+        crate::api::rbac::create_role,
+        crate::api::rbac::update_role,
+        crate::api::rbac::delete_role,
+        crate::api::rbac::assign_user_role,
+        // Compliance
+        crate::api::compliance::get_compliance_config,
+        crate::api::compliance::update_compliance_config,
+        crate::api::compliance::create_electronic_signature,
+        crate::api::compliance::list_electronic_signatures,
+        // Security
+        crate::api::security::list_security_events,
+        crate::api::security::export_security_csv,
+        crate::api::security::get_security_thresholds,
+        crate::api::security::update_security_thresholds,
+        // Annotations
+        crate::api::annotations::create_annotation,
+        crate::api::annotations::list_annotations,
+        crate::api::annotations::get_annotation,
+        crate::api::annotations::update_annotation,
+        crate::api::annotations::delete_annotation,
+        // Shift Handover
+        crate::api::shift_handover::create_shift_handover,
+        crate::api::shift_handover::list_shift_handovers,
+        crate::api::shift_handover::get_shift_handover,
+        crate::api::shift_handover::auto_shift_report,
+        // Video
+        crate::api::video::list_cameras,
+        crate::api::video::create_camera,
+        crate::api::video::update_camera,
+        crate::api::video::delete_camera,
+        crate::api::video::trigger_snapshot,
+        crate::api::video::list_snapshots,
+        crate::api::video::delete_snapshot,
+        crate::api::video::get_stream_info,
+        // Compression
+        crate::api::compression::get_compression_stats,
+        crate::api::compression::get_compression_config,
+        crate::api::compression::get_system_memory,
     ),
     components(schemas(
         crate::models::HealthResponse,
@@ -239,6 +311,57 @@ use utoipa::{Modify, OpenApi};
         crate::models::UserNotification,
         // API Key schemas
         crate::api::api_keys::CreateApiKeyRequest,
+        // OEE schemas
+        crate::models::OeeMetrics,
+        crate::models::DowntimeEvent,
+        crate::models::CreateDowntimeEventRequest,
+        crate::models::CloseDowntimeEventRequest,
+        crate::models::ShiftConfig,
+        crate::models::CreateShiftRequest,
+        // Analytics schemas
+        crate::analytics::AggregatedMetric,
+        crate::analytics::ComparisonResult,
+        // Hub schemas
+        crate::models::HubSite,
+        crate::models::CreateHubSiteRequest,
+        crate::models::UpdateHubSiteRequest,
+        // Report schemas
+        crate::models::Report,
+        crate::models::CreateReportRequest,
+        crate::models::UpdateReportRequest,
+        // Recipe schemas
+        crate::models::Recipe,
+        crate::models::CreateRecipeRequest,
+        crate::api::recipes::UpdateRecipeRequest,
+        // RBAC schemas
+        crate::models::Role,
+        crate::models::CreateRoleRequest,
+        crate::models::UpdateRoleRequest,
+        crate::models::AssignRoleRequest,
+        // Compliance schemas
+        crate::compliance::ComplianceConfig,
+        crate::compliance::UpdateComplianceConfigRequest,
+        crate::compliance::CreateSignatureRequest,
+        crate::compliance::ElectronicSignature,
+        // Security schemas
+        crate::models::SecurityEvent,
+        crate::models::SecurityThresholds,
+        // Annotation schemas
+        crate::models::Annotation,
+        crate::models::CreateAnnotationRequest,
+        crate::models::UpdateAnnotationRequest,
+        // Shift Handover schemas
+        crate::models::ShiftHandover,
+        crate::models::CreateShiftHandoverRequest,
+        // Video schemas
+        crate::models::Camera,
+        crate::models::CameraSnapshot,
+        crate::models::CreateCameraRequest,
+        crate::models::UpdateCameraRequest,
+        // Compression schemas
+        crate::api::compression::CompressionStatsResponse,
+        crate::api::compression::CompressionConfigResponse,
+        crate::api::compression::MemoryStatsResponse,
     )),
     tags(
         (name = "Auth", description = "Authentication and user management"),

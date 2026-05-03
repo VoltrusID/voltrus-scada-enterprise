@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::storage::Storage;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct AggregatedMetric {
     pub metric: String,
     pub min: f64,
@@ -15,7 +15,7 @@ pub struct AggregatedMetric {
     pub last_ts: i64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ComparisonResult {
     pub metric: String,
     pub current: AggregatedMetric,

@@ -20,7 +20,17 @@ fn pdf_reporting_required(state: &AppState) -> Option<(HttpStatus, Json<serde_js
     None
 }
 
-/// GET /api/v1/reports — list all reports
+/// GET /api/v1/reports -- list all reports
+#[utoipa::path(
+    get,
+    path = "/api/v1/reports",
+    responses(
+        (status = 200, body = Vec<crate::models::Report>),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Reports",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_reports(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, body)) = pdf_reporting_required(&state) {
         return (status, body).into_response();
@@ -36,7 +46,19 @@ pub async fn list_reports(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
-/// POST /api/v1/reports — create report
+/// POST /api/v1/reports -- create report
+#[utoipa::path(
+    post,
+    path = "/api/v1/reports",
+    request_body = crate::models::CreateReportRequest,
+    responses(
+        (status = 201, body = crate::models::Report),
+        (status = 400, description = "Invalid request"),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Reports",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_report(
     State(state): State<AppState>,
     Json(req): Json<crate::models::CreateReportRequest>,
@@ -135,7 +157,21 @@ pub async fn create_report(
     }
 }
 
-/// PUT /api/v1/reports/{id} — update report
+/// PUT /api/v1/reports/{id} -- update report
+#[utoipa::path(
+    put,
+    path = "/api/v1/reports/{id}",
+    params(("id" = i64, Path, description = "Report ID")),
+    request_body = crate::models::UpdateReportRequest,
+    responses(
+        (status = 200, body = crate::models::Report),
+        (status = 400, description = "Invalid request"),
+        (status = 403, description = "License tier too low"),
+        (status = 404, description = "Report not found")
+    ),
+    tag = "Reports",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_report(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -253,7 +289,19 @@ pub async fn update_report(
     }
 }
 
-/// DELETE /api/v1/reports/{id} — delete report
+/// DELETE /api/v1/reports/{id} -- delete report
+#[utoipa::path(
+    delete,
+    path = "/api/v1/reports/{id}",
+    params(("id" = i64, Path, description = "Report ID")),
+    responses(
+        (status = 204, description = "Report deleted"),
+        (status = 403, description = "License tier too low"),
+        (status = 404, description = "Report not found")
+    ),
+    tag = "Reports",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_report(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -291,7 +339,19 @@ pub async fn delete_report(
     }
 }
 
-/// POST /api/v1/reports/{id}/generate — manual generate
+/// POST /api/v1/reports/{id}/generate -- manual generate
+#[utoipa::path(
+    post,
+    path = "/api/v1/reports/{id}/generate",
+    params(("id" = i64, Path, description = "Report ID")),
+    responses(
+        (status = 200, description = "Generated HTML report", content_type = "text/html"),
+        (status = 403, description = "License tier too low"),
+        (status = 404, description = "Report not found")
+    ),
+    tag = "Reports",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn generate_report(
     State(state): State<AppState>,
     Path(id): Path<i64>,

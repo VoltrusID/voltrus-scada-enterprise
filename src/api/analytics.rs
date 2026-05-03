@@ -19,6 +19,24 @@ pub struct AggregateQuery {
 
 fn default_interval() -> i64 { 3600 }
 
+/// GET /api/v1/analytics/aggregate -- aggregate metrics over a time range
+#[utoipa::path(
+    get,
+    path = "/api/v1/analytics/aggregate",
+    params(
+        ("device_id" = String, Query, description = "Device ID"),
+        ("metric" = String, Query, description = "Metric name"),
+        ("from" = i64, Query, description = "Start timestamp"),
+        ("to" = i64, Query, description = "End timestamp"),
+        ("interval" = Option<i64>, Query, description = "Bucket interval in seconds (default 3600)"),
+    ),
+    responses(
+        (status = 200, body = Vec<(i64, crate::analytics::AggregatedMetric)>),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Analytics",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_aggregate(
     State(state): State<AppState>,
     Query(q): Query<AggregateQuery>,
@@ -52,6 +70,25 @@ pub struct CompareQuery {
     pub period2_to: i64,
 }
 
+/// GET /api/v1/analytics/compare -- compare two time periods
+#[utoipa::path(
+    get,
+    path = "/api/v1/analytics/compare",
+    params(
+        ("device_id" = String, Query, description = "Device ID"),
+        ("metric" = String, Query, description = "Metric name"),
+        ("period1_from" = i64, Query, description = "Period 1 start timestamp"),
+        ("period1_to" = i64, Query, description = "Period 1 end timestamp"),
+        ("period2_from" = i64, Query, description = "Period 2 start timestamp"),
+        ("period2_to" = i64, Query, description = "Period 2 end timestamp"),
+    ),
+    responses(
+        (status = 200, body = crate::analytics::ComparisonResult),
+        (status = 403, description = "License tier too low")
+    ),
+    tag = "Analytics",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_compare(
     State(state): State<AppState>,
     Query(q): Query<CompareQuery>,
