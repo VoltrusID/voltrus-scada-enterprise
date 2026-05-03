@@ -1351,7 +1351,7 @@ mod tests {
     fn test_permission_constants() {
         assert_eq!(PERM_SCREENS_READ, "screens:read");
         assert_eq!(PERM_SCREENS_WRITE, "screens:write");
-        assert_eq!(ALL_PERMISSIONS.len(), 18);
+        assert_eq!(ALL_PERMISSIONS.len(), 24);
         assert!(ALL_PERMISSIONS.contains(&PERM_USERS_MANAGE));
     }
 
