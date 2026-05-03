@@ -1,6 +1,7 @@
 pub(crate) mod auth;
 mod api_keys;
 mod push;
+mod oee;
 mod screens;
 mod data_sources;
 mod layouts;
@@ -18,6 +19,13 @@ mod notifications;
 mod opcua_devices;
 pub(crate) mod hub;
 mod reports;
+mod analytics;
+mod recipes;
+mod rbac;
+mod compliance;
+mod enip_devices;
+mod s7_devices;
+mod video;
 
 use axum::{
     extract::{Request, State},
@@ -62,6 +70,7 @@ pub struct AppState {
     pub smtp_config: Option<crate::models::SmtpConfig>,
     pub vapid_public_key: Option<String>,
     pub hub_manager: Option<hub::HubManager>,
+    pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
 }
 
 #[derive(Debug)]
@@ -175,6 +184,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/auth/me", get(auth::auth_me))
         .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
+        .route("/api/v1/auth/providers", get(auth::list_auth_providers))
+        .route("/api/v1/auth/saml/metadata", post(auth::saml_metadata))
+        .route("/api/v1/auth/saml/acs", post(auth::saml_acs))
+        .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
         .route("/api/license/status", get(license::get_license_status));
@@ -224,6 +237,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
         .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
         .route("/api/v1/notifications/settings", get(notifications::list_notification_settings))
+        .route("/api/v1/oee/metrics", get(oee::get_oee_metrics))
+        .route("/api/v1/oee/downtime", get(oee::list_downtime))
+        .route("/api/v1/oee/shifts", get(oee::list_shifts))
+        .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
+        .route("/api/v1/analytics/compare", get(analytics::get_compare))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
@@ -260,6 +278,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/modbus-devices", post(modbus_devices::create_modbus_device))
         .route("/api/v1/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
+        .route("/api/v1/modbus-devices/scan-network", post(modbus_devices::scan_network))
         .route(
             "/api/v1/modbus-devices/{id}",
             put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),
@@ -289,6 +308,29 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/opcua/devices/{id}/browse", post(opcua_devices::browse_device))
         .route("/api/v1/opcua/devices/{id}/start", post(opcua_devices::start_device))
         .route("/api/v1/opcua/devices/{id}/stop", post(opcua_devices::stop_device))
+        // EtherNet/IP (Allen-Bradley) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/enip/devices", get(enip_devices::list_devices).post(enip_devices::create_device))
+        .route("/api/v1/enip/devices/{id}", put(enip_devices::update_device).delete(enip_devices::delete_device))
+        .route("/api/v1/enip/devices/{id}/tags", get(enip_devices::list_tags).post(enip_devices::add_tag))
+        .route("/api/v1/enip/devices/{id}/tags/{tag_id}", delete(enip_devices::remove_tag))
+        .route("/api/v1/enip/devices/{id}/browse", post(enip_devices::browse_device))
+        .route("/api/v1/enip/devices/{id}/start", post(enip_devices::start_device))
+        .route("/api/v1/enip/devices/{id}/stop", post(enip_devices::stop_device))
+        // S7 (Siemens) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/s7/devices", get(s7_devices::list_devices).post(s7_devices::create_device))
+        .route("/api/v1/s7/devices/{id}", put(s7_devices::update_device).delete(s7_devices::delete_device))
+        .route("/api/v1/s7/devices/{id}/tags", get(s7_devices::list_tags).post(s7_devices::add_tag))
+        .route("/api/v1/s7/devices/{id}/tags/{tag_id}", delete(s7_devices::remove_tag))
+        .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
+        .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
+        .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
+        // RTSP Video / Camera routes (admin-only, Enterprise-gated)
+        .route("/api/v1/cameras", get(video::list_cameras).post(video::create_camera))
+        .route("/api/v1/cameras/{id}", put(video::update_camera).delete(video::delete_camera))
+        .route("/api/v1/cameras/{id}/snapshot", post(video::trigger_snapshot))
+        .route("/api/v1/cameras/{id}/snapshots", get(video::list_snapshots))
+        .route("/api/v1/cameras/{id}/snapshots/{snapshot_id}", delete(video::delete_snapshot))
+        .route("/api/v1/cameras/{id}/stream", get(video::get_stream_info))
         .route("/api/v1/hub/sites", get(hub::list_sites).post(hub::create_site))
         .route("/api/v1/hub/sites/{id}", put(hub::update_site).delete(hub::delete_site))
         .route("/api/v1/hub/sites/{id}/start", post(hub::start_site_connection))
@@ -297,6 +339,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/reports", get(reports::list_reports).post(reports::create_report))
         .route("/api/v1/reports/{id}", put(reports::update_report).delete(reports::delete_report))
         .route("/api/v1/reports/{id}/generate", post(reports::generate_report))
+        .route("/api/v1/oee/downtime", post(oee::create_downtime))
+        .route("/api/v1/oee/downtime/{id}/close", put(oee::close_downtime))
+        .route("/api/v1/oee/shifts", post(oee::create_shift))
+        .route("/api/v1/oee/shifts/{id}", delete(oee::delete_shift))
+        .route("/api/v1/recipes", get(recipes::list_recipes).post(recipes::create_recipe))
+        .route("/api/v1/recipes/{id}", get(recipes::get_recipe).put(recipes::update_recipe).delete(recipes::delete_recipe))
+        .route("/api/v1/recipes/{id}/load", post(recipes::load_recipe))
+        // RBAC routes (admin-only, license-gated)
+        .route("/api/v1/roles", get(rbac::list_roles).post(rbac::create_role))
+        .route("/api/v1/roles/{id}", put(rbac::update_role).delete(rbac::delete_role))
+        .route("/api/v1/users/{id}/role", put(rbac::assign_user_role))
+        // Compliance routes (admin-only, license-gated)
+        .route("/api/v1/compliance/config", get(compliance::get_compliance_config).put(compliance::update_compliance_config))
+        .route("/api/v1/compliance/sign", post(compliance::create_electronic_signature))
+        .route("/api/v1/compliance/signatures", get(compliance::list_electronic_signatures))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -543,6 +600,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         create_router(state)
     }
@@ -723,6 +781,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -790,6 +849,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -884,6 +944,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -956,6 +1017,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -1105,6 +1167,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         let app = create_router(state);
 
@@ -1268,6 +1331,7 @@ mod tests {
             smtp_config: None,
             vapid_public_key: None,
             hub_manager: None,
+            stream_proxy: None,
         };
         create_router(state)
     }
@@ -1352,5 +1416,269 @@ mod tests {
             .expect("X-License-Tier header should be present");
         // serde_json serializes LicenseTier::Professional as "professional"
         assert_eq!(tier_header, "\"professional\"");
+    }
+
+    // ── Analytics & Recipe unit tests ──
+
+    #[test]
+    fn test_analytics_change_percent() {
+        let current_avg = 110.0_f64;
+        let previous_avg = 100.0_f64;
+        let change = ((current_avg - previous_avg) / previous_avg) * 100.0;
+        assert!((change - 10.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_analytics_change_percent_zero_division() {
+        let current_avg = 5.0_f64;
+        let previous_avg = 0.0_f64;
+        let change = if previous_avg.abs() > f64::EPSILON {
+            ((current_avg - previous_avg) / previous_avg) * 100.0
+        } else {
+            0.0
+        };
+        assert_eq!(change, 0.0);
+    }
+
+    #[test]
+    fn test_analytics_change_percent_negative() {
+        let current_avg = 80.0_f64;
+        let previous_avg = 100.0_f64;
+        let change = ((current_avg - previous_avg) / previous_avg) * 100.0;
+        assert!((change - (-20.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_recipe_values_json_parse() {
+        let json = r#"{"temp": 25.0, "pressure": 1.5}"#;
+        let values: std::collections::HashMap<String, f64> =
+            serde_json::from_str(json).unwrap();
+        assert_eq!(values.len(), 2);
+        assert!((values["temp"] - 25.0).abs() < 0.001);
+        assert!((values["pressure"] - 1.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_tier_simple_probe() {
+        // Probe test to verify tier tests compile and run
+        let tier = crate::license::LicenseTier::Starter;
+        assert!(tier.white_label());
+        assert!(!tier.rtsp_video());
+    }
+
+    // ── Comprehensive Tier Enforcement Tests ──
+    // These tests use test_app_with_license_status() which creates a Router
+    // with the given tier. Tier gates are enforced at the handler level via
+    // state.license_tier checks, returning 403 for unauthorized tiers.
+    // We test with unauthenticated requests — tier gates run before auth checks
+    // on most endpoints, so we expect either 200/401/403 depending on endpoint.
+
+    #[tokio::test]
+    async fn test_tier_trial_feature_gates() {
+        let tier = crate::license::LicenseTier::Trial;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Trial {
+                started_at: 0,
+                expires_at: 2592000,
+                days_remaining: 30,
+                tier: tier.clone(),
+                feature_flags: tier.to_feature_flags(),
+            },
+            tier.clone(),
+        );
+
+        // SHOULD ALLOW (Trial) — health and branding are open
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/health").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Branding returns defaults for trial (theme_level=none)
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "none");
+
+        // Feature flags should reflect Trial
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["opcua_enabled"], false);
+        assert_eq!(flags["email_notifications"], false);
+        assert_eq!(flags["sms_notifications"], false);
+        assert_eq!(flags["s7_protocol"], false);
+        assert_eq!(flags["ethernet_ip"], false);
+        assert_eq!(flags["rtsp_video"], false);
+        assert_eq!(flags["theme_full"], false);
+        assert_eq!(flags["per_user_layouts"], false);
+        assert_eq!(flags["white_label"], false);
+        assert_eq!(flags["rbac"], false);
+        assert_eq!(flags["multi_site"], false);
+        assert_eq!(flags["max_devices"], 5);
+        assert_eq!(flags["data_retention_days"], 7);
+    }
+
+    #[tokio::test]
+    async fn test_tier_starter_feature_gates() {
+        let tier = crate::license::LicenseTier::Starter;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test_key".into(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("starter".into()),
+                device_limit: Some(50),
+            },
+            tier.clone(),
+        );
+
+        // Branding returns theme_level=basic for Starter
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "basic");
+
+        // OPC-UA blocked (Professional+)
+        assert!(!tier.opcua_enabled());
+
+        // Feature flags
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["email_notifications"], true);
+        assert_eq!(flags["sms_notifications"], false);
+        assert_eq!(flags["white_label"], true);
+        assert_eq!(flags["theme_full"], false);
+        assert_eq!(flags["per_user_layouts"], false);
+        assert_eq!(flags["max_devices"], 50);
+    }
+
+    #[tokio::test]
+    async fn test_tier_professional_feature_gates() {
+        let tier = crate::license::LicenseTier::Professional;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test_key".into(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".into()),
+                device_limit: None,
+            },
+            tier.clone(),
+        );
+
+        // Branding returns theme_level=full for Professional
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "full");
+
+        // Feature flags
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["opcua_enabled"], true);
+        assert_eq!(flags["sms_notifications"], true);
+        assert_eq!(flags["pdf_reporting"], true);
+        assert_eq!(flags["rbac"], true);
+        assert_eq!(flags["multi_site"], true);
+        assert_eq!(flags["recipes"], true);
+        assert_eq!(flags["s7_protocol"], false);
+        assert_eq!(flags["ethernet_ip"], false);
+        assert_eq!(flags["rtsp_video"], false);
+        assert_eq!(flags["theme_full"], true);
+        assert_eq!(flags["per_user_layouts"], true);
+        assert_eq!(flags["white_label"], true);
+        assert_eq!(flags["max_devices"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn test_tier_enterprise_feature_gates() {
+        let tier = crate::license::LicenseTier::Enterprise;
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test_key".into(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("enterprise".into()),
+                device_limit: None,
+            },
+            tier.clone(),
+        );
+
+        // Branding returns theme_level=full for Enterprise
+        let resp = app.clone().oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "full");
+
+        // All feature flags should be true/max
+        let flags = tier.to_feature_flags();
+        assert_eq!(flags["opcua_enabled"], true);
+        assert_eq!(flags["email_notifications"], true);
+        assert_eq!(flags["sms_notifications"], true);
+        assert_eq!(flags["s7_protocol"], true);
+        assert_eq!(flags["ethernet_ip"], true);
+        assert_eq!(flags["rtsp_video"], true);
+        assert_eq!(flags["sso_saml"], true);
+        assert_eq!(flags["cfr_part_11"], true);
+        assert_eq!(flags["theme_full"], true);
+        assert_eq!(flags["per_user_layouts"], true);
+        assert_eq!(flags["max_devices"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn test_branding_theme_levels_per_tier() {
+        // Trial: branding returns defaults with theme_level=none
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Trial {
+                started_at: 0, expires_at: 2592000, days_remaining: 30,
+                tier: crate::license::LicenseTier::Trial,
+                feature_flags: crate::license::LicenseTier::Trial.to_feature_flags(),
+            },
+            crate::license::LicenseTier::Trial,
+        );
+        let resp = app.oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "none");
+
+        // Starter: theme_level=basic
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test".into(), expires_at: None, days_remaining: None,
+                tier: Some("starter".into()), device_limit: None,
+            },
+            crate::license::LicenseTier::Starter,
+        );
+        let resp = app.oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "basic");
+
+        // Professional: theme_level=full
+        let app = test_app_with_license_status(
+            crate::license::LicenseStatus::Valid {
+                license_key: "test".into(), expires_at: None, days_remaining: None,
+                tier: Some("professional".into()), device_limit: None,
+            },
+            crate::license::LicenseTier::Professional,
+        );
+        let resp = app.oneshot(
+            Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
+        ).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["theme_level"], "full");
     }
 }

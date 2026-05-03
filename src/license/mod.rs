@@ -90,8 +90,24 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    pub fn auto_discovery(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
     pub fn white_label(&self) -> bool {
         !matches!(self, LicenseTier::Trial)
+    }
+
+    /// Full theme editor (colors, fonts, layouts).
+    /// Starter gets basic (logo swap), Professional+ gets full theme control.
+    pub fn theme_full(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
+    /// Per-user screen layouts (each user gets their own layout).
+    /// Professional tier and above.
+    pub fn per_user_layouts(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
     }
 
     pub fn rbac(&self) -> bool {
@@ -110,7 +126,31 @@ impl LicenseTier {
         matches!(self, LicenseTier::Enterprise)
     }
 
+    /// SSO with SAML/OIDC enhanced features and LDAP fallback.
+    /// Only available on Enterprise tier.
+    pub fn sso_saml(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
     pub fn cfr_part_11(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
+    /// EtherNet/IP (Allen-Bradley) protocol support.
+    /// Only available on Enterprise tier.
+    pub fn ethernet_ip(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
+    /// Siemens S7 protocol support.
+    /// Only available on Enterprise tier.
+    pub fn s7_protocol(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
+    /// RTSP video integration.
+    /// Only available on Enterprise tier.
+    pub fn rtsp_video(&self) -> bool {
         matches!(self, LicenseTier::Enterprise)
     }
 
@@ -130,12 +170,19 @@ impl LicenseTier {
             "oee": self.oee(),
             "pdf_reporting": self.pdf_reporting(),
             "backup_restore": self.backup_restore(),
+            "auto_discovery": self.auto_discovery(),
             "white_label": self.white_label(),
+            "theme_full": self.theme_full(),
+            "per_user_layouts": self.per_user_layouts(),
             "rbac": self.rbac(),
             "multi_site": self.multi_site(),
             "recipes": self.recipes(),
             "sso": self.sso(),
+            "sso_saml": self.sso_saml(),
             "cfr_part_11": self.cfr_part_11(),
+            "ethernet_ip": self.ethernet_ip(),
+            "s7_protocol": self.s7_protocol(),
+            "rtsp_video": self.rtsp_video(),
         })
     }
 }
@@ -411,7 +458,10 @@ mod tests {
         assert!(!trial.multi_site());
         assert!(!trial.recipes());
         assert!(!trial.sso());
+        assert!(!trial.sso_saml());
         assert!(!trial.cfr_part_11());
+        assert!(!trial.ethernet_ip());
+        assert!(!trial.s7_protocol());
 
         // Starter tier: many features enabled
         let starter = LicenseTier::Starter;
@@ -433,6 +483,7 @@ mod tests {
         assert!(!starter.multi_site());
         assert!(!starter.recipes());
         assert!(!starter.sso());
+        assert!(!starter.sso_saml());
         assert!(!starter.cfr_part_11());
 
         // Professional tier: most features enabled
@@ -455,6 +506,7 @@ mod tests {
         assert!(pro.multi_site());
         assert!(pro.recipes());
         assert!(!pro.sso());
+        assert!(!pro.sso_saml());
         assert!(!pro.cfr_part_11());
 
         // Enterprise tier: all features enabled
@@ -477,7 +529,11 @@ mod tests {
         assert!(ent.multi_site());
         assert!(ent.recipes());
         assert!(ent.sso());
+        assert!(ent.sso_saml());
         assert!(ent.cfr_part_11());
+        assert!(ent.ethernet_ip());
+        assert!(ent.s7_protocol());
+        assert!(ent.rtsp_video());
     }
 
     #[test]
@@ -533,6 +589,55 @@ mod tests {
         assert_eq!(flags["max_devices"], serde_json::Value::Null);
         assert_eq!(flags["sso"], true);
         assert_eq!(flags["cfr_part_11"], true);
+        assert_eq!(flags["ethernet_ip"], true);
+    }
+
+    #[test]
+    fn test_ethernet_ip_enterprise_only() {
+        assert!(!LicenseTier::Trial.ethernet_ip());
+        assert!(!LicenseTier::Starter.ethernet_ip());
+        assert!(!LicenseTier::Professional.ethernet_ip());
+        assert!(LicenseTier::Enterprise.ethernet_ip());
+    }
+
+    #[test]
+    fn test_s7_protocol_enterprise_only() {
+        assert!(!LicenseTier::Trial.s7_protocol());
+        assert!(!LicenseTier::Starter.s7_protocol());
+        assert!(!LicenseTier::Professional.s7_protocol());
+        assert!(LicenseTier::Enterprise.s7_protocol());
+    }
+
+    #[test]
+    fn test_rtsp_video_enterprise_only() {
+        assert!(!LicenseTier::Trial.rtsp_video());
+        assert!(!LicenseTier::Starter.rtsp_video());
+        assert!(!LicenseTier::Professional.rtsp_video());
+        assert!(LicenseTier::Enterprise.rtsp_video());
+    }
+
+    #[test]
+    fn test_theme_full_professional_and_above() {
+        assert!(!LicenseTier::Trial.theme_full());
+        assert!(!LicenseTier::Starter.theme_full());
+        assert!(LicenseTier::Professional.theme_full());
+        assert!(LicenseTier::Enterprise.theme_full());
+    }
+
+    #[test]
+    fn test_per_user_layouts_professional_and_above() {
+        assert!(!LicenseTier::Trial.per_user_layouts());
+        assert!(!LicenseTier::Starter.per_user_layouts());
+        assert!(LicenseTier::Professional.per_user_layouts());
+        assert!(LicenseTier::Enterprise.per_user_layouts());
+    }
+
+    #[test]
+    fn test_white_label_starter_and_above() {
+        assert!(!LicenseTier::Trial.white_label());
+        assert!(LicenseTier::Starter.white_label());
+        assert!(LicenseTier::Professional.white_label());
+        assert!(LicenseTier::Enterprise.white_label());
     }
 
     #[test]
@@ -609,5 +714,25 @@ mod tests {
         };
         assert_eq!(unactivated.tier(), LicenseTier::Trial);
         assert_eq!(unactivated.feature_flags(), serde_json::json!({}));
+    }
+
+    #[test]
+    fn test_sso_saml_enterprise_only() {
+        assert!(!LicenseTier::Trial.sso_saml());
+        assert!(!LicenseTier::Starter.sso_saml());
+        assert!(!LicenseTier::Professional.sso_saml());
+        assert!(LicenseTier::Enterprise.sso_saml());
+    }
+
+    #[test]
+    fn test_sso_saml_in_feature_flags() {
+        let flags = LicenseTier::Enterprise.to_feature_flags();
+        assert_eq!(flags["sso_saml"], true);
+
+        let flags = LicenseTier::Trial.to_feature_flags();
+        assert_eq!(flags["sso_saml"], false);
+
+        let flags = LicenseTier::Professional.to_feature_flags();
+        assert_eq!(flags["sso_saml"], false);
     }
 }

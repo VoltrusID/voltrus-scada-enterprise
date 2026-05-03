@@ -449,6 +449,150 @@ pub struct CreateOpcUaNodeRequest {
     pub data_type: String,
 }
 
+// ── S7 (Siemens) device types ──
+
+/// Database row for s7_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct S7Device {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_s7_rack")]
+    pub rack: u8,
+    #[serde(default = "default_s7_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+fn default_s7_rack() -> u8 { 0 }
+fn default_s7_slot() -> u8 { 1 }
+
+/// Database row for s7_tags table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct S7TagRow {
+    pub id: i64,
+    pub device_id: i64,
+    pub tag_address: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateS7DeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_s7_rack")]
+    pub rack: u8,
+    #[serde(default = "default_s7_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateS7DeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub rack: Option<u8>,
+    pub slot: Option<u8>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateS7TagRequest {
+    pub tag_address: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+// ── EtherNet/IP (Allen-Bradley) device types ──
+
+/// Database row for enip_devices table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnipDevice {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_enip_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+fn default_enip_slot() -> u8 { 0 }
+
+/// Database row for enip_tags table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnipTag {
+    pub id: i64,
+    pub device_id: i64,
+    pub tag_name: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateEnipDeviceRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_enip_slot")]
+    pub slot: u8,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateEnipDeviceRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub slot: Option<u8>,
+    pub interval_ms: Option<u64>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateEnipTagRequest {
+    pub tag_name: String,
+    pub name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+}
+
+/// Runtime config for an EtherNet/IP device, used by the poller.
+#[derive(Debug, Clone)]
+pub struct EnipDeviceConfig {
+    pub id: String,
+    pub url: String,
+    pub slot: u8,
+    pub interval_ms: u64,
+    pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
+}
+
 // ── Runtime types ──
 
 #[derive(Debug, Clone, Serialize)]
@@ -925,6 +1069,57 @@ fn default_true() -> bool {
     true
 }
 
+fn default_retention_hours() -> u32 { 72 }
+
+// ── RTSP Video / Camera types ──
+
+/// Database row for cameras table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Camera {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub snapshot_on_alarm: bool,
+    #[serde(default = "default_retention_hours")]
+    pub retention_hours: u32,
+    pub created_at: i64,
+}
+
+/// Database row for camera_snapshots table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CameraSnapshot {
+    pub id: i64,
+    pub camera_id: i64,
+    pub timestamp: i64,
+    pub alarm_source: Option<String>,
+    pub file_path: String,
+    pub file_size: u64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateCameraRequest {
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub snapshot_on_alarm: bool,
+    #[serde(default = "default_retention_hours")]
+    pub retention_hours: u32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateCameraRequest {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub enabled: Option<bool>,
+    pub snapshot_on_alarm: Option<bool>,
+    pub retention_hours: Option<u32>,
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateNotificationSettingRequest {
     pub source_key: Option<String>,
@@ -1067,6 +1262,166 @@ mod tests {
         let back: DataPoint = serde_json::from_str(&json).unwrap();
         assert_eq!(back, dp);
     }
+
+    #[test]
+    fn test_machine_state_serde() {
+        let state = MachineState::Running;
+        let json = serde_json::to_string(&state).unwrap();
+        let expected = r#""running""#;
+        assert_eq!(json, expected);
+        let back: MachineState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, MachineState::Running);
+        assert!(MachineState::from_str("running").unwrap() == MachineState::Running);
+        assert!(MachineState::from_str("idle").unwrap() == MachineState::Idle);
+        assert!(MachineState::from_str("faulted").unwrap() == MachineState::Faulted);
+        assert!(MachineState::from_str("setup").unwrap() == MachineState::Setup);
+        assert!(MachineState::from_str("maintenance").unwrap() == MachineState::Maintenance);
+        assert!(MachineState::from_str("unknown").is_none());
+    }
+
+    #[test]
+    fn test_create_downtime_event_request_deserialize() {
+        let json = r#"{"device_id":"dev1","state":"faulted"}"#;
+        let req: CreateDowntimeEventRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.device_id, "dev1");
+        assert_eq!(req.state, "faulted");
+    }
+
+    #[test]
+    fn test_oee_metrics_structure() {
+        let metrics = OeeMetrics {
+            availability: 0.85,
+            performance: 0.90,
+            quality: 0.95,
+            oee: 0.85 * 0.90 * 0.95,
+            total_running_secs: 3600,
+            total_planned_secs: 4235,
+            downtime_count: 3,
+        };
+        let json = serde_json::to_string(&metrics).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["availability"], 0.85);
+        assert_eq!(parsed["total_running_secs"], 3600);
+    }
+
+    #[test]
+    fn test_permission_constants() {
+        assert_eq!(PERM_SCREENS_READ, "screens:read");
+        assert_eq!(PERM_SCREENS_WRITE, "screens:write");
+        assert_eq!(ALL_PERMISSIONS.len(), 14);
+        assert!(ALL_PERMISSIONS.contains(&PERM_USERS_MANAGE));
+    }
+
+    #[test]
+    fn test_role_serde() {
+        let role = Role {
+            id: 1,
+            name: "Admin".to_string(),
+            permissions: r#"["screens:read"]"#.to_string(),
+            created_at: 1000,
+        };
+        let json = serde_json::to_string(&role).unwrap();
+        assert!(json.contains("\"name\":\"Admin\""));
+        let back: Role = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.id, 1);
+        assert_eq!(back.name, "Admin");
+    }
+
+    #[test]
+    fn test_create_role_request_deserialize() {
+        let json = r#"{"name":"Operator","permissions":"[\"screens:read\"]"}"#;
+        let req: CreateRoleRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.name, "Operator");
+        assert_eq!(req.permissions, r#"["screens:read"]"#);
+    }
+}
+
+// -- OEE / Downtime types --
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MachineState {
+    Running,
+    Idle,
+    Faulted,
+    Setup,
+    Maintenance,
+}
+
+impl MachineState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MachineState::Running => "running",
+            MachineState::Idle => "idle",
+            MachineState::Faulted => "faulted",
+            MachineState::Setup => "setup",
+            MachineState::Maintenance => "maintenance",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "running" => Some(MachineState::Running),
+            "idle" => Some(MachineState::Idle),
+            "faulted" => Some(MachineState::Faulted),
+            "setup" => Some(MachineState::Setup),
+            "maintenance" => Some(MachineState::Maintenance),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DowntimeEvent {
+    pub id: i64,
+    pub device_id: String,
+    pub state: String,
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
+    pub duration_secs: Option<i64>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateDowntimeEventRequest {
+    pub device_id: String,
+    pub state: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CloseDowntimeEventRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct OeeMetrics {
+    pub availability: f64,
+    pub performance: f64,
+    pub quality: f64,
+    pub oee: f64,
+    pub total_running_secs: i64,
+    pub total_planned_secs: i64,
+    pub downtime_count: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ShiftConfig {
+    pub id: i64,
+    pub name: String,
+    pub start_hour: u32,
+    pub start_minute: u32,
+    pub duration_hours: u32,
+    pub days_mask: u32,
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateShiftRequest {
+    pub name: String,
+    pub start_hour: u32,
+    pub start_minute: u32,
+    pub duration_hours: u32,
+    pub days_mask: u32,
 }
 
 // ── Report types ──
@@ -1129,6 +1484,104 @@ pub struct UpdateHubSiteRequest {
     pub url: Option<String>,
     pub api_key: Option<String>,
     pub enabled: Option<bool>,
+}
+
+// ── RBAC types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Role {
+    pub id: i64,
+    pub name: String,
+    pub permissions: String, // JSON array: ["screens:read", "screens:write", ...]
+    pub created_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateRoleRequest {
+    pub name: String,
+    pub permissions: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateRoleRequest {
+    pub name: Option<String>,
+    pub permissions: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AssignRoleRequest {
+    pub role_id: i64,
+}
+
+// ── Permission constants ──
+
+pub const PERM_SCREENS_READ: &str = "screens:read";
+pub const PERM_SCREENS_WRITE: &str = "screens:write";
+pub const PERM_DEVICES_READ: &str = "devices:read";
+pub const PERM_DEVICES_WRITE: &str = "devices:write";
+pub const PERM_ALARMS_READ: &str = "alarms:read";
+pub const PERM_ALARMS_ACK: &str = "alarms:ack";
+pub const PERM_SETTINGS_READ: &str = "settings:read";
+pub const PERM_SETTINGS_WRITE: &str = "settings:write";
+pub const PERM_USERS_MANAGE: &str = "users:manage";
+pub const PERM_FLOWS_MANAGE: &str = "flows:manage";
+pub const PERM_NOTIFICATIONS_MANAGE: &str = "notifications:manage";
+pub const PERM_HUB_MANAGE: &str = "hub:manage";
+pub const PERM_REPORTS_MANAGE: &str = "reports:manage";
+pub const PERM_RECIPES_MANAGE: &str = "recipes:manage";
+
+/// All available permission constants for seeding.
+pub const ALL_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_SCREENS_WRITE,
+    PERM_DEVICES_READ, PERM_DEVICES_WRITE,
+    PERM_ALARMS_READ, PERM_ALARMS_ACK,
+    PERM_SETTINGS_READ, PERM_SETTINGS_WRITE,
+    PERM_USERS_MANAGE,
+    PERM_FLOWS_MANAGE,
+    PERM_NOTIFICATIONS_MANAGE,
+    PERM_HUB_MANAGE,
+    PERM_REPORTS_MANAGE,
+    PERM_RECIPES_MANAGE,
+];
+
+/// Read-only permissions for the Viewer role.
+pub const VIEWER_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
+    PERM_SETTINGS_READ,
+];
+
+/// Read + ack permissions for the Operator role.
+pub const OPERATOR_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
+    PERM_ALARMS_ACK, PERM_SETTINGS_READ,
+];
+
+// ── Recipe types ──
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Recipe {
+    pub id: i64,
+    pub name: String,
+    pub category: Option<String>,
+    pub device_id: String,
+    pub values: String,
+    pub version: i32,
+    pub description: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateRecipeRequest {
+    pub name: String,
+    pub category: Option<String>,
+    pub device_id: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LoadRecipeRequest {
+    pub recipe_id: i64,
 }
 
 #[derive(Debug, Clone)]

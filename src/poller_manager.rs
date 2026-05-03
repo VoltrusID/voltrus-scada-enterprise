@@ -4,7 +4,8 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
-use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus};
+use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig};
+use crate::s7::S7DeviceConfig;
 
 #[derive(Clone)]
 pub struct PollerManager {
@@ -40,6 +41,39 @@ impl PollerManager {
         let cache = self.cache.clone();
         let handle = tokio::spawn(async move {
             crate::opcua::poll_opcua_device(config, cache).await;
+        });
+        self.handles.write().await.insert(device_id, handle);
+    }
+
+    pub async fn start_s7(&self, config: S7DeviceConfig) {
+        let device_id = config.id.clone();
+        if self.is_running(&device_id).await {
+            self.stop(&device_id).await;
+        }
+        let cache = self.cache.clone();
+        let handle = tokio::spawn(async move {
+            crate::s7::poll_s7_device(config, cache).await;
+        });
+        self.handles.write().await.insert(device_id, handle);
+    }
+
+    pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
+        let device_id = config.id.clone();
+        if self.is_running(&device_id).await {
+            self.stop(&device_id).await;
+        }
+        let cache = self.cache.clone();
+        let handle = tokio::spawn(async move {
+            crate::ethernet_ip::poll_enip_device(
+                crate::ethernet_ip::EnipDeviceRuntimeConfig {
+                    id: config.id,
+                    url: config.url,
+                    slot: config.slot,
+                    interval_ms: config.interval_ms,
+                    tags: config.tags,
+                },
+                cache,
+            ).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }
