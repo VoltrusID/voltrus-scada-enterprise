@@ -267,7 +267,7 @@ mod tests {
 vapid_private_key: "test-private"
 vapid_public_key: "test-public"
 "#;
-        let config: PushConfig = serde_yml::from_str(yaml).unwrap();
+        let config: PushConfig = serde_yaml_neo::from_str(yaml).unwrap();
         assert_eq!(config.vapid_private_key, "test-private");
         assert_eq!(config.vapid_public_key, "test-public");
         assert_eq!(config.vapid_subject, "mailto:admin@example.com");
@@ -280,7 +280,7 @@ vapid_private_key: "test-private"
 vapid_public_key: "test-public"
 vapid_subject: "mailto:admin@voltrus.id"
 "#;
-        let config: PushConfig = serde_yml::from_str(yaml).unwrap();
+        let config: PushConfig = serde_yaml_neo::from_str(yaml).unwrap();
         assert_eq!(config.vapid_subject, "mailto:admin@voltrus.id");
     }
 }

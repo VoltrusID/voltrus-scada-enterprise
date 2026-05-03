@@ -7,11 +7,11 @@ pub fn load_config(path: &str) -> Result<AppConfig> {
         Ok(c) => c,
         Err(_) => {
             tracing::info!("Config file {path} not found, using defaults");
-            return Ok(serde_yml::from_str("").unwrap());
+            return Ok(serde_yaml_neo::from_str("").unwrap());
         }
     };
 
-    let config: AppConfig = serde_yml::from_str(&content)
+    let config: AppConfig = serde_yaml_neo::from_str(&content)
         .with_context(|| format!("Failed to parse config file: {path}"))?;
 
     validate(&config)?;

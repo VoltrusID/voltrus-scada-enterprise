@@ -309,7 +309,7 @@ host: "smtp.example.com"
 username: "user"
 password: "pass"
 "#;
-        let config: SmtpConfig = serde_yml::from_str(yaml).unwrap();
+        let config: SmtpConfig = serde_yaml_neo::from_str(yaml).unwrap();
         assert_eq!(config.host, "smtp.example.com");
         assert_eq!(config.port, 587);
         assert_eq!(config.encryption, crate::models::SmtpEncryption::StartTls);
@@ -325,7 +325,7 @@ username: "user"
 password: "pass"
 encryption: "implicittls"
 "#;
-        let config: SmtpConfig = serde_yml::from_str(yaml).unwrap();
+        let config: SmtpConfig = serde_yaml_neo::from_str(yaml).unwrap();
         assert_eq!(config.encryption, crate::models::SmtpEncryption::ImplicitTls);
 
         let yaml_none = r#"
@@ -334,7 +334,7 @@ username: "user"
 password: "pass"
 encryption: "none"
 "#;
-        let config_none: SmtpConfig = serde_yml::from_str(yaml_none).unwrap();
+        let config_none: SmtpConfig = serde_yaml_neo::from_str(yaml_none).unwrap();
         assert_eq!(config_none.encryption, crate::models::SmtpEncryption::None);
     }
 

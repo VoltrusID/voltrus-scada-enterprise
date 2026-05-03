@@ -3,6 +3,4 @@ ignore = [
     "RUSTSEC-2023-0071", # rsa: Marvin Attack — no fix available, transitive dep
     "RUSTSEC-2023-0089", # atomic-polyfill: unmaintained — transitive via opcua
     "RUSTSEC-2025-0134", # rustls-pemfile: unmaintained — transitive via reqwest
-    "RUSTSEC-2025-0067", # libyml: unsound — transitive via serde_yml
-    "RUSTSEC-2025-0068", # serde_yml: unsound — direct dep, no maintained alternative yet
 ]

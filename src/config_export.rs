@@ -114,7 +114,7 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                     sort_order: r.sort_order,
                 }).collect(),
             };
-            let yaml = serde_yml::to_string(&export).context("Failed to serialize device")?;
+            let yaml = serde_yaml_neo::to_string(&export).context("Failed to serialize device")?;
             let filename = sanitize_filename(&device.id);
             let path = base.join("devices").join(format!("{}.yaml", filename));
             std::fs::write(&path, yaml).context(format!("Failed to write {:?}", path))?;
@@ -152,7 +152,7 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                 data_sources: ds_exports,
                 layouts: layout_exports,
             };
-            let yaml = serde_yml::to_string(&export).context("Failed to serialize screen")?;
+            let yaml = serde_yaml_neo::to_string(&export).context("Failed to serialize screen")?;
             let filename = sanitize_filename(&screen.id);
             let path = base.join("screens").join(format!("{}.yaml", filename));
             std::fs::write(&path, yaml).context(format!("Failed to write {:?}", path))?;
@@ -172,7 +172,7 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                 trigger_config,
                 nodes,
             };
-            let yaml = serde_yml::to_string(&export).context("Failed to serialize flow")?;
+            let yaml = serde_yaml_neo::to_string(&export).context("Failed to serialize flow")?;
             let filename = sanitize_filename(&flow.id);
             let path = base.join("flows").join(format!("{}.yaml", filename));
             std::fs::write(&path, yaml).context(format!("Failed to write {:?}", path))?;
@@ -192,7 +192,7 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                 message: format!("{} threshold: warn={} crit={} {}", s.name, s.warn_val, s.crit_val, s.unit),
             }
         }).collect();
-        let alarm_yaml = serde_yml::to_string(&alarm_exports).context("Failed to serialize alarms")?;
+        let alarm_yaml = serde_yaml_neo::to_string(&alarm_exports).context("Failed to serialize alarms")?;
         std::fs::write(base.join("alarms.yaml"), alarm_yaml)
             .context("Failed to write alarms.yaml")?;
 
@@ -206,7 +206,7 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                 enabled: n.enabled,
             }
         }).collect();
-        let notif_yaml = serde_yml::to_string(&notif_exports).context("Failed to serialize notifications")?;
+        let notif_yaml = serde_yaml_neo::to_string(&notif_exports).context("Failed to serialize notifications")?;
         std::fs::write(base.join("notifications.yaml"), notif_yaml)
             .context("Failed to write notifications.yaml")?;
 
@@ -237,7 +237,7 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
                 }
                 let content = std::fs::read_to_string(&path)
                     .context(format!("Failed to read {:?}", path))?;
-                let device: DeviceExport = serde_yml::from_str(&content)
+                let device: DeviceExport = serde_yaml_neo::from_str(&content)
                     .context(format!("Failed to parse {:?}", path))?;
 
                 // Validate required fields
@@ -289,7 +289,7 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
                 }
                 let content = std::fs::read_to_string(&path)
                     .context(format!("Failed to read {:?}", path))?;
-                let flow: FlowExport = serde_yml::from_str(&content)
+                let flow: FlowExport = serde_yaml_neo::from_str(&content)
                     .context(format!("Failed to parse {:?}", path))?;
 
                 if flow.id.is_empty() {
@@ -315,7 +315,7 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
         let notif_path = base.join("notifications.yaml");
         if notif_path.exists() {
             let content = std::fs::read_to_string(&notif_path)?;
-            let notifications: Vec<NotificationExport> = serde_yml::from_str(&content)
+            let notifications: Vec<NotificationExport> = serde_yaml_neo::from_str(&content)
                 .context("Failed to parse notifications.yaml")?;
             for n in &notifications {
                 let config = serde_json::to_string(&n.config)?;
@@ -352,7 +352,7 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
                 continue;
             }
             let content = std::fs::read_to_string(&path)?;
-            match serde_yml::from_str::<DeviceExport>(&content) {
+            match serde_yaml_neo::from_str::<DeviceExport>(&content) {
                 Ok(device) => {
                     let mut issues = Vec::new();
                     if device.id.is_empty() { issues.push("empty id"); }
@@ -386,7 +386,7 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
                 continue;
             }
             let content = std::fs::read_to_string(&path)?;
-            match serde_yml::from_str::<ScreenExport>(&content) {
+            match serde_yaml_neo::from_str::<ScreenExport>(&content) {
                 Ok(screen) => {
                     messages.push(format!("OK: screens/{:?} — {} ({} data sources, {} layouts)",
                         path.file_name().unwrap_or_default(),
@@ -413,7 +413,7 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
                 continue;
             }
             let content = std::fs::read_to_string(&path)?;
-            match serde_yml::from_str::<FlowExport>(&content) {
+            match serde_yaml_neo::from_str::<FlowExport>(&content) {
                 Ok(flow) => {
                     messages.push(format!("OK: flows/{:?} — {} (enabled={})",
                         path.file_name().unwrap_or_default(),
@@ -433,7 +433,7 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
     let alarms_path = base.join("alarms.yaml");
     if alarms_path.exists() {
         let content = std::fs::read_to_string(&alarms_path)?;
-        match serde_yml::from_str::<Vec<AlarmExport>>(&content) {
+        match serde_yaml_neo::from_str::<Vec<AlarmExport>>(&content) {
             Ok(alarms) => {
                 messages.push(format!("OK: alarms.yaml — {} alarm thresholds", alarms.len()));
             }
@@ -449,7 +449,7 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
     let notif_path = base.join("notifications.yaml");
     if notif_path.exists() {
         let content = std::fs::read_to_string(&notif_path)?;
-        match serde_yml::from_str::<Vec<NotificationExport>>(&content) {
+        match serde_yaml_neo::from_str::<Vec<NotificationExport>>(&content) {
             Ok(notifs) => {
                 messages.push(format!("OK: notifications.yaml — {} notification settings", notifs.len()));
             }
@@ -507,7 +507,7 @@ mod tests {
                 },
             ],
         };
-        let yaml = serde_yml::to_string(&device).unwrap();
+        let yaml = serde_yaml_neo::to_string(&device).unwrap();
         assert!(yaml.contains("id: plts_1") || yaml.contains("id: \"plts_1\""));
         assert!(yaml.contains("192.168.1.10"));
         assert!(yaml.contains("voltage"));
@@ -526,8 +526,8 @@ mod tests {
             enabled: false,
             registers: vec![],
         };
-        let yaml = serde_yml::to_string(&device).unwrap();
-        let parsed: DeviceExport = serde_yml::from_str(&yaml).unwrap();
+        let yaml = serde_yaml_neo::to_string(&device).unwrap();
+        let parsed: DeviceExport = serde_yaml_neo::from_str(&yaml).unwrap();
         assert_eq!(parsed.id, "dev_1");
         assert_eq!(parsed.ip, "10.0.0.1");
         assert_eq!(parsed.port, 502);
@@ -543,7 +543,7 @@ mod tests {
             trigger_config: serde_json::json!({"type": "modbus", "device_id": "*"}),
             nodes: serde_json::json!([{"id": "n1", "type": "filter"}]),
         };
-        let yaml = serde_yml::to_string(&flow).unwrap();
+        let yaml = serde_yaml_neo::to_string(&flow).unwrap();
         assert!(yaml.contains("id: flow_1"));
         assert!(yaml.contains("enabled: true"));
     }
@@ -556,7 +556,7 @@ mod tests {
             config: serde_json::json!({"recipients": ["admin@example.com"]}),
             enabled: true,
         };
-        let yaml = serde_yml::to_string(&notif).unwrap();
+        let yaml = serde_yaml_neo::to_string(&notif).unwrap();
         assert!(yaml.contains("source_key: temp"));
         assert!(yaml.contains("channel_type: email"));
     }
@@ -592,7 +592,7 @@ mod tests {
         };
         std::fs::write(
             base.join("devices/test_dev.yaml"),
-            serde_yml::to_string(&device).unwrap(),
+            serde_yaml_neo::to_string(&device).unwrap(),
         ).unwrap();
 
         // Create valid flow file
@@ -606,7 +606,7 @@ mod tests {
         };
         std::fs::write(
             base.join("flows/flow_1.yaml"),
-            serde_yml::to_string(&flow).unwrap(),
+            serde_yaml_neo::to_string(&flow).unwrap(),
         ).unwrap();
 
         let result = validate_config(base.to_str().unwrap()).unwrap();
