@@ -264,6 +264,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
         .route("/api/v1/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
+        // Alarm management: shelving, audit trail, analytics, summary
+        .route("/api/v1/alarms/{id}/shelf", post(alarms::shelf_alarm))
+        .route("/api/v1/alarms/{id}/unshelf", post(alarms::unshelf_alarm))
+        .route("/api/v1/alarms/audit", get(alarms::list_alarm_audit))
+        .route("/api/v1/alarms/analytics", get(alarms::list_alarm_analytics))
+        .route("/api/v1/alarms/summary", get(alarms::get_alarm_summary))
         .route("/api/v1/screens", post(screens::create_screen))
         .route("/api/v1/screens/{id}", put(screens::update_screen).delete(screens::delete_screen))
         .route("/api/v1/screens/{id}/data-sources", post(screens::add_screen_sensor))
