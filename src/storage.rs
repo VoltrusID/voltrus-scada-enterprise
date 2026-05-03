@@ -198,7 +198,7 @@ impl Storage {
                  SELECT device_id, metric,
                         (timestamp / 3600) * 3600 as bucket_start,
                         AVG(value), MIN(value), MAX(value), COUNT(*)
-                 FROM telemetry
+                 FROM telemetry_hot
                  WHERE timestamp < ?1
                  GROUP BY device_id, metric, bucket_start",
                 rusqlite::params![cutoff],
@@ -228,7 +228,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "DELETE FROM telemetry WHERE timestamp < ?1",
+                "DELETE FROM telemetry_hot WHERE timestamp < ?1",
                 rusqlite::params![cutoff],
             ).context("Delete raw telemetry failed").map(|n| n as u64)
         }).await.context("Task join failed")?
