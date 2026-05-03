@@ -8,8 +8,14 @@ targets = [
 version = 2
 yanked = "warn"
 ignore = [
+    # rsa: Marvin Attack — no fix available, transitive dep
+    "RUSTSEC-2023-0071",
+    # atomic-polyfill: unmaintained — transitive via opcua
+    "RUSTSEC-2023-0089",
     # rustls-pemfile is unmaintained — upstream dependency of reqwest/rustls
     "RUSTSEC-2025-0134",
+    # libyml: unsound — transitive via serde_yml
+    "RUSTSEC-2025-0067",
     # serde_yml is unsound and unmaintained — used for config parsing
     "RUSTSEC-2025-0068",
 ]
