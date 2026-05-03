@@ -1377,6 +1377,35 @@ mod tests {
         assert_eq!(req.name, "Operator");
         assert_eq!(req.permissions, r#"["screens:read"]"#);
     }
+
+    #[test]
+    fn test_command_status_roundtrip() {
+        for status in [
+            CommandStatus::Pending, CommandStatus::Queued, CommandStatus::Sent,
+            CommandStatus::Acked, CommandStatus::Failed, CommandStatus::Expired,
+            CommandStatus::Cancelled,
+        ] {
+            let s = status.as_str();
+            assert_eq!(CommandStatus::from_str(s), Some(status.clone()));
+            // serde round-trip
+            let json = serde_json::to_string(&status).unwrap();
+            let parsed: CommandStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, status);
+        }
+        assert!(CommandStatus::from_str("unknown").is_none());
+        assert!(CommandStatus::Acked.is_terminal());
+        assert!(!CommandStatus::Pending.is_terminal());
+    }
+
+    #[test]
+    fn test_write_policy_update_serde() {
+        let json = r#"{"writable": true, "write_min": null}"#;
+        let parsed: WritePolicyUpdate = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.writable, Some(true));
+        assert_eq!(parsed.write_min, Some(None));
+        // Fields not in JSON should be None (not provided)
+        assert_eq!(parsed.write_max, None);
+    }
 }
 
 // -- OEE / Downtime types --
@@ -1443,6 +1472,19 @@ impl CommandStatus {
 
     pub fn is_terminal(&self) -> bool {
         matches!(self, Self::Acked | Self::Failed | Self::Expired | Self::Cancelled)
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "pending" => Some(Self::Pending),
+            "queued" => Some(Self::Queued),
+            "sent" => Some(Self::Sent),
+            "acked" => Some(Self::Acked),
+            "failed" => Some(Self::Failed),
+            "expired" => Some(Self::Expired),
+            "cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
     }
 }
 
@@ -1524,13 +1566,39 @@ pub struct CommandQuery {
     pub offset: Option<i64>,
 }
 
+/// Serde helper: deserialize missing JSON field as `None`, JSON `null` as `Some(None)`,
+/// and a present value as `Some(Some(value))`. This enables three-state semantics for
+/// `Option<Option<T>>` fields (absent / explicitly cleared / explicitly set).
+mod option_option {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<T: serde::Serialize, S: Serializer>(
+        val: &Option<Option<T>>, s: S,
+    ) -> Result<S::Ok, S::Error> {
+        match val {
+            None => s.serialize_none(),
+            Some(inner) => s.serialize_some(inner),
+        }
+    }
+
+    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<Option<T>>, D::Error> {
+        Ok(Some(Option::<T>::deserialize(d)?))
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WritePolicyUpdate {
     pub writable: Option<bool>,
+    #[serde(default, with = "option_option")]
     pub write_min: Option<Option<f64>>,
+    #[serde(default, with = "option_option")]
     pub write_max: Option<Option<f64>>,
+    #[serde(default, with = "option_option")]
     pub write_max_rate: Option<Option<i64>>,
     pub write_requires_reason: Option<bool>,
+    #[serde(default, with = "option_option")]
     pub write_deadband: Option<Option<f64>>,
 }
 
