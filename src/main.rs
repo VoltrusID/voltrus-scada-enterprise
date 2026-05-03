@@ -9,6 +9,7 @@ mod ethernet_ip;
 mod expression;
 mod flow_engine;
 mod modbus;
+mod dnp3;
 mod models;
 mod oee;
 mod poller_manager;
