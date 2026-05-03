@@ -1101,7 +1101,7 @@ pub struct AlarmAuditEntry {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ShelfAlarmRequest {
     pub duration_secs: u64,
     pub reason: String,
@@ -1596,7 +1596,7 @@ fn default_write_policy() -> String {
     "immediate".to_string()
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct CommandQuery {
     pub tag: Option<String>,
     pub status: Option<String>,
@@ -1629,7 +1629,7 @@ mod option_option {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct WritePolicyUpdate {
     pub writable: Option<bool>,
     #[serde(default, with = "option_option")]
