@@ -119,3 +119,14 @@ devices:
 #         name: "temperature"
 #         display_name: "Temperature"
 #         data_type: "Float"
+
+# Embedded MQTT broker (optional - uncomment and fill to enable)
+# mqtt_broker:
+#   enabled: true
+#   port: 1883
+#   max_connections: 100
+#   auth:
+#     mode: "none"                    # none | config
+#     users: []                       # when mode = "config":
+#                                     #   - username: "user1"
+#                                     #     password: "pass1"
