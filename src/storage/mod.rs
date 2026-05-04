@@ -11,6 +11,7 @@ mod device_crud;
 mod device_layouts;
 mod dnp3;
 mod downsampling;
+mod egress;
 mod enip_storage;
 mod flows;
 mod hub;

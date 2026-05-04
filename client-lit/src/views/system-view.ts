@@ -123,6 +123,8 @@ export class SystemView extends LitElement {
           </div>
         </div>
       </div>
+
+      <vlt-integration-panel></vlt-integration-panel>
     `;
   }
 }

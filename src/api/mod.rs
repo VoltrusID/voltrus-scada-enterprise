@@ -25,6 +25,7 @@ mod generators;
 pub(crate) mod hardware_cert;
 pub(crate) mod hub;
 mod import_nodered;
+mod integration;
 mod layouts;
 mod license;
 mod maintenance;
@@ -224,6 +225,8 @@ pub fn create_router(state: AppState) -> Router {
     // Public routes (no auth required)
     let public = Router::new()
         .route("/api/v1/health", get(system::get_health))
+        // Prometheus metrics endpoint (no auth, tier-gated internally)
+        .route("/metrics", get(integration::prometheus_metrics))
         .route(
             "/api/v1/networks",
             get(crate::network::handle_list_networks),
@@ -429,6 +432,12 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/edr/io-status", get(edr_compat::get_io_status))
         .route("/api/v1/edr/gpo-guide", get(edr_compat::get_gpo_guide))
+        // Integration routes (authenticated users)
+        .route("/api/v1/integration/bi/query", get(integration::bi_query))
+        .route("/api/v1/integration/grafana/query", get(integration::grafana_query))
+        .route("/api/v1/integration/grafana/search", get(integration::grafana_search))
+        .route("/api/v1/integration/connection-info", get(integration::connection_info))
+        .route("/api/v1/integration/webhooks/outbound", get(integration::list_outbound_webhooks))
         // Hardware certification routes (any authenticated user can view)
         .route("/api/v1/hw/report", get(hardware_cert::get_hw_report))
         .route(
@@ -1014,6 +1023,13 @@ pub fn create_router(state: AppState) -> Router {
         )
         // AI Copilot admin routes
         .route("/api/v1/ai/settings", put(ai_copilot::update_ai_settings))
+        // Integration admin routes (admin-only)
+        .route("/api/v1/egress/jobs", get(integration::list_egress_jobs).post(integration::create_egress_job))
+        .route("/api/v1/egress/jobs/{id}", get(integration::get_egress_job).put(integration::update_egress_job).delete(integration::delete_egress_job))
+        .route("/api/v1/egress/jobs/{id}/run", post(integration::run_egress_job))
+        .route("/api/v1/integration/webhooks/outbound", post(integration::create_outbound_webhook))
+        .route("/api/v1/integration/webhooks/outbound/{id}", delete(integration::delete_outbound_webhook))
+        .route("/api/v1/integration/webhooks/outbound/{id}/test", post(integration::test_outbound_webhook))
         .route(
             "/api/v1/ai/proposals/{id}/approve",
             post(ai_copilot::approve_proposal),

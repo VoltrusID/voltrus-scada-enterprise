@@ -36,6 +36,8 @@ USAGE:
     voltrus config import [DIR]        Import config from YAML files
     voltrus config validate [DIR]      Validate YAML config files
     voltrus discover --range <CIDR>    Scan subnet for Modbus TCP devices
+    voltrus egress list [CONFIG]         List scheduled data egress jobs
+    voltrus egress run <ID> [CONFIG]     Manually trigger a data egress job
 
 BACKUP OPTIONS:
     --output <PATH>    Output archive path (default: voltrus-backup-YYYYMMDD-HHMMSS.tar.gz)
@@ -100,6 +102,7 @@ pub async fn handle_cli(args: &[String]) -> bool {
         "restore" => handle_restore(args),
         "factory-reset" => handle_factory_reset(args),
         "db" => handle_db(args),
+        "egress" => handle_egress(args).await,
         "--dump-openapi" => handle_dump_openapi(),
         "--license-status" => handle_license_status(args).await,
         other if other.starts_with('-') => {
@@ -1154,9 +1157,99 @@ fn find_config_path(args: &[String]) -> String {
             && arg != "stats"
             && arg != "edr"
             && arg != "hw"
+            && arg != "egress"
+            && arg != "list"
+            && arg != "run"
         {
             return arg.clone();
         }
     }
     "config.yaml".to_string()
+}
+
+async fn handle_egress(args: &[String]) -> bool {
+    if args.len() < 3 {
+        eprintln!("Usage: {} egress <list|run> [OPTIONS]", args[0]);
+        return true;
+    }
+
+    match args[2].as_str() {
+        "list" => handle_egress_list(args),
+        "run" => handle_egress_run(args).await,
+        other => {
+            eprintln!("Unknown egress subcommand: {}", other);
+            true
+        }
+    }
+}
+
+fn handle_egress_list(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "voltrus.db".to_string());
+    let storage = match Storage::new(&db_path) {
+        Ok(s) => s,
+        Err(e) => { eprintln!("Failed to open database: {e}"); std::process::exit(1); }
+    };
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        match storage.list_egress_jobs().await {
+            Ok(jobs) => {
+                if jobs.is_empty() {
+                    println!("No egress jobs configured.");
+                } else {
+                    println!("=== Data Egress Jobs ===");
+                    for job in &jobs {
+                        let status = job.last_status.as_deref().unwrap_or("never run");
+                        let last = job.last_run.map(|t| {
+                            time::OffsetDateTime::from_unix_timestamp(t)
+                                .map(|dt| dt.format(&time::format_description::well_known::Rfc3339).unwrap_or_else(|_| t.to_string()))
+                                .unwrap_or_else(|_| t.to_string())
+                        }).unwrap_or_else(|| "never".to_string());
+                        println!("  [{}] {} (id={}) — {} {} → {} ({}) last: {} {}",
+                            if job.enabled { "ON" } else { "OFF" },
+                            job.name, job.id, job.schedule, job.time_range, job.destination, job.format,
+                            last,
+                            if let Some(ref err) = job.last_error { format!("error: {}", err) } else { status.to_string() }
+                        );
+                    }
+                }
+            }
+            Err(e) => { eprintln!("Error: {e}"); std::process::exit(1); }
+        }
+    });
+    true
+}
+
+async fn handle_egress_run(args: &[String]) -> bool {
+    if args.len() < 4 {
+        eprintln!("Usage: {} egress run <JOB_ID> [CONFIG_PATH]", args[0]);
+        return true;
+    }
+    let job_id: i64 = match args[3].parse() {
+        Ok(id) => id,
+        Err(_) => { eprintln!("Invalid job ID: {}", args[3]); return true; }
+    };
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "voltrus.db".to_string());
+    let storage = match Storage::new(&db_path) {
+        Ok(s) => s,
+        Err(e) => { eprintln!("Failed to open database: {e}"); std::process::exit(1); }
+    };
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        match storage.get_egress_job(job_id).await {
+            Ok(Some(job)) => {
+                println!("Running egress job '{}' (id={})...", job.name, job.id);
+                match crate::integration::egress::execute_egress_job(&storage, &job).await {
+                    Ok(()) => println!("Egress job completed successfully."),
+                    Err(e) => { eprintln!("Egress job failed: {e}"); std::process::exit(1); }
+                }
+            }
+            Ok(None) => { eprintln!("Egress job {} not found.", job_id); }
+            Err(e) => { eprintln!("Error: {e}"); std::process::exit(1); }
+        }
+    });
+    true
 }
