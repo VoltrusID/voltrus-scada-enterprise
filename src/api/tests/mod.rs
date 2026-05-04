@@ -11,6 +11,7 @@ mod naming_convention;
 mod import_nodered;
 mod audit_log;
 mod csv_import;
+mod mqtt_broker;
 
 pub use helpers::*;
 
