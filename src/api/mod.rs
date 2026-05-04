@@ -1,5 +1,6 @@
 pub(crate) mod auth;
 mod api_keys;
+mod audit_log;
 mod bacnet_devices;
 mod push;
 mod oee;
@@ -41,6 +42,7 @@ mod config_snapshots;
 mod ai_copilot;
 mod websocket;
 mod auth_middleware;
+mod import_nodered;
 
 use axum::{
     extract::{Request, State},
@@ -412,6 +414,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/security/events", get(security::list_security_events))
         .route("/api/v1/security/events/export", get(security::export_security_csv))
         .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
+        // Audit log routes (admin-only)
+        .route("/api/v1/audit", get(audit_log::list_audit_logs))
+        .route("/api/v1/audit/export", get(audit_log::export_audit_csv))
         // Annotation routes (admin-only, Professional-gated)
         .route("/api/v1/annotations", get(annotations::list_annotations).post(annotations::create_annotation))
         .route("/api/v1/annotations/{id}", get(annotations::get_annotation).put(annotations::update_annotation).delete(annotations::delete_annotation))
@@ -434,6 +439,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
         .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
         .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
+        // Node-RED import (admin-only)
+        .route("/api/v1/import/node-red", post(import_nodered::import_node_red))
         // Config snapshot routes (admin-only)
         .route("/api/v1/config/snapshots", get(config_snapshots::list_snapshots).post(config_snapshots::create_snapshot))
         .route("/api/v1/config/snapshots/{id}", get(config_snapshots::get_snapshot))

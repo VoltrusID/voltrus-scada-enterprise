@@ -8,6 +8,8 @@ mod analytics;
 mod ui_preferences;
 mod tag_tree;
 mod naming_convention;
+mod import_nodered;
+mod audit_log;
 
 pub use helpers::*;
 
