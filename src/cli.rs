@@ -23,6 +23,10 @@ USAGE:
                                             Restore from backup archive
     voltrus factory-reset [CONFIG]     Delete all data and reset to defaults
     voltrus db stats [CONFIG]          Print database statistics
+    voltrus edr report [CONFIG]        Show EDR compatibility report
+    voltrus edr exclusions [CONFIG]    Show recommended EDR exclusions
+    voltrus edr exclusions-ps1 [CONFIG] Generate Defender exclusion PowerShell script
+    voltrus edr gpo-guide              Show Group Policy deployment guide
     voltrus config export [DIR]        Export config to YAML files
     voltrus config import [DIR]        Import config from YAML files
     voltrus config validate [DIR]      Validate YAML config files
@@ -84,6 +88,7 @@ pub async fn handle_cli(args: &[String]) -> bool {
         "--online-activate" => handle_online_activate(args).await,
         "--reset-admin-password" => handle_reset_admin_password(args).await,
         "config" => handle_config(args),
+        "edr" => handle_edr(args),
         "discover" => handle_discover(args).await,
         "backup" => handle_backup(args),
         "restore" => handle_restore(args),
@@ -349,6 +354,104 @@ async fn handle_reset_admin_password(args: &[String]) -> bool {
             std::process::exit(1);
         }
     }
+}
+
+fn handle_edr(args: &[String]) -> bool {
+    let subcommand = args.get(2).map(|s| s.as_str()).unwrap_or("");
+    match subcommand {
+        "report" => handle_edr_report(args),
+        "exclusions" => handle_edr_exclusions(args),
+        "exclusions-ps1" => handle_edr_exclusions_ps1(args),
+        "gpo-guide" => {
+            let guide = crate::edr_compat::generate_gpo_guidance();
+            println!("{}", guide);
+            true
+        }
+        _ => {
+            eprintln!(
+                "Usage: {} edr [report|exclusions|exclusions-ps1|gpo-guide] [CONFIG_PATH]",
+                args[0]
+            );
+            eprintln!();
+            eprintln!("Commands:");
+            eprintln!("  report          Show full EDR compatibility report");
+            eprintln!("  exclusions      Show recommended exclusion paths");
+            eprintln!("  exclusions-ps1  Generate Windows Defender PowerShell exclusion script");
+            eprintln!("  gpo-guide       Show Group Policy deployment guide");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_edr_report(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "data.db".to_string());
+
+    let detected = crate::edr_compat::detect_edr_products();
+    let exclusions = crate::edr_compat::generate_exclusions(&db_path);
+
+    println!("=== Voltrus EDR Compatibility Report ===");
+    println!();
+
+    if detected.is_empty() {
+        println!("No EDR/antivirus products detected.");
+    } else {
+        println!("Detected EDR/antivirus products:");
+        for product in &detected {
+            println!(
+                "  [{}] {} ({})",
+                product.category, product.name, product.vendor
+            );
+            if let Some(ref notes) = product.notes {
+                println!("    Notes: {}", notes);
+            }
+        }
+    }
+
+    println!();
+    println!("Recommended exclusions:");
+    for exc in &exclusions {
+        let priority_icon = match exc.priority.as_str() {
+            "critical" => "[CRITICAL]",
+            "recommended" => "[REC]     ",
+            _ => "[OPT]     ",
+        };
+        println!("  {} {:10} {}", priority_icon, exc.exclusion_type, exc.path);
+        println!("             Reason: {}", exc.reason);
+    }
+
+    println!();
+    println!("Run 'voltrus edr exclusions-ps1' to generate a PowerShell script");
+    println!("Run 'voltrus edr gpo-guide' for Group Policy deployment instructions");
+
+    true
+}
+
+fn handle_edr_exclusions(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "data.db".to_string());
+
+    let exclusions = crate::edr_compat::generate_exclusions(&db_path);
+    let json = serde_json::to_string_pretty(&serde_json::json!({
+        "exclusions": exclusions,
+        "count": exclusions.len(),
+    }))
+    .unwrap_or_default();
+    println!("{}", json);
+    true
+}
+
+fn handle_edr_exclusions_ps1(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "data.db".to_string());
+
+    let exclusions = crate::edr_compat::generate_exclusions(&db_path);
+    let script = crate::edr_compat::generate_defender_ps1(&exclusions);
+    println!("{}", script);
+    true
 }
 
 fn handle_config(args: &[String]) -> bool {
@@ -795,6 +898,7 @@ fn find_config_path(args: &[String]) -> String {
             && arg != "factory-reset"
             && arg != "db"
             && arg != "stats"
+            && arg != "edr"
         {
             return arg.clone();
         }

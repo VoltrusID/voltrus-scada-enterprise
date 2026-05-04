@@ -245,4 +245,24 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
+
+    /// Query a SQLite PRAGMA setting and return its string value.
+    /// Used by the EDR compatibility module to verify I/O optimizations.
+    pub async fn query_pragma(&self, pragma: &str) -> Result<String> {
+        let conn = self.conn.clone();
+        let sql = format!("PRAGMA {}", pragma);
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap_or_else(|e| {
+                tracing::error!("Storage mutex poisoned: {e}");
+                e.into_inner()
+            });
+            let result: String = conn
+                .query_row(&sql, [], |row| row.get(0))
+                .context(format!("Failed to query PRAGMA: {}", sql))?;
+            Ok(result)
+        })
+        .await
+        .context("Task join failed")?
+    }
 }

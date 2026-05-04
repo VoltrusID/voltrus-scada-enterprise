@@ -41,6 +41,7 @@ import { DataImportWizard } from './DataImportWizard'
 import { NodeRedImportWizard } from './NodeRedImportWizard'
 import { MqttBrokerPanel } from './MqttBrokerPanel'
 import { AssetInventory } from './views/AssetInventory'
+import { EdrCompatPanel } from './EdrCompatPanel'
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -93,6 +94,7 @@ function AppInner() {
   const [showImportWizard, setShowImportWizard] = useState(false)
   const [showNodeRedWizard, setShowNodeRedWizard] = useState(false)
   const [showMqttPanel, setShowMqttPanel] = useState(false)
+  const [showEdrPanel, setShowEdrPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
 
@@ -463,6 +465,7 @@ function AppInner() {
         onImportWizardClick={() => setShowImportWizard(true)}
         onNodeRedWizardClick={() => setShowNodeRedWizard(true)}
         onMqttPanelClick={() => setShowMqttPanel(true)}
+        onEdrPanelClick={() => setShowEdrPanel(true)}
       />
       </header>
 
@@ -591,6 +594,7 @@ function AppInner() {
         {showImportWizard && <DataImportWizard onClose={() => setShowImportWizard(false)} />}
         {showNodeRedWizard && <NodeRedImportWizard onClose={() => setShowNodeRedWizard(false)} />}
         {showMqttPanel && <MqttBrokerPanel onClose={() => setShowMqttPanel(false)} />}
+        {showEdrPanel && <EdrCompatPanel onClose={() => setShowEdrPanel(false)} />}
       </main>
 
       <Footer />
