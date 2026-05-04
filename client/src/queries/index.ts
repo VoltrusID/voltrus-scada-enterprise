@@ -254,3 +254,12 @@ export {
 } from './shift_handover'
 
 export type { ShiftHandover, ShiftAutoReport } from './shift_handover'
+
+export {
+  useUiTheme,
+  useUpdateUiTheme,
+  useUiLang,
+  useUpdateUiLang,
+} from './ui_preferences'
+
+export type { ThemeValue, LangValue } from './ui_preferences'
