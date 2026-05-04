@@ -172,20 +172,20 @@ pub async fn write_tag(
 
 // ── Backoff helper ──
 
-struct Backoff {
+pub(crate) struct Backoff {
     attempt: u32,
 }
 
 impl Backoff {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { attempt: 0 }
     }
 
-    fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.attempt = 0;
     }
 
-    fn next(&mut self) -> u64 {
+    pub(crate) fn next(&mut self) -> u64 {
         let delay = 1000 * 2u64.pow(self.attempt.min(6));
         self.attempt += 1;
         delay.min(60_000)

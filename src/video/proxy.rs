@@ -9,7 +9,7 @@ use super::client::RtspClient;
 
 // ── Stream Proxy ──
 
-struct CameraState {
+pub(crate) struct CameraState {
     url: String,
     last_snapshot: Option<CameraSnapshot>,
 }
