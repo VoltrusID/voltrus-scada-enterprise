@@ -1,6 +1,8 @@
 use axum::extract::{Extension, State};
-use axum::response::IntoResponse;
+use axum::body::Body;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
+use http::StatusCode;
 use serde_json::json;
 
 use super::{AppState, AppError, AuthUser};
@@ -164,28 +166,42 @@ pub async fn update_alarm_cooldown(
 }
 
 /// GET /api/v1/settings/ui-theme
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/ui-theme",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("cookie_auth" = []))
+)]
 pub async fn get_ui_theme(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response<Body>, AppError> {
     let theme = state
         .storage
         .get_user_preference(&auth.username, "ui_theme")
         .await?
         .unwrap_or_else(|| "dark".to_string());
-    Ok(Json(json!({ "theme": theme })))
+    Ok(Json(json!({ "theme": theme })).into_response())
 }
 
 /// PUT /api/v1/settings/ui-theme
+#[utoipa::path(
+    put,
+    path = "/api/v1/settings/ui-theme",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("cookie_auth" = []))
+)]
 pub async fn update_ui_theme(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response<Body>, AppError> {
     let theme = body.get("theme").and_then(|v| v.as_str()).unwrap_or("dark");
     let valid = ["light", "dark", "system"].contains(&theme);
     if !valid {
-        return Err(AppError(anyhow::anyhow!("Invalid theme. Must be 'light', 'dark', or 'system'.")));
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid theme. Must be 'light', 'dark', or 'system'."}))).into_response());
     }
     state.storage.set_user_preference(&auth.username, "ui_theme", theme).await?;
     state.audit_logger.log(crate::security::AuditEvent {
@@ -194,32 +210,46 @@ pub async fn update_ui_theme(
         resource: "settings:ui-theme".to_string(),
         details: Some(format!("theme={}", theme)),
     });
-    Ok(Json(json!({ "ok": true, "theme": theme })))
+    Ok(Json(json!({ "ok": true, "theme": theme })).into_response())
 }
 
 /// GET /api/v1/settings/ui-lang
+#[utoipa::path(
+    get,
+    path = "/api/v1/settings/ui-lang",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("cookie_auth" = []))
+)]
 pub async fn get_ui_lang(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response<Body>, AppError> {
     let lang = state
         .storage
         .get_user_preference(&auth.username, "ui_lang")
         .await?
         .unwrap_or_else(|| "en".to_string());
-    Ok(Json(json!({ "lang": lang })))
+    Ok(Json(json!({ "lang": lang })).into_response())
 }
 
 /// PUT /api/v1/settings/ui-lang
+#[utoipa::path(
+    put,
+    path = "/api/v1/settings/ui-lang",
+    responses((status = 200)),
+    tag = "Settings",
+    security(("cookie_auth" = []))
+)]
 pub async fn update_ui_lang(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response<Body>, AppError> {
     let lang = body.get("lang").and_then(|v| v.as_str()).unwrap_or("en");
     let valid = ["en", "id", "zh", "de"].contains(&lang);
     if !valid {
-        return Err(AppError(anyhow::anyhow!("Invalid language. Must be one of: en, id, zh, de.")));
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid language. Must be one of: en, id, zh, de."}))).into_response());
     }
     state.storage.set_user_preference(&auth.username, "ui_lang", lang).await?;
     state.audit_logger.log(crate::security::AuditEvent {
@@ -228,5 +258,5 @@ pub async fn update_ui_lang(
         resource: "settings:ui-lang".to_string(),
         details: Some(format!("lang={}", lang)),
     });
-    Ok(Json(json!({ "ok": true, "lang": lang })))
+    Ok(Json(json!({ "ok": true, "lang": lang })).into_response())
 }
