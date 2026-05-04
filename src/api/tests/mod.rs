@@ -6,6 +6,7 @@ mod api_keys;
 mod license_tier;
 mod analytics;
 mod ui_preferences;
+mod tag_tree;
 
 pub use helpers::*;
 

@@ -33,6 +33,7 @@ mod annotations;
 mod shift_handover;
 mod user_notifications;
 mod commands;
+mod tag_tree;
 mod simulation;
 mod scripts;
 mod config_snapshots;
@@ -227,6 +228,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/screens/{id}/scada-equipment", get(layouts::get_scada_equipment))
         .route("/api/v1/screens/{id}/scada-connections", get(layouts::get_scada_connections))
         .route("/api/v1/data-sources", get(data_sources::list_data_sources))
+        .route("/api/v1/tags/tree", get(tag_tree::get_tag_tree))
         .route(
             "/api/v1/shortcuts",
             get(shortcuts::get_shortcuts).put(shortcuts::save_shortcuts),
@@ -416,6 +418,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/shift-handover/{id}", get(shift_handover::get_shift_handover))
         // Command write/cancel routes (admin-only)
         .route("/api/v1/tags/{id}/write", post(commands::write_tag))
+        .route("/api/v1/tags/{id}/path", put(tag_tree::update_tag_path))
         .route("/api/v1/commands/{command_id}/cancel", post(commands::cancel_command))
         .route("/api/v1/data-sources/{id}/write-policy", patch(commands::update_write_policy))
         // Simulation routes (admin-only)
