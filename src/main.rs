@@ -49,6 +49,65 @@ use poller_manager::PollerManager;
 use std::sync::Arc;
 use storage::Storage;
 
+fn run_watchdog() {
+    tracing_subscriber::fmt::init();
+    tracing::info!("Voltrus watchdog process started");
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+    rt.block_on(async {
+        let mut failures = 0u32;
+        let max_failures = 3u32;
+        let max_restarts = 5u32;
+        let mut restarts = 0u32;
+        let cooldown = std::time::Duration::from_secs(30);
+
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+
+        loop {
+            interval.tick().await;
+
+            let healthy = match reqwest::get("http://localhost:8080/api/v1/health").await {
+                Ok(resp) if resp.status().is_success() => true,
+                _ => false,
+            };
+
+            if healthy {
+                failures = 0;
+                continue;
+            }
+
+            failures += 1;
+            tracing::warn!("Health check failed ({}/{})", failures, max_failures);
+
+            if failures >= max_failures && restarts < max_restarts {
+                tracing::warn!("Restarting Voltrus main process (attempt {}/{})", restarts + 1, max_restarts);
+
+                #[cfg(unix)]
+                {
+                    let _ = std::process::Command::new("pkill")
+                        .args(["-f", "voltrus-lite-rust-service"])
+                        .output();
+                }
+
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+                let exe = std::env::current_exe().expect("Cannot find executable");
+                match std::process::Command::new(exe).spawn() {
+                    Ok(child) => {
+                        tracing::info!("Started Voltrus process (PID: {:?})", child.id());
+                        restarts += 1;
+                        failures = 0;
+                        tokio::time::sleep(cooldown).await;
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to start Voltrus: {}", e);
+                    }
+                }
+            }
+        }
+    });
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -59,6 +118,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let args: Vec<String> = std::env::args().collect();
+
+    if args.contains(&"--watchdog".to_string()) {
+        run_watchdog();
+        return Ok(());
+    }
 
     if cli::handle_cli(&args).await {
         return Ok(());
