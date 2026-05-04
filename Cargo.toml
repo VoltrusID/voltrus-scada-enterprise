@@ -33,6 +33,7 @@ tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "
 tokio-stream = { version = "=0.1.18", features = ["sync"] }
 tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp", "tcp-server"] }
 axum = { version = "=0.8.9", features = ["ws", "multipart"] }
+csv = "1"
 utoipa = { version = "5", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 utoipa-axum = "0.2"
