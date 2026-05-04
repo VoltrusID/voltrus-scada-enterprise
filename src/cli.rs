@@ -406,12 +406,20 @@ fn handle_hw_report(args: &[String]) -> bool {
     println!("  Hostname:    {}", platform.hostname);
     println!("  OS:          {}", platform.os);
     println!("  Arch:        {}", platform.arch);
-    println!("  CPU:         {} ({} cores)", platform.cpu_model, platform.cpu_cores);
+    println!(
+        "  CPU:         {} ({} cores)",
+        platform.cpu_model, platform.cpu_cores
+    );
     println!("  RAM:         {} MB", platform.ram_total_mb);
-    println!("  Disk:        {:.1} / {:.1} GB ({:.0}% used)",
+    println!(
+        "  Disk:        {:.1} / {:.1} GB ({:.0}% used)",
         platform.disk_total_gb - platform.disk_available_gb,
         platform.disk_total_gb,
-        if platform.disk_total_gb > 0.0 { ((platform.disk_total_gb - platform.disk_available_gb) / platform.disk_total_gb) * 100.0 } else { 0.0 }
+        if platform.disk_total_gb > 0.0 {
+            ((platform.disk_total_gb - platform.disk_available_gb) / platform.disk_total_gb) * 100.0
+        } else {
+            0.0
+        }
     );
     println!("  Board:       {}", platform.board_type);
     println!("  Storage:     {}", platform.storage_type);
@@ -425,13 +433,22 @@ fn handle_hw_report(args: &[String]) -> bool {
         ("Enterprise ($999)", &compatibility.enterprise),
     ];
     for (name, assessment) in &tiers {
-        let status = if assessment.compatible { "✓ COMPATIBLE" } else { "✗ NOT COMPATIBLE" };
+        let status = if assessment.compatible {
+            "✓ COMPATIBLE"
+        } else {
+            "✗ NOT COMPATIBLE"
+        };
         println!("  {} — {}", name, status);
         if assessment.compatible {
-            println!("    Max tags: {} | Max poll rate: {} Hz | Compression: {}",
+            println!(
+                "    Max tags: {} | Max poll rate: {} Hz | Compression: {}",
                 assessment.max_tags,
                 assessment.max_poll_rate,
-                if assessment.compression_recommended { "recommended" } else { "optional" }
+                if assessment.compression_recommended {
+                    "recommended"
+                } else {
+                    "optional"
+                }
             );
         }
         for limitation in &assessment.limitations {
@@ -442,9 +459,26 @@ fn handle_hw_report(args: &[String]) -> bool {
     println!();
     println!("Storage Assessment:");
     println!("  Type:                {}", storage.storage_type);
-    println!("  Write optimization:  {}", if storage.write_optimization_critical { "CRITICAL" } else { "recommended" });
-    println!("  Est. endurance:      {:.1} years (at 10K tags @ 1Hz)", storage.estimated_endurance_years);
-    println!("  Batch writes:        {}", if storage.batch_writes_active { "active" } else { "disabled" });
+    println!(
+        "  Write optimization:  {}",
+        if storage.write_optimization_critical {
+            "CRITICAL"
+        } else {
+            "recommended"
+        }
+    );
+    println!(
+        "  Est. endurance:      {:.1} years (at 10K tags @ 1Hz)",
+        storage.estimated_endurance_years
+    );
+    println!(
+        "  Batch writes:        {}",
+        if storage.batch_writes_active {
+            "active"
+        } else {
+            "disabled"
+        }
+    );
 
     if !storage.storage_recommendations.is_empty() {
         println!("  Recommendations:");
@@ -466,13 +500,18 @@ fn handle_hw_benchmark(args: &[String]) -> bool {
         .unwrap_or_else(|_| "data.db".to_string());
 
     // Parse optional duration
-    let duration = args.get(3)
+    let duration = args
+        .get(3)
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(10)
         .min(60);
 
     println!("=== Voltrus Hardware Benchmark ===");
-    println!("Duration: {}s per test (4 tests, ~{}s total)", duration, duration * 4);
+    println!(
+        "Duration: {}s per test (4 tests, ~{}s total)",
+        duration,
+        duration * 4
+    );
     println!("Running benchmarks...");
 
     let platform = crate::hardware_cert::platform::detect_platform(&db_path);
@@ -481,8 +520,14 @@ fn handle_hw_benchmark(args: &[String]) -> bool {
         Ok(results) => {
             println!();
             println!("Benchmark Results:");
-            println!("  Platform: {} ({})", results.platform.board_type, results.platform.arch);
-            println!("  RAM: {} MB | Cores: {}", results.platform.ram_total_mb, results.platform.cpu_cores);
+            println!(
+                "  Platform: {} ({})",
+                results.platform.board_type, results.platform.arch
+            );
+            println!(
+                "  RAM: {} MB | Cores: {}",
+                results.platform.ram_total_mb, results.platform.cpu_cores
+            );
             println!();
 
             for detail in &results.details {
@@ -494,13 +539,18 @@ fn handle_hw_benchmark(args: &[String]) -> bool {
                     "compression" => "rows/s",
                     _ => "ops/s",
                 };
-                println!("  [{}] {:20} {:>12.0} {} ({} ms)",
-                    status, detail.name, detail.throughput, unit, detail.duration_ms);
+                println!(
+                    "  [{}] {:20} {:>12.0} {} ({} ms)",
+                    status, detail.name, detail.throughput, unit, detail.duration_ms
+                );
             }
 
             println!();
             println!("Recommendations:");
-            println!("  Max tags:       {} (at 1 Hz)", results.recommended_max_tags);
+            println!(
+                "  Max tags:       {} (at 1 Hz)",
+                results.recommended_max_tags
+            );
             println!("  Max poll rate:  {} Hz", results.recommended_poll_rate);
             println!("  Write amplification: {:.1}x", results.write_amplification);
             println!("  Peak memory:    {:.0} MB", results.peak_memory_mb);
@@ -546,7 +596,10 @@ fn handle_hw_compat_matrix() -> bool {
         println!("  RAM:      {} MB", entry.ram_mb);
         println!("  Storage:  {}", entry.storage);
         println!("  Tiers:    {}", entry.supported_tiers.join(", "));
-        println!("  Max tags: {} | Poll rate: {} Hz", entry.max_tags, entry.max_poll_rate);
+        println!(
+            "  Max tags: {} | Poll rate: {} Hz",
+            entry.max_tags, entry.max_poll_rate
+        );
         println!("  Notes:    {}", entry.notes);
         println!();
     }

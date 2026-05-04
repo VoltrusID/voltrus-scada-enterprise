@@ -1,7 +1,7 @@
 //! Hardware compatibility matrix — minimum requirements per license tier.
 
-use super::{StorageAssessment, TierAssessment, TierCompatibility};
 use super::platform::PlatformInfo;
+use super::{StorageAssessment, TierAssessment, TierCompatibility};
 
 /// Minimum RAM (MB) per tier.
 const MIN_RAM_FREE_TRIAL: u64 = 256;
@@ -29,7 +29,10 @@ fn calculate_max_tags(ram_mb: u64, cpu_cores: u32, storage_gb: f64) -> u32 {
     let storage_limited_tags = ((storage_gb / 15.0) * 10000.0) as u32; // 15GB per 10K tags/year
     let cpu_limited_tags = cpu_cores * 2500; // ~2500 tags per core at 1Hz
 
-    ram_limited_tags.min(storage_limited_tags).min(cpu_limited_tags).max(50)
+    ram_limited_tags
+        .min(storage_limited_tags)
+        .min(cpu_limited_tags)
+        .max(50)
 }
 
 /// Assess compatibility for a single tier.
@@ -75,14 +78,17 @@ fn assess_tier(
     }
 
     let max_tags = if compatible {
-        calculate_max_tags(platform.ram_total_mb, platform.cpu_cores, platform.disk_available_gb)
+        calculate_max_tags(
+            platform.ram_total_mb,
+            platform.cpu_cores,
+            platform.disk_available_gb,
+        )
     } else {
         0
     };
 
-    let compression_recommended = platform.storage_type == "sd_card"
-        || platform.storage_type == "emmc"
-        || max_tags > 1000;
+    let compression_recommended =
+        platform.storage_type == "sd_card" || platform.storage_type == "emmc" || max_tags > 1000;
 
     TierAssessment {
         compatible,
@@ -152,31 +158,21 @@ pub fn assess_storage(platform: &PlatformInfo) -> StorageAssessment {
 
     match platform.storage_type.as_str() {
         "sd_card" => {
-            storage_recommendations.push(
-                "Use A2-rated MicroSD card (minimum Class 10 / U3)".into(),
-            );
-            storage_recommendations.push(
-                "Enable data compression to reduce SD card writes".into(),
-            );
-            storage_recommendations.push(
-                "Consider NVMe HAT for Raspberry Pi 5 for production deployments".into(),
-            );
-            storage_recommendations.push(
-                "Schedule periodic backups — SD cards can fail without warning".into(),
-            );
+            storage_recommendations
+                .push("Use A2-rated MicroSD card (minimum Class 10 / U3)".into());
+            storage_recommendations.push("Enable data compression to reduce SD card writes".into());
+            storage_recommendations
+                .push("Consider NVMe HAT for Raspberry Pi 5 for production deployments".into());
+            storage_recommendations
+                .push("Schedule periodic backups — SD cards can fail without warning".into());
         }
         "emmc" => {
-            storage_recommendations.push(
-                "Enable data compression to extend flash endurance".into(),
-            );
-            storage_recommendations.push(
-                "Monitor write amplification factor".into(),
-            );
+            storage_recommendations
+                .push("Enable data compression to extend flash endurance".into());
+            storage_recommendations.push("Monitor write amplification factor".into());
         }
         "hdd" => {
-            storage_recommendations.push(
-                "Consider SSD upgrade for better write latency".into(),
-            );
+            storage_recommendations.push("Consider SSD upgrade for better write latency".into());
         }
         _ => {}
     }

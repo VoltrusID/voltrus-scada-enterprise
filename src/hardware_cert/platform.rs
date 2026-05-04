@@ -209,8 +209,7 @@ fn is_advantech_system() -> bool {
 /// Check if the system is a Siemens SIMATIC IPC.
 fn is_siemens_ipc() -> bool {
     if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name") {
-        if product.to_lowercase().contains("simatic")
-            || product.to_lowercase().contains("siemens")
+        if product.to_lowercase().contains("simatic") || product.to_lowercase().contains("siemens")
         {
             return true;
         }
@@ -266,9 +265,7 @@ fn detect_storage_type(is_raspberry_pi: bool, db_path: &str) -> String {
             for line in mounts.lines() {
                 if line.starts_with("/dev/mmcblk") || line.starts_with("/dev/sd") {
                     if let Some(_fs_type) = line.split_whitespace().nth(2) {
-                        if db_path.starts_with("/")
-                            && line.split_whitespace().nth(1) == Some("/")
-                        {
+                        if db_path.starts_with("/") && line.split_whitespace().nth(1) == Some("/") {
                             if line.contains("mmcblk") {
                                 return "sd_card".into();
                             }
