@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::models::*;
 use super::{AppError, AppState, AuthUser};
 
-// -- Query params --
+// ── Query params ──
 
 #[derive(Debug, Deserialize)]
 pub struct ListShiftHandoversQuery {
@@ -15,7 +15,7 @@ pub struct ListShiftHandoversQuery {
     pub shift_period: Option<String>,
 }
 
-// -- Helpers --
+// ── Helpers ──
 
 /// Determine the current shift period and date based on the local hour.
 /// Morning: 06:00-14:00, Afternoon: 14:00-22:00, Night: 22:00-06:00
@@ -85,19 +85,8 @@ fn shift_time_range(shift_date: &str, shift_period: &str) -> (Option<i64>, Optio
     (from_ts, to_ts)
 }
 
-// -- Handlers --
+// ── Handlers ──
 
-/// POST /api/v1/shift-handover -- create shift handover log
-#[utoipa::path(
-    post,
-    path = "/api/v1/shift-handover",
-    request_body = CreateShiftHandoverRequest,
-    responses(
-        (status = 201, description = "Shift handover created"),
-    ),
-    tag = "Shift Handover",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn create_shift_handover(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -152,20 +141,6 @@ pub async fn create_shift_handover(
     ))
 }
 
-/// GET /api/v1/shift-handover -- list shift handovers
-#[utoipa::path(
-    get,
-    path = "/api/v1/shift-handover",
-    params(
-        ("shift_date" = Option<String>, Query, description = "Filter by shift date (YYYY-MM-DD)"),
-        ("shift_period" = Option<String>, Query, description = "Filter by shift period (morning/afternoon/night)"),
-    ),
-    responses(
-        (status = 200, description = "Shift handovers list"),
-    ),
-    tag = "Shift Handover",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_shift_handovers(
     State(state): State<AppState>,
     Query(params): Query<ListShiftHandoversQuery>,
@@ -184,18 +159,6 @@ pub async fn list_shift_handovers(
     })))
 }
 
-/// GET /api/v1/shift-handover/{id} -- get shift handover by ID
-#[utoipa::path(
-    get,
-    path = "/api/v1/shift-handover/{id}",
-    params(("id" = i64, Path, description = "Shift handover ID")),
-    responses(
-        (status = 200, body = ShiftHandover),
-        (status = 404, description = "Shift handover not found")
-    ),
-    tag = "Shift Handover",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn get_shift_handover(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -209,16 +172,6 @@ pub async fn get_shift_handover(
     Ok(Json(json!(handover)))
 }
 
-/// GET /api/v1/shift-handover/auto-report -- auto-generated shift report
-#[utoipa::path(
-    get,
-    path = "/api/v1/shift-handover/auto-report",
-    responses(
-        (status = 200, description = "Auto-generated shift report with alarms, annotations, handovers, and security events"),
-    ),
-    tag = "Shift Handover",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn auto_shift_report(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -270,7 +223,7 @@ pub async fn auto_shift_report(
     })))
 }
 
-// -- Tests --
+// ── Tests ──
 
 #[cfg(test)]
 mod tests {

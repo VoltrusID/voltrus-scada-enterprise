@@ -1,6 +1,6 @@
 [package]
 name = "voltrus-lite-rust-service"
-version = "0.31.0"
+version = "0.29.0"
 edition = "2024"
 license = "MIT"
 
@@ -24,19 +24,11 @@ path = "src/bin/opcua-sim.rs"
 name = "mqtt-sim"
 path = "src/bin/mqtt-sim.rs"
 
-[[bin]]
-name = "bacnet-sim"
-path = "src/bin/bacnet-sim.rs"
-
-[[bin]]
-name = "dnp3-sim"
-path = "src/bin/dnp3-sim.rs"
-
 [dependencies]
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
 tokio-stream = { version = "=0.1.18", features = ["sync"] }
 tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp", "tcp-server"] }
-axum = { version = "=0.8.9", features = ["multipart"] }
+axum = { version = "=0.8.9", features = ["ws"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 serde_yaml_neo = "0.11"
@@ -46,9 +38,6 @@ tracing = "=0.1.44"
 tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
 tower-http = { version = "=0.6.8", features = ["cors", "fs"] }
 axum-extra = { version = "=0.10.3", features = ["cookie"] }
-utoipa = { version = "5", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
-utoipa-axum = "0.2"
 hmac = "=0.12.1"
 sha2 = "=0.10.9"
 hex = "=0.4.3"
@@ -69,12 +58,11 @@ web-push = { version = "=0.11.0", default-features = false, features = ["hyper-c
 openssl = { version = "0.10", features = ["vendored"] }
 tempfile = "=3.27.0"
 async-opcua = { version = "=0.18.0", default-features = false, features = ["client", "server"] }
-bacnet-rs = "0.3"
-snmp = "0.2"
-calamine = "0.26"
-csv = "1.3"
+rmp-serde = "=1.3.0"
+futures-util = "=0.3.31"
+
+wasmtime = "=29.0"
 
 [dev-dependencies]
 http = "=1.4.0"
 tower = { version = "=0.5.3", features = ["util"] }
-utoipa = { version = "5", features = ["axum_extras"] }

@@ -11,18 +11,6 @@ use super::{AppError, AppState, AuthUser};
 // ── Write Tag ──
 
 /// POST /api/v1/tags/{id}/write
-#[utoipa::path(
-    post,
-    path = "/api/v1/tags/{id}/write",
-    params(("id" = i64, Path, description = "Tag / data source ID")),
-    request_body = crate::models::WriteRequest,
-    responses(
-        (status = 202, description = "Command accepted"),
-        (status = 403, description = "Tag is not writable"),
-        (status = 404, description = "Data source not found")
-    ),
-    tag = "Commands"
-)]
 pub async fn write_tag(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -173,16 +161,6 @@ pub async fn write_tag(
 // ── Get Command Status ──
 
 /// GET /api/v1/commands/{command_id}
-#[utoipa::path(
-    get,
-    path = "/api/v1/commands/{command_id}",
-    params(("command_id" = String, Path, description = "Command ID")),
-    responses(
-        (status = 200, body = crate::models::Command),
-        (status = 404, description = "Command not found")
-    ),
-    tag = "Commands"
-)]
 pub async fn get_command_status(
     State(state): State<AppState>,
     Path(command_id): Path<String>,
@@ -198,13 +176,6 @@ pub async fn get_command_status(
 // ── List Commands ──
 
 /// GET /api/v1/commands
-#[utoipa::path(
-    get,
-    path = "/api/v1/commands",
-    params(CommandQuery),
-    responses((status = 200, body = Vec<crate::models::Command>)),
-    tag = "Commands"
-)]
 pub async fn list_commands(
     State(state): State<AppState>,
     Query(query): Query<CommandQuery>,
@@ -216,13 +187,6 @@ pub async fn list_commands(
 // ── Cancel Command ──
 
 /// POST /api/v1/commands/{command_id}/cancel
-#[utoipa::path(
-    post,
-    path = "/api/v1/commands/{command_id}/cancel",
-    params(("command_id" = String, Path, description = "Command ID")),
-    responses((status = 200, description = "Command cancelled"), (status = 404)),
-    tag = "Commands"
-)]
 pub async fn cancel_command(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -262,13 +226,6 @@ pub async fn cancel_command(
 // ── Get Command Audit ──
 
 /// GET /api/v1/commands/{command_id}/audit
-#[utoipa::path(
-    get,
-    path = "/api/v1/commands/{command_id}/audit",
-    params(("command_id" = String, Path, description = "Command ID")),
-    responses((status = 200, body = Vec<crate::models::CommandAuditEntry>)),
-    tag = "Commands"
-)]
 pub async fn get_command_audit(
     State(state): State<AppState>,
     Path(command_id): Path<String>,
@@ -280,14 +237,6 @@ pub async fn get_command_audit(
 // ── Update Write Policy ──
 
 /// PATCH /api/v1/data-sources/{id}/write-policy
-#[utoipa::path(
-    patch,
-    path = "/api/v1/data-sources/{id}/write-policy",
-    params(("id" = i64, Path, description = "Data source ID")),
-    request_body = crate::models::WritePolicyUpdate,
-    responses((status = 200, description = "Write policy updated"), (status = 404)),
-    tag = "Commands"
-)]
 pub async fn update_write_policy(
     State(state): State<AppState>,
     Path(data_source_id): Path<i64>,

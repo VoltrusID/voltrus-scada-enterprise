@@ -75,17 +75,6 @@ fn multi_site_required(state: &AppState) -> Option<(HttpStatus, Json<serde_json:
     None
 }
 
-/// GET /api/v1/hub/sites -- list all hub sites
-#[utoipa::path(
-    get,
-    path = "/api/v1/hub/sites",
-    responses(
-        (status = 200, body = Vec<crate::models::HubSite>),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_sites(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, body)) = multi_site_required(&state) {
         return (status, body).into_response();
@@ -101,19 +90,6 @@ pub async fn list_sites(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
-/// POST /api/v1/hub/sites -- create a hub site
-#[utoipa::path(
-    post,
-    path = "/api/v1/hub/sites",
-    request_body = CreateHubSiteRequest,
-    responses(
-        (status = 201, body = HubSite),
-        (status = 400, description = "Invalid request"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn create_site(
     State(state): State<AppState>,
     Json(body): Json<CreateHubSiteRequest>,
@@ -163,20 +139,6 @@ pub async fn create_site(
     }
 }
 
-/// PUT /api/v1/hub/sites/{id} -- update a hub site
-#[utoipa::path(
-    put,
-    path = "/api/v1/hub/sites/{id}",
-    params(("id" = i64, Path, description = "Site ID")),
-    request_body = UpdateHubSiteRequest,
-    responses(
-        (status = 204, description = "Site updated"),
-        (status = 400, description = "Invalid request"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn update_site(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -229,18 +191,6 @@ pub async fn update_site(
     }
 }
 
-/// DELETE /api/v1/hub/sites/{id} -- delete a hub site
-#[utoipa::path(
-    delete,
-    path = "/api/v1/hub/sites/{id}",
-    params(("id" = i64, Path, description = "Site ID")),
-    responses(
-        (status = 204, description = "Site deleted"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn delete_site(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -264,20 +214,6 @@ pub async fn delete_site(
     }
 }
 
-/// POST /api/v1/hub/sites/{id}/start -- start site connection
-#[utoipa::path(
-    post,
-    path = "/api/v1/hub/sites/{id}/start",
-    params(("id" = i64, Path, description = "Site ID")),
-    responses(
-        (status = 200, description = "Connection started"),
-        (status = 400, description = "Site disabled"),
-        (status = 403, description = "License tier too low"),
-        (status = 404, description = "Site not found")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn start_site_connection(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -325,18 +261,6 @@ pub async fn start_site_connection(
     Json(json!({"ok": true})).into_response()
 }
 
-/// POST /api/v1/hub/sites/{id}/stop -- stop site connection
-#[utoipa::path(
-    post,
-    path = "/api/v1/hub/sites/{id}/stop",
-    params(("id" = i64, Path, description = "Site ID")),
-    responses(
-        (status = 200, description = "Connection stopped"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn stop_site_connection(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -352,17 +276,6 @@ pub async fn stop_site_connection(
     Json(json!({"ok": true})).into_response()
 }
 
-/// GET /api/v1/hub/status -- get hub connection status
-#[utoipa::path(
-    get,
-    path = "/api/v1/hub/status",
-    responses(
-        (status = 200, description = "Hub status with site connection states"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "Hub",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn get_hub_status(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, err)) = multi_site_required(&state) {
         return (status, err).into_response();

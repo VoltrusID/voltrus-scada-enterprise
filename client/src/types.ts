@@ -9,7 +9,7 @@ export interface SensorConfig {
 }
 
 export interface SensorData {
-  id: number; key: string; value: number; warn: number; crit: number; source_type: string; status: string;
+  id: number; key: string; value: number; warn: number; crit: number; source_type: string; status: string; simulated?: boolean;
 }
 
 export interface SystemInfo {
@@ -33,7 +33,7 @@ export interface SystemInfo {
   }
 }
 
-export interface DataPoint { value: number; ts: number }
+export interface DataPoint { value: number; ts: number; simulated?: boolean }
 
 export interface Screen { id: string; name: string; type: string; sort_order: number }
 
@@ -259,6 +259,7 @@ export type FlowNodeType =
   | 'threshold'
   | 'lookup'
   | 'expression'
+  | 'script'
   | 'data_source_out'
   | 'http_out'
   | 'alarm_out'
@@ -287,40 +288,33 @@ export interface NotificationSetting {
   created_at: number
 }
 
-// -- AI Copilot types --
-
-export interface AiSettings {
-  provider: string
-  api_key_set: boolean
-  api_key_preview: string
-  default_model: string | null
+// WebSocket message types
+export interface WsTagUpdate {
+  tag_id: string
+  value: number
+  quality: string
+  ts: number
+  simulated: boolean
 }
 
-export interface AiProposal {
-  id: number
-  proposal_type: string
-  status: 'pending' | 'approved' | 'rejected' | 'applied'
-  title: string
-  input_summary: string
-  proposed_config: any
-  applied_config: any | null
-  target_entity_id: string | null
-  error_message: string | null
-  model_used: string
-  tokens_used: number
-  created_at: number
-  reviewed_at: number | null
-  reviewed_by: string | null
-  applied_at: number | null
+export interface WsCommandAck {
+  command_id: string
+  status: string
+  device_response?: string
+  latency_ms?: number
 }
 
-export interface EquipmentTemplate {
-  id: number
-  industry: string
-  equipment_type: string
-  name: string
-  tag_template: any
-  alarm_template: any
-  dashboard_template: any
-  flow_template: any | null
+export interface WsDeviceStatus {
+  device_id: string
+  online: boolean
+  latency_ms?: number
+}
+
+export interface WsAlarmEvent {
+  alarm_id: number
+  tag_id: string
+  severity: string
+  message: string
+  value: number
+  ts: number
 }

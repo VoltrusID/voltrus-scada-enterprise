@@ -92,12 +92,6 @@ async fn generate_and_send(
     email_notifier: &EmailNotifier,
     report: &Report,
 ) -> anyhow::Result<()> {
-    // Branch: analytics digest report type
-    if report.report_type.as_deref() == Some("analytics_digest") {
-        return generate_and_send_analytics_digest(storage, cache, email_notifier, report).await;
-    }
-
-    // Default: standard PDF/HTML report
     let html = crate::report::generate_report_html(storage, cache, report).await?;
 
     // Try PDF conversion, fall back to HTML
@@ -211,85 +205,4 @@ fn format_now() -> String {
             .unwrap_or_else(|_| ts.to_string()),
         Err(_) => ts.to_string(),
     }
-}
-
-async fn generate_and_send_analytics_digest(
-    storage: &Storage,
-    cache: &DeviceCache,
-    email_notifier: &EmailNotifier,
-    report: &Report,
-) -> anyhow::Result<()> {
-    let config: serde_json::Value = serde_json::from_str(
-        report.analytics_config.as_deref().unwrap_or("{}"),
-    )
-    .unwrap_or(serde_json::Value::Null);
-
-    let now = crate::timeutil::now_secs();
-    let from = now - 86400; // last 24h
-
-    // Build metrics summary from telemetry data
-    let metrics_list: Vec<String> = config
-        .get("metrics")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
-
-    let mut summary: Vec<(String, f64, f64, f64, f64)> = Vec::new();
-    for m in &metrics_list {
-        if let Ok(agg) = storage.aggregate_single_period("", m, from, now).await {
-            summary.push((m.clone(), agg.min, agg.max, agg.avg, agg.avg));
-        }
-    }
-
-    // Evaluate custom metrics
-    let custom = crate::analytics::custom::evaluate_all_metrics(storage, cache)
-        .await
-        .unwrap_or_default();
-    let custom_summary: Vec<(String, f64, Option<String>)> = custom
-        .iter()
-        .map(|c| (c.name.clone(), c.value, c.unit.clone()))
-        .collect();
-
-    let html =
-        crate::report::generate_analytics_digest_html(&summary, &custom_summary, &[]);
-
-    // Parse recipients
-    let recipients: Vec<String> =
-        serde_json::from_str(&report.email_recipients).unwrap_or_default();
-
-    if recipients.is_empty() {
-        tracing::warn!(
-            "Analytics digest '{}' has no email recipients, skipping send",
-            report.name
-        );
-        return Ok(());
-    }
-
-    for to in &recipients {
-        let alarm_data = crate::notification::email::AlarmEmailData {
-            source_key: format!("analytics:{}", report.name),
-            source_name: report.name.clone(),
-            severity: "info".to_string(),
-            value: html.len() as f64,
-            threshold: 0.0,
-            message: format!(
-                "Analytics digest for '{}' generated ({} bytes).",
-                report.name,
-                html.len()
-            ),
-            unit: "bytes".to_string(),
-            triggered_at: format_now(),
-        };
-        if let Err(e) = email_notifier.send_alarm_email(to, &alarm_data).await {
-            tracing::error!(
-                "Failed to send analytics digest to {} for '{}': {}",
-                to,
-                report.name,
-                e
-            );
-        } else {
-            tracing::info!("Analytics digest '{}' sent to {}", report.name, to);
-        }
-    }
-
-    Ok(())
 }

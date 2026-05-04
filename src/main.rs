@@ -1,7 +1,6 @@
 mod api;
 mod auth;
 mod backup;
-mod bacnet;
 mod cache;
 mod config;
 mod config_export;
@@ -10,7 +9,6 @@ mod ethernet_ip;
 mod expression;
 mod flow_engine;
 mod modbus;
-mod dnp3;
 mod models;
 mod oee;
 mod poller_manager;
@@ -27,13 +25,13 @@ mod report;
 mod report_scheduler;
 mod analytics;
 mod compliance;
-mod compression;
-mod deadband;
 mod command_queue;
 mod recipe;
 mod video;
-mod ai_copilot;
-mod asset;
+mod sim_engine;
+mod script_engine;
+mod ws_manager;
+mod ws_types;
 
 use api::AppState;
 use base64::Engine;
@@ -42,7 +40,6 @@ use models::DeviceStatus;
 use poller_manager::PollerManager;
 use std::sync::Arc;
 use storage::Storage;
-use utoipa::OpenApi;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -427,74 +424,6 @@ EXAMPLES:
                 }
                 return Ok(());
             }
-            "--dump-openapi" => {
-                let spec = crate::api::openapi::ApiDoc::openapi();
-                println!("{}", serde_json::to_string_pretty(&spec)?);
-                return Ok(());
-            }
-            "db" => {
-                let subcommand = args.get(2).map(|s| s.as_str()).unwrap_or("");
-                let config_path = args.get(3).map(|s| s.as_str()).unwrap_or("config.yaml");
-                match subcommand {
-                    "stats" => {
-                        let config = config::load_config(config_path)?;
-                        let storage = Storage::new(&config.db_path)?;
-                        let stats = storage.get_compression_stats().await?;
-                        println!("=== Voltrus Database Stats ===");
-                        println!("Hot  (raw, <24h):  {} rows", stats.hot_rows);
-                        println!("Warm (1min OHLC):  {} rows", stats.warm_rows);
-                        println!("Cold (compressed): {} rows", stats.cold_rows);
-                        println!("DB size: {} bytes ({:.2} MB)", stats.db_size_bytes, stats.db_size_bytes as f64 / 1_048_576.0);
-                    }
-                    "compress" => {
-                        let config = config::load_config(config_path)?;
-                        let storage = Storage::new(&config.db_path)?;
-                        let now = crate::timeutil::now_secs() * 1000;
-                        let hot_cutoff = now - (config.compression.hot_retention_secs as i64 * 1000);
-                        let warm_cutoff = now - (config.compression.warm_retention_secs as i64 * 1000);
-                        println!("Compressing hot -> warm...");
-                        let count = storage.compress_hot_to_warm(hot_cutoff).await?;
-                        println!("Compressed {} hot rows to warm", count);
-                        println!("Compressing warm -> cold...");
-                        let count = storage.compress_warm_to_cold(warm_cutoff).await?;
-                        println!("Compressed {} warm rows to cold", count);
-                    }
-                    _ => {
-                        eprintln!("Usage: {} db [stats|compress]", args[0]);
-                        std::process::exit(1);
-                    }
-                }
-                return Ok(());
-            }
-            "archive" => {
-                let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
-                let config = config::load_config(config_path)?;
-                let storage = Storage::new(&config.db_path)?;
-                let cutoff = crate::timeutil::now_secs() - (config.compression.cold_retention_secs as i64);
-                let rows = storage.query_raw_for_archive(cutoff).await?;
-                if rows.is_empty() {
-                    println!("No data to archive");
-                } else {
-                    println!("Archiving {} records...", rows.len());
-                    use std::io::Write;
-                    let archive_dir = &config.retention.archive_dir;
-                    let _ = std::fs::create_dir_all(archive_dir);
-                    let ts = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_secs())
-                        .unwrap_or(0);
-                    let filename = format!("{}/archive-{}.csv.gz", archive_dir, ts);
-                    let file = std::fs::File::create(&filename)?;
-                    let mut encoder = flate2::write::GzEncoder::new(file, flate2::Compression::default());
-                    writeln!(encoder, "device_id,metric,timestamp,value")?;
-                    for (device_id, metric, ts_val, value) in &rows {
-                        writeln!(encoder, "{},{},{},{}", device_id, metric, ts_val, value)?;
-                    }
-                    encoder.finish()?;
-                    println!("Archived to {}", filename);
-                }
-                return Ok(());
-            }
             "backup" => {
                 let mut config_path = "config.yaml".to_string();
                 let mut output_path: Option<String> = None;
@@ -630,6 +559,8 @@ EXAMPLES:
     );
 
     let cache = DeviceCache::new();
+    let ws_manager = Arc::new(crate::ws_manager::WsManager::new());
+    let cache = cache.with_ws_manager(ws_manager.clone());
     let storage = Storage::new_with_key(
         &app_config.db_path,
         app_config.db_encryption_key.as_deref(),
@@ -681,8 +612,7 @@ EXAMPLES:
     }
 
     // Load device configs from DB and start pollers (only with valid license)
-    let modbus_pool = std::sync::Arc::new(modbus::ModbusPool::new());
-    let poller_manager = PollerManager::new(cache.clone(), modbus_pool);
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
         let device_limit = license_tier.max_devices();
@@ -728,32 +658,6 @@ EXAMPLES:
             if !configs.is_empty() {
                 tracing::warn!(
                     "OPC-UA devices configured but Professional tier required. Upgrade at https://voltrus.id"
-                );
-            }
-        }
-    }
-
-    // Start BACnet/IP pollers (Enterprise tier only)
-    {
-        if license_tier.bacnet() {
-            match storage.get_all_bacnet_device_configs().await {
-                Ok(bacnet_configs) => {
-                    for config in &bacnet_configs {
-                        poller_manager.start_bacnet(config.clone()).await;
-                        tracing::info!("Started BACnet/IP poller for device {}", config.id);
-                    }
-                    if !bacnet_configs.is_empty() {
-                        tracing::info!("Started {} BACnet/IP device(s)", bacnet_configs.len());
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to load BACnet/IP device configs: {}", e);
-                }
-            }
-        } else if let Ok(configs) = storage.get_all_bacnet_device_configs().await {
-            if !configs.is_empty() {
-                tracing::warn!(
-                    "BACnet/IP devices configured but Enterprise tier required. Upgrade at https://voltrus.id"
                 );
             }
         }
@@ -833,24 +737,10 @@ EXAMPLES:
         let storage = storage.clone();
         let email_notifier = email_notifier.clone();
         let push_notifier = push_notifier.clone();
+        let alarm_ws_manager = ws_manager.clone();
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
-
-            // Initialize deadband filter
-            let deadband_filter = crate::deadband::DeadbandFilter::new();
-            match storage.get_deadband_configs().await {
-                Ok(configs) => {
-                    deadband_filter.load_configs(
-                        configs.into_iter().map(|(d, m, t, v)| (d, m, crate::deadband::DeadbandEntry {
-                            deadband_type: if t == "absolute" { crate::deadband::DeadbandType::Absolute } else { crate::deadband::DeadbandType::Percent },
-                            deadband_value: v,
-                        })).collect()
-                    ).await;
-                }
-                Err(e) => tracing::warn!("Failed to load deadband configs: {e}"),
-            }
-
             loop {
                 ticker.tick().await;
                 let snapshots = cache.get_all().await;
@@ -868,8 +758,7 @@ EXAMPLES:
                         ));
                     }
                 }
-                let filtered = deadband_filter.filter_batch(&records).await;
-                if let Err(e) = storage.insert_batch_hot(&filtered).await {
+                if let Err(e) = storage.insert_batch(&records).await {
                     tracing::error!("Persistence error: {e}");
                 }
 
@@ -941,7 +830,7 @@ EXAMPLES:
                                             priority: "critical".to_string(),
                                             value,
                                             threshold: source.crit_val,
-                                            message: msg,
+                                            message: msg.clone(),
                                             triggered_at: crate::timeutil::now_secs(),
                                             resolved_at: None,
                                             acknowledged_at: None,
@@ -953,6 +842,17 @@ EXAMPLES:
                                             deadband: 0.0,
                                             state: "active".to_string(),
                                         };
+                                        // Broadcast alarm via WebSocket
+                                        alarm_ws_manager.broadcast_alarm(
+                                            crate::ws_types::ServerMessage::Alarm {
+                                                alarm_id,
+                                                tag_id: source.key.clone(),
+                                                severity: "critical".to_string(),
+                                                message: msg,
+                                                value,
+                                                ts: alarm.triggered_at,
+                                            },
+                                        );
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
                                                 notif_storage,
@@ -988,7 +888,7 @@ EXAMPLES:
                                             priority: "warning".to_string(),
                                             value,
                                             threshold: source.warn_val,
-                                            message: msg,
+                                            message: msg.clone(),
                                             triggered_at: crate::timeutil::now_secs(),
                                             resolved_at: None,
                                             acknowledged_at: None,
@@ -1000,6 +900,17 @@ EXAMPLES:
                                             deadband: 0.0,
                                             state: "active".to_string(),
                                         };
+                                        // Broadcast alarm via WebSocket
+                                        alarm_ws_manager.broadcast_alarm(
+                                            crate::ws_types::ServerMessage::Alarm {
+                                                alarm_id,
+                                                tag_id: source.key.clone(),
+                                                severity: "warning".to_string(),
+                                                message: msg,
+                                                value,
+                                                ts: alarm.triggered_at,
+                                            },
+                                        );
                                         tokio::spawn(async move {
                                             notification::dispatch_alarm_notifications(
                                                 notif_storage,
@@ -1034,15 +945,6 @@ EXAMPLES:
         });
     }
 
-    // Compression workers
-    if app_config.compression.enabled {
-        let storage = storage.clone();
-        let config = app_config.compression.clone();
-        tokio::spawn(async move {
-            run_compression_task(storage, config).await;
-        });
-    }
-
     // Spawn OEE monitor (Starter tier and above)
     if license_tier.oee() {
         let oee_cache = cache.clone();
@@ -1055,7 +957,8 @@ EXAMPLES:
 
     // Spawn command queue processor
     {
-        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone());
+        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone())
+            .with_ws_manager(ws_manager.clone());
         tokio::spawn(async move {
             queue.run().await;
         });
@@ -1140,9 +1043,11 @@ EXAMPLES:
         vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
         hub_manager,
         stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
+        ws_manager: ws_manager.clone(),
     };
 
-    api::stream::spawn_sse_composer(cache, storage);
+    api::stream::spawn_sse_composer(cache.clone(), storage.clone());
+    crate::ws_manager::spawn_ws_broadcaster(cache, ws_manager);
     let app = api::create_router(state);
 
     let addr = format!("0.0.0.0:{}", app_config.server_port);
@@ -1168,40 +1073,4 @@ EXAMPLES:
 
     tracing::info!("Server shutdown complete");
     Ok(())
-}
-
-async fn run_compression_task(storage: Storage, config: crate::models::CompressionConfig) {
-    tracing::info!(
-        "Compression task started (hot→warm: {}s, warm→cold: {}s)",
-        config.hot_to_warm_interval_secs,
-        config.warm_to_cold_interval_secs,
-    );
-
-    let mut hot_interval = tokio::time::interval(
-        std::time::Duration::from_secs(config.hot_to_warm_interval_secs)
-    );
-    let mut cold_interval = tokio::time::interval(
-        std::time::Duration::from_secs(config.warm_to_cold_interval_secs)
-    );
-
-    loop {
-        tokio::select! {
-            _ = hot_interval.tick() => {
-                let now = crate::timeutil::now_secs() * 1000;
-                let cutoff = now - (config.hot_retention_secs as i64 * 1000);
-                match storage.compress_hot_to_warm(cutoff).await {
-                    Ok(count) => tracing::info!("Hot→Warm: compressed {count} rows"),
-                    Err(e) => tracing::error!("Hot→Warm compression failed: {e}"),
-                }
-            }
-            _ = cold_interval.tick() => {
-                let now = crate::timeutil::now_secs() * 1000;
-                let cutoff = now - (config.warm_retention_secs as i64 * 1000);
-                match storage.compress_warm_to_cold(cutoff).await {
-                    Ok(count) => tracing::info!("Warm→Cold: compressed {count} rows"),
-                    Err(e) => tracing::error!("Warm→Cold compression failed: {e}"),
-                }
-            }
-        }
-    }
 }

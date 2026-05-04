@@ -5,6 +5,8 @@ use tokio::sync::RwLock;
 use crate::cache::DeviceCache;
 use crate::models::WriteResult;
 use crate::storage::Storage;
+use crate::ws_manager::WsManager;
+use crate::ws_types::ServerMessage;
 
 const COMMAND_EXPIRY_SECS: i64 = 1800; // 30 minutes
 const POLL_INTERVAL_MS: u64 = 500;
@@ -13,6 +15,7 @@ pub struct CommandQueue {
     storage: Storage,
     cache: DeviceCache,
     in_flight: Arc<RwLock<HashSet<i64>>>,
+    ws_manager: Option<Arc<WsManager>>,
 }
 
 impl CommandQueue {
@@ -21,7 +24,14 @@ impl CommandQueue {
             storage,
             cache,
             in_flight: Arc::new(RwLock::new(HashSet::new())),
+            ws_manager: None,
         }
+    }
+
+    /// Attach a WsManager so that command status changes are broadcast over WebSocket.
+    pub fn with_ws_manager(mut self, ws_manager: Arc<WsManager>) -> Self {
+        self.ws_manager = Some(ws_manager);
+        self
     }
 
     /// Main loop: process the queue every 500 ms.
@@ -155,7 +165,6 @@ impl CommandQueue {
             "s7" => self.execute_s7_write(cmd, value).await,
             "opcua" => self.execute_opcua_write(cmd, value).await,
             "ethernet_ip" => self.execute_enip_write(cmd, value).await,
-            "bacnet" => self.execute_bacnet_write(cmd, value).await,
             "mqtt" => WriteResult {
                 success: true,
                 device_response: Some("MQTT publish not implemented".to_string()),
@@ -369,58 +378,6 @@ impl CommandQueue {
         crate::ethernet_ip::write_tag(&ip, port, &tag_name, value).await
     }
 
-    async fn execute_bacnet_write(
-        &self,
-        cmd: &crate::models::Command,
-        value: f64,
-    ) -> WriteResult {
-        let ds = match self.storage.get_data_source_by_id(cmd.data_source_id).await {
-            Ok(Some(ds)) => ds,
-            _ => {
-                return WriteResult {
-                    success: false,
-                    device_response: None,
-                    error: Some("Data source not found".to_string()),
-                    latency_ms: 0,
-                }
-            }
-        };
-
-        let (object_type, object_instance, property) = match Self::parse_bacnet_address(&ds.source_config) {
-            Some(v) => v,
-            None => {
-                return WriteResult {
-                    success: false,
-                    device_response: None,
-                    error: Some("Could not parse BACnet address from source_config".to_string()),
-                    latency_ms: 0,
-                }
-            }
-        };
-
-        let device = match self.storage.get_bacnet_device(cmd.device_id).await {
-            Ok(Some(d)) => d,
-            _ => {
-                return WriteResult {
-                    success: false,
-                    device_response: None,
-                    error: Some(format!("BACnet device {} not found", cmd.device_id)),
-                    latency_ms: 0,
-                }
-            }
-        };
-
-        crate::bacnet::write_property(&device.ip, device.port, &object_type, object_instance, &property, value).await
-    }
-
-    fn parse_bacnet_address(source_config: &str) -> Option<(String, u32, String)> {
-        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
-        let object_type = config.get("object_type").and_then(|v| v.as_str()).unwrap_or("analogInput").to_string();
-        let object_instance = config.get("object_instance").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
-        let property = config.get("property").and_then(|v| v.as_str()).unwrap_or("presentValue").to_string();
-        Some((object_type, object_instance, property))
-    }
-
     fn publish_status_event(&self, command_id: &str, status: &str, error: Option<&str>) {
         let payload = serde_json::json!({
             "type": "command_status",
@@ -430,6 +387,16 @@ impl CommandQueue {
         })
         .to_string();
         self.cache.publish_sse_payload(payload);
+
+        // Broadcast via WebSocket
+        if let Some(ref ws) = self.ws_manager {
+            ws.broadcast_command_ack(ServerMessage::CommandAck {
+                command_id: command_id.to_string(),
+                status: status.to_string(),
+                device_response: error.map(|e| e.to_string()),
+                latency_ms: None,
+            });
+        }
     }
 
     fn publish_ack_event(&self, command_id: &str, response: &str, latency_ms: u64) {
@@ -442,6 +409,16 @@ impl CommandQueue {
         })
         .to_string();
         self.cache.publish_sse_payload(payload);
+
+        // Broadcast via WebSocket
+        if let Some(ref ws) = self.ws_manager {
+            ws.broadcast_command_ack(ServerMessage::CommandAck {
+                command_id: command_id.to_string(),
+                status: "acked".to_string(),
+                device_response: Some(response.to_string()),
+                latency_ms: Some(latency_ms),
+            });
+        }
     }
 
     // ── Address parsing helpers ──

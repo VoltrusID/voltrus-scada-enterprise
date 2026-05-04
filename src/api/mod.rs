@@ -1,4 +1,3 @@
-pub(crate) mod openapi;
 pub(crate) mod auth;
 mod api_keys;
 mod push;
@@ -24,24 +23,18 @@ mod analytics;
 mod recipes;
 mod rbac;
 mod compliance;
-mod compression;
 mod enip_devices;
 mod s7_devices;
-mod dnp3_devices;
-mod bacnet_devices;
 mod video;
 mod security;
 mod annotations;
 mod shift_handover;
 mod user_notifications;
 mod commands;
-mod ai_copilot;
-mod assets;
-mod maintenance;
-mod firmware_catalog;
-mod snmp_scan;
-mod asset_import;
-mod nis2_export;
+mod simulation;
+mod scripts;
+mod config_snapshots;
+mod websocket;
 
 use axum::{
     extract::{Request, State},
@@ -56,8 +49,6 @@ use axum_extra::extract::CookieJar;
 use serde_json::json;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 use crate::auth::oidc::{JwksManager, OidcConfig};
 use crate::cache::DeviceCache;
@@ -89,6 +80,7 @@ pub struct AppState {
     pub vapid_public_key: Option<String>,
     pub hub_manager: Option<hub::HubManager>,
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
+    pub ws_manager: Arc<crate::ws_manager::WsManager>,
 }
 
 #[derive(Debug)]
@@ -208,7 +200,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
-        .route("/api/license/status", get(license::get_license_status));
+        .route("/api/license/status", get(license::get_license_status))
+        .route("/api/v1/ws", get(websocket::websocket_handler));
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
@@ -268,27 +261,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
         .route("/api/v1/analytics/compare", get(analytics::get_compare))
-        .route("/api/v1/analytics/spc", get(analytics::get_spc))
-        .route("/api/v1/analytics/histogram", get(analytics::get_histogram))
-        .route("/api/v1/analytics/run-chart", get(analytics::get_run_chart))
-        .route("/api/v1/analytics/custom-metrics", get(analytics::list_custom_metrics))
-        .route("/api/v1/analytics/custom-metrics/evaluate-all", get(analytics::evaluate_all_custom_metrics))
-        .route("/api/v1/compression/stats", get(compression::get_compression_stats))
-        .route("/api/v1/compression/config", get(compression::get_compression_config))
-        .route("/api/v1/system/memory", get(compression::get_system_memory))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
         )
-        // Asset inventory read routes (authenticated users)
-        .route("/api/v1/assets", get(assets::list_assets))
-        .route("/api/v1/assets/{id}", get(assets::get_asset))
-        .route("/api/v1/assets/{id}/maintenance", get(maintenance::list_maintenance))
-        .route("/api/v1/assets/ip-conflicts", get(assets::get_ip_conflicts))
-        .route("/api/v1/firmware-catalog", get(firmware_catalog::list_firmware_catalog))
-        .route("/api/v1/snmp/scan/status", get(snmp_scan::get_scan_status))
-        .route("/api/v1/snmp/scan/results", get(snmp_scan::list_scan_results))
-        .route("/api/v1/assets/nis2-export", get(nis2_export::nis2_export))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -373,24 +349,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
         .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
         .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
-        // DNP3 (IEEE 1815) routes (admin-only, Enterprise-gated)
-        .route("/api/v1/dnp3/devices", get(dnp3_devices::list_devices).post(dnp3_devices::create_device))
-        .route("/api/v1/dnp3/devices/{id}", get(dnp3_devices::get_device).put(dnp3_devices::update_device).delete(dnp3_devices::delete_device))
-        .route("/api/v1/dnp3/devices/{id}/points", post(dnp3_devices::add_point))
-        .route("/api/v1/dnp3/devices/{id}/points/{point_id}", delete(dnp3_devices::remove_point))
-        .route("/api/v1/dnp3/scan", post(dnp3_devices::scan_network))
-        .route("/api/v1/dnp3/devices/{id}/integrity", post(dnp3_devices::trigger_integrity))
-        .route("/api/v1/dnp3/devices/{id}/freeze", post(dnp3_devices::trigger_freeze))
-        .route("/api/v1/dnp3/group-variations", get(dnp3_devices::list_group_variations))
-        // BACnet/IP routes (admin-only, Enterprise-gated)
-        .route("/api/v1/bacnet/discover", post(bacnet_devices::discover_network))
-        .route("/api/v1/bacnet/devices", get(bacnet_devices::list_devices).post(bacnet_devices::create_device))
-        .route("/api/v1/bacnet/devices/{id}", put(bacnet_devices::update_device).delete(bacnet_devices::delete_device))
-        .route("/api/v1/bacnet/devices/{id}/objects", get(bacnet_devices::list_objects).post(bacnet_devices::add_object))
-        .route("/api/v1/bacnet/devices/{id}/objects/{object_id}", delete(bacnet_devices::remove_object))
-        .route("/api/v1/bacnet/devices/{id}/browse", post(bacnet_devices::browse_device))
-        .route("/api/v1/bacnet/devices/{id}/start", post(bacnet_devices::start_device))
-        .route("/api/v1/bacnet/devices/{id}/stop", post(bacnet_devices::stop_device))
         // RTSP Video / Camera routes (admin-only, Enterprise-gated)
         .route("/api/v1/cameras", get(video::list_cameras).post(video::create_camera))
         .route("/api/v1/cameras/{id}", put(video::update_camera).delete(video::delete_camera))
@@ -436,34 +394,21 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/tags/{id}/write", post(commands::write_tag))
         .route("/api/v1/commands/{command_id}/cancel", post(commands::cancel_command))
         .route("/api/v1/data-sources/{id}/write-policy", patch(commands::update_write_policy))
-        // Analytics custom metrics write routes (admin-only, Professional-gated)
-        .route("/api/v1/analytics/custom-metrics", post(analytics::create_custom_metric))
-        .route("/api/v1/analytics/custom-metrics/{id}", put(analytics::update_custom_metric).delete(analytics::delete_custom_metric))
-        // AI Copilot routes (admin-only, Starter+ license-gated)
-        .route("/api/v1/ai/settings", get(ai_copilot::get_ai_settings).put(ai_copilot::update_ai_settings))
-        .route("/api/v1/ai/settings/test", post(ai_copilot::test_ai_settings))
-        .route("/api/v1/ai/proposals", get(ai_copilot::list_proposals))
-        .route("/api/v1/ai/proposals/{id}", get(ai_copilot::get_proposal))
-        .route("/api/v1/ai/proposals/{id}/approve", post(ai_copilot::approve_proposal))
-        .route("/api/v1/ai/proposals/{id}/reject", post(ai_copilot::reject_proposal))
-        .route("/api/v1/ai/proposals/{id}/apply", post(ai_copilot::apply_proposal))
-        .route("/api/v1/ai/generate/register-map", post(ai_copilot::generate_register_map))
-        .route("/api/v1/ai/generate/dashboard-layout", post(ai_copilot::generate_dashboard_layout))
-        .route("/api/v1/ai/generate/alarm-thresholds", post(ai_copilot::generate_alarm_thresholds))
-        .route("/api/v1/ai/generate/tag-rename", post(ai_copilot::generate_tag_rename))
-        .route("/api/v1/ai/generate/flow-rule", post(ai_copilot::generate_flow_rule))
-        .route("/api/v1/ai/templates", get(ai_copilot::list_templates))
-        .route("/api/v1/ai/generate/from-template", post(ai_copilot::generate_from_template))
-        // Asset inventory admin routes (write operations)
-        .route("/api/v1/assets", post(assets::create_asset))
-        .route("/api/v1/assets/{id}", patch(assets::update_asset).delete(assets::delete_asset))
-        .route("/api/v1/assets/{id}/maintenance", post(maintenance::create_maintenance))
-        .route("/api/v1/firmware-catalog", post(firmware_catalog::create_firmware_catalog))
-        .route("/api/v1/firmware-catalog/{id}", patch(firmware_catalog::update_firmware_catalog).delete(firmware_catalog::delete_firmware_catalog))
-        .route("/api/v1/snmp/scan", post(snmp_scan::start_scan))
-        .route("/api/v1/snmp/scan/{ip}/import", post(snmp_scan::import_scanned_device))
-        .route("/api/v1/assets/import", post(asset_import::upload_import))
-        .route("/api/v1/assets/import/confirm", post(asset_import::confirm_import))
+        // Simulation routes (admin-only)
+        .route("/api/v1/sim-profiles", get(simulation::list_sim_profiles).post(simulation::create_sim_profile))
+        .route("/api/v1/sim-profiles/{id}", put(simulation::update_sim_profile).delete(simulation::delete_sim_profile))
+        .route("/api/v1/devices/{id}/simulate", post(simulation::toggle_simulation))
+        .route("/api/v1/devices/{id}/go-live", post(simulation::go_live))
+        // Script routes (admin-only)
+        .route("/api/v1/scripts", get(scripts::list_scripts).post(scripts::create_script))
+        .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
+        .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
+        .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
+        // Config snapshot routes (admin-only)
+        .route("/api/v1/config/snapshots", get(config_snapshots::list_snapshots).post(config_snapshots::create_snapshot))
+        .route("/api/v1/config/snapshots/{id}", get(config_snapshots::get_snapshot))
+        .route("/api/v1/config/snapshots/{from_id}/diff/{to_id}", get(config_snapshots::diff_snapshots))
+        .route("/api/v1/config/snapshots/{id}/rollback", post(config_snapshots::rollback))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -477,13 +422,8 @@ pub fn create_router(state: AppState) -> Router {
         )
     }
 
-    // Swagger UI
-    let swagger = SwaggerUi::new("/api/docs")
-        .url("/api/openapi.json", openapi::ApiDoc::openapi());
-
     // API router with CORS, rate limiting, security headers, body limit
     let api_router = Router::new()
-        .merge(swagger)
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
@@ -686,7 +626,7 @@ mod tests {
     pub fn test_app() -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -716,6 +656,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         create_router(state)
     }
@@ -725,7 +666,7 @@ mod tests {
             ("voltage".to_string(), 220.5),
             ("current".to_string(), 5.2),
         ]);
-        cache.update("plts_1", metrics).await;
+        cache.update("plts_1", metrics, false).await;
     }
 
     #[tokio::test]
@@ -867,7 +808,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -897,6 +838,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -935,7 +877,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -965,6 +907,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1030,7 +973,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -1060,6 +1003,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1103,7 +1047,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -1133,6 +1077,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1253,7 +1198,7 @@ mod tests {
         storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
         let cache = DeviceCache::new();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let state = AppState {
             cache,
             storage,
@@ -1283,6 +1228,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         let app = create_router(state);
 
@@ -1422,7 +1368,7 @@ mod tests {
     fn test_app_with_license_status(license_status: crate::license::LicenseStatus, license_tier: crate::license::LicenseTier) -> Router {
         let cache = DeviceCache::new();
         let storage = Storage::new_in_memory().unwrap();
-        let poller_manager = PollerManager::new(cache.clone(), std::sync::Arc::new(crate::modbus::ModbusPool::new()));
+        let poller_manager = PollerManager::new(cache.clone(), storage.clone());
         let feature_flags = license_tier.to_feature_flags();
         let state = AppState {
             cache,
@@ -1447,6 +1393,7 @@ mod tests {
             vapid_public_key: None,
             hub_manager: None,
             stream_proxy: None,
+            ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         };
         create_router(state)
     }

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useModbusDevices, useModbusPollerStatus, useCreateModbusDevice, useUpdateModbusDevice, useDeleteModbusDevice, useRestartModbusPoller } from './queries'
 import { inputStyle, btnStyle } from './styles'
 import { ModbusDeviceForm } from './ModbusDeviceForm'
+import { SimControls } from './components/SimControls'
+import { SimProfileManager } from './components/SimProfileManager'
 import type { ModbusDevice, ModbusRegister } from './types'
 
 export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
@@ -16,6 +18,9 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const [showForm, setShowForm] = useState(false)
   const [editDevice, setEditDevice] = useState<(ModbusDevice & { registers?: ModbusRegister[] }) | undefined>(undefined)
   const [dupDevice, setDupDevice] = useState<(ModbusDevice & { registers?: ModbusRegister[] }) | undefined>(undefined)
+  const [simDevice, setSimDevice] = useState<ModbusDevice | undefined>(undefined)
+  const [showSimProfiles, setShowSimProfiles] = useState(false)
+  const [simStates, setSimStates] = useState<Record<string, { simulation_mode: boolean; sim_profile_id: number | null; sim_config: string | null }>>({})
 
   const statusMap = Object.fromEntries(statuses.map(s => [s.device_id, s.status || (s.running ? 'online' : 'offline')]))
   const filtered = devices.filter(d => (d.name || d.id).toLowerCase().includes(filter) || d.ip.toLowerCase().includes(filter))
@@ -70,6 +75,10 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
         <div style={{ display: 'flex', gap: 8 }}>
           <input placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 200 }} />
           <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowForm(true)} aria-label="Add modbus device">+ Add Device</button>
+          <button style={{ ...btnStyle, borderColor: 'var(--warn)', color: 'var(--warn)' }} onClick={() => setShowSimProfiles(true)} aria-label="Simulation profiles">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Sim Profiles
+          </button>
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
@@ -84,6 +93,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
               <th style={thStyle}>Endian</th>
               <th style={thStyle}>Registers</th>
               <th style={thStyle}>Status</th>
+              <th style={thStyle}>Sim</th>
               <th style={thStyle}>Enabled</th>
               <th style={{ ...thStyle, width: 180 }}>Actions</th>
             </tr>
@@ -109,6 +119,26 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
                   </span>
                 </td>
                 <td style={tdStyle}>
+                  <button
+                    onClick={() => {
+                      // Fetch current sim state then open controls
+                      fetch(`/api/v1/devices/${d.id}/simulate`, { method: 'GET' }).then(r => r.json()).then(data => {
+                        setSimStates(prev => ({ ...prev, [d.id]: { simulation_mode: data.simulation_mode ?? false, sim_profile_id: data.sim_profile_id ?? null, sim_config: data.sim_config ?? null } }))
+                        setSimDevice(d)
+                      }).catch(() => {
+                        setSimStates(prev => ({ ...prev, [d.id]: { simulation_mode: false, sim_profile_id: null, sim_config: null } }))
+                        setSimDevice(d)
+                      })
+                    }}
+                    style={{
+                      padding: '2px 8px', borderRadius: 4, border: `1px solid ${simStates[d.id]?.simulation_mode ? 'var(--warn)' : 'var(--border)'}`,
+                      background: simStates[d.id]?.simulation_mode ? 'rgba(234,179,8,.12)' : 'transparent',
+                      color: simStates[d.id]?.simulation_mode ? 'var(--warn)' : 'var(--muted)',
+                      cursor: 'pointer', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em',
+                    }}
+                  >{simStates[d.id]?.simulation_mode ? 'SIM ON' : 'SIM'}</button>
+                </td>
+                <td style={tdStyle}>
                   <input type="checkbox" checked={d.enabled} onChange={() => updateMut.mutate({ id: d.id, enabled: !d.enabled })} style={{ cursor: 'pointer' }} />
                 </td>
                 <td style={tdStyle}>
@@ -130,6 +160,35 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const modals = (<>
     {showForm && <ModbusDeviceForm dupDevice={dupDevice} onSave={handleCreate} onClose={() => { setShowForm(false); setDupDevice(undefined) }} />}
     {editDevice && <ModbusDeviceForm device={editDevice} onSave={handleUpdate} onClose={() => setEditDevice(undefined)} />}
+    {simDevice && (() => {
+      const state = simStates[simDevice.id] ?? { simulation_mode: false, sim_profile_id: null, sim_config: null }
+      return (
+        <SimControls
+          deviceId={simDevice.id}
+          deviceName={simDevice.name || simDevice.id}
+          simulationMode={state.simulation_mode}
+          simProfileId={state.sim_profile_id}
+          simConfig={state.sim_config}
+          onUpdate={() => {
+            // Refresh sim state
+            fetch(`/api/v1/devices/${simDevice.id}/simulate`, { method: 'GET' }).then(r => r.json()).then(data => {
+              setSimStates(prev => ({ ...prev, [simDevice.id]: { simulation_mode: data.simulation_mode ?? false, sim_profile_id: data.sim_profile_id ?? null, sim_config: data.sim_config ?? null } }))
+            }).catch(() => {})
+          }}
+        />
+      )
+    })()}
+    {showSimProfiles && (
+      <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 60, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Simulation Profiles</h2>
+          <button style={btnStyle} onClick={() => setShowSimProfiles(false)}>Close</button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <SimProfileManager />
+        </div>
+      </div>
+    )}
   </>);
 
   if (embedded) {

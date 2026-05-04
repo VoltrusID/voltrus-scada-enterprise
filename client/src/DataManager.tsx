@@ -14,7 +14,6 @@ import { RecipeManager } from './RecipeManager';
 import { CameraManager } from './CameraManager';
 import { S7DeviceManager } from './S7DeviceManager';
 import { EnipDeviceManager } from './EnipDeviceManager';
-import { Dnp3DeviceManager } from './Dnp3DeviceManager';
 import { SecurityAuditPanel } from './SecurityAuditPanel';
 import { CompliancePanel } from './CompliancePanel';
 import { RoleManager } from './RoleManager';
@@ -23,7 +22,7 @@ import { useLicense } from './LicenseContext';
 import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'opcua' | 's7' | 'enip' | 'dnp3' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras' | 'security' | 'compliance' | 'roles';
+type Tab = 'sources' | 'modbus' | 'opcua' | 's7' | 'enip' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras' | 'security' | 'compliance' | 'roles';
 
 export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
   sensors: SensorConfig[];
@@ -47,7 +46,6 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   const isCamerasDisabled = license?.feature_flags?.rtsp_video === false;
   const isS7Disabled = license?.feature_flags?.s7_protocol === false;
   const isEnipDisabled = license?.feature_flags?.ethernet_ip === false;
-  const isDnp3Disabled = license?.feature_flags?.dnp3 === false;
   const isComplianceDisabled = license?.feature_flags?.cfr_part_11 === false;
   const isRbacDisabled = license?.feature_flags?.rbac === false;
 
@@ -110,7 +108,6 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
             {isAdmin && <button style={tabBtn('opcua')} onClick={() => setTab('opcua')} aria-selected={tab === 'opcua'}>OPC-UA{isOpcUaDisabled && <FeatureBadge tier="Professional" />}</button>}
             {isAdmin && <button style={tabBtn('s7')} onClick={() => setTab('s7')} aria-selected={tab === 's7'}>S7{isS7Disabled && <FeatureBadge tier="Enterprise" />}</button>}
             {isAdmin && <button style={tabBtn('enip')} onClick={() => setTab('enip')} aria-selected={tab === 'enip'}>ENIP{isEnipDisabled && <FeatureBadge tier="Enterprise" />}</button>}
-            {isAdmin && <button style={tabBtn('dnp3')} onClick={() => setTab('dnp3')} aria-selected={tab === 'dnp3'}>DNP3{isDnp3Disabled && <FeatureBadge tier="Enterprise" />}</button>}
             {isAdmin && <button style={tabBtn('users')} onClick={() => setTab('users')} aria-selected={tab === 'users'}>Users</button>}
             {isAdmin && <button style={tabBtn('roles')} onClick={() => setTab('roles')} aria-selected={tab === 'roles'}>Roles{isRbacDisabled && <FeatureBadge tier="Enterprise" />}</button>}
             {isAdmin && <button style={tabBtn('notifications')} onClick={() => setTab('notifications')} aria-selected={tab === 'notifications'}>Notifications</button>}
@@ -174,9 +171,6 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'enip' && isAdmin && (
             <EnipDeviceManager onClose={onClose} embedded />
-          )}
-          {tab === 'dnp3' && isAdmin && (
-            <Dnp3DeviceManager onClose={onClose} embedded />
           )}
           {tab === 'security' && isAdmin && (
             <SecurityAuditPanel onClose={onClose} embedded />

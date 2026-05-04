@@ -8,7 +8,7 @@ use serde_json::json;
 use crate::api::{AppError, AppState, AuthUser};
 use crate::models::{ModbusRegisterInput, ScanRegisterRequest, Endianness};
 
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Deserialize)]
 pub struct ScanNetworkRequest {
     pub range: String,
     #[serde(default = "default_scan_port")]
@@ -19,15 +19,6 @@ fn default_scan_port() -> u16 {
     502
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/v1/modbus-devices",
-    responses(
-        (status = 200, body = Vec<serde_json::Value>)
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_modbus_devices(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -65,16 +56,6 @@ pub async fn get_modbus_device(
     })))
 }
 
-#[utoipa::path(
-    post,
-    path = "/api/v1/modbus-devices",
-    responses(
-        (status = 201, body = serde_json::Value),
-        (status = 400),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn create_modbus_device(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -127,8 +108,6 @@ pub async fn create_modbus_device(
         state.poller_manager.start(dc.clone()).await;
     }
 
-    crate::asset::sync::on_device_created(&state.storage.asset(), "modbus", &id, &name, Some(&ip), "plc").await;
-
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_modbus_device".to_string(),
         username: auth.username.clone(),
@@ -139,19 +118,6 @@ pub async fn create_modbus_device(
     Ok((axum::http::StatusCode::CREATED, Json(json!({"ok": true, "id": id}))))
 }
 
-#[utoipa::path(
-    put,
-    path = "/api/v1/modbus-devices/{id}",
-    params(
-        ("id" = String, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 404),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn update_modbus_device(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -191,19 +157,6 @@ pub async fn update_modbus_device(
     Ok(Json(json!({"ok": true})))
 }
 
-#[utoipa::path(
-    delete,
-    path = "/api/v1/modbus-devices/{id}",
-    params(
-        ("id" = String, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 404),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn delete_modbus_device(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -211,8 +164,6 @@ pub async fn delete_modbus_device(
 ) -> Result<impl IntoResponse, AppError> {
     state.storage.delete_modbus_device(&id).await?;
     state.poller_manager.stop(&id).await;
-
-    crate::asset::sync::on_device_deleted(&state.storage.asset(), "modbus", &id).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_modbus_device".to_string(),
@@ -224,18 +175,6 @@ pub async fn delete_modbus_device(
     Ok(Json(json!({"ok": true})))
 }
 
-#[utoipa::path(
-    put,
-    path = "/api/v1/modbus-devices/{id}/registers",
-    params(
-        ("id" = String, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn replace_registers(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -262,19 +201,6 @@ pub async fn replace_registers(
     Ok(Json(json!({"ok": true})))
 }
 
-#[utoipa::path(
-    post,
-    path = "/api/v1/modbus-devices/{id}/restart",
-    params(
-        ("id" = String, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 404),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn restart_poller(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -288,15 +214,6 @@ pub async fn restart_poller(
     Ok(Json(json!({"ok": true})))
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/v1/modbus-devices/status",
-    responses(
-        (status = 200, body = Vec<crate::models::PollerStatus>)
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn get_poller_statuses(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -304,17 +221,6 @@ pub async fn get_poller_statuses(
     Ok(Json(statuses))
 }
 
-#[utoipa::path(
-    post,
-    path = "/api/v1/modbus-devices/scan",
-    request_body = ScanRegisterRequest,
-    responses(
-        (status = 200, body = Vec<crate::models::ScannedRegister>),
-        (status = 400),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn scan_modbus_registers(
     Json(body): Json<ScanRegisterRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -332,16 +238,6 @@ pub async fn scan_modbus_registers(
 
 /// POST /api/v1/modbus-devices/scan-network
 /// Scan a subnet for Modbus TCP devices (Starter+ license required).
-#[utoipa::path(
-    post,
-    path = "/api/v1/modbus-devices/scan-network",
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn scan_network(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

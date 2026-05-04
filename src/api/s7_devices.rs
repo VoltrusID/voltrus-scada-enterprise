@@ -11,16 +11,6 @@ use crate::s7::{S7Client, S7DeviceConfig};
 // ── Device CRUD ──
 
 /// GET /api/v1/s7/devices
-#[utoipa::path(
-    get,
-    path = "/api/v1/s7/devices",
-    responses(
-        (status = 200, body = Vec<serde_json::Value>),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_devices(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -55,18 +45,6 @@ pub async fn list_devices(
 }
 
 /// POST /api/v1/s7/devices
-#[utoipa::path(
-    post,
-    path = "/api/v1/s7/devices",
-    request_body = CreateS7DeviceRequest,
-    responses(
-        (status = 201, body = serde_json::Value),
-        (status = 400),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn create_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -101,8 +79,6 @@ pub async fn create_device(
         )
         .await?;
 
-    crate::asset::sync::on_device_created(&state.storage.asset(), "s7", &id.to_string(), &req.name, None, "plc").await;
-
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_s7_device".to_string(),
         username: user.username.clone(),
@@ -120,20 +96,6 @@ pub async fn create_device(
 }
 
 /// PUT /api/v1/s7/devices/{id}
-#[utoipa::path(
-    put,
-    path = "/api/v1/s7/devices/{id}",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    request_body = UpdateS7DeviceRequest,
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn update_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -198,19 +160,6 @@ pub async fn update_device(
 }
 
 /// DELETE /api/v1/s7/devices/{id}
-#[utoipa::path(
-    delete,
-    path = "/api/v1/s7/devices/{id}",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn delete_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -232,8 +181,6 @@ pub async fn delete_device(
 
     state.storage.delete_s7_device(id).await?;
 
-    crate::asset::sync::on_device_deleted(&state.storage.asset(), "s7", &id.to_string()).await;
-
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_s7_device".to_string(),
         username: user.username.clone(),
@@ -247,19 +194,6 @@ pub async fn delete_device(
 // ── Tag CRUD ──
 
 /// GET /api/v1/s7/devices/{id}/tags
-#[utoipa::path(
-    get,
-    path = "/api/v1/s7/devices/{id}/tags",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = Vec<S7TagRow>),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_tags(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -280,21 +214,6 @@ pub async fn list_tags(
 }
 
 /// POST /api/v1/s7/devices/{id}/tags
-#[utoipa::path(
-    post,
-    path = "/api/v1/s7/devices/{id}/tags",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    request_body = CreateS7TagRequest,
-    responses(
-        (status = 201, body = serde_json::Value),
-        (status = 400),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn add_tag(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -358,20 +277,6 @@ pub async fn add_tag(
 }
 
 /// DELETE /api/v1/s7/devices/{id}/tags/{tag_id}
-#[utoipa::path(
-    delete,
-    path = "/api/v1/s7/devices/{id}/tags/{tag_id}",
-    params(
-        ("id" = i64, Path, description = "Device ID"),
-        ("tag_id" = i64, Path, description = "Tag ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn remove_tag(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -395,20 +300,6 @@ pub async fn remove_tag(
 // ── Start / Stop ──
 
 /// POST /api/v1/s7/devices/{id}/start
-#[utoipa::path(
-    post,
-    path = "/api/v1/s7/devices/{id}/start",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 400),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn start_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -479,19 +370,6 @@ pub async fn start_device(
 }
 
 /// POST /api/v1/s7/devices/{id}/stop
-#[utoipa::path(
-    post,
-    path = "/api/v1/s7/devices/{id}/stop",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn stop_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -527,19 +405,6 @@ pub async fn stop_device(
 /// Lists common DB blocks and tag address patterns for the S7 device.
 /// Since S7 doesn't have a standard browse protocol like OPC-UA,
 /// we attempt to connect and list known DB areas.
-#[utoipa::path(
-    post,
-    path = "/api/v1/s7/devices/{id}/browse",
-    params(
-        ("id" = i64, Path, description = "Device ID")
-    ),
-    responses(
-        (status = 200, body = serde_json::Value),
-        (status = 403),
-    ),
-    tag = "Devices",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn browse_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
