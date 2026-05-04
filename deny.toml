@@ -16,6 +16,11 @@ ignore = [
     "RUSTSEC-2025-0134",
     # paste: unmaintained — transitive via utoipa-axum, no fix available upstream
     "RUSTSEC-2024-0436",
+    # rustls-webpki: multiple vulnerabilities — transitive via rumqttd, no fix upstream
+    "RUSTSEC-2026-0049",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+    "RUSTSEC-2026-0104",
 ]
 
 [bans]
@@ -39,6 +44,7 @@ allow = [
     "0BSD",
     "NOASSERTION",
     "CDLA-Permissive-2.0",
+    "Unlicense",
 ]
 confidence-threshold = 0.8
 
