@@ -57,8 +57,7 @@ use axum::{
     routing::{delete, get, patch, post, put},
     Json, Router,
 };
-use axum::extract::{ConnectInfo, Extension, DefaultBodyLimit};
-use axum_extra::extract::CookieJar;
+use axum::extract::DefaultBodyLimit;
 use serde_json::json;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -561,7 +560,7 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 // Middleware types re-exported from middleware module
-pub(super) use auth_middleware::{admin_only_middleware, cookie_auth_middleware, AuthUser, ApiKeyAuth};
+pub(super) use auth_middleware::{admin_only_middleware, cookie_auth_middleware, AuthUser};
 
 #[cfg(test)]
 mod tests;

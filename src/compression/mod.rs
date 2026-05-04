@@ -8,7 +8,3 @@ pub mod varint;
 mod tests;
 
 // Re-export all public items for backward compatibility
-pub use bitio::*;
-pub use gorilla::*;
-pub use rle::*;
-pub use varint::*;

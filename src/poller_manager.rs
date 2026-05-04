@@ -34,7 +34,7 @@ impl PollerManager {
         if !sim_mode { return None; }
 
         // Load profile if specified
-        let mut config_str = sim_config.as_ref().map(|s| s.as_str()).unwrap_or("{}").to_string();
+        let mut _config_str = sim_config.as_ref().map(|s| s.as_str()).unwrap_or("{}").to_string();
 
         if let Some(pid) = profile_id {
             if let Ok(Some(profile)) = self.storage.get_sim_profile(pid).await {
@@ -49,7 +49,7 @@ impl PollerManager {
                         }
                     }
                 }
-                config_str = base.to_string();
+                _config_str = base.to_string();
 
                 let data_type = profile.data_type.clone();
                 let params: std::collections::HashMap<String, serde_json::Value> =
@@ -61,7 +61,7 @@ impl PollerManager {
         }
 
         // Parse sim config directly
-        let parsed: serde_json::Value = serde_json::from_str(&config_str).unwrap_or_default();
+        let parsed: serde_json::Value = serde_json::from_str(&_config_str).unwrap_or_default();
         let data_type = parsed.get("data_type").and_then(|v| v.as_str()).unwrap_or("constant").to_string();
         let params: std::collections::HashMap<String, serde_json::Value> = parsed.as_object()
             .map(|m| m.iter().filter(|(k, _)| *k != "data_type").map(|(k, v)| (k.clone(), v.clone())).collect())

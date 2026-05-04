@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
-use super::parser::{NodeCategory, NodeRedNode, ParseResult};
+use super::parser::{NodeCategory, ParseResult};
 
 /// A converted Modbus device from Node-RED modbus-read nodes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,7 +88,7 @@ pub struct SkippedNode {
 
 /// Convert parsed Node-RED nodes into Voltrus entities.
 pub fn convert(parse_result: &ParseResult) -> ConversionResult {
-    let mut modbus_devices: Vec<ConvertedModbusDevice> = Vec::new();
+    let mut _modbus_devices: Vec<ConvertedModbusDevice> = Vec::new();
     let mut mqtt_sources: Vec<ConvertedMqttSource> = Vec::new();
     let mut widgets: Vec<ConvertedWidget> = Vec::new();
     let mut flow_nodes: Vec<ConvertedFlowNode> = Vec::new();
@@ -414,10 +414,10 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
         }
     }
 
-    modbus_devices = device_map.into_values().collect();
+    _modbus_devices = device_map.into_values().collect();
 
     ConversionResult {
-        modbus_devices,
+        modbus_devices: _modbus_devices,
         mqtt_sources,
         widgets,
         flow_nodes,

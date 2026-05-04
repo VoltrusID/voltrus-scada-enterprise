@@ -46,7 +46,6 @@ mod ha;
 mod network;
 
 use api::AppState;
-use base64::Engine;
 use cache::DeviceCache;
 use models::DeviceStatus;
 use poller_manager::PollerManager;

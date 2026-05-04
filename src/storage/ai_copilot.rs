@@ -141,7 +141,7 @@ impl Storage {
 
             let mut stmt = conn.prepare(&sql).context("Prepare failed")?;
 
-            let param_idx;
+            let _param_idx;
             let params: Vec<Box<dyn rusqlite::types::ToSql>> = {
                 let mut p: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
                 if let Some(ref pt) = proposal_type {
@@ -151,7 +151,7 @@ impl Storage {
                     p.push(Box::new(s.clone()));
                 }
                 p.push(Box::new(limit));
-                param_idx = p.len();
+                _param_idx = p.len();
                 p
             };
 
