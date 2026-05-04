@@ -2,7 +2,9 @@
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::compression::{BitWriter, BitReader, gorilla_encode, gorilla_decode, GorillaBlock,
+        rle_encode, rle_decode, rle_serialize, rle_deserialize,
+        varint_encode, varint_decode};
 
     // -----------------------------------------------------------------------
     // BitWriter / BitReader tests
