@@ -286,3 +286,41 @@ export interface NotificationSetting {
   enabled: boolean
   created_at: number
 }
+
+// -- AI Copilot types --
+
+export interface AiSettings {
+  provider: string
+  api_key_set: boolean
+  api_key_preview: string
+  default_model: string | null
+}
+
+export interface AiProposal {
+  id: number
+  proposal_type: string
+  status: 'pending' | 'approved' | 'rejected' | 'applied'
+  title: string
+  input_summary: string
+  proposed_config: any
+  applied_config: any | null
+  target_entity_id: string | null
+  error_message: string | null
+  model_used: string
+  tokens_used: number
+  created_at: number
+  reviewed_at: number | null
+  reviewed_by: string | null
+  applied_at: number | null
+}
+
+export interface EquipmentTemplate {
+  id: number
+  industry: string
+  equipment_type: string
+  name: string
+  tag_template: any
+  alarm_template: any
+  dashboard_template: any
+  flow_template: any | null
+}
