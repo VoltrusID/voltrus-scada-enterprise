@@ -296,7 +296,7 @@ pub async fn confirm_import(
     };
 
     let mut created = 0usize;
-    let mut skipped = 0usize;
+    let skipped = 0usize;
     let mut errors = Vec::new();
 
     for (idx, row) in rows.iter().enumerate() {

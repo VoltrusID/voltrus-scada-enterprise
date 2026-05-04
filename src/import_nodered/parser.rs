@@ -40,6 +40,7 @@ pub struct NodeRedFlow {
 
 /// A single node in a Node-RED flow.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[allow(non_snake_case)]
 pub struct NodeRedNode {
     pub id: String,
     #[serde(rename = "type")]

@@ -7,16 +7,24 @@ targets = [
 [advisories]
 version = 2
 yanked = "warn"
+# REVIEW QUARTERLY — Last reviewed: May 2026
+# Check each advisory for upstream fixes at https://rustsec.org/advisories/
 ignore = [
     # rsa: Marvin Attack — no fix available, transitive dep
+    # Review: check if rsa crate has patched version
     "RUSTSEC-2023-0071",
     # atomic-polyfill: unmaintained — transitive via opcua
+    # Review: check if opcua has migrated away from atomic-polyfill
     "RUSTSEC-2023-0089",
     # rustls-pemfile is unmaintained — upstream dependency of reqwest/rustls
+    # Review: check if reqwest has updated
     "RUSTSEC-2025-0134",
     # paste: unmaintained — transitive via utoipa-axum, no fix available upstream
+    # Review: check if utoipa-axum has removed paste dependency
     "RUSTSEC-2024-0436",
     # rustls-webpki: multiple vulnerabilities — transitive via rumqttd, no fix upstream
+    # HIGH PRIORITY: 4 advisories. Consider replacing rumqttd if no upstream fix.
+    # Review: check rumqttd releases for webpki bump
     "RUSTSEC-2026-0049",
     "RUSTSEC-2026-0098",
     "RUSTSEC-2026-0099",
