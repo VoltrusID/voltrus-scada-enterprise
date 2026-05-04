@@ -191,3 +191,98 @@ input[type="color"] {
     display: none !important;
   }
 }
+
+/* Touch-first improvements */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Prevent copy-menu on long-press for interactive surfaces */
+.react-grid-item,
+button,
+[role="button"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keep text selection on inputs */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Larger drag handles for touch */
+.react-grid-item > .react-resizable-handle {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+/* Touch device detection — increase spacing */
+@media (pointer: coarse) {
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Focus indicators for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Skip to content link for keyboard users */
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: var(--cyan);
+  color: var(--bg);
+  font-weight: 700;
+  z-index: 10000;
+  border-radius: 0 0 8px 8px;
+  text-decoration: none;
+}
+.skip-to-content:focus {
+  top: 0;
+}
+
+/* Mobile navigation drawer */
+@media (max-width: 768px) {
+  .header-actions-desktop {
+    display: none !important;
+  }
+}
+@media (min-width: 769px) {
+  .hamburger-menu {
+    display: none !important;
+  }
+}
+
+/* Drawer slide-in animation */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Hide scrollbar on mobile tab scroll */
+.screen-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile main content padding */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0 10px 10px !important;
+  }
+}

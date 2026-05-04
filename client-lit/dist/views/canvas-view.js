@@ -133,7 +133,7 @@ let CanvasView = class CanvasView extends LitElement {
     async saveLayouts() {
         try {
             const actualId = this.screenId === 'all' ? '__overview' : this.screenId;
-            await fetchOk(`/api/screens/${actualId}/canvas-layouts`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._layouts) });
+            await fetchOk(`/api/v1/screens/${actualId}/canvas-layouts`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this._layouts) });
         }
         catch { /* ignore */ }
     }

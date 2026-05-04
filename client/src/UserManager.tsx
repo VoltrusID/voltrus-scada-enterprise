@@ -39,7 +39,7 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{users.length} users</span>
-        <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAdd(true)}>+ Add User</button>
+        <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowAdd(true)} aria-label="Add new user">+ Add User</button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
         {isLoading ? (
@@ -72,8 +72,8 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={{ ...btnStyle, fontSize: 11, padding: '4px 10px' }} onClick={() => setEditUser(u)}>Edit</button>
-                    <button style={{ ...btnStyle, fontSize: 11, padding: '4px 10px', borderColor: 'var(--crit)', color: 'var(--crit)' }} onClick={() => setConfirmDelete(u)}>Delete</button>
+                    <button style={{ ...btnStyle, fontSize: 11, padding: '4px 10px' }} onClick={() => setEditUser(u)} aria-label={`Edit user ${u.username}`}>Edit</button>
+                    <button style={{ ...btnStyle, fontSize: 11, padding: '4px 10px', borderColor: 'var(--crit)', color: 'var(--crit)' }} onClick={() => setConfirmDelete(u)} aria-label={`Delete user ${u.username}`}>Delete</button>
                   </div>
                 </td>
               </tr>
@@ -108,7 +108,7 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <button onClick={onClose} style={{ ...btnStyle, padding: '4px 8px' }}>&larr; Back</button>
+        <button onClick={onClose} style={{ ...btnStyle, padding: '4px 8px' }} aria-label="Close user management">&larr; Back</button>
         <h2 style={{ fontSize: 18, fontWeight: 700 }}>User Management</h2>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column' }}>

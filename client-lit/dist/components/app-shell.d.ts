@@ -10,10 +10,12 @@ import '../views/scada-view.js';
 import '../views/twin-view.js';
 import '../views/system-view.js';
 import '../components/data-manager.js';
+import '../components/license-activation-screen.js';
 export declare class AppShell extends LitElement {
     static styles: import("lit").CSSResult;
     private _authed;
     private _authLoading;
+    private _mustChangePassword;
     private _view;
     private _activeScreen;
     private _readUrlParams;
@@ -33,9 +35,12 @@ export declare class AppShell extends LitElement {
     private _dialog;
     private _authRole;
     private _systemInfo;
+    private _licenseValid;
     connectedCallback(): void;
     disconnectedCallback(): void;
+    private _checkLicense;
     private _onAuth;
+    private _handleChangePassword;
     private _loadScreens;
     private _loadAllSensors;
     private _loadBranding;

@@ -58,3 +58,12 @@ export const btnStyle: React.CSSProperties = {
   border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer',
   display: 'flex', alignItems: 'center', gap: 6
 };
+
+export const touchTarget: React.CSSProperties = { minHeight: 44, minWidth: 44 };
+
+export const touchBtnStyle: React.CSSProperties = {
+  ...btnStyle,
+  minHeight: 44,
+  minWidth: 44,
+  padding: '10px 18px',
+};

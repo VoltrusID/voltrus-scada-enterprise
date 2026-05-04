@@ -7,11 +7,11 @@ pub fn load_config(path: &str) -> Result<AppConfig> {
         Ok(c) => c,
         Err(_) => {
             tracing::info!("Config file {path} not found, using defaults");
-            return Ok(serde_yml::from_str("").unwrap());
+            return Ok(serde_yaml_neo::from_str("").unwrap());
         }
     };
 
-    let config: AppConfig = serde_yml::from_str(&content)
+    let config: AppConfig = serde_yaml_neo::from_str(&content)
         .with_context(|| format!("Failed to parse config file: {path}"))?;
 
     validate(&config)?;
@@ -20,6 +20,24 @@ pub fn load_config(path: &str) -> Result<AppConfig> {
 }
 
 fn validate(config: &AppConfig) -> Result<()> {
+    if let Some(ref smtp) = config.smtp {
+        anyhow::ensure!(
+            !smtp.host.is_empty(),
+            "SMTP host is required when smtp is configured"
+        );
+    }
+
+    if let Some(ref push) = config.push {
+        anyhow::ensure!(
+            !push.vapid_private_key.is_empty(),
+            "VAPID private key is required when push is configured"
+        );
+        anyhow::ensure!(
+            !push.vapid_public_key.is_empty(),
+            "VAPID public key is required when push is configured"
+        );
+    }
+
     if config.devices.is_empty() {
         return Ok(());
     }
@@ -162,5 +180,85 @@ devices:
     fn test_file_not_found_returns_default() {
         let config = load_config("/nonexistent/config.yaml").unwrap();
         assert!(config.devices.is_empty());
+    }
+
+    #[test]
+    fn test_smtp_missing_host_fails() {
+        let yaml = r#"
+smtp:
+  host: ""
+  username: "user"
+  password: "pass"
+"#;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(yaml.as_bytes()).unwrap();
+        let result = load_config(f.path().to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("SMTP host is required"));
+    }
+
+    #[test]
+    fn test_smtp_defaults_applied() {
+        let yaml = r#"
+smtp:
+  host: "smtp.example.com"
+  username: "user"
+  password: "pass"
+"#;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(yaml.as_bytes()).unwrap();
+        let config = load_config(f.path().to_str().unwrap()).unwrap();
+        let smtp = config.smtp.unwrap();
+        assert_eq!(smtp.host, "smtp.example.com");
+        assert_eq!(smtp.port, 587);
+        assert_eq!(smtp.encryption, crate::models::SmtpEncryption::StartTls);
+        assert_eq!(smtp.from_address, "voltrus@example.com");
+        assert_eq!(smtp.from_name, "Voltrus Lite");
+    }
+
+    #[test]
+    fn test_smtp_optional() {
+        let yaml = "devices: []\n";
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(yaml.as_bytes()).unwrap();
+        let config = load_config(f.path().to_str().unwrap()).unwrap();
+        assert!(config.smtp.is_none());
+    }
+
+    #[test]
+    fn test_push_empty_private_key_fails() {
+        let yaml = r#"
+push:
+  vapid_private_key: ""
+  vapid_public_key: "some-key"
+"#;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(yaml.as_bytes()).unwrap();
+        let result = load_config(f.path().to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("VAPID private key is required"));
+    }
+
+    #[test]
+    fn test_push_empty_public_key_fails() {
+        let yaml = r#"
+push:
+  vapid_private_key: "some-key"
+  vapid_public_key: ""
+"#;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(yaml.as_bytes()).unwrap();
+        let result = load_config(f.path().to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("VAPID public key is required"));
+    }
+
+    #[test]
+    fn test_push_optional() {
+        let yaml = "devices: []\n";
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        f.write_all(yaml.as_bytes()).unwrap();
+        let config = load_config(f.path().to_str().unwrap()).unwrap();
+        assert!(config.push.is_none());
     }
 }

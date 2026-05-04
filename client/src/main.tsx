@@ -24,3 +24,7 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>
 )
+
+// Register service worker for push notifications
+import { registerServiceWorker } from './sw-register'
+registerServiceWorker()

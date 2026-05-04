@@ -7,8 +7,8 @@ export function LayoutBreakpointSelector({ layoutBreakpoint, onChange }: Props) 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
       <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '.05em' }}>Edit layout:</span>
-      {(['lg', 'md', 'sm'] as const).map((bp) => {
-        const labels: Record<string, string> = { lg: 'Desktop (24col)', md: 'Tablet (12col)', sm: 'Mobile (4col)' }
+      {(['lg', 'md', 'sm', 'xs'] as const).map((bp) => {
+        const labels: Record<string, string> = { lg: 'Desktop (24col)', md: 'Tablet (12col)', sm: 'Mobile (4col)', xs: 'Small (2col)' }
         return (
           <button key={bp} onClick={() => onChange(layoutBreakpoint === bp ? null : bp)} style={{
             padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
