@@ -169,6 +169,30 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    /// Prometheus exporter endpoint.
+    /// Professional tier and above.
+    pub fn prometheus_export(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
+    /// BI connectors (Power BI, Grafana, Metabase).
+    /// Professional tier and above.
+    pub fn bi_connectors(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
+    /// Scheduled data egress (CSV/Parquet export).
+    /// Professional tier and above.
+    pub fn data_egress(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
+    /// Outbound webhooks for external systems.
+    /// Starter tier and above.
+    pub fn outbound_webhooks(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
     /// Returns all feature flags as a JSON object.
     pub fn to_feature_flags(&self) -> serde_json::Value {
         serde_json::json!({
@@ -201,6 +225,10 @@ impl LicenseTier {
             "bacnet": self.bacnet(),
             "rtsp_video": self.rtsp_video(),
             "mqtt_broker": self.mqtt_broker(),
+            "prometheus_export": self.prometheus_export(),
+            "bi_connectors": self.bi_connectors(),
+            "data_egress": self.data_egress(),
+            "outbound_webhooks": self.outbound_webhooks(),
         })
     }
 }

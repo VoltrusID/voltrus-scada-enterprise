@@ -25,6 +25,7 @@ mod expression;
 mod flow_engine;
 mod ha;
 mod hardware_cert;
+mod integration;
 mod hub;
 mod import_nodered;
 mod license;
@@ -615,6 +616,16 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         });
+    }
+
+    // Spawn egress scheduler (v0.39.0, Professional tier+)
+    if license_tier.data_egress() {
+        let egress_storage = storage.clone();
+        let (_egress_shutdown_tx, egress_shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
+        tokio::spawn(async move {
+            crate::integration::egress::run_egress_scheduler(egress_storage, egress_shutdown_rx).await;
+        });
+        tracing::info!("Data egress scheduler started");
     }
 
     // Spawn OEE monitor (Starter tier and above)

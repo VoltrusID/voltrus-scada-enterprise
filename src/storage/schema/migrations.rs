@@ -328,4 +328,44 @@ pub(super) fn run_migrations(conn: &Connection) {
          CREATE INDEX IF NOT EXISTS idx_alarms_triggered ON alarms(triggered_at DESC);
          PRAGMA foreign_keys = ON;"
     );
+
+    // Migration: v0.39.0 -- Data egress jobs for scheduled CSV/Parquet export
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS egress_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            schedule TEXT NOT NULL DEFAULT 'daily',
+            format TEXT NOT NULL DEFAULT 'csv',
+            destination TEXT NOT NULL,
+            device_ids TEXT NOT NULL DEFAULT 'all',
+            time_range TEXT NOT NULL DEFAULT '24h',
+            compression INTEGER NOT NULL DEFAULT 0,
+            last_run INTEGER,
+            last_status TEXT,
+            last_error TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_egress_jobs_enabled ON egress_jobs(enabled);"
+    );
+
+    // Migration: v0.39.0 -- Outbound webhooks for external systems
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS outbound_webhooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            events TEXT NOT NULL DEFAULT '[\"alarm\"]',
+            device_filter TEXT NOT NULL DEFAULT '\"all\"',
+            headers TEXT NOT NULL DEFAULT '{}',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            retry_count INTEGER NOT NULL DEFAULT 3,
+            timeout_ms INTEGER NOT NULL DEFAULT 10000,
+            last_triggered INTEGER,
+            last_status TEXT,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_enabled ON outbound_webhooks(enabled);"
+    );
 }
