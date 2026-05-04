@@ -143,6 +143,23 @@ impl DeviceCache {
     pub fn trigger_receiver(&self) -> watch::Receiver<bool> {
         self.trigger.subscribe()
     }
+
+    /// Broadcast HA status event via SSE and WebSocket.
+    pub async fn broadcast_ha_status(&self, status: &crate::ha::HaStatus) {
+        let payload = serde_json::to_string(status).unwrap_or_default();
+        let _ = self.tx.send(payload);
+
+        if let Some(ref ws) = self.ws_manager {
+            ws.broadcast_ha_status(ServerMessage::HaStatus {
+                role: format!("{:?}", status.role).to_lowercase(),
+                peer_status: status.peer_status.clone(),
+                sync_lag_ms: status.sync_lag_ms,
+                node_id: status.node_id.clone(),
+                peer_id: status.peer_id.clone(),
+                failover_ts: status.failover_ts.clone(),
+            });
+        }
+    }
 }
 
 #[cfg(test)]

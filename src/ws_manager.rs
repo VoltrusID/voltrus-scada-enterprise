@@ -119,6 +119,11 @@ impl WsManager {
         self.broadcast_to_all(msg);
     }
 
+    /// Broadcast HA status to all connected clients.
+    pub fn broadcast_ha_status(&self, msg: ServerMessage) {
+        self.broadcast_to_all(msg);
+    }
+
     /// Broadcast a command acknowledgement to all connections. Closed senders are removed.
     pub fn broadcast_command_ack(&self, msg: ServerMessage) {
         self.broadcast_to_all(msg);

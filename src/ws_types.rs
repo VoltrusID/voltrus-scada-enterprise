@@ -51,6 +51,14 @@ pub enum ServerMessage {
         ts: i64,
     },
     Pong,
+    HaStatus {
+        role: String,
+        peer_status: String,
+        sync_lag_ms: Option<u64>,
+        node_id: String,
+        peer_id: Option<String>,
+        failover_ts: Option<String>,
+    },
 }
 
 #[cfg(test)]
