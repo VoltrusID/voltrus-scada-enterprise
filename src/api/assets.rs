@@ -24,6 +24,7 @@ const VALID_ASSET_TYPES: &[&str] = &[
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListAssetsQuery {
+    #[serde(rename = "asset_type")]
     pub type_: Option<String>,
     pub criticality: Option<String>,
     pub vendor: Option<String>,

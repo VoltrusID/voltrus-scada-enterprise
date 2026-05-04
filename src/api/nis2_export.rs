@@ -92,6 +92,5 @@ pub async fn nis2_export(
 
 /// Escape a string for CSV: wrap in quotes and double any internal quotes.
 fn escape_csv(s: &str) -> String {
-    let escaped = s.replace('"', "\"\"");
-    format!("\"{}\"", escaped)
+    s.replace('"', "\"\"")
 }

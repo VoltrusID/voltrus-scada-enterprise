@@ -50,45 +50,39 @@ function computeRiskBreakdown(asset: ReturnType<typeof useAsset>['data']): { lab
   if (!asset) return []
   const factors: { label: string; points: number; max: number }[] = []
 
-  // Criticality contribution
-  const critMap: Record<string, number> = { low: 5, medium: 15, high: 25, critical: 35 }
-  factors.push({ label: 'Criticality', points: critMap[asset.criticality] ?? 10, max: 35 })
-
-  // Firmware staleness
-  if (asset.firmware_version) {
-    factors.push({ label: 'Firmware Staleness', points: 10, max: 20 })
+  // Firmware outdated (+30) — no firmware version or unknown
+  if (!asset.firmware_version) {
+    factors.push({ label: 'Firmware Unknown', points: 30, max: 30 })
   } else {
-    factors.push({ label: 'Firmware Unknown', points: 20, max: 20 })
+    factors.push({ label: 'Firmware Recorded', points: 0, max: 30 })
   }
 
-  // Maintenance recency
+  // No maintenance in 12 months (+20)
   if (asset.last_maintenance) {
     const daysSince = (Date.now() - new Date(asset.last_maintenance).getTime()) / 86400000
-    if (daysSince > 180) {
-      factors.push({ label: 'Maintenance Overdue', points: 20, max: 20 })
-    } else if (daysSince > 90) {
-      factors.push({ label: 'Maintenance Aging', points: 12, max: 20 })
+    if (daysSince > 365) {
+      factors.push({ label: 'Maintenance Overdue (>12mo)', points: 20, max: 20 })
     } else {
-      factors.push({ label: 'Maintenance Current', points: 3, max: 20 })
+      factors.push({ label: 'Maintenance Current', points: 0, max: 20 })
     }
   } else {
     factors.push({ label: 'No Maintenance Record', points: 20, max: 20 })
   }
 
-  // Device link status
-  if (asset.device_ref) {
-    factors.push({ label: 'Device Linked', points: 2, max: 15 })
+  // Critical asset unmonitored (+25) — critical/high criticality with no device link
+  const isCritical = asset.criticality === 'critical' || asset.criticality === 'high'
+  if (isCritical && !asset.device_ref) {
+    factors.push({ label: 'Critical Unmonitored', points: 25, max: 25 })
   } else {
-    factors.push({ label: 'No Device Link', points: 15, max: 15 })
+    factors.push({ label: 'Monitoring Status', points: 0, max: 25 })
   }
 
-  // Missing documentation
-  let missingPoints = 0
-  if (!asset.serial_number) missingPoints += 3
-  if (!asset.location) missingPoints += 3
-  if (!asset.vendor) missingPoints += 2
-  if (!asset.model) missingPoints += 2
-  factors.push({ label: 'Missing Documentation', points: missingPoints, max: 10 })
+  // Default credentials tag (+25)
+  if (asset.tags?.includes('default-credentials')) {
+    factors.push({ label: 'Default Credentials', points: 25, max: 25 })
+  } else {
+    factors.push({ label: 'Credential Check', points: 0, max: 25 })
+  }
 
   return factors
 }

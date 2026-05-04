@@ -49,12 +49,16 @@ pub async fn start_scan(
     let community = body.community.clone();
     let timeout_ms = body.timeout_ms;
     let scan_state = SCAN_STATE.clone();
+    let asset_storage = state.storage.asset();
 
     tokio::spawn(async move {
         match snmp::run_scan(&subnet, &community, timeout_ms, &scan_state).await {
             Ok(results) => {
-                // Results are persisted inside the scan or returned — we store them via the caller.
-                // Since we don't have state here, we log the result count.
+                for r in &results {
+                    if let Err(e) = asset_storage.insert_scan_result(r).await {
+                        tracing::warn!("Failed to persist scan result for {}: {}", r.ip, e);
+                    }
+                }
                 tracing::info!("SNMP scan complete: {} device(s) found", results.len());
             }
             Err(e) => {

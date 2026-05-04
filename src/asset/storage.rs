@@ -92,7 +92,7 @@ impl AssetStorage {
                 ip TEXT PRIMARY KEY,
                 sys_descr TEXT,
                 sys_name TEXT,
-                sys_uptime INTEGER,
+                sys_uptime TEXT,
                 vendor TEXT,
                 model TEXT,
                 firmware TEXT,

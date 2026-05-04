@@ -41,7 +41,7 @@ export function SnmpScanPanel({ onClose }: Props) {
 
   const handleStartScan = () => {
     const s = subnet.trim()
-    startScan.mutate(s ? { subnet: s } : undefined)
+    if (s) startScan.mutate({ subnet: s })
   }
 
   const handleImport = async (ip: string) => {
