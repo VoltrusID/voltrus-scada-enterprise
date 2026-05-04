@@ -6,6 +6,7 @@ export interface SensorConfig {
   device_id: string;
   equipment_id: string | null;
   chart_type: string;
+  path: string | null;
 }
 
 export interface SensorData {

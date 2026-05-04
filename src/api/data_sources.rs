@@ -1,11 +1,13 @@
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
 use crate::models::*;
 use super::{AppError, AppState};
+use super::naming_convention::validate_tag_name;
 
 /// GET /api/data-sources?screen=X — list data sources, optionally filtered by screen
 #[utoipa::path(
@@ -36,7 +38,7 @@ pub async fn list_data_sources(
 pub async fn create_data_source(
     State(state): State<AppState>,
     Json(body): Json<serde_json::Value>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response<Body>, AppError> {
     let key = body["key"].as_str().unwrap_or("data_source").to_string();
     let name = body["name"].as_str().unwrap_or("DataSource").to_string();
     let unit = body["unit"].as_str().unwrap_or("").to_string();
@@ -55,6 +57,11 @@ pub async fn create_data_source(
     let device_id = body["device_id"].as_str().unwrap_or("default").to_string();
     let equipment_id = body["equipment_id"].as_str();
     let chart_type = body["chart_type"].as_str().unwrap_or("sparkline").to_string();
+
+    // Validate name against naming convention
+    if let Err(msg) = validate_tag_name(&state, &name).await {
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response());
+    }
 
     // Get max sort_order
     let max_sort = state.storage.max_data_source_sort_order().await?;
@@ -84,7 +91,7 @@ pub async fn create_data_source(
     Ok((
         StatusCode::CREATED,
         Json(json!({"id": id})),
-    ))
+    ).into_response())
 }
 
 /// PUT /api/data-sources/{id} — update data source fields dynamically
@@ -100,9 +107,14 @@ pub async fn update_data_source(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(body): Json<serde_json::Value>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response<Body>, AppError> {
+    if let Some(name) = body.get("name").and_then(|v| v.as_str()) {
+        if let Err(msg) = validate_tag_name(&state, name).await {
+            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response());
+        }
+    }
     state.storage.update_data_source(id, &body).await?;
-    Ok(Json(json!({"ok": true})))
+    Ok(Json(json!({"ok": true})).into_response())
 }
 
 /// DELETE /api/data-sources/{id}

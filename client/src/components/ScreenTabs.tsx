@@ -14,7 +14,7 @@ const useIsMobile = () => {
 }
 
 interface Props {
-  mode: 'live' | 'history' | 'system' | 'flows'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
   activeScreen: string
   screens: Screen[]
   effectiveNavShortcuts: Record<string, string>

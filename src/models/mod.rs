@@ -93,6 +93,7 @@ pub struct DataSource {
     pub device_id: String,
     pub equipment_id: Option<String>,
     pub chart_type: String,
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -181,6 +182,18 @@ pub struct NavShortcut {
 pub struct Setting {
     pub key: String,
     pub value: String,
+}
+
+// ── Audit log types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct AuditLogEntry {
+    pub id: i64,
+    pub action: String,
+    pub username: String,
+    pub resource: String,
+    pub details: Option<String>,
+    pub created_at: i64,
 }
 
 // ── Flow types ──

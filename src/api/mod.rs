@@ -1,5 +1,6 @@
 pub(crate) mod auth;
 mod api_keys;
+mod audit_log;
 mod bacnet_devices;
 mod push;
 mod oee;
@@ -33,12 +34,17 @@ mod annotations;
 mod shift_handover;
 mod user_notifications;
 mod commands;
+mod tag_tree;
+mod naming_convention;
 mod simulation;
 mod scripts;
 mod config_snapshots;
 mod ai_copilot;
 mod websocket;
 mod auth_middleware;
+mod import_nodered;
+mod csv_import;
+mod mqtt_broker;
 
 use axum::{
     extract::{Request, State},
@@ -85,6 +91,7 @@ pub struct AppState {
     pub hub_manager: Option<hub::HubManager>,
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
     pub ws_manager: Arc<crate::ws_manager::WsManager>,
+    pub mqtt_broker_state: Option<crate::mqtt_broker::MqttBrokerState>,
 }
 
 #[derive(Debug)]
@@ -204,6 +211,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
+        .route("/api/v1/settings/naming-convention", get(naming_convention::get_naming_convention))
         .route("/api/license/status", get(license::get_license_status))
         .route("/api/v1/ws", get(websocket::websocket_handler));
 
@@ -227,6 +235,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/screens/{id}/scada-equipment", get(layouts::get_scada_equipment))
         .route("/api/v1/screens/{id}/scada-connections", get(layouts::get_scada_connections))
         .route("/api/v1/data-sources", get(data_sources::list_data_sources))
+        .route("/api/v1/tags/tree", get(tag_tree::get_tag_tree))
         .route(
             "/api/v1/shortcuts",
             get(shortcuts::get_shortcuts).put(shortcuts::save_shortcuts),
@@ -265,10 +274,14 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
         .route("/api/v1/analytics/compare", get(analytics::get_compare))
+        .route("/api/v1/settings/ui-theme", get(settings::get_ui_theme).put(settings::update_ui_theme))
+        .route("/api/v1/settings/ui-lang", get(settings::get_ui_lang).put(settings::update_ui_lang))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
         )
+        // MQTT broker status (any authenticated user)
+        .route("/api/v1/mqtt-broker/status", get(mqtt_broker::get_status))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -279,6 +292,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
         .route("/api/v1/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
+        .route("/api/v1/settings/naming-convention", put(naming_convention::update_naming_convention))
         // Alarm management: shelving, audit trail, analytics, summary
         .route("/api/v1/alarms/{id}/shelf", post(alarms::shelf_alarm))
         .route("/api/v1/alarms/{id}/unshelf", post(alarms::unshelf_alarm))
@@ -405,6 +419,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/security/events", get(security::list_security_events))
         .route("/api/v1/security/events/export", get(security::export_security_csv))
         .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
+        // Audit log routes (admin-only)
+        .route("/api/v1/audit", get(audit_log::list_audit_logs))
+        .route("/api/v1/audit/export", get(audit_log::export_audit_csv))
         // Annotation routes (admin-only, Professional-gated)
         .route("/api/v1/annotations", get(annotations::list_annotations).post(annotations::create_annotation))
         .route("/api/v1/annotations/{id}", get(annotations::get_annotation).put(annotations::update_annotation).delete(annotations::delete_annotation))
@@ -414,6 +431,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/shift-handover/{id}", get(shift_handover::get_shift_handover))
         // Command write/cancel routes (admin-only)
         .route("/api/v1/tags/{id}/write", post(commands::write_tag))
+        .route("/api/v1/tags/{id}/path", put(tag_tree::update_tag_path))
         .route("/api/v1/commands/{command_id}/cancel", post(commands::cancel_command))
         .route("/api/v1/data-sources/{id}/write-policy", patch(commands::update_write_policy))
         // Simulation routes (admin-only)
@@ -426,6 +444,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
         .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
         .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
+        // Node-RED import (admin-only)
+        .route("/api/v1/import/node-red", post(import_nodered::import_node_red))
+        // MQTT broker management (admin-only)
+        .route("/api/v1/mqtt-broker/config", put(mqtt_broker::update_config))
+        .route("/api/v1/mqtt-broker/start", post(mqtt_broker::start_broker))
+        .route("/api/v1/mqtt-broker/stop", post(mqtt_broker::stop_broker))
         // Config snapshot routes (admin-only)
         .route("/api/v1/config/snapshots", get(config_snapshots::list_snapshots).post(config_snapshots::create_snapshot))
         .route("/api/v1/config/snapshots/{id}", get(config_snapshots::get_snapshot))
@@ -444,11 +468,22 @@ pub fn create_router(state: AppState) -> Router {
         )
     }
 
+    // CSV import router with increased body limit (admin-only)
+    let import_router = Router::new()
+        .route("/api/v1/import/csv", post(csv_import::import_csv))
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB for CSV upload
+        .layer(middleware::from_fn(admin_only_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            cookie_auth_middleware,
+        ));
+
     // API router with CORS, rate limiting, security headers, body limit
     let api_router = Router::new()
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
+        .merge(import_router)
         .route("/api/v1/{*path}", get(api_not_found))
         .layer(middleware::from_fn_with_state(state.clone(), license_check_middleware))
         .layer(cors)

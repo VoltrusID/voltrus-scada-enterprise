@@ -1,0 +1,268 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "rename": "Rename",
+    "search": "Search",
+    "filter": "Filter",
+    "loading": "Loading...",
+    "noData": "No data",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "on": "On",
+    "off": "Off",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "actions": "Actions",
+    "name": "Name",
+    "status": "Status",
+    "type": "Type",
+    "description": "Description",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "remove": "Remove",
+    "copy": "Copy",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "settings": "Settings",
+    "retry": "Retry",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info"
+  },
+  "auth": {
+    "login": "Log In",
+    "logout": "Log Out",
+    "username": "Username",
+    "password": "Password",
+    "loginFailed": "Login failed",
+    "checkingLicense": "Checking license...",
+    "changePassword": "Change Your Password",
+    "changePasswordDesc": "You must set a new password before continuing.",
+    "newPassword": "New password (min 8 chars)",
+    "confirmPassword": "Confirm new password",
+    "passwordMismatch": "Passwords do not match",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "changePasswordBtn": "Change Password"
+  },
+  "nav": {
+    "live": "Live",
+    "history": "History",
+    "system": "System",
+    "flows": "Flows",
+    "all": "All",
+    "cards": "Cards",
+    "canvas": "Canvas",
+    "twin": "Twin",
+    "scada": "SCADA",
+    "edit": "Edit",
+    "dataManager": "Data Manager",
+    "settings": "Settings",
+    "alarms": "Alarms",
+    "commands": "Commands",
+    "export": "Export",
+    "annotations": "Annotations",
+    "shiftHandover": "Shift Handover",
+    "snapshots": "Config Snapshots"
+  },
+  "dashboard": {
+    "newScreen": "New Screen",
+    "screenName": "Screen name",
+    "screenNamePlaceholder": "My Screen",
+    "deleteScreen": "Delete Screen",
+    "deleteScreenConfirm": "Delete screen \"{{name}}\"? This cannot be undone.",
+    "renameScreen": "Rename Screen",
+    "autoArrange": "Auto Arrange",
+    "addSource": "Add Source"
+  },
+  "alarms": {
+    "title": "Alarms",
+    "active": "Active",
+    "acknowledged": "Acknowledged",
+    "shelved": "Shelved",
+    "acknowledge": "Acknowledge",
+    "acknowledgeAll": "Acknowledge All",
+    "shelf": "Shelf",
+    "unshelf": "Unshelf",
+    "noActiveAlarms": "No active alarms",
+    "critical": "Critical",
+    "warning": "Warning",
+    "cooldown": "Cooldown",
+    "cooldownSecs": "Alarm cooldown (seconds)"
+  },
+  "commands": {
+    "title": "Commands",
+    "pending": "Pending",
+    "sent": "Sent",
+    "acked": "Acknowledged",
+    "resolved": "Resolved",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "write": "Write",
+    "cancel": "Cancel Command"
+  },
+  "devices": {
+    "modbus": "Modbus Devices",
+    "opcua": "OPC UA Devices",
+    "s7": "S7 Devices",
+    "enip": "EtherNet/IP Devices",
+    "dnp3": "DNP3 Devices",
+    "bacnet": "BACnet/IP Devices",
+    "addDevice": "Add Device",
+    "editDevice": "Edit Device",
+    "deleteDevice": "Delete Device",
+    "scan": "Scan",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "online": "Online",
+    "offline": "Offline",
+    "status": "Status",
+    "registers": "Registers",
+    "tags": "Tags",
+    "points": "Points",
+    "objects": "Objects",
+    "nodes": "Nodes",
+    "browse": "Browse"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "system": "System",
+    "title": "Theme"
+  },
+  "language": {
+    "title": "Language",
+    "en": "English",
+    "id": "Bahasa Indonesia",
+    "zh": "\u4e2d\u6587",
+    "de": "Deutsch"
+  },
+  "license": {
+    "checking": "Checking license...",
+    "activate": "Activate License",
+    "trialBanner": "You are running on a trial license.",
+    "expiredBanner": "Your trial license has expired."
+  },
+  "system": {
+    "title": "System Information",
+    "hostname": "Hostname",
+    "os": "Operating System",
+    "uptime": "Uptime",
+    "cpu": "CPU Usage",
+    "memory": "Memory",
+    "disk": "Disk",
+    "database": "Database Size",
+    "process": "Process"
+  },
+  "data": {
+    "export": "Export Data",
+    "exportCsv": "Export CSV",
+    "range": "Range",
+    "autoAgg": "Auto Aggregate",
+    "fullDetail": "Full Detail",
+    "turbo": "Turbo"
+  },
+  "settings": {
+    "branding": "Branding",
+    "alarmCooldown": "Alarm Cooldown",
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "pushNotifications": "Push Notifications"
+  },
+  "roles": {
+    "title": "Roles",
+    "admin": "Admin",
+    "user": "User",
+    "viewer": "Viewer"
+  },
+  "users": {
+    "title": "Users",
+    "addUser": "Add User",
+    "role": "Role",
+    "username": "Username",
+    "password": "Password"
+  },
+  "flows": {
+    "title": "Flow Editor",
+    "addFlow": "Add Flow",
+    "start": "Start",
+    "stop": "Stop",
+    "test": "Test"
+  },
+  "reports": {
+    "title": "Reports",
+    "generate": "Generate Report",
+    "schedule": "Schedule"
+  },
+  "oee": {
+    "title": "OEE Metrics",
+    "availability": "Availability",
+    "performance": "Performance",
+    "quality": "Quality"
+  },
+  "security": {
+    "title": "Security Audit",
+    "events": "Events",
+    "thresholds": "Thresholds",
+    "exportCsv": "Export CSV"
+  },
+  "compliance": {
+    "title": "Compliance",
+    "config": "Configuration",
+    "sign": "Electronic Signature",
+    "signatures": "Signatures"
+  },
+  "annotations": {
+    "title": "Annotations",
+    "add": "Add Annotation",
+    "edit": "Edit Annotation"
+  },
+  "shiftHandover": {
+    "title": "Shift Handover",
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "night": "Night",
+    "whatHappened": "What Happened",
+    "whatsPending": "What's Pending",
+    "whatToWatch": "What to Watch",
+    "autoReport": "Auto Report"
+  },
+  "sim": {
+    "title": "Simulation",
+    "toggle": "Toggle Simulation",
+    "goLive": "Go Live",
+    "profiles": "Simulation Profiles"
+  },
+  "recipes": {
+    "title": "Recipes",
+    "load": "Load Recipe",
+    "loaded": "Recipe Loaded"
+  },
+  "copilot": {
+    "title": "AI Copilot",
+    "proposals": "Proposals",
+    "settings": "AI Settings"
+  },
+  "snapshots": {
+    "title": "Config Snapshots",
+    "create": "Create Snapshot",
+    "rollback": "Rollback",
+    "diff": "Diff"
+  },
+  "scripts": {
+    "title": "Scripts",
+    "add": "Add Script",
+    "test": "Test",
+    "executions": "Executions"
+  }
+}

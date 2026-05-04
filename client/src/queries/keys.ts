@@ -44,4 +44,11 @@ export const queryKeys = {
   shiftHandovers: ['shiftHandovers'] as const,
   shiftHandoversFiltered: (date?: string, period?: string) => ['shiftHandovers', date, period] as const,
   shiftAutoReport: ['shiftAutoReport'] as const,
+  uiTheme: ['uiTheme'] as const,
+  uiLang: ['uiLang'] as const,
+  tagTree: (search?: string) => ['tagTree', search] as const,
+  namingConvention: ['namingConvention'] as const,
+  auditLogs: (params: Record<string, any>) => ['auditLogs', params] as const,
+  auditExport: (params: Record<string, any>) => ['auditExport', params] as const,
+  mqttBroker: ['mqttBroker'] as const,
 }

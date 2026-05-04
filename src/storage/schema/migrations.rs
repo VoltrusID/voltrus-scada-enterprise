@@ -256,4 +256,14 @@ pub(super) fn run_migrations(conn: &Connection) {
     let _ = conn.execute_batch("ALTER TABLE devices ADD COLUMN sim_config TEXT");
     // Migration: v0.26.0 -- Simulation column on data_sources
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN sim_value REAL");
+
+    // Migration: v0.32.0 -- UNS path column on data_sources for tag browser tree
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN path TEXT DEFAULT NULL");
+
+    // Migration: v0.32.0 -- Audit log search indexes
+    let _ = conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+         CREATE INDEX IF NOT EXISTS idx_audit_log_username ON audit_log(username);
+         CREATE INDEX IF NOT EXISTS idx_audit_log_action_user_time ON audit_log(action, username, created_at);"
+    );
 }
