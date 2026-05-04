@@ -36,6 +36,7 @@ mod script_engine;
 mod ws_manager;
 mod ws_types;
 mod ai_copilot;
+mod import_nodered;
 
 use api::AppState;
 use base64::Engine;
