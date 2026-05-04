@@ -51,4 +51,17 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
+
+    // ── User Preferences ──
+
+    /// Get a user-scoped preference value. Returns None if not set.
+    pub async fn get_user_preference(&self, username: &str, key: &str) -> Result<Option<String>> {
+        let settings = self.get_settings(&[&format!("user:{}:{}", username, key)]).await?;
+        Ok(settings.into_iter().next().map(|s| s.value))
+    }
+
+    /// Set a user-scoped preference value.
+    pub async fn set_user_preference(&self, username: &str, key: &str, value: &str) -> Result<()> {
+        self.upsert_setting(&format!("user:{}:{}", username, key), value).await
+    }
 }

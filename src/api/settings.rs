@@ -162,3 +162,71 @@ pub async fn update_alarm_cooldown(
 
     Ok(Json(json!({"ok": true, "secs": clamped})))
 }
+
+/// GET /api/v1/settings/ui-theme
+pub async fn get_ui_theme(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<impl IntoResponse, AppError> {
+    let theme = state
+        .storage
+        .get_user_preference(&auth.username, "ui_theme")
+        .await?
+        .unwrap_or_else(|| "dark".to_string());
+    Ok(Json(json!({ "theme": theme })))
+}
+
+/// PUT /api/v1/settings/ui-theme
+pub async fn update_ui_theme(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let theme = body.get("theme").and_then(|v| v.as_str()).unwrap_or("dark");
+    let valid = ["light", "dark", "system"].contains(&theme);
+    if !valid {
+        return Err(AppError(anyhow::anyhow!("Invalid theme. Must be 'light', 'dark', or 'system'.")));
+    }
+    state.storage.set_user_preference(&auth.username, "ui_theme", theme).await?;
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_ui_theme".to_string(),
+        username: auth.username.clone(),
+        resource: "settings:ui-theme".to_string(),
+        details: Some(format!("theme={}", theme)),
+    });
+    Ok(Json(json!({ "ok": true, "theme": theme })))
+}
+
+/// GET /api/v1/settings/ui-lang
+pub async fn get_ui_lang(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<impl IntoResponse, AppError> {
+    let lang = state
+        .storage
+        .get_user_preference(&auth.username, "ui_lang")
+        .await?
+        .unwrap_or_else(|| "en".to_string());
+    Ok(Json(json!({ "lang": lang })))
+}
+
+/// PUT /api/v1/settings/ui-lang
+pub async fn update_ui_lang(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, AppError> {
+    let lang = body.get("lang").and_then(|v| v.as_str()).unwrap_or("en");
+    let valid = ["en", "id", "zh", "de"].contains(&lang);
+    if !valid {
+        return Err(AppError(anyhow::anyhow!("Invalid language. Must be one of: en, id, zh, de.")));
+    }
+    state.storage.set_user_preference(&auth.username, "ui_lang", lang).await?;
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "update_ui_lang".to_string(),
+        username: auth.username.clone(),
+        resource: "settings:ui-lang".to_string(),
+        details: Some(format!("lang={}", lang)),
+    });
+    Ok(Json(json!({ "ok": true, "lang": lang })))
+}
