@@ -41,6 +41,7 @@ async fn test_flow_crud() {
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     let app = create_router(state);
 

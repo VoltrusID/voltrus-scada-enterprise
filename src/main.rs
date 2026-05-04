@@ -37,6 +37,7 @@ mod ws_manager;
 mod ws_types;
 mod ai_copilot;
 mod import_nodered;
+mod mqtt_broker;
 
 use api::AppState;
 use base64::Engine;
@@ -532,6 +533,34 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Initialize MQTT broker (Starter tier and above)
+    let mqtt_broker_state = {
+        if license_tier.mqtt_broker() {
+            let broker_state = crate::mqtt_broker::MqttBrokerState::new();
+            let mqtt_cfg = &app_config.mqtt_broker;
+
+            if mqtt_cfg.enabled {
+                {
+                    let mut cfg = broker_state.config.write().await;
+                    *cfg = Some(mqtt_cfg.clone());
+                }
+
+                match crate::mqtt_broker::start_broker(broker_state.clone(), mqtt_cfg.clone()).await {
+                    Ok(()) => {
+                        tracing::info!("Embedded MQTT broker auto-started on port {}", mqtt_cfg.port);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to auto-start MQTT broker: {}", e);
+                    }
+                }
+            }
+
+            Some(broker_state)
+        } else {
+            None
+        }
+    };
+
     let state = AppState {
         cache: cache.clone(),
         storage: storage.clone(),
@@ -556,6 +585,7 @@ async fn main() -> anyhow::Result<()> {
         hub_manager,
         stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
         ws_manager: ws_manager.clone(),
+        mqtt_broker_state,
     };
 
     api::stream::spawn_sse_composer(cache.clone(), storage.clone());

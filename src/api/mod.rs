@@ -44,6 +44,7 @@ mod websocket;
 mod auth_middleware;
 mod import_nodered;
 mod csv_import;
+mod mqtt_broker;
 
 use axum::{
     extract::{Request, State},
@@ -90,6 +91,7 @@ pub struct AppState {
     pub hub_manager: Option<hub::HubManager>,
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
     pub ws_manager: Arc<crate::ws_manager::WsManager>,
+    pub mqtt_broker_state: Option<crate::mqtt_broker::MqttBrokerState>,
 }
 
 #[derive(Debug)]
@@ -278,6 +280,8 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),
         )
+        // MQTT broker status (any authenticated user)
+        .route("/api/v1/mqtt-broker/status", get(mqtt_broker::get_status))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -442,6 +446,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
         // Node-RED import (admin-only)
         .route("/api/v1/import/node-red", post(import_nodered::import_node_red))
+        // MQTT broker management (admin-only)
+        .route("/api/v1/mqtt-broker/config", put(mqtt_broker::update_config))
+        .route("/api/v1/mqtt-broker/start", post(mqtt_broker::start_broker))
+        .route("/api/v1/mqtt-broker/stop", post(mqtt_broker::stop_broker))
         // Config snapshot routes (admin-only)
         .route("/api/v1/config/snapshots", get(config_snapshots::list_snapshots).post(config_snapshots::create_snapshot))
         .route("/api/v1/config/snapshots/{id}", get(config_snapshots::get_snapshot))
