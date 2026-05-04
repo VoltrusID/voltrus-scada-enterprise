@@ -4,7 +4,7 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
-use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig};
+use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig, Dnp3DeviceConfig};
 use crate::s7::S7DeviceConfig;
 use crate::storage::Storage;
 
@@ -121,6 +121,18 @@ impl PollerManager {
                 },
                 cache,
             ).await;
+        });
+        self.handles.write().await.insert(device_id, handle);
+    }
+
+    pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
+        let device_id = config.id.clone();
+        if self.is_running(&device_id).await {
+            self.stop(&device_id).await;
+        }
+        let cache = self.cache.clone();
+        let handle = tokio::spawn(async move {
+            crate::dnp3::poll_dnp3_device(config, cache).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }

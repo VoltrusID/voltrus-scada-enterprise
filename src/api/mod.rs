@@ -25,6 +25,7 @@ mod rbac;
 mod compliance;
 mod enip_devices;
 mod s7_devices;
+mod dnp3_devices;
 mod video;
 mod security;
 mod annotations;
@@ -349,6 +350,15 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
         .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
         .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
+        // DNP3 (IEEE 1815) routes (admin-only, Enterprise-gated)
+        .route("/api/v1/dnp3/devices", get(dnp3_devices::list_devices).post(dnp3_devices::create_device))
+        .route("/api/v1/dnp3/devices/{id}", get(dnp3_devices::get_device).put(dnp3_devices::update_device).delete(dnp3_devices::delete_device))
+        .route("/api/v1/dnp3/devices/{id}/points", post(dnp3_devices::add_point))
+        .route("/api/v1/dnp3/devices/{id}/points/{point_id}", delete(dnp3_devices::remove_point))
+        .route("/api/v1/dnp3/scan", post(dnp3_devices::scan_network))
+        .route("/api/v1/dnp3/devices/{id}/integrity", post(dnp3_devices::trigger_integrity))
+        .route("/api/v1/dnp3/devices/{id}/freeze", post(dnp3_devices::trigger_freeze))
+        .route("/api/v1/dnp3/group-variations", get(dnp3_devices::list_group_variations))
         // RTSP Video / Camera routes (admin-only, Enterprise-gated)
         .route("/api/v1/cameras", get(video::list_cameras).post(video::create_camera))
         .route("/api/v1/cameras/{id}", put(video::update_camera).delete(video::delete_camera))
