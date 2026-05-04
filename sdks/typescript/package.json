@@ -1,6 +1,6 @@
 {
   "name": "voltrus",
-  "version": "0.27.0",
+  "version": "0.34.0",
   "description": "Official TypeScript SDK for Voltrus SCADA",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

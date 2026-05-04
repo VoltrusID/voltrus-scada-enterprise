@@ -46,6 +46,12 @@ mod import_nodered;
 mod csv_import;
 mod compression;
 mod mqtt_broker;
+mod assets;
+mod asset_import;
+mod snmp_scan;
+mod nis2_export;
+mod firmware_catalog;
+mod maintenance;
 #[cfg(feature = "openapi")]
 mod openapi;
 
@@ -456,6 +462,20 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/security/events", get(security::list_security_events))
         .route("/api/v1/security/events/export", get(security::export_security_csv))
         .route("/api/v1/security/thresholds", get(security::get_security_thresholds).put(security::update_security_thresholds))
+        // OT Asset Inventory routes (admin-only, Professional-gated)
+        .route("/api/v1/assets", get(assets::list_assets).post(assets::create_asset))
+        .route("/api/v1/assets/ip-conflicts", get(assets::get_ip_conflicts))
+        .route("/api/v1/assets/{id}", get(assets::get_asset).patch(assets::update_asset).delete(assets::delete_asset))
+        .route("/api/v1/assets/{id}/maintenance", get(maintenance::list_maintenance).post(maintenance::create_maintenance))
+        .route("/api/v1/assets/import", post(asset_import::upload_import))
+        .route("/api/v1/assets/import/confirm", post(asset_import::confirm_import))
+        .route("/api/v1/assets/nis2-export", get(nis2_export::nis2_export))
+        .route("/api/v1/firmware-catalog", get(firmware_catalog::list_firmware_catalog).post(firmware_catalog::create_firmware_catalog))
+        .route("/api/v1/firmware-catalog/{id}", patch(firmware_catalog::update_firmware_catalog).delete(firmware_catalog::delete_firmware_catalog))
+        .route("/api/v1/snmp/scan", post(snmp_scan::start_scan))
+        .route("/api/v1/snmp/scan/status", get(snmp_scan::get_scan_status))
+        .route("/api/v1/snmp/scan/results", get(snmp_scan::list_scan_results))
+        .route("/api/v1/snmp/scan/{ip}/import", post(snmp_scan::import_scanned_device))
         // Audit log routes (admin-only)
         .route("/api/v1/audit", get(audit_log::list_audit_logs))
         .route("/api/v1/audit/export", get(audit_log::export_audit_csv))

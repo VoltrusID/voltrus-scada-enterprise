@@ -8,6 +8,15 @@ use serde_json::json;
 use crate::models::*;
 use super::{AppError, AppState};
 
+fn require_enterprise(state: &AppState) -> Result<(), AppError> {
+    if !matches!(state.license_tier, crate::license::LicenseTier::Enterprise) {
+        return Err(AppError(anyhow::anyhow!(
+            "Security audit requires Enterprise tier. Upgrade at https://voltrus.id"
+        )));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListEventsQuery {
     pub event_type: Option<String>,
@@ -28,6 +37,7 @@ pub async fn list_security_events(
     State(state): State<AppState>,
     Query(params): Query<ListEventsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_enterprise(&state)?;
     let events = state.storage.list_security_events(
         params.event_type.as_deref(),
         params.severity.as_deref(),
@@ -53,6 +63,7 @@ pub async fn export_security_csv(
     State(state): State<AppState>,
     Query(params): Query<ExportCsvQuery>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_enterprise(&state)?;
     let csv = state.storage.export_security_events_csv(
         params.from,
         params.to,
@@ -81,6 +92,7 @@ pub async fn export_security_csv(
 pub async fn get_security_thresholds(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_enterprise(&state)?;
     let thresholds = state.storage.get_security_thresholds().await?;
     Ok(Json(json!(thresholds)))
 }
@@ -90,6 +102,7 @@ pub async fn update_security_thresholds(
     Json(body): Json<SecurityThresholds>,
 ) -> Result<impl IntoResponse, AppError> {
     // Validate ranges
+    require_enterprise(&state)?;
     if body.failed_login_threshold == 0 || body.suspicious_401_threshold == 0 || body.rate_limit_threshold == 0 {
         return Ok((
             StatusCode::BAD_REQUEST,

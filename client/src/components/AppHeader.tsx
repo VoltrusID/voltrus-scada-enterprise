@@ -42,6 +42,7 @@ interface Props {
   onDataManagerClick: () => void
   onFlowsClick: () => void
   onTagsClick: () => void
+  onAssetsClick: () => void
   isAdmin: boolean
   onLogout: () => void
   onAlarmPanelToggle: () => void
@@ -66,7 +67,7 @@ export function AppHeader({
   turbo, onToggleTurbo,
   onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
   onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onAnnotationPanelToggle, onShiftHandoverToggle,
-  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick,
+  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onAssetsClick,
 }: Props) {
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -238,6 +239,21 @@ export function AppHeader({
             )}
             {isAdmin && (
               <button
+                aria-label="Assets"
+                style={{
+                  ...btnStyle,
+                  borderColor: mode === 'assets' ? '#a855f7' : 'var(--border)',
+                  color: mode === 'assets' ? '#a855f7' : 'var(--fg)',
+                  background: mode === 'assets' ? 'rgba(168,85,247,.1)' : 'var(--card)',
+                }}
+                onClick={onAssetsClick}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                <span>Assets</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button
                 aria-label="Tags"
                 style={{
                   ...btnStyle,
@@ -346,6 +362,12 @@ export function AppHeader({
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               Commands
             </button>
+            {isAdmin && (
+              <button style={drawerItemStyle} onClick={() => { closeDrawer(); onAssetsClick(); }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                Assets
+              </button>
+            )}
             {isAdmin && (
               <button style={drawerItemStyle} onClick={() => { closeDrawer(); onFlowsClick(); }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
