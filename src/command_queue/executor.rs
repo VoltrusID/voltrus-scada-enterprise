@@ -91,6 +91,8 @@ impl CommandQueue {
                 _ => crate::models::Endianness::Big,
             },
             registers: vec![],
+            readback: None,
+            network: None,
         };
 
         crate::modbus::write_tag(&config, address, value).await

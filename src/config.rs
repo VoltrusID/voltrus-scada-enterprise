@@ -67,6 +67,34 @@ fn validate(config: &AppConfig) -> Result<()> {
         }
     }
 
+    // Validate HA config
+    if config.ha.enabled {
+        anyhow::ensure!(!config.ha.node_id.is_empty(), "HA node_id cannot be empty");
+        anyhow::ensure!(!config.ha.peer_address.is_empty(), "HA peer_address is required when HA is enabled");
+        anyhow::ensure!(
+            ["primary", "standby", "auto"].contains(&config.ha.role.as_str()),
+            "HA role must be 'primary', 'standby', or 'auto'"
+        );
+    }
+
+    // Validate networks (unique IDs)
+    let mut net_ids = std::collections::HashSet::new();
+    for net in &config.networks {
+        anyhow::ensure!(!net.id.is_empty(), "Network ID cannot be empty");
+        anyhow::ensure!(net_ids.insert(net.id.clone()), "Duplicate network ID: {}", net.id);
+    }
+
+    // Validate device network references
+    for device in &config.devices {
+        if let Some(ref net_id) = device.network {
+            anyhow::ensure!(
+                net_ids.contains(net_id),
+                "Device '{}' references unknown network '{}'",
+                device.id, net_id
+            );
+        }
+    }
+
     Ok(())
 }
 

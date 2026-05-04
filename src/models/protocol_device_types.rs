@@ -43,6 +43,8 @@ impl ModbusDevice {
                 scale: r.scale,
                 register_area: r.register_area.clone(),
             }).collect(),
+            readback: None,
+            network: None,
         }
     }
 }

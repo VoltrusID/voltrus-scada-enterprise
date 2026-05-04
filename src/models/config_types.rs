@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 // ── Config types ──
@@ -43,6 +43,12 @@ pub struct AppConfig {
     pub push: Option<super::notification_types::PushConfig>,
     #[serde(default)]
     pub mqtt_broker: MqttBrokerConfig,
+    #[serde(default)]
+    pub ha: HaConfig,
+    #[serde(default)]
+    pub watchdog: WatchdogConfig,
+    #[serde(default)]
+    pub networks: Vec<NetworkConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -181,6 +187,10 @@ pub struct DeviceConfig {
     #[serde(default)]
     pub endianness: Endianness,
     pub registers: Vec<RegisterConfig>,
+    #[serde(default)]
+    pub readback: Option<ReadbackConfig>,
+    #[serde(default)]
+    pub network: Option<String>,
 }
 
 pub fn default_modbus_port() -> u16 {
@@ -253,3 +263,127 @@ impl RegisterConfig {
         }
     }
 }
+
+// ── HA / Reliability config (v0.33) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HaConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_ha_role")]
+    pub role: String,
+    #[serde(default = "default_node_id")]
+    pub node_id: String,
+    #[serde(default = "default_ha_bind_address")]
+    pub bind_address: String,
+    #[serde(default)]
+    pub peer_address: String,
+    #[serde(default = "default_heartbeat_ms")]
+    pub heartbeat_interval_ms: u64,
+    #[serde(default = "default_failover_missed")]
+    pub failover_after_missed: u32,
+    #[serde(default)]
+    pub tls: Option<TlsConfig>,
+}
+
+impl Default for HaConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            role: default_ha_role(),
+            node_id: default_node_id(),
+            bind_address: default_ha_bind_address(),
+            peer_address: String::new(),
+            heartbeat_interval_ms: default_heartbeat_ms(),
+            failover_after_missed: default_failover_missed(),
+            tls: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TlsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub cert_path: String,
+    #[serde(default)]
+    pub key_path: String,
+}
+
+impl Default for TlsConfig {
+    fn default() -> Self {
+        Self { enabled: false, cert_path: String::new(), key_path: String::new() }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WatchdogConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_check_interval")]
+    pub health_check_interval_secs: u64,
+    #[serde(default = "default_restart_failures")]
+    pub restart_after_failures: u32,
+    #[serde(default = "default_cooldown")]
+    pub restart_cooldown_secs: u64,
+    #[serde(default = "default_max_restarts")]
+    pub max_restart_attempts: u32,
+}
+
+impl Default for WatchdogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            health_check_interval_secs: default_check_interval(),
+            restart_after_failures: default_restart_failures(),
+            restart_cooldown_secs: default_cooldown(),
+            max_restart_attempts: default_max_restarts(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkConfig {
+    pub id: String,
+    #[serde(default)]
+    pub description: String,
+    pub interface: String,
+    pub bind_address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadbackConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_readback_timeout")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_readback_retries")]
+    pub retry_count: u32,
+    #[serde(default = "default_readback_interval")]
+    pub poll_interval_ms: u64,
+}
+
+impl Default for ReadbackConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            timeout_ms: default_readback_timeout(),
+            retry_count: default_readback_retries(),
+            poll_interval_ms: default_readback_interval(),
+        }
+    }
+}
+
+fn default_ha_role() -> String { "auto".to_string() }
+fn default_node_id() -> String { "voltrus-1".to_string() }
+fn default_ha_bind_address() -> String { "0.0.0.0:8443".to_string() }
+fn default_heartbeat_ms() -> u64 { 1000 }
+fn default_failover_missed() -> u32 { 3 }
+fn default_check_interval() -> u64 { 10 }
+fn default_restart_failures() -> u32 { 3 }
+fn default_cooldown() -> u64 { 30 }
+fn default_max_restarts() -> u32 { 5 }
+fn default_readback_timeout() -> u64 { 5000 }
+fn default_readback_retries() -> u32 { 2 }
+fn default_readback_interval() -> u64 { 500 }
