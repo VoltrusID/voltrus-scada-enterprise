@@ -56,9 +56,7 @@ export const WidgetLoader: React.FC<WidgetLoaderProps> = ({
         }
 
         // Create shadow DOM for isolation
-        const shadow = containerRef.current!.attachShadow
-          ? containerRef.current!.shadowRoot || containerRef.current!.attachShadow({ mode: "open" })
-          : null;
+        const shadow = containerRef.current!.shadowRoot ?? containerRef.current!.attachShadow({ mode: "open" });
 
         // Load widget JS dynamically
         const script = document.createElement("script");

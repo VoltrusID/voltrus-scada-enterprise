@@ -54,4 +54,8 @@ export const queryKeys = {
   mqttBroker: ['mqttBroker'] as const,
   bacnetDevices: ['bacnetDevices'] as const,
   bacnetDevice: (id: string) => ['bacnetDevice', id] as const,
+  aiSettings: ['aiSettings'] as const,
+  aiProposals: (type?: string, status?: string) => ['aiProposals', type, status] as const,
+  aiProposal: (id: number) => ['aiProposal', id] as const,
+  aiTemplates: (industry?: string) => ['aiTemplates', industry] as const,
 }
