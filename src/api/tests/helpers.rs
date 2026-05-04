@@ -22,7 +22,7 @@ pub fn test_jwks_manager() -> JwksManager {
 pub fn test_app() -> Router {
     let cache = DeviceCache::new();
     let storage = Storage::new_in_memory().unwrap();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
     let state = AppState {
         cache,
         storage,
@@ -132,7 +132,7 @@ pub fn seeded_admin_state() -> (Storage, DeviceCache, PollerManager) {
     // We can't await here in a non-async fn, so callers should use the inline pattern
     let _ = password_hash;
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
     (storage, cache, poller_manager)
 }
 
@@ -143,7 +143,7 @@ pub async fn test_app_with_seeded_admin() -> Router {
     storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
     let state = AppState {
         cache,
         storage,
@@ -186,7 +186,7 @@ pub async fn test_app_with_seeded_admin() -> Router {
 pub fn test_app_with_license_status(license_status: crate::license::LicenseStatus, license_tier: crate::license::LicenseTier) -> Router {
     let cache = DeviceCache::new();
     let storage = Storage::new_in_memory().unwrap();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
     let feature_flags = license_tier.to_feature_flags();
     let state = AppState {
         cache,

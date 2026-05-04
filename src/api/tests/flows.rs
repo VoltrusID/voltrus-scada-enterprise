@@ -10,7 +10,7 @@ async fn test_flow_crud() {
     storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
 
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
     let state = AppState {
         cache,
         storage,
