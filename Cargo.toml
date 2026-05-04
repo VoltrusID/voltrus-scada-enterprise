@@ -74,6 +74,7 @@ rumqttd = "0.20"
 rquickjs = "0.10"
 regex = "1"
 wasmtime = "43"
+zip = "=2.4"
 
 [dev-dependencies]
 http = "=1.4.0"

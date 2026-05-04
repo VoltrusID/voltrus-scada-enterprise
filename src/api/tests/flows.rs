@@ -45,6 +45,7 @@ async fn test_flow_crud() {
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     let app = create_router(state);
 
