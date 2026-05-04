@@ -63,6 +63,14 @@ pub struct Command {
     pub acked_at: Option<i64>,
     pub resolved_at: Option<i64>,
     pub created_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub readback_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub readback_value: Option<f64>,
+    #[serde(default)]
+    pub readback_attempts: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub readback_ts: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

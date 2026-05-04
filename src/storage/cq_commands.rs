@@ -140,6 +140,10 @@ impl Storage {
                         acked_at: row.get(13)?,
                         resolved_at: row.get(14)?,
                         created_by: row.get(15)?,
+                        readback_status: None,
+                        readback_value: None,
+                        readback_attempts: 0,
+                        readback_ts: None,
                     })
                 },
             );
@@ -226,6 +230,10 @@ impl Storage {
                         acked_at: row.get(13)?,
                         resolved_at: row.get(14)?,
                         created_by: row.get(15)?,
+                        readback_status: None,
+                        readback_value: None,
+                        readback_attempts: 0,
+                        readback_ts: None,
                     })
                 })
                 .context("Query list_commands failed")?;
@@ -266,6 +274,10 @@ impl Storage {
                     acked_at: row.get(13)?,
                     resolved_at: row.get(14)?,
                     created_by: row.get(15)?,
+                    readback_status: None,
+                    readback_value: None,
+                    readback_attempts: 0,
+                    readback_ts: None,
                 })
             }).context("Query get_queued_commands failed")?;
             rows.collect::<Result<Vec<_>, _>>()

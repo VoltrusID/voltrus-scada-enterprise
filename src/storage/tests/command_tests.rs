@@ -22,6 +22,10 @@ async fn test_command_crud_lifecycle() {
         acked_at: None,
         resolved_at: None,
         created_by: "test_user".to_string(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
     storage.insert_command(&cmd).await.unwrap();
 
@@ -63,6 +67,10 @@ async fn test_command_audit_trail() {
         acked_at: None,
         resolved_at: None,
         created_by: "test_user".to_string(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
     storage.insert_command(&cmd).await.unwrap();
 
@@ -106,6 +114,10 @@ async fn test_count_recent_writes() {
             acked_at: None,
             resolved_at: None,
             created_by: "test".to_string(),
+            readback_status: None,
+            readback_value: None,
+            readback_attempts: 0,
+            readback_ts: None,
         };
         storage.insert_command(&cmd).await.unwrap();
     }
@@ -142,6 +154,10 @@ async fn test_list_commands_with_filters() {
             acked_at: None,
             resolved_at: None,
             created_by: "test".to_string(),
+            readback_status: None,
+            readback_value: None,
+            readback_attempts: 0,
+            readback_ts: None,
         };
         storage.insert_command(&cmd).await.unwrap();
     }
@@ -163,6 +179,10 @@ async fn test_list_commands_with_filters() {
         acked_at: None,
         resolved_at: None,
         created_by: "test".to_string(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
     storage.insert_command(&failed_cmd).await.unwrap();
 
@@ -206,6 +226,10 @@ async fn test_get_queued_commands() {
         acked_at: None,
         resolved_at: None,
         created_by: "test".to_string(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
     storage.insert_command(&cmd).await.unwrap();
 
@@ -227,6 +251,10 @@ async fn test_get_queued_commands() {
         acked_at: None,
         resolved_at: None,
         created_by: "test".to_string(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
     storage.insert_command(&cmd2).await.unwrap();
 

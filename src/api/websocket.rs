@@ -342,6 +342,10 @@ async fn handle_tag_write(
         acked_at: None,
         resolved_at: None,
         created_by: username.to_string(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
 
     if let Err(e) = state.storage.insert_command(&cmd).await {

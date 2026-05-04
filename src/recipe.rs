@@ -98,6 +98,10 @@ pub async fn load_recipe_to_plc(recipe: &Recipe, storage: &Storage) -> Result<Ve
             acked_at: None,
             resolved_at: None,
             created_by: format!("recipe:{}", recipe.name),
+            readback_status: None,
+            readback_value: None,
+            readback_attempts: 0,
+            readback_ts: None,
         };
 
         match storage.insert_command(&cmd).await {

@@ -141,6 +141,10 @@ pub async fn write_tag(
         acked_at: None,
         resolved_at: None,
         created_by: user.username.clone(),
+        readback_status: None,
+        readback_value: None,
+        readback_attempts: 0,
+        readback_ts: None,
     };
 
     state.storage.insert_command(&cmd).await?;

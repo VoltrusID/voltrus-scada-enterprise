@@ -42,6 +42,9 @@ async fn test_api_key_crud() {
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
+        network_manager: crate::network::NetworkManager::new(vec![]),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        ha_state: crate::ha::HaState::disabled(),
     };
     let app = create_router(state);
 
