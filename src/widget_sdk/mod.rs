@@ -76,7 +76,7 @@ pub struct WidgetRegistry {
 
 impl WidgetRegistry {
     pub fn new(widgets_dir: PathBuf) -> Self {
-        let mut reg = Self {
+        let reg = Self {
             widgets_dir,
             widgets: Arc::new(RwLock::new(HashMap::new())),
         };

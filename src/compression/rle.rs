@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/compression/rle.rs — RLE (Run-Length Encoding) for digital/binary tags
 
 use anyhow::{bail, Result};

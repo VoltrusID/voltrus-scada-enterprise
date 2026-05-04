@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/compression/gorilla.rs — Gorilla encoding (Facebook Gorilla paper)
 
 use anyhow::{bail, Context, Result};

@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::super::{AppError, AppState, AuthUser};
-use crate::ai_copilot::{AiProviderType, AiRequest, AiSettings, resolve_provider};
+use crate::ai_copilot::{AiProviderType, AiRequest, resolve_provider};
 use crate::models;
 
 // ── Settings ──

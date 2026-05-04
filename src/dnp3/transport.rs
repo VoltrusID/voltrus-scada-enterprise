@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// DNP3 transport header (1 byte: FIR | FIN | SEQUENCE).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransportHeader {

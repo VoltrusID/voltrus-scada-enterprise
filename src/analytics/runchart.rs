@@ -140,7 +140,7 @@ fn detect_trends(values: &[f64], signals: &mut Vec<Signal>) {
 
 /// Check if a completed trend qualifies as a signal (6+ points).
 fn check_trend_signal(
-    values: &[f64],
+    _values: &[f64],
     start: usize,
     end: usize,
     dir: i8,

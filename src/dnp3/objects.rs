@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/dnp3/objects.rs
 
 /// A single DNP3 point value parsed from an outstation response.

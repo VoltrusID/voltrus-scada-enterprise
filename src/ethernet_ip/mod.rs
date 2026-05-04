@@ -6,6 +6,10 @@ mod poller;
 mod tests;
 
 pub use client::*;
-pub use packets::*;
 pub use poller::*;
+
+// Re-exported for test modules using `use super::*`
+#[cfg(test)]
+pub use packets::*;
+#[cfg(test)]
 pub use types::*;

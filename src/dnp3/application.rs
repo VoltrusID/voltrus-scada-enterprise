@@ -1,6 +1,7 @@
+#![allow(dead_code)]
 // src/dnp3/application.rs
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 /// DNP3 application function codes.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // ── RBAC types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

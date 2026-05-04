@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Allen-Bradley EtherNet/IP + CIP protocol client.
 //!
 //! Implements session registration, tag read/write, and tag browsing

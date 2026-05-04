@@ -6,8 +6,8 @@ fn deserialize_flex_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error
 where
     D: Deserializer<'de>,
 {
-    use serde::de::{self, IntoDeserializer};
-    use std::fmt;
+    use serde::de::{self};
+    
 
     // Use a helper enum to accept either string or number
     #[derive(Deserialize)]

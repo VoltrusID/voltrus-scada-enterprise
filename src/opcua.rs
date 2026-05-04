@@ -260,7 +260,11 @@ fn create_data_change_callback(
 
         let mut metrics = HashMap::new();
         metrics.insert(node_name, value);
-        cache.update(&device_id, metrics, false);
+        let cache = cache.clone();
+        let device_id = device_id.clone();
+        tokio::spawn(async move {
+            cache.update(&device_id, metrics, false).await;
+        });
     }
 }
 

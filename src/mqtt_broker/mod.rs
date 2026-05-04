@@ -84,7 +84,7 @@ pub async fn start_broker(
         *handle = Some(shutdown_tx);
     }
 
-    let clients_arc = clients.clone();
+    let _clients_arc = clients.clone();
     let status_tx_clone = status_tx.clone();
     let status_tx_final = status_tx.clone();
     tokio::task::spawn_blocking(move || {

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/dnp3/datalink.rs
 
 use anyhow::Result;

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;

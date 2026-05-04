@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use serde::{Deserialize, Serialize};
 
 fn default_dnp3_port() -> u16 { 20000 }

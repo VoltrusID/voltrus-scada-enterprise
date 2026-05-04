@@ -1,10 +1,11 @@
-use crate::license::fingerprint::{Fingerprint, collect_fingerprint};
+#![allow(dead_code)]
+use crate::license::fingerprint::collect_fingerprint;
 use serde::{Deserialize, Serialize};
 
 const REQUEST_MAGIC: &[u8] = b"VOLREQ\x01";
 
 #[derive(Serialize, Deserialize, Debug)]
-struct LicenseRequest {
+pub struct LicenseRequest {
     version: u8,
     license_key: String,
     fingerprint: FingerprintData,

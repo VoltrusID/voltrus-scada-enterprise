@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/compression/varint.rs — Varint encoding (zigzag + LEB128) for warm tier deltas
 
 use anyhow::Result;

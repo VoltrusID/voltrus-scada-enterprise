@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 
-use crate::models::CameraSnapshot;
 
 // ── RTSP URL Parsing ──
 

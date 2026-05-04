@@ -1,4 +1,4 @@
-use super::*;
+#![allow(dead_code)]
 
 // ── Command & Control types (v0.24.0) ──
 

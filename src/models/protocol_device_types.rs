@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+#![allow(dead_code)]
 use super::{DeviceConfig, Endianness, RegisterConfig, RegisterType,
     default_modbus_port, default_unit_id, default_interval, default_scale,
     default_register_area, default_interval_ms, default_true};

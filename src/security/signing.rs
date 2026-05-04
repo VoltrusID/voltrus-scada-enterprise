@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use axum::extract::Request;
 
 /// Validate an HMAC-SHA256 signature on a request.

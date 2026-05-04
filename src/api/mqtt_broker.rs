@@ -5,7 +5,7 @@ use serde_json::json;
 use axum::response::IntoResponse;
 
 use crate::api::{AppError, AppState, AuthUser};
-use crate::mqtt_broker::{self, BrokerStatus, MqttBrokerState};
+use crate::mqtt_broker::{self, BrokerStatus};
 
 /// GET /api/v1/mqtt-broker/status
 pub async fn get_status(

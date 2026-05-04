@@ -1,7 +1,6 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{SimProfile, Script, ScriptExecution};
 
 impl Storage {
     // ── Sim Profile CRUD methods ──
@@ -352,7 +351,7 @@ impl Storage {
                 .collect();
             let placeholders_str = placeholders.join(", ");
 
-            let sql = format!(
+            let _sql = format!(
                 "UPDATE scripts SET {} WHERE id = {}",
                 set_clauses.join(", "),
                 placeholders_str
