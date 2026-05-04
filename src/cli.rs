@@ -27,6 +27,11 @@ USAGE:
     voltrus edr exclusions [CONFIG]    Show recommended EDR exclusions
     voltrus edr exclusions-ps1 [CONFIG] Generate Defender exclusion PowerShell script
     voltrus edr gpo-guide              Show Group Policy deployment guide
+    voltrus hw report                  Show hardware certification report
+    voltrus hw benchmark               Run performance benchmarks (default: 10s)
+    voltrus hw edge-deploy             Show edge deployment guide
+    voltrus hw compat-matrix           Show hardware compatibility matrix
+    voltrus hw rpi-quickstart          Show Raspberry Pi quick-start guide
     voltrus config export [DIR]        Export config to YAML files
     voltrus config import [DIR]        Import config from YAML files
     voltrus config validate [DIR]      Validate YAML config files
@@ -89,6 +94,7 @@ pub async fn handle_cli(args: &[String]) -> bool {
         "--reset-admin-password" => handle_reset_admin_password(args).await,
         "config" => handle_config(args),
         "edr" => handle_edr(args),
+        "hw" => handle_hw(args),
         "discover" => handle_discover(args).await,
         "backup" => handle_backup(args),
         "restore" => handle_restore(args),
@@ -354,6 +360,201 @@ async fn handle_reset_admin_password(args: &[String]) -> bool {
             std::process::exit(1);
         }
     }
+}
+
+fn handle_hw(args: &[String]) -> bool {
+    let subcommand = args.get(2).map(|s| s.as_str()).unwrap_or("");
+    match subcommand {
+        "report" => handle_hw_report(args),
+        "benchmark" => handle_hw_benchmark(args),
+        "edge-deploy" => handle_hw_edge_deploy(args),
+        "compat-matrix" => handle_hw_compat_matrix(),
+        "rpi-quickstart" => {
+            let guide = crate::hardware_cert::edge_deploy::generate_rpi_quickstart();
+            println!("{}", guide);
+            true
+        }
+        _ => {
+            eprintln!(
+                "Usage: {} hw [report|benchmark|edge-deploy|compat-matrix|rpi-quickstart]",
+                args[0]
+            );
+            eprintln!();
+            eprintln!("Commands:");
+            eprintln!("  report          Show hardware certification report");
+            eprintln!("  benchmark       Run performance benchmarks (default: 10s)");
+            eprintln!("  edge-deploy     Show edge deployment guide for this platform");
+            eprintln!("  compat-matrix   Show hardware compatibility matrix");
+            eprintln!("  rpi-quickstart  Show Raspberry Pi quick-start guide");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_hw_report(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "data.db".to_string());
+
+    let platform = crate::hardware_cert::platform::detect_platform(&db_path);
+    let compatibility = crate::hardware_cert::compat_matrix::assess_compatibility(&platform);
+    let storage = crate::hardware_cert::compat_matrix::assess_storage(&platform);
+
+    println!("=== Voltrus Hardware Certification Report ===");
+    println!();
+    println!("Platform:");
+    println!("  Hostname:    {}", platform.hostname);
+    println!("  OS:          {}", platform.os);
+    println!("  Arch:        {}", platform.arch);
+    println!("  CPU:         {} ({} cores)", platform.cpu_model, platform.cpu_cores);
+    println!("  RAM:         {} MB", platform.ram_total_mb);
+    println!("  Disk:        {:.1} / {:.1} GB ({:.0}% used)",
+        platform.disk_total_gb - platform.disk_available_gb,
+        platform.disk_total_gb,
+        if platform.disk_total_gb > 0.0 { ((platform.disk_total_gb - platform.disk_available_gb) / platform.disk_total_gb) * 100.0 } else { 0.0 }
+    );
+    println!("  Board:       {}", platform.board_type);
+    println!("  Storage:     {}", platform.storage_type);
+    println!();
+
+    println!("Tier Compatibility:");
+    let tiers = [
+        ("Free Trial", &compatibility.free_trial),
+        ("Starter ($249)", &compatibility.starter),
+        ("Professional ($499)", &compatibility.professional),
+        ("Enterprise ($999)", &compatibility.enterprise),
+    ];
+    for (name, assessment) in &tiers {
+        let status = if assessment.compatible { "✓ COMPATIBLE" } else { "✗ NOT COMPATIBLE" };
+        println!("  {} — {}", name, status);
+        if assessment.compatible {
+            println!("    Max tags: {} | Max poll rate: {} Hz | Compression: {}",
+                assessment.max_tags,
+                assessment.max_poll_rate,
+                if assessment.compression_recommended { "recommended" } else { "optional" }
+            );
+        }
+        for limitation in &assessment.limitations {
+            println!("    ⚠ {}", limitation);
+        }
+    }
+
+    println!();
+    println!("Storage Assessment:");
+    println!("  Type:                {}", storage.storage_type);
+    println!("  Write optimization:  {}", if storage.write_optimization_critical { "CRITICAL" } else { "recommended" });
+    println!("  Est. endurance:      {:.1} years (at 10K tags @ 1Hz)", storage.estimated_endurance_years);
+    println!("  Batch writes:        {}", if storage.batch_writes_active { "active" } else { "disabled" });
+
+    if !storage.storage_recommendations.is_empty() {
+        println!("  Recommendations:");
+        for rec in &storage.storage_recommendations {
+            println!("    → {}", rec);
+        }
+    }
+
+    println!();
+    println!("Run 'voltrus hw benchmark' to measure actual performance.");
+    println!("Run 'voltrus hw edge-deploy' for platform-specific deployment guide.");
+
+    true
+}
+
+fn handle_hw_benchmark(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "data.db".to_string());
+
+    // Parse optional duration
+    let duration = args.get(3)
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(10)
+        .min(60);
+
+    println!("=== Voltrus Hardware Benchmark ===");
+    println!("Duration: {}s per test (4 tests, ~{}s total)", duration, duration * 4);
+    println!("Running benchmarks...");
+
+    let platform = crate::hardware_cert::platform::detect_platform(&db_path);
+
+    match crate::hardware_cert::benchmark::run_benchmarks(&platform, Some(duration)) {
+        Ok(results) => {
+            println!();
+            println!("Benchmark Results:");
+            println!("  Platform: {} ({})", results.platform.board_type, results.platform.arch);
+            println!("  RAM: {} MB | Cores: {}", results.platform.ram_total_mb, results.platform.cpu_cores);
+            println!();
+
+            for detail in &results.details {
+                let status = if detail.passed { "PASS" } else { "FAIL" };
+                let unit = match detail.name.as_str() {
+                    "tag_write" => "writes/s",
+                    "batch_insert" => "rows/s",
+                    "range_query" => "queries/s",
+                    "compression" => "rows/s",
+                    _ => "ops/s",
+                };
+                println!("  [{}] {:20} {:>12.0} {} ({} ms)",
+                    status, detail.name, detail.throughput, unit, detail.duration_ms);
+            }
+
+            println!();
+            println!("Recommendations:");
+            println!("  Max tags:       {} (at 1 Hz)", results.recommended_max_tags);
+            println!("  Max poll rate:  {} Hz", results.recommended_poll_rate);
+            println!("  Write amplification: {:.1}x", results.write_amplification);
+            println!("  Peak memory:    {:.0} MB", results.peak_memory_mb);
+
+            let all_passed = results.details.iter().all(|d| d.passed);
+            println!();
+            if all_passed {
+                println!("✓ All benchmarks PASSED — this hardware meets minimum requirements.");
+            } else {
+                println!("✗ Some benchmarks FAILED — hardware may not meet minimum requirements.");
+                println!("  Consider reducing tag count or poll rate for this hardware.");
+            }
+        }
+        Err(e) => {
+            eprintln!("Benchmark failed: {e}");
+            std::process::exit(1);
+        }
+    }
+
+    true
+}
+
+fn handle_hw_edge_deploy(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "data.db".to_string());
+
+    let platform = crate::hardware_cert::platform::detect_platform(&db_path);
+    let guide = crate::hardware_cert::edge_deploy::generate_edge_guide(&platform);
+    println!("{}", guide);
+    true
+}
+
+fn handle_hw_compat_matrix() -> bool {
+    let matrix = crate::hardware_cert::compat_matrix::get_compatibility_matrix();
+
+    println!("=== Voltrus Hardware Compatibility Matrix ===");
+    println!();
+
+    for entry in &matrix {
+        println!("Platform: {}", entry.platform);
+        println!("  CPU:      {}", entry.cpu);
+        println!("  RAM:      {} MB", entry.ram_mb);
+        println!("  Storage:  {}", entry.storage);
+        println!("  Tiers:    {}", entry.supported_tiers.join(", "));
+        println!("  Max tags: {} | Poll rate: {} Hz", entry.max_tags, entry.max_poll_rate);
+        println!("  Notes:    {}", entry.notes);
+        println!();
+    }
+
+    println!("Disclaimer: Recommendations based on testing with typical SCADA workloads.");
+    println!("Actual performance depends on tag count, polling rate, and enabled features.");
+
+    true
 }
 
 fn handle_edr(args: &[String]) -> bool {
@@ -899,6 +1100,7 @@ fn find_config_path(args: &[String]) -> String {
             && arg != "db"
             && arg != "stats"
             && arg != "edr"
+            && arg != "hw"
         {
             return arg.clone();
         }
