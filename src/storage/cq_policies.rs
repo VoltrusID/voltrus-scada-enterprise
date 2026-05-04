@@ -175,7 +175,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let result = conn.query_row(
-                "SELECT id, key, name, unit, color, min_val, max_val, warn_val, crit_val, base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id, chart_type FROM data_sources WHERE device_id = ?1 AND key = ?2",
+                "SELECT id, key, name, unit, color, min_val, max_val, warn_val, crit_val, base_val, sort_order, decimals, source_type, source_config, device_id, equipment_id, chart_type, path FROM data_sources WHERE device_id = ?1 AND key = ?2",
                 rusqlite::params![device_id, key],
                 |row| {
                     Ok(DataSource {
@@ -196,6 +196,7 @@ impl Storage {
                         device_id: row.get(14)?,
                         equipment_id: row.get(15)?,
                         chart_type: row.get(16)?,
+                        path: row.get(17)?,
                     })
                 },
             );

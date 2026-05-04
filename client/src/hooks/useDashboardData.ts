@@ -7,7 +7,7 @@ import { useDashboardStoreActions, useHistoryReady } from '../store/dashboardSto
 
 export function useDashboardData(
   authed: boolean,
-  mode: 'live' | 'history' | 'system' | 'flows' | 'assets',
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets',
   activeScreen: string,
   sensors: SensorConfig[],
   screenSensors: SensorConfig[],

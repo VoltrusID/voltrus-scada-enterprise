@@ -80,6 +80,7 @@ async fn test_login_with_seeded_user() {
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     let app = create_router(state);
 
@@ -149,6 +150,7 @@ async fn test_login_invalid_credentials() {
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     let app = create_router(state);
 
@@ -222,6 +224,7 @@ async fn test_full_auth_flow() {
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     let app = create_router(state);
 

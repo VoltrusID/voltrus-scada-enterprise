@@ -135,7 +135,7 @@ impl Storage {
             let result = conn.query_row(
                 "SELECT id, key, name, unit, color, min_val, max_val,
                         warn_val, crit_val, base_val, sort_order, decimals,
-                        source_type, source_config, device_id, equipment_id, chart_type
+                        source_type, source_config, device_id, equipment_id, chart_type, path
                  FROM data_sources WHERE id = ?1",
                 rusqlite::params![id],
                 |row| {
@@ -157,6 +157,7 @@ impl Storage {
                         device_id: row.get(14)?,
                         equipment_id: row.get(15)?,
                         chart_type: row.get(16)?,
+                        path: row.get(17)?,
                     })
                 },
             );
@@ -179,7 +180,7 @@ impl Storage {
                 Some(sid) => (
                     "SELECT s.id, s.key, s.name, s.unit, s.color, s.min_val, s.max_val,
                             s.warn_val, s.crit_val, s.base_val, s.sort_order, s.decimals,
-                            s.source_type, s.source_config, s.device_id, s.equipment_id, s.chart_type
+                            s.source_type, s.source_config, s.device_id, s.equipment_id, s.chart_type, s.path
                      FROM data_sources s
                      JOIN screen_data_sources ss ON s.id = ss.data_source_id
                      WHERE ss.screen_id = ?1
@@ -189,7 +190,7 @@ impl Storage {
                 None => (
                     "SELECT id, key, name, unit, color, min_val, max_val,
                             warn_val, crit_val, base_val, sort_order, decimals,
-                            source_type, source_config, device_id, equipment_id, chart_type
+                            source_type, source_config, device_id, equipment_id, chart_type, path
                      FROM data_sources
                      ORDER BY sort_order",
                     vec![],
@@ -217,6 +218,7 @@ impl Storage {
                         device_id: row.get(14)?,
                         equipment_id: row.get(15)?,
                         chart_type: row.get(16)?,
+                        path: row.get(17)?,
                     })
                 })
                 .context("Query failed")?;
@@ -285,6 +287,7 @@ impl Storage {
                 "key", "name", "unit", "color", "min_val", "max_val",
                 "warn_val", "crit_val", "base_val", "sort_order", "decimals",
                 "source_type", "source_config", "device_id", "equipment_id", "chart_type",
+                "path",
             ];
             let mut parts = Vec::new();
             let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -431,6 +434,130 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
+
+    // ── Tag Tree ──
+
+    pub async fn list_data_sources_for_tree(
+        &self,
+    ) -> Result<Vec<(i64, String, String, String, Option<String>)>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare("SELECT id, name, device_id, equipment_id, path FROM data_sources ORDER BY path, name")
+                .context("Prepare failed")?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                    ))
+                })
+                .context("Query failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub fn build_tag_tree(
+        tags: &[(i64, String, String, String, Option<String>)],
+        search_term: Option<&str>,
+    ) -> Vec<serde_json::Value> {
+        use std::collections::BTreeMap;
+
+        let search_lower = search_term.map(|s| s.to_lowercase());
+
+        #[derive(Default)]
+        struct TreeNode {
+            tag_ids: Vec<i64>,
+            children: BTreeMap<String, TreeNode>,
+        }
+
+        fn insert_tag(root: &mut BTreeMap<String, TreeNode>, segments: &[&str], tag_id: i64) {
+            if segments.is_empty() {
+                return;
+            }
+            let node = root.entry(segments[0].to_string()).or_default();
+            if segments.len() == 1 {
+                node.tag_ids.push(tag_id);
+            } else {
+                insert_tag(&mut node.children, &segments[1..], tag_id);
+            }
+        }
+
+        let mut root = BTreeMap::<String, TreeNode>::new();
+
+        for (id, name, device_id, _equipment_id, path) in tags {
+            if let Some(ref term) = search_lower {
+                let name_lower = name.to_lowercase();
+                let path_lower = path.as_deref().unwrap_or("").to_lowercase();
+                let device_lower = device_id.to_lowercase();
+                if !name_lower.contains(term)
+                    && !path_lower.contains(term)
+                    && !device_lower.contains(term)
+                {
+                    continue;
+                }
+            }
+
+            let segments: Vec<&str> = match path {
+                Some(p) if !p.is_empty() => p.split('/').collect(),
+                _ => vec![device_id],
+            };
+
+            insert_tag(&mut root, &segments, *id);
+        }
+
+        fn node_to_json(name: &str, node: &TreeNode) -> serde_json::Value {
+            let children: Vec<serde_json::Value> = node
+                .children
+                .iter()
+                .map(|(n, c)| node_to_json(n, c))
+                .collect();
+
+            serde_json::json!({
+                "name": name,
+                "tagCount": node.tag_ids.len(),
+                "tagIds": node.tag_ids,
+                "children": children,
+            })
+        }
+
+        let mut result: Vec<serde_json::Value> = root
+            .iter()
+            .map(|(name, node)| node_to_json(name, node))
+            .collect();
+        result.sort_by(|a, b| {
+            a["name"]
+                .as_str()
+                .unwrap_or("")
+                .cmp(b["name"].as_str().unwrap_or(""))
+        });
+        result
+    }
+
+    pub async fn update_data_source_path(&self, id: i64, path: Option<&str>) -> Result<()> {
+        let conn = self.conn.clone();
+        let path = path.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "UPDATE data_sources SET path = ?1 WHERE id = ?2",
+                rusqlite::params![path, id],
+            )
+            .context("Update data source path failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Screen Data Sources (continued) ──
 
     pub async fn get_screen_data_sources(&self, screen_id: &str) -> Result<Vec<ScreenDataSource>> {
         let conn = self.conn.clone();

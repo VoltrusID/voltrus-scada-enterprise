@@ -41,7 +41,59 @@ pub struct AppConfig {
     pub smtp: Option<super::notification_types::SmtpConfig>,
     #[serde(default)]
     pub push: Option<super::notification_types::PushConfig>,
+    #[serde(default)]
+    pub mqtt_broker: MqttBrokerConfig,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MqttBrokerConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_mqtt_port")]
+    pub port: u16,
+    #[serde(default = "default_mqtt_max_connections")]
+    pub max_connections: u32,
+    #[serde(default)]
+    pub auth: MqttAuthConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MqttAuthConfig {
+    #[serde(default = "default_mqtt_auth_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub users: Vec<MqttUser>,
+}
+
+impl Default for MqttAuthConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_mqtt_auth_mode(),
+            users: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MqttUser {
+    pub username: String,
+    pub password: String,
+}
+
+impl Default for MqttBrokerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            port: default_mqtt_port(),
+            max_connections: default_mqtt_max_connections(),
+            auth: MqttAuthConfig::default(),
+        }
+    }
+}
+
+fn default_mqtt_port() -> u16 { 1883 }
+fn default_mqtt_max_connections() -> u32 { 100 }
+fn default_mqtt_auth_mode() -> String { "none".to_string() }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RetentionConfig {

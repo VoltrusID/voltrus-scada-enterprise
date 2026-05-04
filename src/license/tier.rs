@@ -165,6 +165,12 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    /// Embedded MQTT broker.
+    /// Starter tier and above.
+    pub fn mqtt_broker(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
     /// Returns all feature flags as a JSON object.
     pub fn to_feature_flags(&self) -> serde_json::Value {
         serde_json::json!({
@@ -196,6 +202,7 @@ impl LicenseTier {
             "dnp3": self.dnp3(),
             "bacnet": self.bacnet(),
             "rtsp_video": self.rtsp_video(),
+            "mqtt_broker": self.mqtt_broker(),
         })
     }
 }

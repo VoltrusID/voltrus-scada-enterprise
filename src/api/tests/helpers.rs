@@ -53,6 +53,7 @@ pub fn test_app() -> Router {
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     create_router(state)
 }
@@ -169,6 +170,7 @@ pub async fn test_app_with_seeded_admin() -> Router {
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     create_router(state)
 }
@@ -202,6 +204,7 @@ pub fn test_app_with_license_status(license_status: crate::license::LicenseStatu
         hub_manager: None,
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
+        mqtt_broker_state: None,
     };
     create_router(state)
 }
