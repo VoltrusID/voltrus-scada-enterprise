@@ -292,3 +292,254 @@ pub async fn export_csv(
         csv,
     ))
 }
+
+/// Parse a time parameter that can be either a unix timestamp (seconds) or an ISO 8601 string.
+/// Returns unix timestamp in seconds.
+fn parse_time_param(value: &str) -> Result<i64, String> {
+    // Try parsing as integer unix timestamp first
+    if let Ok(ts) = value.parse::<i64>() {
+        return Ok(ts);
+    }
+    // Try ISO 8601 via the `time` crate
+    if let Ok(dt) = time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339) {
+        return Ok(dt.unix_timestamp());
+    }
+    // Try a more lenient ISO format (without timezone)
+    if let Ok(dt) = time::PrimitiveDateTime::parse(value, &time::format_description::well_known::Iso8601::DEFAULT) {
+        // Assume UTC if no timezone specified
+        let utc = dt.assume_utc();
+        return Ok(utc.unix_timestamp());
+    }
+    Err(format!(
+        "Invalid time format '{}'. Use unix timestamp (seconds) or ISO 8601 string.",
+        value
+    ))
+}
+
+/// Validate that the aggregation parameter is one of the allowed values.
+fn validate_aggregation(agg: &str) -> bool {
+    matches!(agg, "avg" | "min" | "max" | "count" | "sum")
+}
+
+/// Validate that the interval parameter is one of the allowed values.
+fn validate_interval(interval: &str) -> bool {
+    matches!(interval, "1m" | "5m" | "15m" | "1h" | "1d")
+}
+
+const DEFAULT_EXPORT_LIMIT: usize = 1000;
+const MAX_EXPORT_LIMIT: usize = 10000;
+
+/// GET /api/v1/data/export — programmatic data export with filtering, aggregation, pagination.
+///
+/// Query parameters:
+/// - `from` / `to` — time range filter (ISO 8601 or unix timestamp)
+/// - `device` — filter by device ID
+/// - `metric` — filter by metric name
+/// - `aggregation` — avg, min, max, count, sum (default: raw/no aggregation)
+/// - `interval` — aggregation window (1m, 5m, 15m, 1h, 1d)
+/// - `limit` / `offset` — pagination (default limit: 1000, max: 10000)
+/// - `format` — json (default), csv
+pub async fn export_data(
+    State(state): State<AppState>,
+    Query(params): Query<ExportQuery>,
+) -> Result<axum::response::Response, AppError> {
+    // Parse time range
+    let from_ts = params.from.as_deref()
+        .map(parse_time_param)
+        .transpose()
+        .map_err(|e| AppError(anyhow::anyhow!(e)))?;
+
+    let to_ts = params.to.as_deref()
+        .map(parse_time_param)
+        .transpose()
+        .map_err(|e| AppError(anyhow::anyhow!(e)))?;
+
+    // Validate aggregation
+    let agg = params.aggregation.as_deref().unwrap_or("");
+    if !agg.is_empty() && !validate_aggregation(agg) {
+        return Err(AppError(anyhow::anyhow!(
+            "Invalid aggregation '{}'. Must be one of: avg, min, max, count, sum",
+            agg
+        )));
+    }
+    let aggregation = if agg.is_empty() { None } else { Some(agg) };
+
+    // Validate interval — required when aggregation is specified
+    let intv = params.interval.as_deref().unwrap_or("");
+    if aggregation.is_some() && intv.is_empty() {
+        return Err(AppError(anyhow::anyhow!(
+            "Interval is required when aggregation is specified. Use one of: 1m, 5m, 15m, 1h, 1d"
+        )));
+    }
+    if !intv.is_empty() && !validate_interval(intv) {
+        return Err(AppError(anyhow::anyhow!(
+            "Invalid interval '{}'. Must be one of: 1m, 5m, 15m, 1h, 1d",
+            intv
+        )));
+    }
+    let interval = if intv.is_empty() { None } else { Some(intv) };
+
+    // Pagination with defaults and clamping
+    let limit = params.limit
+        .unwrap_or(DEFAULT_EXPORT_LIMIT)
+        .min(MAX_EXPORT_LIMIT);
+    let offset = params.offset.unwrap_or(0);
+
+    // Query data
+    let (rows, total) = state.storage.query_telemetry_export(
+        params.device.as_deref(),
+        params.metric.as_deref(),
+        from_ts,
+        to_ts,
+        aggregation,
+        interval,
+        limit,
+        offset,
+    ).await?;
+
+    // Determine response format
+    let format = params.format.as_deref().unwrap_or("json");
+
+    // Build meta
+    let meta = ExportMeta {
+        total,
+        limit,
+        offset,
+        aggregation: aggregation.unwrap_or("raw").to_string(),
+        interval: interval.unwrap_or("none").to_string(),
+    };
+
+    match format {
+        "csv" => {
+            // Stream CSV — build as string (SQLite already bounded by limit)
+            let mut csv = String::with_capacity(rows.len() * 80);
+            csv.push_str("timestamp,device,metric,value\n");
+            for (ts, device, metric, value) in &rows {
+                csv.push_str(&format!("{ts},{device},{metric},{value}\n"));
+            }
+            Ok((
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "text/csv".to_string()),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        "attachment; filename=\"telemetry-export.csv\"".to_string(),
+                    ),
+                ],
+                csv,
+            ).into_response())
+        }
+        _ => {
+            // JSON response
+            let data: Vec<TelemetryExportRow> = rows
+                .into_iter()
+                .map(|(timestamp, device, metric, value)| TelemetryExportRow {
+                    timestamp,
+                    device,
+                    metric,
+                    value,
+                })
+                .collect();
+            Ok(Json(ExportResponse { data, meta }).into_response())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── parse_time_param tests ──
+
+    #[test]
+    fn test_parse_time_param_unix_timestamp() {
+        assert_eq!(parse_time_param("1700000000").unwrap(), 1700000000);
+        assert_eq!(parse_time_param("0").unwrap(), 0);
+        assert_eq!(parse_time_param("9999999999").unwrap(), 9999999999);
+    }
+
+    #[test]
+    fn test_parse_time_param_iso8601_rfc3339() {
+        // 2024-01-15T10:30:00Z -> unix timestamp
+        let result = parse_time_param("2024-01-15T10:30:00Z");
+        assert!(result.is_ok());
+        // Verify it's a reasonable unix timestamp for Jan 2024
+        let ts = result.unwrap();
+        assert!(ts > 1700000000 && ts < 1710000000);
+    }
+
+    #[test]
+    fn test_parse_time_param_iso8601_with_offset() {
+        // ISO 8601 with timezone offset
+        let result = parse_time_param("2024-01-15T10:30:00+05:30");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_time_param_iso8601_no_timezone() {
+        // Lenient ISO 8601 without timezone (assumed UTC)
+        let result = parse_time_param("2024-01-15T10:30:00");
+        assert!(result.is_ok());
+        let ts = result.unwrap();
+        assert!(ts > 1700000000 && ts < 1710000000);
+    }
+
+    #[test]
+    fn test_parse_time_param_invalid() {
+        assert!(parse_time_param("").is_err());
+        assert!(parse_time_param("not-a-date").is_err());
+        assert!(parse_time_param("2024-13-01").is_err()); // invalid month
+        assert!(parse_time_param("abc123").is_err());
+    }
+
+    #[test]
+    fn test_parse_time_param_negative_accepted_as_unix_ts() {
+        // Negative numbers parse as valid (though unusual) unix timestamps
+        assert_eq!(parse_time_param("-1").unwrap(), -1);
+    }
+
+    // ── validate_aggregation tests ──
+
+    #[test]
+    fn test_validate_aggregation_valid() {
+        assert!(validate_aggregation("avg"));
+        assert!(validate_aggregation("min"));
+        assert!(validate_aggregation("max"));
+        assert!(validate_aggregation("count"));
+        assert!(validate_aggregation("sum"));
+    }
+
+    #[test]
+    fn test_validate_aggregation_invalid() {
+        assert!(!validate_aggregation(""));
+        assert!(!validate_aggregation("AVG"));       // case-sensitive
+        assert!(!validate_aggregation("Avg"));
+        assert!(!validate_aggregation("mean"));
+        assert!(!validate_aggregation("median"));
+        assert!(!validate_aggregation("total"));
+        assert!(!validate_aggregation(" stddev"));
+    }
+
+    // ── validate_interval tests ──
+
+    #[test]
+    fn test_validate_interval_valid() {
+        assert!(validate_interval("1m"));
+        assert!(validate_interval("5m"));
+        assert!(validate_interval("15m"));
+        assert!(validate_interval("1h"));
+        assert!(validate_interval("1d"));
+    }
+
+    #[test]
+    fn test_validate_interval_invalid() {
+        assert!(!validate_interval(""));
+        assert!(!validate_interval("10m"));     // not in the allowed set
+        assert!(!validate_interval("30m"));     // not in the allowed set
+        assert!(!validate_interval("2h"));      // not in the allowed set
+        assert!(!validate_interval("7d"));      // not in the allowed set
+        assert!(!validate_interval("1s"));      // seconds not supported
+        assert!(!validate_interval("1w"));      // weeks not supported
+        assert!(!validate_interval("minute"));  // not abbreviated
+    }
+}

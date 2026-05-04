@@ -4,9 +4,9 @@ import { SensorConfig, ScreenLayouts } from './types'
 import { EditPanel } from './EditPanel'
 import { SensorCard } from './SensorCard'
 
-const BREAKPOINTS = { lg: 1200, md: 768, sm: 0 }
-const COLS = { lg: 24, md: 12, sm: 4 }
-const BP_WIDTHS: Record<string, number> = { lg: 1200, md: 996, sm: 480 }
+const BREAKPOINTS = { lg: 1200, md: 768, sm: 480, xs: 0 }
+const COLS = { lg: 24, md: 12, sm: 4, xs: 2 }
+const BP_WIDTHS: Record<string, number> = { lg: 1200, md: 996, sm: 480, xs: 360 }
 
 interface Props {
   screenLayouts: ScreenLayouts
@@ -40,6 +40,7 @@ export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScree
       lg: activeBp === 'lg' ? normalize(layout) : screenLayouts.lg,
       md: activeBp === 'md' ? normalize(layout) : screenLayouts.md,
       sm: activeBp === 'sm' ? normalize(layout) : screenLayouts.sm,
+      xs: activeBp === 'xs' ? normalize(layout) : screenLayouts.xs,
     }
     onLayoutChange(layout, allLayouts)
   }, [onLayoutChange, forcedBreakpoint, screenLayouts])

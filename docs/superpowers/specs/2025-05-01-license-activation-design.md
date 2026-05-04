@@ -136,6 +136,8 @@ The `signature` field is an Ed25519 detached signature over the canonical JSON o
 
 ## 6. Cloudflare Worker
 
+> **Location:** The Cloudflare Worker source code lives in a **separate repository** (`voltrus-lite-cloudflare-worker`) so it is not included in the downloadable self-hosted binary shipped to clients.
+
 ### Endpoints
 
 #### `POST /activate`

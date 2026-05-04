@@ -29,6 +29,7 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
                   borderColor: settings.historyAutoAgg === opt.value ? 'var(--warn)' : 'var(--border)',
                   color: settings.historyAutoAgg === opt.value ? 'var(--warn)' : 'var(--fg)',
                   background: settings.historyAutoAgg === opt.value ? 'rgba(234,179,8,.08)' : 'transparent',
+                  minHeight: 44,
                 }}>
                   {opt.label}
                 </button>
@@ -54,9 +55,10 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
           <label style={labelStyle}>
             <span style={labelTextStyle}>Mute Alarms</span>
             <button onClick={onToggleMute} style={{
-              padding: '6px 14px', borderRadius: 6, border: `1px solid ${alarmMuted ? 'var(--warn)' : 'var(--border)'}`,
+              padding: '8px 14px', borderRadius: 6, border: `1px solid ${alarmMuted ? 'var(--warn)' : 'var(--border)'}`,
               background: alarmMuted ? 'rgba(234,179,8,.1)' : 'transparent', color: alarmMuted ? 'var(--warn)' : 'var(--fg)',
               cursor: 'pointer', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
+              minHeight: 44,
             }}>
               {alarmMuted ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="2"/></svg>
@@ -67,7 +69,7 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
             </button>
           </label>
         </div>
-        <button onClick={onClose} style={{ marginTop: 16, padding: '6px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, width: '100%' }}>Close</button>
+        <button onClick={onClose} style={{ marginTop: 16, padding: '8px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, width: '100%', minHeight: 44 }}>Close</button>
       </div>
     </div>
   );

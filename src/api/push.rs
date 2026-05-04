@@ -6,7 +6,20 @@ use serde_json::json;
 use crate::models::*;
 use super::{AppError, AppState, AuthUser};
 
-/// POST /api/push/subscribe
+/// GET /api/v1/push/vapid-key
+///
+/// Returns the VAPID public key for frontend push subscription.
+/// Public endpoint (no auth required) — the key is not a secret.
+pub async fn vapid_public_key(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    match &state.vapid_public_key {
+        Some(key) => Ok(Json(json!({"publicKey": key}))),
+        None => Err(AppError(anyhow::anyhow!("Push notifications are not configured"))),
+    }
+}
+
+/// POST /api/v1/push/subscribe
 pub async fn subscribe(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -19,13 +32,16 @@ pub async fn subscribe(
     Ok(Json(json!({"ok": true})))
 }
 
-/// DELETE /api/push/subscribe
+/// DELETE /api/v1/push/subscribe
 pub async fn unsubscribe(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     let endpoint = body["endpoint"].as_str().unwrap_or("");
+    if endpoint.is_empty() {
+        return Err(AppError(anyhow::anyhow!("endpoint is required")));
+    }
     state
         .storage
         .remove_push_subscription(&user.username, endpoint)

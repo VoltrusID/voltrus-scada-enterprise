@@ -107,7 +107,7 @@ let DataManager = class DataManager extends LitElement {
     async _saveSensor(e) {
         const s = e.detail;
         try {
-            await fetchOk(`/api/data-sources/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
+            await fetchOk(`/api/v1/data-sources/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
             this._editingId = null;
             this._loadSensors();
         }
@@ -117,7 +117,7 @@ let DataManager = class DataManager extends LitElement {
         if (!confirm('Delete this sensor?'))
             return;
         try {
-            await fetchOk(`/api/data-sources/${id}`, { method: 'DELETE' });
+            await fetchOk(`/api/v1/data-sources/${id}`, { method: 'DELETE' });
             this._editingId = null;
             this._loadSensors();
         }
@@ -125,7 +125,7 @@ let DataManager = class DataManager extends LitElement {
     }
     async _duplicateSensor(s) {
         try {
-            await fetchOk('/api/data-sources', {
+            await fetchOk('/api/v1/data-sources', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -143,7 +143,7 @@ let DataManager = class DataManager extends LitElement {
         if (!confirm('Delete this user?'))
             return;
         try {
-            await fetchOk(`/api/users/${id}`, { method: 'DELETE' });
+            await fetchOk(`/api/v1/users/${id}`, { method: 'DELETE' });
             this._loadUsers();
         }
         catch { /* ignore */ }
@@ -152,7 +152,7 @@ let DataManager = class DataManager extends LitElement {
         if (!confirm('Delete this Modbus device?'))
             return;
         try {
-            await fetchOk(`/api/modbus-devices/${id}`, { method: 'DELETE' });
+            await fetchOk(`/api/v1/modbus-devices/${id}`, { method: 'DELETE' });
             this._loadModbus();
         }
         catch { /* ignore */ }
