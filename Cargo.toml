@@ -66,6 +66,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 tempfile = "=3.27.0"
 async-opcua = { version = "=0.18.0", default-features = false, features = ["client", "server"] }
 rmp-serde = "=1.3.0"
+bacnet-rs = "0.3"
 futures-util = "=0.3.31"
 
 wasmtime = "=29.0"

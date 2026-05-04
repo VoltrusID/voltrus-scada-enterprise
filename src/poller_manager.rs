@@ -74,8 +74,9 @@ impl PollerManager {
             self.stop(&device_id).await;
         }
         let cache = self.cache.clone();
+        let pool = Arc::new(crate::modbus::ModbusPool::new());
         let handle = tokio::spawn(async move {
-            crate::modbus::poll_device(config, cache).await;
+            crate::modbus::poll_device(config, cache, pool).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }
@@ -133,6 +134,18 @@ impl PollerManager {
         let cache = self.cache.clone();
         let handle = tokio::spawn(async move {
             crate::dnp3::poll_dnp3_device(config, cache).await;
+        });
+        self.handles.write().await.insert(device_id, handle);
+    }
+
+    pub async fn start_bacnet(&self, config: crate::models::BacnetDeviceConfig) {
+        let device_id = config.id.clone();
+        if self.is_running(&device_id).await {
+            self.stop(&device_id).await;
+        }
+        let cache = self.cache.clone();
+        let handle = tokio::spawn(async move {
+            crate::bacnet::poll_bacnet_device(config, cache).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }

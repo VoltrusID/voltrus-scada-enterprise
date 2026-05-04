@@ -46,7 +46,7 @@ async fn try_poll(config: &Dnp3DeviceConfig, cache: &crate::cache::DeviceCache) 
             metrics.insert(point.name.clone(), val.value * point.scale);
         }
     }
-    cache.update(&config.id, metrics).await;
+    cache.update(&config.id, metrics, false).await;
 
     let scan_interval = config.event_scan_interval_ms.unwrap_or(1000);
     loop {
@@ -59,7 +59,7 @@ async fn try_poll(config: &Dnp3DeviceConfig, cache: &crate::cache::DeviceCache) 
             }
         }
         if !metrics.is_empty() {
-            cache.update(&config.id, metrics).await;
+            cache.update(&config.id, metrics, false).await;
         }
     }
 }
