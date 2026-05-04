@@ -92,6 +92,7 @@ pub struct AppState {
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
     pub ws_manager: Arc<crate::ws_manager::WsManager>,
     pub mqtt_broker_state: Option<crate::mqtt_broker::MqttBrokerState>,
+    pub network_manager: crate::network::NetworkManager,
 }
 
 #[derive(Debug)]
@@ -200,6 +201,7 @@ pub fn create_router(state: AppState) -> Router {
     // Public routes (no auth required)
     let public = Router::new()
         .route("/api/v1/health", get(system::get_health))
+        .route("/api/v1/networks", get(crate::network::handle_list_networks))
         .route("/api/v1/auth/login", post(auth::login))
         .route("/api/v1/auth/refresh", post(auth::refresh_token))
         .route("/api/v1/auth/logout", post(auth::logout))
