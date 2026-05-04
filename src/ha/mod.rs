@@ -134,3 +134,18 @@ pub fn start_ha(config: &HaConfig, ha_state: HaState) {
         _ => {}
     }
 }
+
+/// Periodically broadcast HA status via SSE and WebSocket.
+pub fn start_ha_broadcast(ha_state: HaState, cache: crate::cache::DeviceCache) {
+    use std::time::Duration;
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(5));
+        loop {
+            interval.tick().await;
+            let status = ha_state.get_status().await;
+            if status.enabled {
+                cache.broadcast_ha_status(&status).await;
+            }
+        }
+    });
+}
