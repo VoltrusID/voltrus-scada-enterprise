@@ -1,6 +1,6 @@
 use super::*;
 use axum::body::Body;
-use http::{Request, StatusCode};
+use http::Request;
 use tower::ServiceExt;
 
 #[tokio::test]

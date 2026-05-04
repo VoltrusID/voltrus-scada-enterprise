@@ -8,3 +8,11 @@ pub mod varint;
 mod tests;
 
 // Re-export all public items for backward compatibility
+#[allow(unused_imports)]
+pub use bitio::*;
+#[allow(unused_imports)]
+pub use gorilla::*;
+#[allow(unused_imports)]
+pub use rle::*;
+#[allow(unused_imports)]
+pub use varint::*;
