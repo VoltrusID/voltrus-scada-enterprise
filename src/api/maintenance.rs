@@ -68,7 +68,7 @@ pub async fn create_maintenance(
         return Err(AppError(anyhow::anyhow!("Description is required")));
     }
 
-    if body.technician.trim().is_empty() {
+    if body.technician.as_ref().map(|s| s.trim()).unwrap_or("").is_empty() {
         return Err(AppError(anyhow::anyhow!("Technician is required")));
     }
 

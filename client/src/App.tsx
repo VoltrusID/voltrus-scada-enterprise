@@ -40,6 +40,7 @@ import { AuditLogPanel } from './AuditLogPanel'
 import { DataImportWizard } from './DataImportWizard'
 import { NodeRedImportWizard } from './NodeRedImportWizard'
 import { MqttBrokerPanel } from './MqttBrokerPanel'
+import { AssetInventory } from './views/AssetInventory'
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -449,6 +450,7 @@ function AppInner() {
         onDataManagerClick={() => setShowDataManager(true)}
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
         onTagsClick={() => { setMode('tags'); setActiveScreen('all') }}
+        onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
@@ -493,7 +495,8 @@ function AppInner() {
           {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
           {mode === 'flows' && <FlowManager isAdmin={isAdmin} />}
           {mode === 'tags' && <TagBrowser isAdmin={isAdmin} />}
-          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && (
+          {mode === 'assets' && <AssetInventory />}
+          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && (
             <MainContent
               viewMode={viewMode} mode={mode}
               screenSensors={screenSensors}

@@ -71,7 +71,8 @@
     "export": "Ekspor",
     "annotations": "Anotasi",
     "shiftHandover": "Serah Terima Shift",
-    "snapshots": "Snapshot Konfigurasi"
+    "snapshots": "Snapshot Konfigurasi",
+    "assets": "Aset"
   },
   "dashboard": {
     "newScreen": "Layar Baru",
@@ -145,7 +146,7 @@
     "title": "Bahasa",
     "en": "English",
     "id": "Bahasa Indonesia",
-    "zh": "\u4e2d\u6587",
+    "zh": "中文",
     "de": "Deutsch"
   },
   "license": {
@@ -264,5 +265,48 @@
     "add": "Tambah Skrip",
     "test": "Uji",
     "executions": "Eksekusi"
+  },
+  "assets": {
+    "title": "Inventaris Aset OT",
+    "list": "Daftar Aset",
+    "detail": "Detail Aset",
+    "add": "Tambah Aset",
+    "edit": "Edit Aset",
+    "delete": "Hapus Aset",
+    "deleteConfirm": "Hapus aset \"{{name}}\"? Tindakan ini tidak dapat dibatalkan.",
+    "import": "Impor Aset",
+    "importConfirm": "Konfirmasi Impor",
+    "importPreview": "Pratinjau Impor",
+    "exportNis2": "Ekspor NIS2",
+    "scan": "Pindai SNMP",
+    "scanStart": "Mulai Pindai",
+    "scanStatus": "Status Pindai",
+    "scanResults": "Hasil Pindai",
+    "scanImport": "Impor Perangkat",
+    "ipConflicts": "Konflik IP",
+    "maintenance": "Log Pemeliharaan",
+    "maintenanceAdd": "Tambah Entri Pemeliharaan",
+    "firmwareCatalog": "Katalog Firmware",
+    "firmwareAdd": "Tambah Entri Firmware",
+    "firmwareStatus": "Status Firmware",
+    "upToDate": "Terbaru",
+    "outdated": "Usang",
+    "unknown": "Tidak diketahui",
+    "riskScore": "Skor Risiko",
+    "criticality": "Kritikalitas",
+    "location": "Lokasi",
+    "vendor": "Vendor",
+    "model": "Model",
+    "serialNumber": "Nomor Seri",
+    "firmwareVersion": "Versi Firmware",
+    "ipAddress": "Alamat IP",
+    "macAddress": "Alamat MAC",
+    "notes": "Catatan",
+    "tags": "Tag",
+    "technician": "Teknisi",
+    "performedAt": "Dilaksanakan pada",
+    "noAssets": "Tidak ada aset ditemukan",
+    "noConflicts": "Tidak ada konflik IP terdeteksi",
+    "notFound": "Aset tidak ditemukan"
   }
 }

@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "voltrus"
-version = "0.27.0"
+version = "0.34.0"
 description = "Official Python SDK for Voltrus SCADA"
 readme = "README.md"
 license = "MIT"
