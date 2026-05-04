@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { SensorConfig, SOURCE_CATEGORY, SIMULATE_TYPES } from './types';
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, tabStyle } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
+import { useNamingConvention } from './queries';
 
 export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, onDone }: {
   screenId: string; sensors: SensorConfig[]; screenSensorIds: number[];
@@ -11,6 +12,20 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
   const available = sensors.filter(s => !screenSensorIds.includes(s.id));
   const [newForm, setNewForm] = useState({ key: '', name: '', unit: '', min_val: 0, max_val: 100, warn_val: 80, crit_val: 90, base_val: 50, decimals: 1, source_type: 'random_walk', color: '#8b5cf6', device_id: '' });
   const [srcConfig, setSrcConfig] = useState<Record<string, any>>({});
+
+  const { data: namingConvention } = useNamingConvention();
+
+  const nameValidation = useMemo(() => {
+    if (!namingConvention || !newForm.name) return null;
+    const regex = namingConvention.custom_regex || namingConvention.regex;
+    if (!regex) return null;
+    try {
+      const re = new RegExp(regex);
+      return re.test(newForm.name);
+    } catch {
+      return null;
+    }
+  }, [namingConvention, newForm.name]);
 
   const addExisting = async (sensorId: number) => {
     await fetch(`/api/v1/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: sensorId }) });
@@ -66,7 +81,23 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <label style={labelStyle}><span style={labelTextStyle}>Key</span><input value={newForm.key} onChange={e => setNewForm({ ...newForm, key: e.target.value })} style={inputStyle} /></label>
-              <label style={labelStyle}><span style={labelTextStyle}>Name</span><input value={newForm.name} onChange={e => setNewForm({ ...newForm, name: e.target.value })} style={inputStyle} /></label>
+              <label style={labelStyle}>
+                <span style={labelTextStyle}>Name</span>
+                <input
+                  value={newForm.name}
+                  onChange={e => setNewForm({ ...newForm, name: e.target.value })}
+                  style={{
+                    ...inputStyle,
+                    borderColor: nameValidation === false ? 'var(--crit)' : nameValidation === true ? 'var(--green)' : 'var(--border)',
+                  }}
+                />
+                {namingConvention && (
+                  <div style={{ fontSize: 11, color: nameValidation === false ? 'var(--crit)' : 'var(--muted)', marginTop: 4 }}>
+                    Pattern: <code style={{ fontFamily: "'JetBrains Mono',monospace", background: 'var(--bg)', padding: '1px 4px', borderRadius: 3 }}>{namingConvention.custom_regex || namingConvention.regex}</code>
+                    {nameValidation === false && <span style={{ marginLeft: 8, fontWeight: 600 }}>Does not match naming convention</span>}
+                  </div>
+                )}
+              </label>
               <label style={{ ...labelStyle, gridColumn: '1 / -1' }}>
                 <span style={labelTextStyle}>Data Source</span>
                 <select value={newForm.source_type} onChange={e => { setNewForm({ ...newForm, source_type: e.target.value, device_id: '' }); setSrcConfig({}); }} style={inputStyle}>

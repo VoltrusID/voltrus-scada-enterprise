@@ -34,6 +34,11 @@ import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
 import { VoltrusWebSocket } from './api/websocket'
 import { ThemeProvider } from './ThemeContext'
 import { useTranslation } from 'react-i18next'
+import { TagBrowser } from './TagBrowser'
+import { AuditLogPanel } from './AuditLogPanel'
+import { DataImportWizard } from './DataImportWizard'
+import { NodeRedImportWizard } from './NodeRedImportWizard'
+import { MqttBrokerPanel } from './MqttBrokerPanel'
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -57,9 +62,9 @@ function AppInner() {
   const [showDashSettings, setShowDashSettings] = useState(false)
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
   const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows'>(() => {
+  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'>(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return (m === 'history' || m === 'system' || m === 'flows') ? m : 'live'
+    return (m === 'history' || m === 'system' || m === 'flows' || m === 'tags' || m === 'assets') ? m : 'live'
   })
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
@@ -82,6 +87,10 @@ function AppInner() {
   const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [showShiftHandover, setShowShiftHandover] = useState(false)
   const [showSnapshotPanel, setShowSnapshotPanel] = useState(false)
+  const [showAuditPanel, setShowAuditPanel] = useState(false)
+  const [showImportWizard, setShowImportWizard] = useState(false)
+  const [showNodeRedWizard, setShowNodeRedWizard] = useState(false)
+  const [showMqttPanel, setShowMqttPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
 
@@ -437,6 +446,7 @@ function AppInner() {
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => setShowDataManager(true)}
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
+        onTagsClick={() => { setMode('tags'); setActiveScreen('all') }}
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
@@ -445,6 +455,10 @@ function AppInner() {
         onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
         onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
         onSnapshotsClick={() => setShowSnapshotPanel(v => !v)}
+        onAuditPanelToggle={() => setShowAuditPanel(v => !v)}
+        onImportWizardClick={() => setShowImportWizard(true)}
+        onNodeRedWizardClick={() => setShowNodeRedWizard(true)}
+        onMqttPanelClick={() => setShowMqttPanel(true)}
       />
       </header>
 
@@ -476,7 +490,8 @@ function AppInner() {
         }}>
           {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
           {mode === 'flows' && <FlowManager isAdmin={isAdmin} />}
-          {mode !== 'system' && mode !== 'flows' && (
+          {mode === 'tags' && <TagBrowser isAdmin={isAdmin} />}
+          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && (
             <MainContent
               viewMode={viewMode} mode={mode}
               screenSensors={screenSensors}
@@ -557,6 +572,20 @@ function AppInner() {
             </div>
           </div>
         )}
+        {showAuditPanel && (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Audit Log</h2>
+              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowAuditPanel(false)}>Close</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <AuditLogPanel />
+            </div>
+          </div>
+        )}
+        {showImportWizard && <DataImportWizard onClose={() => setShowImportWizard(false)} />}
+        {showNodeRedWizard && <NodeRedImportWizard onClose={() => setShowNodeRedWizard(false)} />}
+        {showMqttPanel && <MqttBrokerPanel onClose={() => setShowMqttPanel(false)} />}
       </main>
 
       <Footer />
