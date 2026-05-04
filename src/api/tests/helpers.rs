@@ -57,6 +57,7 @@ pub fn test_app() -> Router {
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     create_router(state)
 }
@@ -177,6 +178,7 @@ pub async fn test_app_with_seeded_admin() -> Router {
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     create_router(state)
 }
@@ -214,6 +216,7 @@ pub fn test_app_with_license_status(license_status: crate::license::LicenseStatu
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     create_router(state)
 }

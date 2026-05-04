@@ -84,6 +84,7 @@ async fn test_login_with_seeded_user() {
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     let app = create_router(state);
 
@@ -157,6 +158,7 @@ async fn test_login_invalid_credentials() {
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     let app = create_router(state);
 
@@ -234,6 +236,7 @@ async fn test_full_auth_flow() {
         network_manager: crate::network::NetworkManager::new(vec![]),
         health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
         ha_state: crate::ha::HaState::disabled(),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
     let app = create_router(state);
 

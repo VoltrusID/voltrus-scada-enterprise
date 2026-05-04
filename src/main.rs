@@ -31,6 +31,7 @@ mod compliance;
 mod command_queue;
 mod recipe;
 mod video;
+mod widget_sdk;
 mod sim_engine;
 mod script_engine;
 mod ws_manager;
@@ -683,6 +684,7 @@ async fn main() -> anyhow::Result<()> {
         network_manager: network::NetworkManager::new(app_config.networks.clone()),
         health_monitor,
         ha_state,
+        widget_registry: widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
     };
 
     api::stream::spawn_sse_composer(cache.clone(), storage.clone());

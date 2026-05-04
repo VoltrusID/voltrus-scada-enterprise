@@ -95,6 +95,7 @@ pub struct AppState {
     pub network_manager: crate::network::NetworkManager,
     pub health_monitor: Arc<crate::ha::watchdog::HealthMonitor>,
     pub ha_state: crate::ha::HaState,
+    pub widget_registry: crate::widget_sdk::WidgetRegistry,
 }
 
 #[derive(Debug)]
@@ -226,6 +227,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/ha/status", get(crate::ha::ha_api::ha_status))
         .route("/api/v1/ha/force-sync", post(crate::ha::ha_api::force_sync))
         .route("/api/v1/ha/force-failover", post(crate::ha::ha_api::force_failover))
+        .route("/api/v1/widgets", get(crate::widget_sdk::widget_api::list_widgets))
+        .route("/api/v1/widgets/{id}", get(crate::widget_sdk::widget_api::get_widget))
+        .route("/api/v1/widgets/{id}/asset/{filename}", get(crate::widget_sdk::widget_api::get_widget_asset))
+        .route("/api/v1/widgets/{id}/install", post(crate::widget_sdk::widget_api::install_widget))
+        .route("/api/v1/widgets/{id}/uninstall", delete(crate::widget_sdk::widget_api::delete_widget))
         .route("/api/v1/stream", get(stream::stream))
         .route("/api/v1/system", get(system::get_system))
         .route("/api/v1/version", get(system::get_version))
