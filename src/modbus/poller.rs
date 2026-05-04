@@ -10,12 +10,17 @@ use crate::models::*;
 use super::pool::ModbusPool;
 use super::types::{Backoff, parse_register};
 
-pub async fn poll_device(config: DeviceConfig, cache: DeviceCache, pool: Arc<ModbusPool>) {
+pub async fn poll_device(
+    config: DeviceConfig,
+    cache: DeviceCache,
+    pool: Arc<ModbusPool>,
+    bind_addr: Option<std::net::SocketAddr>,
+) {
     let device_id = config.id.clone();
     let mut backoff = Backoff::new();
 
     loop {
-        match try_poll(&config, &cache, &pool).await {
+        match try_poll(&config, &cache, &pool, bind_addr).await {
             Ok(()) => backoff.reset(),
             Err(e) => {
                 tracing::warn!("Device {device_id} error: {e}");
@@ -29,7 +34,12 @@ pub async fn poll_device(config: DeviceConfig, cache: DeviceCache, pool: Arc<Mod
     }
 }
 
-async fn try_poll(config: &DeviceConfig, cache: &DeviceCache, pool: &ModbusPool) -> Result<()> {
+async fn try_poll(
+    config: &DeviceConfig,
+    cache: &DeviceCache,
+    pool: &ModbusPool,
+    bind_addr: Option<std::net::SocketAddr>,
+) -> Result<()> {
     let addr = format!("{}:{}", config.ip, config.port);
     let socket_addr: std::net::SocketAddr = addr.parse().context("Invalid address")?;
 
@@ -37,7 +47,7 @@ async fn try_poll(config: &DeviceConfig, cache: &DeviceCache, pool: &ModbusPool)
 
     loop {
         let mut ctx = pool
-            .get_or_connect(&config.id, socket_addr, config.unit_id)
+            .get_or_connect(&config.id, socket_addr, config.unit_id, bind_addr)
             .await
             .context("Modbus connection failed")?;
 
