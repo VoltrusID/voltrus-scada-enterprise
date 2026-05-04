@@ -5352,6 +5352,7 @@ dependencies = [
  "openssl",
  "password-hash",
  "rand 0.9.4",
+ "regex",
  "reqwest",
  "rmp-serde",
  "rumqttd",

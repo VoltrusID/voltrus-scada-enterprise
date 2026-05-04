@@ -2,7 +2,7 @@ use axum::extract::{Extension, State};
 use axum::body::Body;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use http::StatusCode;
+use axum::http::StatusCode;
 use serde_json::json;
 
 use super::{AppState, AppError, AuthUser};
