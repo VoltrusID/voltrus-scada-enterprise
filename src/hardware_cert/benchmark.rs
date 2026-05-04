@@ -154,7 +154,10 @@ fn benchmark_tag_writes(conn: &Connection, duration_secs: u64) -> anyhow::Result
 }
 
 /// Benchmark batch inserts (simulating telemetry persistence task).
-fn benchmark_batch_inserts(conn: &Connection, duration_secs: u64) -> anyhow::Result<BenchmarkDetail> {
+fn benchmark_batch_inserts(
+    conn: &Connection,
+    duration_secs: u64,
+) -> anyhow::Result<BenchmarkDetail> {
     let start = Instant::now();
     let duration = std::time::Duration::from_secs(duration_secs.max(1));
     let batch_size = 500;

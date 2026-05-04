@@ -195,9 +195,7 @@ mod tests {
                 estimated_endurance_years: 3.5,
                 batch_writes_active: true,
                 write_amplification: 1.2,
-                storage_recommendations: vec![
-                    "Enable compression to reduce SD card writes".into(),
-                ],
+                storage_recommendations: vec!["Enable compression to reduce SD card writes".into()],
             },
             certified: true,
             certified_tiers: vec!["free_trial".into(), "starter".into()],

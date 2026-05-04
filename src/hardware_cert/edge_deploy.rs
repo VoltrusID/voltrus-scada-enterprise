@@ -266,7 +266,8 @@ fn generate_generic_guide(_platform: &PlatformInfo) -> String {
      ### Step 4: Verify\n\
      ```bash\n\
      curl http://localhost:8080/api/v1/health\n\
-     ```\n\n".into()
+     ```\n\n"
+        .into()
 }
 
 /// Common post-deployment steps.
@@ -316,7 +317,8 @@ fn generate_sd_card_optimization(platform: &PlatformInfo) -> String {
      - Avoid cheap/no-name SD cards — they fail fast under write-heavy workloads\n\
      - Consider overlayfs (read-only root) to prevent filesystem corruption\n\
      - Schedule regular backups with `voltrus backup`\n\
-     - Monitor SD card health with `voltrus hw report`\n\n".into()
+     - Monitor SD card health with `voltrus hw report`\n\n"
+        .into()
 }
 
 /// Generate a quick-start guide for headless Raspberry Pi deployment.
@@ -336,7 +338,8 @@ pub fn generate_rpi_quickstart() -> String {
      6. Start: voltrus /etc/voltrus/config.yaml\n\
      7. Open: http://<PI_IP>:8080\n\n\
      For auto-start, watchdog, and production hardening:\n\
-     Run: voltrus hw edge-deploy\n".into()
+     Run: voltrus hw edge-deploy\n"
+        .into()
 }
 
 // ── Tests ──

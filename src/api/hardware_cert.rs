@@ -1,9 +1,9 @@
 //! API endpoints for hardware certification and edge deployment.
 
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use super::{AppError, AppState};
@@ -11,9 +11,7 @@ use crate::hardware_cert::*;
 
 /// GET /api/v1/hw/report
 /// Returns full hardware certification report for the current system.
-pub async fn get_hw_report(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn get_hw_report(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let db_path = state.storage.db_path().to_string();
     let platform = tokio::task::spawn_blocking(move || {
         crate::hardware_cert::platform::detect_platform(&db_path)
@@ -36,16 +34,14 @@ pub async fn get_hw_report(
     }
 
     if platform.storage_type == "sd_card" {
-        warnings.push(
-            "SD card storage detected — enable compression to extend card life".into(),
-        );
-        recommendations.push(
-            "Consider upgrading to SSD or NVMe for production deployments".into(),
-        );
+        warnings.push("SD card storage detected — enable compression to extend card life".into());
+        recommendations.push("Consider upgrading to SSD or NVMe for production deployments".into());
     }
 
     if platform.is_raspberry_pi && platform.cpu_cores < 4 {
-        warnings.push("Raspberry Pi with fewer than 4 cores — limit tag count for best performance".into());
+        warnings.push(
+            "Raspberry Pi with fewer than 4 cores — limit tag count for best performance".into(),
+        );
     }
 
     if !compatibility.enterprise.compatible && compatibility.professional.compatible {
@@ -83,8 +79,7 @@ pub async fn get_hw_report(
 /// GET /api/v1/hw/compatibility-matrix
 /// Returns the official hardware compatibility matrix for documentation.
 pub async fn get_compatibility_matrix() -> Result<impl IntoResponse, AppError> {
-    let matrix =
-        crate::hardware_cert::compat_matrix::get_compatibility_matrix();
+    let matrix = crate::hardware_cert::compat_matrix::get_compatibility_matrix();
     Ok(Json(serde_json::json!({
         "matrix": matrix,
         "last_updated": "2026-05",
