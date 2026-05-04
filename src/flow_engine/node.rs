@@ -236,6 +236,10 @@ impl NodeConfig {
                                 acked_at: None,
                                 resolved_at: None,
                                 created_by: reason,
+                                readback_status: None,
+                                readback_value: None,
+                                readback_attempts: 0,
+                                readback_ts: None,
                             };
                             if let Err(e) = storage.insert_command(&cmd).await {
                                 tracing::warn!("WriteOut node: failed to insert command: {}", e);

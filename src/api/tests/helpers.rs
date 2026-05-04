@@ -54,6 +54,9 @@ pub fn test_app() -> Router {
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
+        network_manager: crate::network::NetworkManager::new(vec![]),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        ha_state: crate::ha::HaState::disabled(),
     };
     create_router(state)
 }
@@ -171,6 +174,9 @@ pub async fn test_app_with_seeded_admin() -> Router {
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
+        network_manager: crate::network::NetworkManager::new(vec![]),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        ha_state: crate::ha::HaState::disabled(),
     };
     create_router(state)
 }
@@ -205,6 +211,9 @@ pub fn test_app_with_license_status(license_status: crate::license::LicenseStatu
         stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
+        network_manager: crate::network::NetworkManager::new(vec![]),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        ha_state: crate::ha::HaState::disabled(),
     };
     create_router(state)
 }

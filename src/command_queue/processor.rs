@@ -14,6 +14,7 @@ impl CommandQueue {
             cache,
             in_flight: Arc::new(RwLock::new(HashSet::new())),
             ws_manager: None,
+            readback_trackers: Arc::new(RwLock::new(std::collections::HashMap::new())),
         }
     }
 
