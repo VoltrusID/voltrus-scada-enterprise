@@ -159,7 +159,7 @@ async fn try_poll(config: &DeviceConfig, cache: &DeviceCache, pool: &ModbusPool)
             metrics.insert(reg.name.clone(), value);
         }
 
-        cache.update(&config.id, metrics).await;
+        cache.update(&config.id, metrics, false).await;
         tracing::debug!("Device {} polled successfully", config.id);
 
         pool.return_connection(&config.id, ctx).await;

@@ -24,24 +24,6 @@ fn default_limit() -> u32 {
     100
 }
 
-/// GET /api/v1/security/events -- list security events
-#[utoipa::path(
-    get,
-    path = "/api/v1/security/events",
-    params(
-        ("event_type" = Option<String>, Query, description = "Filter by event type"),
-        ("severity" = Option<String>, Query, description = "Filter by severity"),
-        ("from" = Option<i64>, Query, description = "Start timestamp"),
-        ("to" = Option<i64>, Query, description = "End timestamp"),
-        ("limit" = Option<u32>, Query, description = "Max results (default 100, max 1000)"),
-        ("offset" = Option<u32>, Query, description = "Offset for pagination"),
-    ),
-    responses(
-        (status = 200, description = "Security events list")
-    ),
-    tag = "Security",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_security_events(
     State(state): State<AppState>,
     Query(params): Query<ListEventsQuery>,
@@ -67,20 +49,6 @@ pub struct ExportCsvQuery {
     pub to: Option<i64>,
 }
 
-/// GET /api/v1/security/events/export -- export security events as CSV
-#[utoipa::path(
-    get,
-    path = "/api/v1/security/events/export",
-    params(
-        ("from" = Option<i64>, Query, description = "Start timestamp"),
-        ("to" = Option<i64>, Query, description = "End timestamp"),
-    ),
-    responses(
-        (status = 200, description = "CSV file download", content_type = "text/csv"),
-    ),
-    tag = "Security",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn export_security_csv(
     State(state): State<AppState>,
     Query(params): Query<ExportCsvQuery>,
@@ -110,16 +78,6 @@ pub async fn export_security_csv(
     ))
 }
 
-/// GET /api/v1/security/thresholds -- get security thresholds
-#[utoipa::path(
-    get,
-    path = "/api/v1/security/thresholds",
-    responses(
-        (status = 200, body = SecurityThresholds),
-    ),
-    tag = "Security",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn get_security_thresholds(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -127,18 +85,6 @@ pub async fn get_security_thresholds(
     Ok(Json(json!(thresholds)))
 }
 
-/// PUT /api/v1/security/thresholds -- update security thresholds
-#[utoipa::path(
-    put,
-    path = "/api/v1/security/thresholds",
-    request_body = SecurityThresholds,
-    responses(
-        (status = 200, description = "Thresholds updated"),
-        (status = 400, description = "Invalid thresholds")
-    ),
-    tag = "Security",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn update_security_thresholds(
     State(state): State<AppState>,
     Json(body): Json<SecurityThresholds>,
@@ -165,7 +111,7 @@ pub async fn update_security_thresholds(
     Ok((StatusCode::OK, Json(json!({"ok": true}))).into_response())
 }
 
-// -- Tests --
+// ── Tests ──
 
 #[cfg(test)]
 mod tests {

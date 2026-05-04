@@ -148,27 +148,10 @@ impl LicenseTier {
         matches!(self, LicenseTier::Enterprise)
     }
 
-    /// DNP3 (IEEE 1815) protocol support — Enterprise only.
-    pub fn dnp3(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
-    }
-
     /// RTSP video integration.
     /// Only available on Enterprise tier.
     pub fn rtsp_video(&self) -> bool {
         matches!(self, LicenseTier::Enterprise)
-    }
-
-    /// BACnet/IP protocol support.
-    /// Only available on Enterprise tier.
-    pub fn bacnet(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
-    }
-
-    /// AI-Assisted Engineering Copilot.
-    /// Available on Starter tier and above (all paid tiers).
-    pub fn ai_copilot(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
     }
 
     /// Returns all feature flags as a JSON object.
@@ -199,10 +182,7 @@ impl LicenseTier {
             "cfr_part_11": self.cfr_part_11(),
             "ethernet_ip": self.ethernet_ip(),
             "s7_protocol": self.s7_protocol(),
-            "dnp3": self.dnp3(),
             "rtsp_video": self.rtsp_video(),
-            "bacnet": self.bacnet(),
-            "ai_copilot": self.ai_copilot(),
         })
     }
 }
@@ -554,7 +534,6 @@ mod tests {
         assert!(ent.ethernet_ip());
         assert!(ent.s7_protocol());
         assert!(ent.rtsp_video());
-        assert!(ent.bacnet());
     }
 
     #[test]
@@ -611,7 +590,6 @@ mod tests {
         assert_eq!(flags["sso"], true);
         assert_eq!(flags["cfr_part_11"], true);
         assert_eq!(flags["ethernet_ip"], true);
-        assert_eq!(flags["bacnet"], true);
     }
 
     #[test]
@@ -636,14 +614,6 @@ mod tests {
         assert!(!LicenseTier::Starter.rtsp_video());
         assert!(!LicenseTier::Professional.rtsp_video());
         assert!(LicenseTier::Enterprise.rtsp_video());
-    }
-
-    #[test]
-    fn test_bacnet_enterprise_only() {
-        assert!(!LicenseTier::Trial.bacnet());
-        assert!(!LicenseTier::Starter.bacnet());
-        assert!(!LicenseTier::Professional.bacnet());
-        assert!(LicenseTier::Enterprise.bacnet());
     }
 
     #[test]

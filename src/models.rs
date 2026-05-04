@@ -24,8 +24,6 @@ pub struct AppConfig {
     #[serde(default)]
     pub retention: RetentionConfig,
     #[serde(default)]
-    pub compression: CompressionConfig,
-    #[serde(default)]
     pub oidc_enabled: bool,
     #[serde(default)]
     pub oidc_issuer: String,
@@ -71,45 +69,6 @@ impl Default for RetentionConfig {
 fn default_retention_enabled() -> bool { true }
 fn default_run_interval() -> u64 { 21600 }
 fn default_archive_dir() -> String { "./archive".to_string() }
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CompressionConfig {
-    #[serde(default = "default_compression_enabled")]
-    pub enabled: bool,
-    #[serde(default = "default_hot_retention_secs")]
-    pub hot_retention_secs: u64,
-    #[serde(default = "default_warm_retention_secs")]
-    pub warm_retention_secs: u64,
-    #[serde(default = "default_cold_retention_secs")]
-    pub cold_retention_secs: u64,
-    #[serde(default = "default_compress_interval_secs")]
-    pub hot_to_warm_interval_secs: u64,
-    #[serde(default = "default_compress_cold_interval_secs")]
-    pub warm_to_cold_interval_secs: u64,
-    #[serde(default)]
-    pub edge_mode: bool,
-}
-
-fn default_compression_enabled() -> bool { true }
-fn default_hot_retention_secs() -> u64 { 86400 }
-fn default_warm_retention_secs() -> u64 { 2592000 }
-fn default_cold_retention_secs() -> u64 { 31536000 }
-fn default_compress_interval_secs() -> u64 { 3600 }
-fn default_compress_cold_interval_secs() -> u64 { 86400 }
-
-impl Default for CompressionConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_compression_enabled(),
-            hot_retention_secs: default_hot_retention_secs(),
-            warm_retention_secs: default_warm_retention_secs(),
-            cold_retention_secs: default_cold_retention_secs(),
-            hot_to_warm_interval_secs: default_compress_interval_secs(),
-            warm_to_cold_interval_secs: default_compress_cold_interval_secs(),
-            edge_mode: false,
-        }
-    }
-}
 
 fn default_tiers() -> Vec<RetentionTier> {
     vec![
@@ -245,7 +204,7 @@ impl RegisterConfig {
 
 // ── DB-persisted Modbus types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModbusDevice {
     pub id: String,
     pub name: String,
@@ -316,7 +275,7 @@ pub struct CreateModbusDeviceRequest {
     pub registers: Vec<ModbusRegisterInput>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct ModbusRegisterInput {
     pub name: String,
     pub address: u16,
@@ -332,7 +291,7 @@ fn default_reg_type_str() -> String {
     "float32".to_string()
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct ScanRegisterRequest {
     pub ip: String,
     #[serde(default = "default_modbus_port")]
@@ -357,7 +316,7 @@ fn default_scan_register_area() -> String {
     "holding".to_string()
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ScannedRegister {
     pub address: u16,
     pub raw_value: Option<u16>,
@@ -368,7 +327,7 @@ pub struct ScannedRegister {
     pub interpreted_value: Option<f64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PollerStatus {
     pub device_id: String,
     pub running: bool,
@@ -377,7 +336,7 @@ pub struct PollerStatus {
 
 // ── OPC-UA config types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum OpcUaSecurityPolicy {
     None,
     #[serde(rename = "basic256sha256")]
@@ -388,7 +347,7 @@ impl Default for OpcUaSecurityPolicy {
     fn default() -> Self { Self::None }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum OpcUaSecurityMode {
     None,
     Sign,
@@ -424,7 +383,7 @@ pub struct OpcUaDeviceConfig {
 }
 
 /// Database row for opcua_devices table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpcUaDevice {
     pub id: i64,
     pub name: String,
@@ -441,7 +400,7 @@ pub struct OpcUaDevice {
 }
 
 /// Database row for opcua_nodes table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpcUaNode {
     pub id: i64,
     pub device_id: i64,
@@ -452,7 +411,7 @@ pub struct OpcUaNode {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateOpcUaDeviceRequest {
     pub name: String,
     pub url: String,
@@ -468,7 +427,7 @@ pub struct CreateOpcUaDeviceRequest {
     pub enabled: bool,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateOpcUaDeviceRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -480,7 +439,7 @@ pub struct UpdateOpcUaDeviceRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateOpcUaNodeRequest {
     pub node_id: String,
     pub name: String,
@@ -513,7 +472,7 @@ fn default_s7_rack() -> u8 { 0 }
 fn default_s7_slot() -> u8 { 1 }
 
 /// Database row for s7_tags table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct S7TagRow {
     pub id: i64,
     pub device_id: i64,
@@ -526,7 +485,7 @@ pub struct S7TagRow {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateS7DeviceRequest {
     pub name: String,
     pub url: String,
@@ -540,7 +499,7 @@ pub struct CreateS7DeviceRequest {
     pub enabled: bool,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateS7DeviceRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -550,7 +509,7 @@ pub struct UpdateS7DeviceRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateS7TagRequest {
     pub tag_address: String,
     pub name: String,
@@ -580,7 +539,7 @@ pub struct EnipDevice {
 fn default_enip_slot() -> u8 { 0 }
 
 /// Database row for enip_tags table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EnipTag {
     pub id: i64,
     pub device_id: i64,
@@ -593,7 +552,7 @@ pub struct EnipTag {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateEnipDeviceRequest {
     pub name: String,
     pub url: String,
@@ -605,7 +564,7 @@ pub struct CreateEnipDeviceRequest {
     pub enabled: bool,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateEnipDeviceRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -614,7 +573,7 @@ pub struct UpdateEnipDeviceRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateEnipTagRequest {
     pub tag_name: String,
     pub name: String,
@@ -634,126 +593,19 @@ pub struct EnipDeviceConfig {
     pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
 }
 
-// ── BACnet/IP device types ──
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct BacnetDevice {
-    pub id: i64,
-    pub name: String,
-    pub ip: String,
-    pub port: u16,
-    pub device_instance: u32,
-    pub interval_ms: u64,
-    pub cov_enabled: bool,
-    pub cov_lifetime: u32,
-    pub enabled: bool,
-    pub created_at: i64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct BacnetObject {
-    pub id: i64,
-    pub device_db_id: i64,
-    pub object_type: String,
-    pub object_instance: u32,
-    pub property: String,
-    pub name: String,
-    pub display_name: String,
-    pub cov_increment: f64,
-    pub created_at: i64,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct CreateBacnetDeviceRequest {
-    pub name: String,
-    pub ip: String,
-    #[serde(default = "default_bacnet_port")]
-    pub port: u16,
-    #[serde(default)]
-    pub device_instance: u32,
-    #[serde(default = "default_interval_ms")]
-    pub interval_ms: u64,
-    #[serde(default)]
-    pub cov_enabled: bool,
-    #[serde(default = "default_cov_lifetime")]
-    pub cov_lifetime: u32,
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-}
-
-fn default_bacnet_port() -> u16 { 47808 }
-fn default_cov_lifetime() -> u32 { 300 }
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct UpdateBacnetDeviceRequest {
-    pub name: Option<String>,
-    pub ip: Option<String>,
-    pub port: Option<u16>,
-    pub device_instance: Option<u32>,
-    pub interval_ms: Option<u64>,
-    pub cov_enabled: Option<bool>,
-    pub cov_lifetime: Option<u32>,
-    pub enabled: Option<bool>,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct CreateBacnetObjectRequest {
-    pub object_type: String,
-    pub object_instance: u32,
-    #[serde(default = "default_bacnet_property")]
-    pub property: String,
-    pub name: String,
-    #[serde(default)]
-    pub display_name: String,
-    #[serde(default)]
-    pub cov_increment: f64,
-}
-
-fn default_bacnet_property() -> String { "presentValue".to_string() }
-
-#[derive(Debug, Clone)]
-pub struct BacnetDeviceConfig {
-    pub id: String,
-    pub ip: String,
-    pub port: u16,
-    pub device_instance: u32,
-    pub interval_ms: u64,
-    pub cov_enabled: bool,
-    pub cov_lifetime: u32,
-    pub objects: Vec<BacnetObjectConfig>,
-}
-
-#[derive(Debug, Clone)]
-pub struct BacnetObjectConfig {
-    pub object_type: String,
-    pub object_instance: u32,
-    pub property: String,
-    pub name: String,
-    pub cov_increment: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub struct BacnetDiscoveredDevice {
-    pub device_instance: u32,
-    pub ip: String,
-    pub port: u16,
-    pub vendor_name: Option<String>,
-    pub model_name: Option<String>,
-    pub firmware_version: Option<String>,
-    pub object_list_count: Option<u32>,
-}
-
 // ── Runtime types ──
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DeviceSnapshot {
     pub device_id: String,
     pub status: DeviceStatus,
     pub timestamp: i64,
     pub metrics: HashMap<String, f64>,
+    #[serde(default)]
+    pub simulated: bool,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum DeviceStatus {
     Online,
@@ -762,12 +614,12 @@ pub enum DeviceStatus {
 
 // ── API response types ──
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct LiveResponse {
     pub devices: Vec<DeviceSnapshot>,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize)]
 pub struct HealthResponse {
     pub status: String,
     pub devices: HashMap<String, String>,
@@ -789,7 +641,7 @@ pub struct HistoryQuery {
 
 // ── System response types ──
 
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct SystemResponse {
     pub hostname: String,
     pub os: String,
@@ -805,7 +657,7 @@ pub struct SystemResponse {
     pub process: ProcessInfo,
 }
 
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct ProcessInfo {
     pub pid: u32,
     pub memory_mb: f64,
@@ -838,7 +690,7 @@ fn default_user_role() -> String {
     "user".to_string()
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Device {
     pub id: String,
     pub name: String,
@@ -847,7 +699,7 @@ pub struct Device {
     pub sort_order: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DataSource {
     pub id: i64,
     pub key: String,
@@ -868,21 +720,21 @@ pub struct DataSource {
     pub chart_type: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScreenDataSource {
     pub screen_id: String,
     pub data_source_id: i64,
     pub sort_order: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScreenLayoutRow {
     pub screen_id: String,
     pub breakpoint: String,
     pub layout: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TwinLayout {
     pub screen_id: String,
     pub equipment_id: String,
@@ -893,14 +745,14 @@ pub struct TwinLayout {
     pub rotation_y: f64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TwinConnection {
     pub screen_id: String,
     pub from_id: String,
     pub to_id: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CanvasLayoutItem {
     pub screen_id: String,
     pub data_source_id: i64,
@@ -912,7 +764,7 @@ pub struct CanvasLayoutItem {
 
 // ── SCADA 2D view types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScadaEquipment {
     pub screen_id: String,
     pub equipment_id: String,
@@ -926,7 +778,7 @@ pub struct ScadaEquipment {
     pub sensor_bindings: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ScadaConnection {
     pub screen_id: String,
     pub connection_id: String,
@@ -958,13 +810,13 @@ pub struct Setting {
 
 // ── Request/Response types ──
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
 }
 
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct LoginResponse {
     pub ok: bool,
     pub username: String,
@@ -987,7 +839,7 @@ pub struct UpdateUserRequest {
     pub password: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct ChangePasswordRequest {
     pub new_password: String,
 }
@@ -1010,14 +862,14 @@ pub struct RefreshToken {
     pub revoked_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct BrandingSettings {
     pub title: String,
     pub subtitle: String,
     pub logo: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct DataSourceData {
     pub id: i64,
     pub key: String,
@@ -1028,7 +880,7 @@ pub struct DataSourceData {
     pub status: String,
 }
 
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct HistoryResponse {
     pub sensors: Vec<DataSourceSummary>,
     pub data: serde_json::Value,
@@ -1036,7 +888,7 @@ pub struct HistoryResponse {
     pub interval: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct DataSourceSummary {
     pub id: i64,
     pub key: String,
@@ -1049,7 +901,7 @@ pub struct DataSourceSummary {
     pub source_type: String,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
+#[derive(Debug, serde::Deserialize)]
 pub struct DataQuery {
     pub screen: Option<String>,
     pub device: Option<String>,
@@ -1088,7 +940,7 @@ pub struct ExportQuery {
 }
 
 /// A single telemetry row for export responses.
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct TelemetryExportRow {
     pub timestamp: i64,
     pub device: String,
@@ -1097,7 +949,7 @@ pub struct TelemetryExportRow {
 }
 
 /// Paginated meta information for export responses.
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct ExportMeta {
     pub total: i64,
     pub limit: usize,
@@ -1107,7 +959,7 @@ pub struct ExportMeta {
 }
 
 /// The standard envelope for JSON export responses.
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct ExportResponse {
     pub data: Vec<TelemetryExportRow>,
     pub meta: ExportMeta,
@@ -1170,7 +1022,7 @@ fn default_push_subject() -> String {
 
 // ── Alarm types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Alarm {
     pub id: i64,
     pub source_key: String,
@@ -1200,7 +1052,7 @@ pub struct AlarmQuery {
 
 // ── Alarm Management Overhaul types (v0.23.0) ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AlarmAuditEntry {
     pub id: i64,
     pub alarm_id: i64,
@@ -1210,13 +1062,13 @@ pub struct AlarmAuditEntry {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ShelfAlarmRequest {
     pub duration_secs: u64,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AlarmSummary {
     pub active_critical: i64,
     pub active_warning: i64,
@@ -1226,7 +1078,7 @@ pub struct AlarmSummary {
     pub avg_ack_time_secs: f64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AlarmAnalyticsEntry {
     pub source_key: String,
     pub source_name: String,
@@ -1237,7 +1089,7 @@ pub struct AlarmAnalyticsEntry {
 
 // ── Notification settings ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct NotificationSetting {
     pub id: i64,
     pub source_key: String,
@@ -1247,7 +1099,7 @@ pub struct NotificationSetting {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateNotificationSettingRequest {
     pub source_key: String,
     pub channel_type: String,
@@ -1267,7 +1119,7 @@ fn default_retention_hours() -> u32 { 72 }
 // ── RTSP Video / Camera types ──
 
 /// Database row for cameras table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Camera {
     pub id: i64,
     pub name: String,
@@ -1282,7 +1134,7 @@ pub struct Camera {
 }
 
 /// Database row for camera_snapshots table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CameraSnapshot {
     pub id: i64,
     pub camera_id: i64,
@@ -1292,7 +1144,7 @@ pub struct CameraSnapshot {
     pub file_size: u64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateCameraRequest {
     pub name: String,
     pub url: String,
@@ -1304,7 +1156,7 @@ pub struct CreateCameraRequest {
     pub retention_hours: u32,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateCameraRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -1313,7 +1165,7 @@ pub struct UpdateCameraRequest {
     pub retention_hours: Option<u32>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateNotificationSettingRequest {
     pub source_key: Option<String>,
     pub channel_type: Option<String>,
@@ -1321,7 +1173,7 @@ pub struct UpdateNotificationSettingRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct TestNotificationRequest {
     pub channel_type: String,
     pub config: String,
@@ -1330,7 +1182,7 @@ pub struct TestNotificationRequest {
 
 // ── Push subscription (groundwork for Web Push) ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PushSubscription {
     pub id: i64,
     pub user: String,
@@ -1340,7 +1192,7 @@ pub struct PushSubscription {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct PushSubscribeRequest {
     pub endpoint: String,
     pub p256dh: String,
@@ -1349,7 +1201,7 @@ pub struct PushSubscribeRequest {
 
 // ── Flow types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Flow {
     pub id: String,
     pub name: String,
@@ -1360,7 +1212,7 @@ pub struct Flow {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FlowRun {
     pub id: i64,
     pub flow_id: String,
@@ -1369,123 +1221,6 @@ pub struct FlowRun {
     pub success: bool,
     pub error: Option<String>,
     pub output: Option<String>,
-}
-
-// ── DNP3 (IEEE 1815) device types ──
-
-fn default_dnp3_port() -> u16 { 20000 }
-fn default_master_address() -> u16 { 1 }
-fn default_outstation_address() -> u16 { 10 }
-fn default_integrity_interval() -> u64 { 300 }
-fn default_float64() -> String { "float64".to_string() }
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Dnp3Device {
-    pub id: i64,
-    pub name: String,
-    pub ip: String,
-    #[serde(default = "default_dnp3_port")]
-    pub port: u16,
-    #[serde(default = "default_master_address")]
-    pub master_address: u16,
-    #[serde(default = "default_outstation_address")]
-    pub outstation_address: u16,
-    #[serde(default = "default_true")]
-    pub enable_unsolicited: bool,
-    #[serde(default = "default_integrity_interval")]
-    pub integrity_poll_interval_secs: u64,
-    pub event_scan_interval_ms: Option<u64>,
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    pub created_at: i64,
-    pub updated_at: i64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Dnp3Point {
-    pub id: i64,
-    pub device_id: i64,
-    pub group_num: u8,
-    pub variation: u8,
-    pub point_index: u16,
-    pub name: String,
-    #[serde(default)]
-    pub display_name: String,
-    #[serde(default = "default_float64")]
-    pub data_type: String,
-    #[serde(default)]
-    pub scale: f64,
-    #[serde(default)]
-    pub deadband: f64,
-    pub created_at: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct Dnp3DeviceConfig {
-    pub id: String,
-    pub ip: String,
-    pub port: u16,
-    pub master_address: u16,
-    pub outstation_address: u16,
-    pub event_scan_interval_ms: Option<u64>,
-    pub points: Vec<Dnp3PointConfig>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Dnp3PointConfig {
-    pub group_num: u8,
-    pub variation: u8,
-    pub point_index: u16,
-    pub name: String,
-    pub scale: f64,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct CreateDnp3DeviceRequest {
-    pub name: String,
-    pub ip: String,
-    #[serde(default = "default_dnp3_port")]
-    pub port: u16,
-    #[serde(default = "default_master_address")]
-    pub master_address: u16,
-    #[serde(default = "default_outstation_address")]
-    pub outstation_address: u16,
-    #[serde(default = "default_true")]
-    pub enable_unsolicited: bool,
-    #[serde(default = "default_integrity_interval")]
-    pub integrity_poll_interval_secs: u64,
-    pub event_scan_interval_ms: Option<u64>,
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct UpdateDnp3DeviceRequest {
-    pub name: Option<String>,
-    pub ip: Option<String>,
-    pub port: Option<u16>,
-    pub master_address: Option<u16>,
-    pub outstation_address: Option<u16>,
-    pub enable_unsolicited: Option<bool>,
-    pub integrity_poll_interval_secs: Option<u64>,
-    pub event_scan_interval_ms: Option<Option<u64>>,
-    pub enabled: Option<bool>,
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct CreateDnp3PointRequest {
-    pub group_num: u8,
-    pub variation: u8,
-    pub point_index: u16,
-    pub name: String,
-    #[serde(default)]
-    pub display_name: String,
-    #[serde(default = "default_float64")]
-    pub data_type: String,
-    #[serde(default)]
-    pub scale: f64,
-    #[serde(default)]
-    pub deadband: f64,
 }
 
 // ── Tests ──
@@ -1618,7 +1353,7 @@ mod tests {
     fn test_permission_constants() {
         assert_eq!(PERM_SCREENS_READ, "screens:read");
         assert_eq!(PERM_SCREENS_WRITE, "screens:write");
-        assert_eq!(ALL_PERMISSIONS.len(), 18);
+        assert_eq!(ALL_PERMISSIONS.len(), 24);
         assert!(ALL_PERMISSIONS.contains(&PERM_USERS_MANAGE));
     }
 
@@ -1755,7 +1490,7 @@ impl CommandStatus {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Command {
     pub id: String,
     pub data_source_id: i64,
@@ -1775,7 +1510,7 @@ pub struct Command {
     pub created_by: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct CommandAuditEntry {
     pub id: i64,
     pub command_id: String,
@@ -1809,7 +1544,7 @@ impl Default for WritePolicy {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WriteRequest {
     pub value: serde_json::Value,
     #[serde(default = "default_write_policy")]
@@ -1822,7 +1557,7 @@ fn default_write_policy() -> String {
     "immediate".to_string()
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct CommandQuery {
     pub tag: Option<String>,
     pub status: Option<String>,
@@ -1855,7 +1590,7 @@ mod option_option {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WritePolicyUpdate {
     pub writable: Option<bool>,
     #[serde(default, with = "option_option")]
@@ -1877,7 +1612,7 @@ pub struct WriteResult {
     pub latency_ms: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct DowntimeEvent {
     pub id: i64,
     pub device_id: String,
@@ -1888,18 +1623,18 @@ pub struct DowntimeEvent {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateDowntimeEventRequest {
     pub device_id: String,
     pub state: String,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CloseDowntimeEventRequest {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Serialize)]
 pub struct OeeMetrics {
     pub availability: f64,
     pub performance: f64,
@@ -1910,7 +1645,7 @@ pub struct OeeMetrics {
     pub downtime_count: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ShiftConfig {
     pub id: i64,
     pub name: String,
@@ -1921,7 +1656,7 @@ pub struct ShiftConfig {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateShiftRequest {
     pub name: String,
     pub start_hour: u32,
@@ -1932,7 +1667,7 @@ pub struct CreateShiftRequest {
 
 // ── Report types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Report {
     pub id: i64,
     pub name: String,
@@ -1942,16 +1677,9 @@ pub struct Report {
     pub email_recipients: String,
     pub last_generated: Option<i64>,
     pub created_at: i64,
-    #[serde(default = "default_report_type")]
-    pub report_type: Option<String>,
-    pub analytics_config: Option<String>,
 }
 
-fn default_report_type() -> Option<String> {
-    Some("pdf".to_string())
-}
-
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateReportRequest {
     pub name: String,
     pub schedule: String,
@@ -1960,7 +1688,7 @@ pub struct CreateReportRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateReportRequest {
     pub name: Option<String>,
     pub schedule: Option<String>,
@@ -1971,7 +1699,7 @@ pub struct UpdateReportRequest {
 
 // ── Hub (Multi-Site) types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HubSite {
     pub id: i64,
     pub name: String,
@@ -1983,7 +1711,7 @@ pub struct HubSite {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateHubSiteRequest {
     pub name: String,
     pub url: String,
@@ -1991,7 +1719,7 @@ pub struct CreateHubSiteRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateHubSiteRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -2001,7 +1729,7 @@ pub struct UpdateHubSiteRequest {
 
 // ── RBAC types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Role {
     pub id: i64,
     pub name: String,
@@ -2009,19 +1737,19 @@ pub struct Role {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateRoleRequest {
     pub name: String,
     pub permissions: String,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdateRoleRequest {
     pub name: Option<String>,
     pub permissions: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct AssignRoleRequest {
     pub role_id: i64,
 }
@@ -2046,6 +1774,12 @@ pub const PERM_COMMANDS_WRITE: &str = "commands:write";
 pub const PERM_COMMANDS_READ: &str = "commands:read";
 pub const PERM_COMMANDS_CANCEL: &str = "commands:cancel";
 pub const PERM_TAGS_WRITE_POLICY: &str = "tags:write_policy";
+pub const PERM_SIM_READ: &str = "sim:read";
+pub const PERM_SIM_WRITE: &str = "sim:write";
+pub const PERM_SCRIPTS_READ: &str = "scripts:read";
+pub const PERM_SCRIPTS_WRITE: &str = "scripts:write";
+pub const PERM_CONFIG_READ: &str = "config:read";
+pub const PERM_CONFIG_WRITE: &str = "config:write";
 
 /// All available permission constants for seeding.
 pub const ALL_PERMISSIONS: &[&str] = &[
@@ -2062,6 +1796,9 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     PERM_COMMANDS_WRITE, PERM_COMMANDS_READ,
     PERM_COMMANDS_CANCEL,
     PERM_TAGS_WRITE_POLICY,
+    PERM_SIM_READ, PERM_SIM_WRITE,
+    PERM_SCRIPTS_READ, PERM_SCRIPTS_WRITE,
+    PERM_CONFIG_READ, PERM_CONFIG_WRITE,
 ];
 
 /// Read-only permissions for the Viewer role.
@@ -2075,11 +1812,12 @@ pub const OPERATOR_PERMISSIONS: &[&str] = &[
     PERM_SCREENS_READ, PERM_DEVICES_READ, PERM_ALARMS_READ,
     PERM_ALARMS_ACK, PERM_SETTINGS_READ,
     PERM_COMMANDS_WRITE, PERM_COMMANDS_READ,
+    PERM_SIM_READ, PERM_SCRIPTS_READ, PERM_CONFIG_READ,
 ];
 
 // ── Recipe types ──
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Recipe {
     pub id: i64,
     pub name: String,
@@ -2092,7 +1830,7 @@ pub struct Recipe {
     pub updated_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+#[derive(Debug, serde::Deserialize)]
 pub struct CreateRecipeRequest {
     pub name: String,
     pub category: Option<String>,
@@ -2123,7 +1861,7 @@ pub struct LicenseActivationRow {
 
 // ── Security Audit types (v0.22.0 IEC 62443) ──
 
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SecurityEvent {
     pub id: i64,
     pub event_type: String,
@@ -2150,7 +1888,7 @@ fn default_severity() -> String {
     "info".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityThresholds {
     pub failed_login_threshold: u32,
     pub failed_login_window_secs: u64,
@@ -2175,7 +1913,7 @@ impl Default for SecurityThresholds {
 
 // ── Annotation types (v0.23.0) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Annotation {
     pub id: i64,
     pub tag_id: String,
@@ -2186,21 +1924,21 @@ pub struct Annotation {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAnnotationRequest {
     pub tag_id: String,
     pub annotation_text: String,
     pub data_timestamp: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAnnotationRequest {
     pub annotation_text: Option<String>,
 }
 
 // ── Shift Handover types (v0.23.0) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShiftHandover {
     pub id: i64,
     pub author_id: i64,
@@ -2212,7 +1950,7 @@ pub struct ShiftHandover {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateShiftHandoverRequest {
     pub shift_date: String,
     pub shift_period: String,
@@ -2223,7 +1961,7 @@ pub struct CreateShiftHandoverRequest {
 
 // ── User Notification types (v0.23.0) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserNotification {
     pub id: i64,
     pub user_id: i64,
@@ -2272,232 +2010,119 @@ pub fn parse_mentions(text: &str) -> Vec<String> {
     result
 }
 
-// ── Analytics v0.28.0 models ──
+// ── Simulation types (v0.26.0) ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub struct CustomMetric {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SimProfile {
     pub id: i64,
     pub name: String,
-    pub description: String,
-    pub formula: String,
-    pub unit: Option<String>,
-    pub tag_refs: String,
-    pub validation_error: Option<String>,
+    pub data_type: String,
+    pub config: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSimProfileRequest {
+    pub name: String,
+    pub data_type: String,
+    pub config: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSimProfileRequest {
+    pub name: Option<String>,
+    pub data_type: Option<String>,
+    pub config: Option<String>,
+}
+
+// ── Script types (v0.26.0) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Script {
+    pub id: i64,
+    pub name: String,
+    pub source: String,
+    pub syntax_error: Option<String>,
+    pub cpu_limit_ms: i64,
+    pub memory_limit_bytes: i64,
+    pub enabled: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct CreateCustomMetricRequest {
+#[derive(Debug, Deserialize)]
+pub struct CreateScriptRequest {
     pub name: String,
-    pub description: String,
-    pub formula: String,
-    pub unit: Option<String>,
+    pub source: String,
+    #[serde(default = "default_cpu_limit")]
+    pub cpu_limit_ms: Option<i64>,
+    #[serde(default = "default_memory_limit")]
+    pub memory_limit_bytes: Option<i64>,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
-pub struct UpdateCustomMetricRequest {
+fn default_cpu_limit() -> Option<i64> { Some(1000) }
+fn default_memory_limit() -> Option<i64> { Some(1048576) }
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateScriptRequest {
     pub name: Option<String>,
-    pub description: Option<String>,
-    pub formula: Option<String>,
-    pub unit: Option<String>,
+    pub source: Option<String>,
+    pub cpu_limit_ms: Option<i64>,
+    pub memory_limit_bytes: Option<i64>,
+    pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct CustomMetricValue {
+#[derive(Debug, Deserialize)]
+pub struct TestScriptRequest {
+    pub input: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptExecution {
     pub id: i64,
-    pub name: String,
-    pub value: f64,
-    pub unit: Option<String>,
-    pub computed_at: i64,
-    pub tag_values: std::collections::HashMap<String, f64>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct SpcResult {
-    pub chart_type: String,
-    pub data_points: Vec<SpcPoint>,
-    pub control_limits: ControlLimits,
-    pub violations: Vec<usize>,
-    pub in_control_percent: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct SpcPoint {
-    pub index: usize,
-    pub value: f64,
-    pub timestamp: i64,
-    pub subgroup_values: Option<Vec<f64>>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct ControlLimits {
-    pub ucl: f64,
-    pub cl: f64,
-    pub lcl: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct HistogramResult {
-    pub bins: Vec<HistogramBin>,
-    pub normal_curve: Vec<CurvePoint>,
-    pub stats: DistributionStats,
-    pub capability: Option<CapabilityIndices>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct HistogramBin {
-    pub lower: f64,
-    pub upper: f64,
-    pub count: u64,
-    pub frequency: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct CurvePoint {
-    pub x: f64,
-    pub y: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct DistributionStats {
-    pub mean: f64,
-    pub stddev: f64,
-    pub skewness: f64,
-    pub kurtosis: f64,
-    pub count: u64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct CapabilityIndices {
-    pub cp: f64,
-    pub cpk: f64,
-    pub pp: f64,
-    pub ppk: f64,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct RunChartResult {
-    pub points: Vec<RunChartPoint>,
-    pub median: f64,
-    pub signals: Vec<Signal>,
-    pub runs_count: u32,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct RunChartPoint {
-    pub timestamp: i64,
-    pub value: f64,
-    pub above_median: bool,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct Signal {
-    pub rule: String,
-    pub start_idx: usize,
-    pub end_idx: usize,
-    pub description: String,
-}
-
-// ── AI Copilot types ──
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub struct AiProposal {
-    pub id: i64,
-    pub proposal_type: String,
+    pub script_id: i64,
+    pub flow_id: Option<String>,
+    pub trigger_type: Option<String>,
+    pub duration_ms: i64,
     pub status: String,
-    pub title: String,
-    pub input_summary: String,
-    pub proposed_config: serde_json::Value,
-    pub applied_config: Option<serde_json::Value>,
-    pub target_entity_id: Option<String>,
     pub error_message: Option<String>,
-    pub model_used: Option<String>,
-    pub tokens_used: Option<i64>,
+    pub output: Option<String>,
     pub created_at: i64,
-    pub reviewed_at: Option<i64>,
-    pub reviewed_by: Option<String>,
-    pub applied_at: Option<i64>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct AiSettingsUpdate {
-    pub provider: String,
-    pub api_key: Option<String>,
-    pub default_model: Option<String>,
-}
+// ── Config Snapshot types (v0.26.0) ──
 
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct AiSettingsResponse {
-    pub provider: String,
-    pub api_key_set: bool,
-    pub api_key_preview: String,
-    pub default_model: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
-pub struct EquipmentTemplate {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSnapshot {
     pub id: i64,
-    pub industry: String,
-    pub equipment_type: String,
-    pub name: String,
-    pub tag_template: serde_json::Value,
-    pub alarm_template: serde_json::Value,
-    pub dashboard_template: serde_json::Value,
-    pub flow_template: Option<serde_json::Value>,
+    pub label: Option<String>,
+    pub description: Option<String>,
+    pub snapshot_data: String,
+    pub trigger: String,
+    pub created_by: Option<String>,
+    pub created_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct RegisterMapRequest {
-    pub file_content: String,
-    pub file_type: String,
-    pub device_name: String,
-    pub device_id: Option<String>,
+#[derive(Debug, Deserialize)]
+pub struct CreateSnapshotRequest {
+    pub label: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct DashboardLayoutRequest {
-    pub description: String,
-    pub screen_id: Option<String>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigDiffEntry {
+    pub field: String,
+    pub from: serde_json::Value,
+    pub to: serde_json::Value,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct AlarmThresholdRequest {
-    pub device_type: String,
-    pub tags: Vec<AlarmThresholdTag>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigTableDiff {
+    pub added: Vec<serde_json::Value>,
+    pub removed: Vec<serde_json::Value>,
+    pub changed: Vec<ConfigDiffEntry>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct AlarmThresholdTag {
-    pub source_key: String,
-    pub name: String,
-    pub unit: Option<String>,
-    pub min_val: Option<f64>,
-    pub max_val: Option<f64>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct TagRenameRequest {
-    pub tags: Vec<TagRenameEntry>,
-    pub convention: String,
-    pub custom_pattern: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
-pub struct TagRenameEntry {
-    pub current: String,
-    pub proposed: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct FlowRuleRequest {
-    pub description: String,
-    pub available_tags: Vec<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct TemplateInstantiateRequest {
-    pub template_id: i64,
-    pub device_id: Option<String>,
-    pub prefix: Option<String>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigDiff {
+    pub tables: std::collections::HashMap<String, ConfigTableDiff>,
 }

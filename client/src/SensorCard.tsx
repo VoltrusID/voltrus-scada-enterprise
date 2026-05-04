@@ -136,6 +136,9 @@ export const SensorCard = React.memo(function SensorCard({
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: stColor(st) }} />
           {s.name}
           <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${sourceTagColor}18`, color: sourceTagColor, fontWeight: 700, letterSpacing: '.03em', textTransform: 'none' }}>{sourceTag}</span>
+          {cv?.simulated && (
+            <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'rgba(234,179,8,.15)', color: 'var(--warn)', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase' }}>SIM</span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {shortcut && (
@@ -185,6 +188,7 @@ export const SensorCard = React.memo(function SensorCard({
           unit={s.unit}
           imageUrl={(parseConfig(s.source_config) as Record<string, string>).image_url}
           textContent={(parseConfig(s.source_config) as Record<string, string>).text_content}
+          simulated={cv?.simulated}
         />
       </div>
     </div>

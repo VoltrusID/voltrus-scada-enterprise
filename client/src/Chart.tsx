@@ -6,7 +6,7 @@ import { useCanvasSize } from './hooks/useCanvasSize';
 
 // ── Sparkline ──
 
-function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[]; color: string; warn: number; crit: number }) {
+function SparklineChart({ data, color: rawColor, warn, crit, simulated }: { data: number[]; color: string; warn: number; crit: number; simulated?: boolean }) {
   const color = toHexColor(rawColor.replace(/"/g, ''));
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -34,6 +34,7 @@ function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[];
     if (warn >= yMin && warn <= yMax) { ctx.strokeStyle = 'rgba(234,179,8,0.3)'; ctx.beginPath(); ctx.moveTo(pL, toY(warn)); ctx.lineTo(W - pR, toY(warn)); ctx.stroke(); }
     if (crit >= yMin && crit <= yMax) { ctx.strokeStyle = 'rgba(239,68,68,0.3)'; ctx.beginPath(); ctx.moveTo(pL, toY(crit)); ctx.lineTo(W - pR, toY(crit)); ctx.stroke(); }
     ctx.setLineDash([]);
+    if (simulated) ctx.setLineDash([6, 4]);
     ctx.beginPath();
     for (let i = 0; i < data.length; i++) { const x = toX(i), y = toY(data[i]); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
     ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
@@ -45,7 +46,7 @@ function SparklineChart({ data, color: rawColor, warn, crit }: { data: number[];
     ctx.beginPath(); ctx.arc(lx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
     ctx.beginPath(); ctx.arc(lx, cy, 7, 0, Math.PI * 2); ctx.strokeStyle = color + '40'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = color; ctx.font = 'bold 11px JetBrains Mono,monospace'; ctx.textAlign = 'right'; ctx.fillText(lv.toFixed(1), W - pR - 2, cy - 8);
-  }, [data, color, warn, crit, size]);
+  }, [data, color, warn, crit, size, simulated]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }}><canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} /></div>;
 }
@@ -239,9 +240,10 @@ export interface ChartProps {
   unit: string;
   imageUrl?: string;
   textContent?: string;
+  simulated?: boolean;
 }
 
-export function Chart({ chartType, data: rawData, color, warn, crit, min, max, decimals, unit, imageUrl, textContent }: ChartProps) {
+export function Chart({ chartType, data: rawData, color, warn, crit, min, max, decimals, unit, imageUrl, textContent, simulated }: ChartProps) {
   const data = rawData.filter(v => v != null && !Number.isNaN(v));
   const value = data.length > 0 ? data[data.length - 1] : 0;
 
@@ -255,6 +257,6 @@ export function Chart({ chartType, data: rawData, color, warn, crit, min, max, d
     case 'text':
       return <TextCard text={textContent || ''} />;
     default:
-      return <SparklineChart data={data} color={color} warn={warn} crit={crit} />;
+      return <SparklineChart data={data} color={color} warn={warn} crit={crit} simulated={simulated} />;
   }
 }

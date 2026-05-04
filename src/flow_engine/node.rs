@@ -68,6 +68,13 @@ pub enum NodeConfig {
         #[serde(default = "default_flow_reason")]
         reason: String,
     },
+    #[serde(rename = "script")]
+    Script {
+        id: String,
+        script_id: i64,
+        #[serde(default)]
+        inputs: Vec<String>,
+    },
 }
 
 impl NodeConfig {
@@ -128,7 +135,7 @@ impl NodeConfig {
                 metrics.insert(source_key.clone(), numeric_value);
                 let cache = ctx.cache.clone();
                 tokio::runtime::Handle::current().spawn(async move {
-                    cache.update(&device_id, metrics).await;
+                    cache.update(&device_id, metrics, false).await;
                 });
                 Ok(NodeResult::Continue(msg))
             }
@@ -242,6 +249,68 @@ impl NodeConfig {
                         }
                     }
                 });
+                Ok(NodeResult::Continue(msg))
+            }
+            NodeConfig::Script { script_id, inputs, .. } => {
+                let storage = ctx.storage.clone();
+                let flow_id = ctx.flow_id.clone();
+                let result = tokio::runtime::Handle::current().block_on(async {
+                    match storage.get_script(*script_id).await {
+                        Ok(Some(script)) if script.enabled && script.syntax_error.is_none() => {
+                            let mut tag_input = serde_json::Map::new();
+                            for key in inputs {
+                                if let Some(val) = msg.payload.get(key) {
+                                    tag_input.insert(key.clone(), val.clone());
+                                }
+                            }
+                            let input = serde_json::Value::Object(tag_input);
+                            let result = crate::script_engine::execute_script(
+                                &script.source,
+                                &input,
+                                script.cpu_limit_ms as u64,
+                                script.memory_limit_bytes as u64,
+                            );
+                            let _ = storage.create_script_execution(
+                                *script_id,
+                                Some(&flow_id),
+                                None,
+                                result.duration_ms as i64,
+                                if result.success { "success" } else { "error" },
+                                result.error.as_deref(),
+                                result.output.as_deref(),
+                            ).await;
+                            result
+                        }
+                        Ok(Some(_)) => {
+                            crate::script_engine::ScriptResult {
+                                success: false,
+                                output: None,
+                                error: Some("Script has syntax error or is disabled".into()),
+                                duration_ms: 0,
+                            }
+                        }
+                        _ => {
+                            crate::script_engine::ScriptResult {
+                                success: false,
+                                output: None,
+                                error: Some("Script not found".into()),
+                                duration_ms: 0,
+                            }
+                        }
+                    }
+                });
+
+                if result.success {
+                    if let Some(ref out) = result.output {
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(out) {
+                            if let serde_json::Value::Object(map) = parsed {
+                                for (k, v) in map {
+                                    set_json_path(&mut msg.payload, &k, v);
+                                }
+                            }
+                        }
+                    }
+                }
                 Ok(NodeResult::Continue(msg))
             }
         }

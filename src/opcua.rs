@@ -260,7 +260,7 @@ fn create_data_change_callback(
 
         let mut metrics = HashMap::new();
         metrics.insert(node_name, value);
-        cache.update(&device_id, metrics);
+        cache.update(&device_id, metrics, false);
     }
 }
 

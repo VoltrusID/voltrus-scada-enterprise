@@ -210,8 +210,7 @@ fn topic_matches(filter: &str, topic: &str) -> bool {
     // Both must be exhausted, unless filter ends with "#"
     if fi < filter_parts.len() {
         // remaining filter parts must all be empty or "#"
-        return filter_parts[fi] == "#"
-            || (fi == filter_parts.len() - 1 && filter_parts[fi] == "#");
+        return filter_parts[fi] == "#";
     }
 
     fi == filter_parts.len() && ti == topic_parts.len()

@@ -886,7 +886,7 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
                                 };
                                 metrics.insert(tag_name, value.to_f64());
                             }
-                            cache.update(&device_id, metrics).await;
+                            cache.update(&device_id, metrics, false).await;
                         }
                         Err(e) => {
                             tracing::warn!("S7 device {} read error: {}", device_id, e);

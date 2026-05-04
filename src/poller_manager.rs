@@ -4,24 +4,68 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
-use crate::modbus::ModbusPool;
-use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig, BacnetDeviceConfig, Dnp3DeviceConfig};
+use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig};
 use crate::s7::S7DeviceConfig;
+use crate::storage::Storage;
 
 #[derive(Clone)]
 pub struct PollerManager {
     handles: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
     cache: DeviceCache,
-    modbus_pool: Arc<ModbusPool>,
+    storage: Storage,
 }
 
 impl PollerManager {
-    pub fn new(cache: DeviceCache, modbus_pool: Arc<ModbusPool>) -> Self {
+    pub fn new(cache: DeviceCache, storage: Storage) -> Self {
         Self {
             handles: Arc::new(RwLock::new(HashMap::new())),
             cache,
-            modbus_pool,
+            storage,
         }
+    }
+
+    /// Check if device is in simulation mode and return config.
+    pub async fn get_simulation_config(&self, device_id: &str) -> Option<crate::sim_engine::SimConfig> {
+        let (sim_mode, profile_id, sim_config) = self.storage
+            .get_device_simulation(device_id).await.ok()??;
+
+        if !sim_mode { return None; }
+
+        // Load profile if specified
+        let mut config_str = sim_config.as_ref().map(|s| s.as_str()).unwrap_or("{}").to_string();
+
+        if let Some(pid) = profile_id {
+            if let Ok(Some(profile)) = self.storage.get_sim_profile(pid).await {
+                // Merge profile config with device overrides
+                let mut base: serde_json::Value = serde_json::from_str(&profile.config).unwrap_or_default();
+                if let Some(override_cfg) = &sim_config {
+                    if let Ok(overrides) = serde_json::from_str::<serde_json::Value>(override_cfg) {
+                        if let (Some(base_obj), Some(over_obj)) = (base.as_object_mut(), overrides.as_object()) {
+                            for (k, v) in over_obj {
+                                base_obj.insert(k.clone(), v.clone());
+                            }
+                        }
+                    }
+                }
+                config_str = base.to_string();
+
+                let data_type = profile.data_type.clone();
+                let params: std::collections::HashMap<String, serde_json::Value> =
+                    base.as_object()
+                        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                        .unwrap_or_default();
+                return Some(crate::sim_engine::SimConfig { data_type, params });
+            }
+        }
+
+        // Parse sim config directly
+        let parsed: serde_json::Value = serde_json::from_str(&config_str).unwrap_or_default();
+        let data_type = parsed.get("data_type").and_then(|v| v.as_str()).unwrap_or("constant").to_string();
+        let params: std::collections::HashMap<String, serde_json::Value> = parsed.as_object()
+            .map(|m| m.iter().filter(|(k, _)| *k != "data_type").map(|(k, v)| (k.clone(), v.clone())).collect())
+            .unwrap_or_default();
+
+        Some(crate::sim_engine::SimConfig { data_type, params })
     }
 
     pub async fn start(&self, config: DeviceConfig) {
@@ -30,9 +74,8 @@ impl PollerManager {
             self.stop(&device_id).await;
         }
         let cache = self.cache.clone();
-        let pool = self.modbus_pool.clone();
         let handle = tokio::spawn(async move {
-            crate::modbus::poll_device(config, cache, pool).await;
+            crate::modbus::poll_device(config, cache).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }
@@ -78,30 +121,6 @@ impl PollerManager {
                 },
                 cache,
             ).await;
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    pub async fn start_bacnet(&self, config: BacnetDeviceConfig) {
-        let device_id = config.id.clone();
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let handle = tokio::spawn(async move {
-            crate::bacnet::poll_bacnet_device(config, cache).await;
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
-        let device_id = config.id.clone();
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let handle = tokio::spawn(async move {
-            crate::dnp3::poll_dnp3_device(config, cache).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }

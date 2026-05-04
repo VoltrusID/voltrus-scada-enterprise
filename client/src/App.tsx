@@ -10,7 +10,6 @@ import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { AlarmPanel } from './AlarmPanel'
-import { CopilotPanel } from './copilot/CopilotPanel'
 import { AnnotationPanel } from './AnnotationPanel'
 import { ShiftHandoverPanel } from './ShiftHandoverPanel'
 import { DataExportPanel } from './DataExportPanel'
@@ -21,7 +20,6 @@ import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
 import { SystemPanel } from './components/SystemPanel'
 import { FlowManager } from './FlowManager'
-import { AssetInventory } from './views/AssetInventory'
 import { LayoutBreakpointSelector } from './components/LayoutBreakpointSelector'
 import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
@@ -32,6 +30,8 @@ import { createDashboardStore, DashboardStoreProvider } from './store/dashboardS
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { TrialBanner } from './TrialBanner'
+import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
+import { VoltrusWebSocket } from './api/websocket'
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -54,9 +54,9 @@ function AppInner() {
   const [showDashSettings, setShowDashSettings] = useState(false)
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
   const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows' | 'assets'>(() => {
+  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows'>(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return (m === 'history' || m === 'system' || m === 'flows' || m === 'assets') ? m : 'live'
+    return (m === 'history' || m === 'system' || m === 'flows') ? m : 'live'
   })
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
@@ -78,9 +78,12 @@ function AppInner() {
   const [showExportPanel, setShowExportPanel] = useState(false)
   const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [showShiftHandover, setShowShiftHandover] = useState(false)
-  const [showCopilot, setShowCopilot] = useState(false)
+  const [showSnapshotPanel, setShowSnapshotPanel] = useState(false)
   const [alarmMuted, setAlarmMuted] = useState(false)
   const [turbo, setTurbo] = useState(false)
+
+  // ── WebSocket ──────────────────────────────────────────────────
+  const wsRef = useRef<VoltrusWebSocket | null>(null)
 
   // ── URL sync ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -233,6 +236,33 @@ function AppInner() {
   }
 
   const handleLogout = async () => { await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user') }
+
+  // ── WebSocket connection ───────────────────────────────────────
+  useEffect(() => {
+    if (!authed) {
+      wsRef.current?.disconnect()
+      wsRef.current = null
+      return
+    }
+
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('voltrus_token='))
+      ?.split('=')[1]
+
+    if (!token) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/ws`
+    const ws = new VoltrusWebSocket()
+    ws.connect(wsUrl, token)
+    wsRef.current = ws
+
+    return () => {
+      ws.disconnect()
+      if (wsRef.current === ws) wsRef.current = null
+    }
+  }, [authed])
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -404,7 +434,6 @@ function AppInner() {
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => setShowDataManager(true)}
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
-        onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
         isAdmin={isAdmin}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
@@ -412,7 +441,7 @@ function AppInner() {
         onExportClick={() => setShowExportPanel(true)}
         onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
         onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
-        onCopilotToggle={() => setShowCopilot(v => !v)}
+        onSnapshotsClick={() => setShowSnapshotPanel(v => !v)}
       />
       </header>
 
@@ -420,7 +449,7 @@ function AppInner() {
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
-          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows' || mode === 'assets') setMode('live') }}
+          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows') setMode('live') }}
           onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
           onRenameScreen={handleRenameScreen}
           onDeleteScreen={handleDeleteScreen}
@@ -444,8 +473,7 @@ function AppInner() {
         }}>
           {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
           {mode === 'flows' && <FlowManager isAdmin={isAdmin} />}
-          {mode === 'assets' && <AssetInventory />}
-          {mode !== 'system' && mode !== 'flows' && mode !== 'assets' && (
+          {mode !== 'system' && mode !== 'flows' && (
             <MainContent
               viewMode={viewMode} mode={mode}
               screenSensors={screenSensors}
@@ -511,11 +539,21 @@ function AppInner() {
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
-        {showCopilot && <CopilotPanel onClose={() => setShowCopilot(false)} />}
         {showCommandPanel && <CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} />}
         {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
         {showAnnotationPanel && <AnnotationPanel onClose={() => setShowAnnotationPanel(false)} />}
         {showShiftHandover && <ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} />}
+        {showSnapshotPanel && (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Config Snapshots</h2>
+              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowSnapshotPanel(false)}>Close</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <ConfigSnapshotPanel />
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

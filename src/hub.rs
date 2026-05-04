@@ -138,7 +138,7 @@ async fn process_sse_data(data: &str, site_name: &str, cache: &DeviceCache) {
 
             for (device_id, metrics) in device_metrics {
                 let prefixed_id = format!("{}:{}", site_name, device_id);
-                cache.update(&prefixed_id, metrics).await;
+                cache.update(&prefixed_id, metrics, false).await;
             }
             return;
         }
@@ -155,7 +155,7 @@ async fn process_sse_data(data: &str, site_name: &str, cache: &DeviceCache) {
                     }
                     if !metrics_map.is_empty() {
                         let prefixed_id = format!("{}:{}", site_name, device_id);
-                        cache.update(&prefixed_id, metrics_map).await;
+                        cache.update(&prefixed_id, metrics_map, false).await;
                     }
                 }
             }

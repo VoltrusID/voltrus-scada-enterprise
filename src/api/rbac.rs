@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::models::*;
 use super::{AppError, AppState};
 
-// -- Permission check helper --
+// ── Permission check helper ──
 
 /// Check if an auth user has a specific permission.
 /// Admin users always pass.
@@ -22,19 +22,8 @@ fn license_forbidden() -> Response {
     (StatusCode::FORBIDDEN, Json(json!({"error": "RBAC requires Professional or Enterprise license"}))).into_response()
 }
 
-// -- List roles --
+// ── List roles ──
 
-/// GET /api/v1/roles -- list all roles
-#[utoipa::path(
-    get,
-    path = "/api/v1/roles",
-    responses(
-        (status = 200, body = Vec<crate::models::Role>),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "RBAC",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn list_roles(
     State(state): State<AppState>,
 ) -> Result<Response, AppError> {
@@ -45,21 +34,8 @@ pub async fn list_roles(
     Ok(Json(roles).into_response())
 }
 
-// -- Create role --
+// ── Create role ──
 
-/// POST /api/v1/roles -- create a new role
-#[utoipa::path(
-    post,
-    path = "/api/v1/roles",
-    request_body = CreateRoleRequest,
-    responses(
-        (status = 200, description = "Role created"),
-        (status = 400, description = "Invalid request"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "RBAC",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn create_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -100,22 +76,8 @@ pub async fn create_role(
     Ok(Json(json!({"ok": true, "id": id})).into_response())
 }
 
-// -- Update role --
+// ── Update role ──
 
-/// PUT /api/v1/roles/{id} -- update role
-#[utoipa::path(
-    put,
-    path = "/api/v1/roles/{id}",
-    params(("id" = i64, Path, description = "Role ID")),
-    request_body = UpdateRoleRequest,
-    responses(
-        (status = 200, description = "Role updated"),
-        (status = 400, description = "Invalid request"),
-        (status = 403, description = "License tier too low")
-    ),
-    tag = "RBAC",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn update_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -156,21 +118,8 @@ pub async fn update_role(
     Ok(Json(json!({"ok": true})).into_response())
 }
 
-// -- Delete role --
+// ── Delete role ──
 
-/// DELETE /api/v1/roles/{id} -- delete role
-#[utoipa::path(
-    delete,
-    path = "/api/v1/roles/{id}",
-    params(("id" = i64, Path, description = "Role ID")),
-    responses(
-        (status = 200, description = "Role deleted"),
-        (status = 403, description = "License tier too low"),
-        (status = 404, description = "Role not found")
-    ),
-    tag = "RBAC",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn delete_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -197,23 +146,8 @@ pub async fn delete_role(
     Ok(Json(json!({"ok": true})).into_response())
 }
 
-// -- Assign role to user --
+// ── Assign role to user ──
 
-/// PUT /api/v1/users/{id}/role -- assign role to user
-#[utoipa::path(
-    put,
-    path = "/api/v1/users/{id}/role",
-    params(("id" = i64, Path, description = "User ID")),
-    request_body = AssignRoleRequest,
-    responses(
-        (status = 200, description = "Role assigned"),
-        (status = 400, description = "Role not found"),
-        (status = 403, description = "License tier too low"),
-        (status = 404, description = "User not found")
-    ),
-    tag = "RBAC",
-    security(("api_key" = []), ("cookie_auth" = []))
-)]
 pub async fn assign_user_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -248,7 +182,7 @@ pub async fn assign_user_role(
     Ok(Json(json!({"ok": true})).into_response())
 }
 
-// -- Tests --
+// ── Tests ──
 
 #[cfg(test)]
 mod tests {

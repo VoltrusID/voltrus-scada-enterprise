@@ -797,7 +797,7 @@ async fn try_poll_cycle(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -
     client.disconnect().await.ok();
 
     if !metrics.is_empty() {
-        cache.update(&config.id, metrics).await;
+        cache.update(&config.id, metrics, false).await;
     }
 
     Ok(())
