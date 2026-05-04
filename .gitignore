@@ -8,3 +8,18 @@ client-lit/node_modules/
 client-lit/dist/
 .playwright-mcp/
 client/.env
+
+# Backup tarballs from restore operations
+voltrus-pre-restore-*.tar.gz
+
+# Claude agent worktrees
+.claude/worktrees/
+
+# Wrangler cache
+.wrangler/
+
+# OS artifacts
+.DS_Store
+
+# License activation binary (sensitive)
+license-activation.bin

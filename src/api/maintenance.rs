@@ -1,7 +1,6 @@
 use axum::extract::{Extension, Path, State};
 use axum::response::IntoResponse;
 use axum::Json;
-use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
 use crate::asset::models::CreateMaintenanceRequest;
