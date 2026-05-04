@@ -4,7 +4,6 @@ import {
   useImportAssets,
   useConfirmImport,
 } from '../queries/assets'
-import type { Asset } from '../queries/assets'
 
 interface Props {
   onClose: () => void
@@ -12,11 +11,19 @@ interface Props {
 
 type Step = 1 | 2 | 3
 
+interface UploadResult {
+  import_id: string
+  rows: Record<string, unknown>[]
+  total: number
+  valid: number
+  errors: string[]
+}
+
 export function AssetImportWizard({ onClose }: Props) {
   const [step, setStep] = useState<Step>(1)
   const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<{ preview: Partial<Asset>[]; total: number } | null>(null)
-  const [confirmResult, setConfirmResult] = useState<{ imported: number; skipped: number } | null>(null)
+  const [preview, setPreview] = useState<UploadResult | null>(null)
+  const [confirmResult, setConfirmResult] = useState<{ created: number; skipped_duplicates: number } | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -61,7 +68,7 @@ export function AssetImportWizard({ onClose }: Props) {
     if (!preview) return
     setErrors([])
     try {
-      const result = await confirmImport.mutateAsync(preview.preview)
+      const result = await confirmImport.mutateAsync(preview.import_id)
       setConfirmResult(result)
       setStep(3)
     } catch (e: any) {
@@ -90,6 +97,9 @@ export function AssetImportWizard({ onClose }: Props) {
       {n}. {label}
     </span>
   )
+
+  const validCount = preview?.valid ?? 0
+  const errorCount = preview ? preview.total - preview.valid : 0
 
   return (
     <div
@@ -194,17 +204,17 @@ export function AssetImportWizard({ onClose }: Props) {
                   <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Rows</div>
                 </div>
                 <div style={{ padding: '10px 12px', borderRadius: 6, background: 'rgba(34,197,94,.08)', border: '1px solid var(--ok)', textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--ok)' }}>{preview.preview.length}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--ok)' }}>{validCount}</div>
                   <div style={{ fontSize: 10, color: 'var(--ok)', textTransform: 'uppercase', fontWeight: 600 }}>Valid</div>
                 </div>
                 <div style={{ padding: '10px 12px', borderRadius: 6, background: 'rgba(239,68,68,.08)', border: '1px solid var(--crit)', textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--crit)' }}>{preview.total - preview.preview.length}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--crit)' }}>{errorCount}</div>
                   <div style={{ fontSize: 10, color: 'var(--crit)', textTransform: 'uppercase', fontWeight: 600 }}>Errors</div>
                 </div>
               </div>
 
               {/* Preview table (first 5 rows) */}
-              {preview.preview.length > 0 && (
+              {preview.rows.length > 0 && (
                 <div style={{ borderRadius: 6, border: '1px solid var(--border)', overflow: 'hidden', maxHeight: 200, overflowY: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -216,19 +226,19 @@ export function AssetImportWizard({ onClose }: Props) {
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.preview.slice(0, 5).map((a, i) => (
+                      {preview.rows.slice(0, 5).map((a, i) => (
                         <tr key={i}>
-                          <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{a.name || '--'}</td>
-                          <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{a.asset_type || '--'}</td>
-                          <td style={{ padding: '5px 8px', fontSize: 11, fontFamily: "'JetBrains Mono',monospace", borderBottom: '1px solid var(--border)' }}>{a.ip_address || '--'}</td>
-                          <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{a.vendor || '--'}</td>
+                          <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{(a.name as string) || '--'}</td>
+                          <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{(a.asset_type as string) || '--'}</td>
+                          <td style={{ padding: '5px 8px', fontSize: 11, fontFamily: "'JetBrains Mono',monospace", borderBottom: '1px solid var(--border)' }}>{(a.ip_address as string) || '--'}</td>
+                          <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{(a.vendor as string) || '--'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {preview.preview.length > 5 && (
+                  {preview.rows.length > 5 && (
                     <div style={{ padding: '6px 8px', fontSize: 10, color: 'var(--muted)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
-                      ...and {preview.preview.length - 5} more rows
+                      ...and {preview.rows.length - 5} more rows
                     </div>
                   )}
                 </div>
@@ -254,16 +264,16 @@ export function AssetImportWizard({ onClose }: Props) {
                 </button>
                 <button
                   onClick={handleConfirm}
-                  disabled={preview.preview.length === 0 || busy}
+                  disabled={validCount === 0 || busy}
                   style={{
-                    padding: '8px 14px', borderRadius: 6, border: `1px solid ${preview.preview.length > 0 && !busy ? 'var(--cyan)' : 'var(--border)'}`,
-                    background: preview.preview.length > 0 && !busy ? 'var(--cyan)' : 'transparent',
-                    color: preview.preview.length > 0 && !busy ? '#fff' : 'var(--muted)',
-                    cursor: preview.preview.length > 0 && !busy ? 'pointer' : 'not-allowed',
+                    padding: '8px 14px', borderRadius: 6, border: `1px solid ${validCount > 0 && !busy ? 'var(--cyan)' : 'var(--border)'}`,
+                    background: validCount > 0 && !busy ? 'var(--cyan)' : 'transparent',
+                    color: validCount > 0 && !busy ? '#fff' : 'var(--muted)',
+                    cursor: validCount > 0 && !busy ? 'pointer' : 'not-allowed',
                     fontSize: 13, fontWeight: 600, opacity: busy ? 0.6 : 1,
                   }}
                 >
-                  {confirmImport.isPending ? 'Importing...' : `Confirm Import (${preview.preview.length})`}
+                  {confirmImport.isPending ? 'Importing...' : `Confirm Import (${validCount})`}
                 </button>
               </div>
             </>
@@ -276,12 +286,12 @@ export function AssetImportWizard({ onClose }: Props) {
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ok)', marginBottom: 12 }}>Import complete</div>
                 <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--ok)' }}>{confirmResult.imported}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--ok)' }}>{confirmResult.created}</div>
                     <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Created</div>
                   </div>
                   <div style={{ width: 1, background: 'var(--border)' }} />
                   <div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--muted)' }}>{confirmResult.skipped}</div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--muted)' }}>{confirmResult.skipped_duplicates}</div>
                     <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Skipped</div>
                   </div>
                 </div>

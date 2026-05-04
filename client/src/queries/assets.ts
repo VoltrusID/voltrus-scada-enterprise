@@ -17,7 +17,7 @@ export interface Asset {
   mac_address: string | null
   location: string | null
   criticality: string
-  tags: string
+  tags: string[]
   risk_score: number
   last_maintenance: string | null
   notes: string | null
@@ -49,7 +49,7 @@ export interface SnmpScanResult {
   ip: string
   sys_descr: string | null
   sys_name: string | null
-  sys_uptime: number | null
+  sys_uptime: string | null
   vendor: string | null
   model: string | null
   firmware: string | null
@@ -250,12 +250,13 @@ export function useDeleteFirmwareEntry() {
 export function useStartScan() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (params?: { subnet: string }) => {
-      const sp = new URLSearchParams()
-      if (params?.subnet) sp.set('subnet', params.subnet)
-      const qs = sp.toString()
-      const res = await fetchOk(`/api/v1/snmp/scan${qs ? '?' + qs : ''}`, { method: 'POST' })
-      return res.json() as Promise<{ task_id: string }>
+    mutationFn: async (params: { subnet: string; community?: string; timeout_ms?: number }) => {
+      const res = await fetchOk('/api/v1/snmp/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      })
+      return res.json() as Promise<{ ok: boolean; message: string }>
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: assetQueryKeys.scanStatus })
@@ -305,7 +306,7 @@ export function useImportAssets() {
         method: 'POST',
         body: fd,
       })
-      return res.json() as Promise<{ preview: Partial<Asset>[]; total: number }>
+      return res.json() as Promise<{ import_id: string; rows: Record<string, unknown>[]; total: number; valid: number; errors: string[] }>
     },
   })
 }
@@ -313,13 +314,13 @@ export function useImportAssets() {
 export function useConfirmImport() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (assets: Partial<Asset>[]) => {
+    mutationFn: async (import_id: string) => {
       const res = await fetchOk('/api/v1/assets/import/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assets }),
+        body: JSON.stringify({ import_id }),
       })
-      return res.json() as Promise<{ imported: number; skipped: number }>
+      return res.json() as Promise<{ total: number; created: number; skipped_duplicates: number; errors: string[] }>
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: assetQueryKeys.assets })
@@ -350,6 +351,6 @@ export function useNis2Export() {
 export function useIpConflicts() {
   return useQuery({
     queryKey: assetQueryKeys.ipConflicts,
-    queryFn: () => fetchJson<{ ip: string; asset_ids: string[]; count: number }[]>('/api/v1/assets/ip-conflicts'),
+    queryFn: () => fetchJson<{ ip: string; assets: { id: string; name: string }[] }[]>('/api/v1/assets/ip-conflicts'),
   })
 }
