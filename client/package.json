@@ -9,7 +9,7 @@
   "packageManager": "npm@10.9.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && rm -f dist/**/*.map dist/*.map",
+    "build": "tsc && vite build && rm -f dist/**/*.map dist/*.map && cp -r public/locales ../static/locales",
     "preview": "vite preview"
   },
   "dependencies": {
