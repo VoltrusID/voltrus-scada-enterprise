@@ -68,6 +68,10 @@ pub async fn create_maintenance(
         return Err(AppError(anyhow::anyhow!("Description is required")));
     }
 
+    if body.technician.trim().is_empty() {
+        return Err(AppError(anyhow::anyhow!("Technician is required")));
+    }
+
     if body.performed_at.trim().is_empty() {
         return Err(AppError(anyhow::anyhow!("Performed-at date is required")));
     }

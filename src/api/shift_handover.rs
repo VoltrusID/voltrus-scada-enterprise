@@ -123,7 +123,7 @@ pub async fn create_shift_handover(
                     .create_notification(&CreateNotificationRequest {
                         user_id: mentioned_user.id,
                         from_user_id: author_id,
-                        notification_type: "shift_handover_mention".to_string(),
+                        notification_type: "shift_handover".to_string(),
                         message: format!(
                             "You were mentioned in a shift handover log for {} ({})",
                             req.shift_date, req.shift_period

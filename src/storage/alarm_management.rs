@@ -203,6 +203,54 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    /// Automatically unshelf alarms whose shelved_until timestamp has expired.
+    pub async fn auto_unshelf_expired_alarms(&self) -> Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+
+            // Find expired shelved alarms
+            let expired_ids: Vec<i64> = {
+                let mut stmt = conn.prepare(
+                    "SELECT id FROM alarms WHERE state = 'shelved' AND shelved_until IS NOT NULL AND shelved_until <= ?1",
+                )?;
+                let rows = stmt.query_map(rusqlite::params![now], |row| row.get::<_, i64>(0))?;
+                rows.collect::<Result<Vec<_>, _>>().unwrap_or_default()
+            };
+
+            if expired_ids.is_empty() {
+                return Ok(());
+            }
+
+            // Unshelf each expired alarm
+            for id in &expired_ids {
+                let new_state: String = conn
+                    .query_row(
+                        "SELECT CASE WHEN acknowledged_at IS NOT NULL THEN 'acknowledged' ELSE 'active' END FROM alarms WHERE id = ?1",
+                        rusqlite::params![id],
+                        |row| row.get(0),
+                    )
+                    .unwrap_or_else(|_| "active".to_string());
+
+                conn.execute(
+                    "UPDATE alarms SET shelved_until = NULL, shelved_by = NULL, shelved_reason = NULL, state = ?1 WHERE id = ?2",
+                    rusqlite::params![new_state, id],
+                )
+                .context("Auto-unshelf alarm failed")?;
+
+                let _ = conn.execute(
+                    "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'auto_unshelved', 'system', '{}', ?2)",
+                    rusqlite::params![id, now],
+                );
+            }
+
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     // ── Alarm audit ──
 
     pub async fn create_alarm_audit_entry(

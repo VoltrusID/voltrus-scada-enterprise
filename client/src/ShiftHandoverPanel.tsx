@@ -232,8 +232,73 @@ function HandoverLogTab() {
   )
 }
 
-function ReportSection({ title, items, color }: { title: string; items: any[]; color: string }) {
+function ReportSection({ title, items, color, type }: { title: string; items: any[]; color: string; type?: 'alarm' | 'annotation' | 'handover' | 'security' }) {
   if (items.length === 0) return null
+
+  const renderItem = (item: any, i: number) => {
+    if (typeof item === 'string') {
+      return <div key={i} style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>{item}</div>
+    }
+
+    if (type === 'alarm' || item.severity && item.triggered_at != null) {
+      const sevColor = item.severity === 'critical' ? 'var(--crit)' : item.severity === 'warning' ? 'var(--warn)' : 'var(--muted)'
+      return (
+        <div key={i} style={{ fontSize: 12, color: 'var(--text)', padding: '4px 0', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{
+            display: 'inline-block', padding: '1px 6px', borderRadius: 4,
+            fontSize: 10, fontWeight: 600, background: `${sevColor}20`, color: sevColor,
+            textTransform: 'uppercase', flexShrink: 0,
+          }}>{item.severity || 'info'}</span>
+          <span style={{ flex: 1 }}>{item.message || item.source_name || 'Alarm'}</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+            {formatTimestamp(item.triggered_at)}
+          </span>
+        </div>
+      )
+    }
+
+    if (type === 'annotation' || item.annotation_text != null) {
+      return (
+        <div key={i} style={{ fontSize: 12, color: 'var(--text)', padding: '4px 0', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600, flexShrink: 0 }}>@{item.author_id}</span>
+          <span style={{ flex: 1 }}>{item.annotation_text}</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+            {formatTimestamp(item.created_at)}
+          </span>
+        </div>
+      )
+    }
+
+    if (type === 'handover' || item.what_happened != null) {
+      return (
+        <div key={i} style={{ fontSize: 12, color: 'var(--text)', padding: '4px 0', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600, flexShrink: 0 }}>@{item.author_id}</span>
+          <span style={{ flex: 1 }}>{item.what_happened}</span>
+        </div>
+      )
+    }
+
+    if (type === 'security' || item.event_type != null) {
+      const evSevColor = item.severity === 'critical' ? 'var(--crit)' : item.severity === 'warning' ? 'var(--warn)' : 'var(--muted)'
+      return (
+        <div key={i} style={{ fontSize: 12, color: 'var(--text)', padding: '4px 0', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{
+            display: 'inline-block', padding: '1px 6px', borderRadius: 4,
+            fontSize: 10, fontWeight: 600, background: `${evSevColor}20`, color: evSevColor,
+            textTransform: 'uppercase', flexShrink: 0,
+          }}>{item.severity}</span>
+          <span style={{ flex: 1 }}>{item.details || item.event_type}</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+            {formatTimestamp(item.created_at)}
+          </span>
+        </div>
+      )
+    }
+
+    // Fallback for unknown shapes
+    return <div key={i} style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>{JSON.stringify(item)}</div>
+  }
+
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -244,11 +309,7 @@ function ReportSection({ title, items, color }: { title: string; items: any[]; c
         }}>{items.length}</span>
       </div>
       <div style={{ paddingLeft: 12, borderLeft: `2px solid ${color}40` }}>
-        {items.map((item, i) => (
-          <div key={i} style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>
-            {typeof item === 'string' ? item : JSON.stringify(item)}
-          </div>
-        ))}
+        {items.map((item, i) => renderItem(item, i))}
       </div>
     </div>
   )
@@ -293,22 +354,22 @@ function AutoReportTab() {
 
       {/* Alarms section */}
       <div style={sectionCard}>
-        <ReportSection title="Alarms" items={report.alarms || []} color="var(--crit)" />
+        <ReportSection title="Alarms" items={report.alarms || []} color="var(--crit)" type="alarm" />
       </div>
 
       {/* Annotations section */}
       <div style={sectionCard}>
-        <ReportSection title="Annotations" items={report.annotations || []} color="var(--ok)" />
+        <ReportSection title="Annotations" items={report.annotations || []} color="var(--ok)" type="annotation" />
       </div>
 
       {/* Handover notes section */}
       <div style={sectionCard}>
-        <ReportSection title="Handover Notes" items={report.handovers || []} color="#60a5fa" />
+        <ReportSection title="Handover Notes" items={report.handovers || []} color="#60a5fa" type="handover" />
       </div>
 
       {/* Security events section */}
       <div style={sectionCard}>
-        <ReportSection title="Security Events" items={report.security_events || []} color="var(--warn)" />
+        <ReportSection title="Security Events" items={report.security_events || []} color="var(--warn)" type="security" />
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: '8px 0', opacity: 0.6 }}>

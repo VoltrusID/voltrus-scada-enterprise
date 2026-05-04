@@ -171,7 +171,7 @@ impl NodeConfig {
                 let severity = severity.clone();
                 let message = message.clone();
                 tokio::runtime::Handle::current().spawn(async move {
-                    let _ = storage.create_alarm(&source_key, &severity, 0.0, 0.0, &message).await;
+                    let _ = storage.create_alarm(&source_key, &severity, 0.0, 0.0, &message, 0.0).await;
                 });
                 Ok(NodeResult::Continue(msg))
             }

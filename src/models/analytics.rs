@@ -89,7 +89,7 @@ pub struct RunChartResult {
     pub runs_count: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CustomMetric {
     pub id: i64,
     pub name: String,
@@ -102,7 +102,7 @@ pub struct CustomMetric {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CustomMetricValue {
     pub id: i64,
     pub name: String,
@@ -110,4 +110,20 @@ pub struct CustomMetricValue {
     pub unit: Option<String>,
     pub computed_at: i64,
     pub tag_values: HashMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CreateCustomMetricRequest {
+    pub name: String,
+    pub description: String,
+    pub formula: String,
+    pub unit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct UpdateCustomMetricRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub formula: Option<String>,
+    pub unit: Option<Option<String>>,
 }

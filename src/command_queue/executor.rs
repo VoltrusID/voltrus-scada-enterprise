@@ -1,5 +1,6 @@
 use super::*;
 use crate::models::WriteResult;
+use crate::dnp3::master::Dnp3MasterSession;
 
 impl CommandQueue {
     pub(super) async fn execute_write(&self, cmd: &crate::models::Command) -> WriteResult {
@@ -26,6 +27,8 @@ impl CommandQueue {
                 error: None,
                 latency_ms: 0,
             },
+            "dnp3" => self.execute_dnp3_write(cmd, value).await,
+            "bacnet" => self.execute_bacnet_write(cmd, value).await,
             _ => WriteResult {
                 success: false,
                 device_response: None,
@@ -233,5 +236,125 @@ impl CommandQueue {
         let (ip, port) = Self::parse_ip_port(&device.url, 44818);
 
         crate::ethernet_ip::write_tag(&ip, port, &tag_name, value).await
+    }
+
+    pub(super) async fn execute_dnp3_write(
+        &self,
+        cmd: &crate::models::Command,
+        value: f64,
+    ) -> WriteResult {
+        let ds = match self.storage.get_data_source_by_id(cmd.data_source_id).await {
+            Ok(Some(ds)) => ds,
+            _ => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some("Data source not found".to_string()),
+                    latency_ms: 0,
+                }
+            }
+        };
+
+        let point_index = match Self::parse_dnp3_point_index(&ds.source_config) {
+            Some(idx) => idx,
+            None => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some("Could not parse DNP3 point index from source_config".to_string()),
+                    latency_ms: 0,
+                }
+            }
+        };
+
+        let device = match self.storage.get_dnp3_device(cmd.device_id).await {
+            Ok(Some(d)) => d,
+            _ => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some(format!("DNP3 device {} not found", cmd.device_id)),
+                    latency_ms: 0,
+                }
+            }
+        };
+
+        let on = value != 0.0;
+        match Dnp3MasterSession::connect(
+            &device.ip,
+            device.port,
+            device.master_address,
+            device.outstation_address,
+        )
+        .await
+        {
+            Ok(mut session) => session.direct_operate_binary(point_index, on).await.unwrap_or_else(|e| WriteResult {
+                success: false,
+                device_response: None,
+                error: Some(format!("DNP3 write failed: {e}")),
+                latency_ms: 0,
+            }),
+            Err(e) => WriteResult {
+                success: false,
+                device_response: None,
+                error: Some(format!("DNP3 connect failed: {e}")),
+                latency_ms: 0,
+            },
+        }
+    }
+
+    pub(super) async fn execute_bacnet_write(
+        &self,
+        cmd: &crate::models::Command,
+        value: f64,
+    ) -> WriteResult {
+        let ds = match self.storage.get_data_source_by_id(cmd.data_source_id).await {
+            Ok(Some(ds)) => ds,
+            _ => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some("Data source not found".to_string()),
+                    latency_ms: 0,
+                }
+            }
+        };
+
+        let (object_type, object_instance, property) =
+            match Self::parse_bacnet_object_info(&ds.source_config) {
+                Some(info) => info,
+                None => {
+                    return WriteResult {
+                        success: false,
+                        device_response: None,
+                        error: Some(
+                            "Could not parse BACnet object info from source_config".to_string(),
+                        ),
+                        latency_ms: 0,
+                    }
+                }
+            };
+
+        let device = match self.storage.get_bacnet_device(cmd.device_id).await {
+            Ok(Some(d)) => d,
+            _ => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some(format!("BACnet device {} not found", cmd.device_id)),
+                    latency_ms: 0,
+                }
+            }
+        };
+
+        crate::bacnet::write_property(
+            &device.ip,
+            device.port,
+            &object_type,
+            object_instance,
+            &property,
+            value,
+        )
+        .await
     }
 }

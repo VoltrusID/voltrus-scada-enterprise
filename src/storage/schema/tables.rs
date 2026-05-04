@@ -78,7 +78,7 @@ pub(super) fn create_tables(conn: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS alarms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source_key TEXT NOT NULL,
-            severity TEXT NOT NULL CHECK(severity IN ('warning', 'critical')),
+            severity TEXT NOT NULL CHECK(severity IN ('warning', 'critical', 'info')),
             value REAL NOT NULL,
             threshold REAL NOT NULL,
             message TEXT NOT NULL,

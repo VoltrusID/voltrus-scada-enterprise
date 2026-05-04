@@ -84,6 +84,11 @@ pub async fn create_device(
         )
         .await?;
 
+    // Sync to asset inventory
+    crate::asset::sync::on_device_created(
+        &state.storage.asset(), "dnp3", &id.to_string(), &req.name, Some(&req.ip), "rtu",
+    ).await;
+
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_dnp3_device".to_string(),
         username: user.username.clone(),
@@ -176,6 +181,9 @@ pub async fn delete_device(
     // Stop poller if running
     let device_key = format!("dnp3_{}", id);
     state.poller_manager.stop(&device_key).await;
+
+    // Sync to asset inventory
+    crate::asset::sync::on_device_deleted(&state.storage.asset(), "dnp3", &id.to_string()).await;
 
     Ok(StatusCode::NO_CONTENT)
 }

@@ -44,7 +44,10 @@ mod websocket;
 mod auth_middleware;
 mod import_nodered;
 mod csv_import;
+mod compression;
 mod mqtt_broker;
+#[cfg(feature = "openapi")]
+mod openapi;
 
 use axum::{
     extract::{Request, State},
@@ -234,6 +237,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/widgets/{id}/uninstall", delete(crate::widget_sdk::widget_api::delete_widget))
         .route("/api/v1/stream", get(stream::stream))
         .route("/api/v1/system", get(system::get_system))
+        .route("/api/v1/system/memory", get(compression::get_system_memory))
+        .route("/api/v1/compression/stats", get(compression::get_compression_stats))
+        .route("/api/v1/compression/config", get(compression::get_compression_config))
         .route("/api/v1/version", get(system::get_version))
         .route("/api/v1/auth/change-password", post(auth::change_password))
         .route("/api/v1/data", get(data::get_data))
@@ -288,6 +294,12 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
         .route("/api/v1/analytics/compare", get(analytics::get_compare))
+        .route("/api/v1/analytics/spc", get(analytics::get_spc))
+        .route("/api/v1/analytics/histogram", get(analytics::get_histogram))
+        .route("/api/v1/analytics/run-chart", get(analytics::get_run_chart))
+        .route("/api/v1/analytics/custom-metrics", get(analytics::list_custom_metrics).post(analytics::create_custom_metric))
+        .route("/api/v1/analytics/custom-metrics/evaluate", get(analytics::evaluate_all_custom_metrics))
+        .route("/api/v1/analytics/custom-metrics/{id}", put(analytics::update_custom_metric).delete(analytics::delete_custom_metric))
         .route("/api/v1/settings/ui-theme", get(settings::get_ui_theme).put(settings::update_ui_theme))
         .route("/api/v1/settings/ui-lang", get(settings::get_ui_lang).put(settings::update_ui_lang))
         .route(
@@ -296,6 +308,18 @@ pub fn create_router(state: AppState) -> Router {
         )
         // MQTT broker status (any authenticated user)
         .route("/api/v1/mqtt-broker/status", get(mqtt_broker::get_status))
+        // AI Copilot routes (any authenticated user)
+        .route("/api/v1/ai/settings", get(ai_copilot::get_ai_settings))
+        .route("/api/v1/ai/settings/test", post(ai_copilot::test_ai_settings))
+        .route("/api/v1/ai/proposals", get(ai_copilot::list_proposals))
+        .route("/api/v1/ai/proposals/{id}", get(ai_copilot::get_proposal))
+        .route("/api/v1/ai/generate/register-map", post(ai_copilot::generate_register_map))
+        .route("/api/v1/ai/generate/dashboard-layout", post(ai_copilot::generate_dashboard_layout))
+        .route("/api/v1/ai/generate/alarm-thresholds", post(ai_copilot::generate_alarm_thresholds))
+        .route("/api/v1/ai/generate/tag-rename", post(ai_copilot::generate_tag_rename))
+        .route("/api/v1/ai/generate/flow-rule", post(ai_copilot::generate_flow_rule))
+        .route("/api/v1/ai/templates", get(ai_copilot::list_templates))
+        .route("/api/v1/ai/generate/from-template", post(ai_copilot::generate_from_template))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -469,6 +493,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/config/snapshots/{id}", get(config_snapshots::get_snapshot))
         .route("/api/v1/config/snapshots/{from_id}/diff/{to_id}", get(config_snapshots::diff_snapshots))
         .route("/api/v1/config/snapshots/{id}/rollback", post(config_snapshots::rollback))
+        // AI Copilot admin routes
+        .route("/api/v1/ai/settings", put(ai_copilot::update_ai_settings))
+        .route("/api/v1/ai/proposals/{id}/approve", post(ai_copilot::approve_proposal))
+        .route("/api/v1/ai/proposals/{id}/reject", post(ai_copilot::reject_proposal))
+        .route("/api/v1/ai/proposals/{id}/apply", post(ai_copilot::apply_proposal))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

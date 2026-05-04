@@ -95,6 +95,36 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
+    pub async fn get_bacnet_device(&self, id: i64) -> anyhow::Result<Option<crate::models::BacnetDevice>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let result = conn.query_row(
+                "SELECT id, name, ip, port, device_instance, interval_ms, cov_enabled, cov_lifetime, enabled, created_at FROM bacnet_devices WHERE id = ?1",
+                rusqlite::params![id],
+                |row| {
+                    Ok(crate::models::BacnetDevice {
+                        id: row.get(0)?,
+                        name: row.get(1)?,
+                        ip: row.get(2)?,
+                        port: row.get(3)?,
+                        device_instance: row.get(4)?,
+                        interval_ms: row.get(5)?,
+                        cov_enabled: row.get::<_, i64>(6)? != 0,
+                        cov_lifetime: row.get(7)?,
+                        enabled: row.get::<_, i64>(8)? != 0,
+                        created_at: row.get(9)?,
+                    })
+                },
+            );
+            match result {
+                Ok(device) => Ok(Some(device)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e.into()),
+            }
+        }).await.context("Task join failed")?
+    }
+
     pub async fn delete_bacnet_device(&self, id: i64) -> anyhow::Result<bool> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {

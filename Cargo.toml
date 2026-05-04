@@ -28,6 +28,14 @@ path = "src/bin/mqtt-sim.rs"
 name = "dnp3-sim"
 path = "src/bin/dnp3-sim.rs"
 
+[[bin]]
+name = "bacnet-sim"
+path = "src/bin/bacnet-sim.rs"
+
+[features]
+default = []
+openapi = []
+
 [dependencies]
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
 tokio-stream = { version = "=0.1.18", features = ["sync"] }

@@ -26,6 +26,7 @@ export const queryKeys = {
   flow: (id: string) => ['flow', id] as const,
   flowRuns: (id: string) => ['flowRuns', id] as const,
   notificationSettings: ['notificationSettings'] as const,
+  userNotifications: () => ['user-notifications'] as const,
   apiKeys: ['api-keys'] as const,
   securityEvents: ['securityEvents'] as const,
   securityThresholds: ['securityThresholds'] as const,
@@ -51,4 +52,6 @@ export const queryKeys = {
   auditLogs: (params: Record<string, any>) => ['auditLogs', params] as const,
   auditExport: (params: Record<string, any>) => ['auditExport', params] as const,
   mqttBroker: ['mqttBroker'] as const,
+  bacnetDevices: ['bacnetDevices'] as const,
+  bacnetDevice: (id: string) => ['bacnetDevice', id] as const,
 }

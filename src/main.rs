@@ -27,6 +27,7 @@ mod hub;
 mod report;
 mod report_scheduler;
 mod analytics;
+mod asset;
 mod compliance;
 mod command_queue;
 mod recipe;
@@ -37,6 +38,8 @@ mod script_engine;
 mod ws_manager;
 mod ws_types;
 mod ai_copilot;
+mod compression;
+mod deadband;
 mod import_nodered;
 mod mqtt_broker;
 mod ha;
@@ -145,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
         &app_config.db_path,
         app_config.db_encryption_key.as_deref(),
     )?;
+    let cache = cache.with_storage(storage.clone());
     let license_status = license::resolve_license_status(&storage).await;
     let license_tier = license_status.tier();
     let feature_flags = license_status.feature_flags();
@@ -388,6 +392,13 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         };
 
+                        // Parse alarm deadband from source configuration
+                        let deadband: f64 = if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&source.source_config) {
+                            cfg.get("deadband").and_then(|v| v.as_f64()).unwrap_or(0.0)
+                        } else {
+                            0.0
+                        };
+
                         if source.crit_val > 0.0 && value >= source.crit_val {
                             // Non-repeating: check for any unresolved alarm (not just un-acked)
                             let has_unresolved = storage.has_unresolved_alarm(&source.key, "critical").await.unwrap_or(false);
@@ -397,7 +408,7 @@ async fn main() -> anyhow::Result<()> {
                                     "{} reached {}{} (critical: {}{})",
                                     source.name, value, source.unit, source.crit_val, source.unit
                                 );
-                                match storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg).await {
+                                match storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg, deadband).await {
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
@@ -419,7 +430,7 @@ async fn main() -> anyhow::Result<()> {
                                             shelved_until: None,
                                             shelved_by: None,
                                             shelved_reason: None,
-                                            deadband: 0.0,
+                                            deadband,
                                             state: "active".to_string(),
                                         };
                                         // Broadcast alarm via WebSocket
@@ -455,7 +466,7 @@ async fn main() -> anyhow::Result<()> {
                                     "{} reached {}{} (warning: {}{})",
                                     source.name, value, source.unit, source.warn_val, source.unit
                                 );
-                                match storage.create_alarm(&source.key, "warning", value, source.warn_val, &msg).await {
+                                match storage.create_alarm(&source.key, "warning", value, source.warn_val, &msg, deadband).await {
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
@@ -477,7 +488,7 @@ async fn main() -> anyhow::Result<()> {
                                             shelved_until: None,
                                             shelved_by: None,
                                             shelved_reason: None,
-                                            deadband: 0.0,
+                                            deadband,
                                             state: "active".to_string(),
                                         };
                                         // Broadcast alarm via WebSocket
@@ -522,6 +533,20 @@ async fn main() -> anyhow::Result<()> {
         let retention_config = app_config.retention.clone();
         tokio::spawn(async move {
             retention::run_retention_task(storage, retention_config).await;
+        });
+    }
+
+    // Spawn alarm auto-unshelf task
+    {
+        let storage = storage.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                if let Err(e) = storage.auto_unshelf_expired_alarms().await {
+                    tracing::warn!("Auto-unshelf task failed: {}", e);
+                }
+            }
         });
     }
 

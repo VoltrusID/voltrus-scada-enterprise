@@ -260,10 +260,57 @@ pub(super) fn run_migrations(conn: &Connection) {
     // Migration: v0.32.0 -- UNS path column on data_sources for tag browser tree
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN path TEXT DEFAULT NULL");
 
+    // Migration: v0.28.0 -- Custom metrics table for analytics
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS custom_metrics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT NOT NULL DEFAULT '',
+            formula TEXT NOT NULL,
+            unit TEXT,
+            tag_refs TEXT NOT NULL DEFAULT '[]',
+            validation_error TEXT,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );"
+    );
+
     // Migration: v0.32.0 -- Audit log search indexes
     let _ = conn.execute_batch(
         "CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
          CREATE INDEX IF NOT EXISTS idx_audit_log_username ON audit_log(username);
          CREATE INDEX IF NOT EXISTS idx_audit_log_action_user_time ON audit_log(action, username, created_at);"
+    );
+
+    // Migration: fix alarms CHECK constraint to allow 'info' severity
+    let _ = conn.execute_batch(
+        "PRAGMA foreign_keys = OFF;
+         DROP TABLE IF EXISTS alarms_new;
+         CREATE TABLE alarms_new (
+             id INTEGER PRIMARY KEY AUTOINCREMENT,
+             source_key TEXT NOT NULL,
+             severity TEXT NOT NULL CHECK(severity IN ('warning', 'critical', 'info')),
+             value REAL NOT NULL,
+             threshold REAL NOT NULL,
+             message TEXT NOT NULL,
+             triggered_at INTEGER NOT NULL,
+             resolved_at INTEGER,
+             acknowledged_at INTEGER,
+             acknowledged_by TEXT,
+             cooldown_until INTEGER,
+             priority TEXT NOT NULL DEFAULT 'warning',
+             shelved_until INTEGER,
+             shelved_by TEXT,
+             shelved_reason TEXT,
+             deadband REAL NOT NULL DEFAULT 0,
+             state TEXT NOT NULL DEFAULT 'active',
+             source_name TEXT NOT NULL DEFAULT ''
+         );
+         INSERT INTO alarms_new SELECT * FROM alarms;
+         DROP TABLE alarms;
+         ALTER TABLE alarms_new RENAME TO alarms;
+         CREATE INDEX IF NOT EXISTS idx_alarms_active ON alarms(source_key, severity, acknowledged_at);
+         CREATE INDEX IF NOT EXISTS idx_alarms_triggered ON alarms(triggered_at DESC);
+         PRAGMA foreign_keys = ON;"
     );
 }

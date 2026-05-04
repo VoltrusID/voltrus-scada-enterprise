@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use crate::cache::DeviceCache;
 use crate::models::{BacnetDeviceConfig, DeviceStatus};
 
-use bacnet_rs::client::BacnetClient;
 use bacnet_rs::network::Npdu;
 use bacnet_rs::object::{ObjectIdentifier, PropertyIdentifier};
 use bacnet_rs::service::{
@@ -91,14 +90,17 @@ async fn try_poll_cycle(config: &BacnetDeviceConfig) -> Result<HashMap<String, f
     let rpm_request = ReadPropertyMultipleRequest::new(read_specs);
 
     let metrics = tokio::task::spawn_blocking(move || -> Result<HashMap<String, f64>> {
-        let client = BacnetClient::new().map_err(|e| anyhow::anyhow!("BACnet client create failed: {e}"))?;
+        // Bind socket once and reuse for the entire poll cycle
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0")
+            .context("BACnet socket bind failed")?;
+        socket.set_read_timeout(Some(Duration::from_secs(6)))
+            .context("BACnet socket set_read_timeout failed")?;
 
         // Send ReadPropertyMultiple
         let mut service_data = Vec::new();
         rpm_request.encode(&mut service_data)?;
 
-        let invoke_id: u8 = 1;
-        let response_data = client_send_confirmed(&client, addr, invoke_id, service_data)?;
+        let response_data = client_send_confirmed(&socket, addr, service_data)?;
 
         // Parse response - extract property values
         let mut result = HashMap::new();
@@ -171,12 +173,10 @@ async fn try_poll_cycle(config: &BacnetDeviceConfig) -> Result<HashMap<String, f
     Ok(metrics)
 }
 
-/// Send a confirmed request via the BacnetClient's internal method.
-/// This mirrors the client's send_confirmed_request but works with our config.
+/// Send a confirmed request reusing an existing bound socket.
 fn client_send_confirmed(
-    _client: &BacnetClient,
+    socket: &std::net::UdpSocket,
     target_addr: SocketAddr,
-    _invoke_id: u8,
     service_data: Vec<u8>,
 ) -> Result<Vec<u8>> {
     use bacnet_rs::app::{Apdu, MaxApduSize, MaxSegments};
@@ -209,11 +209,7 @@ fn client_send_confirmed(
     bvlc[2] = (len >> 8) as u8;
     bvlc[3] = (len & 0xFF) as u8;
 
-    // Access the underlying socket from BacnetClient
-    // BacnetClient wraps a UdpSocket, but doesn't expose it.
-    // We need to create our own socket for sending.
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0")
-        .context("BACnet send socket bind failed")?;
+    // Socket is already bound by caller
     socket
         .send_to(&bvlc, target_addr)
         .context("BACnet send failed")?;
