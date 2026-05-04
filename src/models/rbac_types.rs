@@ -1,5 +1,3 @@
-use super::*;
-
 // ── RBAC types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

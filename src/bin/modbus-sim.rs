@@ -135,6 +135,7 @@ impl MeterData {
             regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
         }
 
+        let _ = i;
         regs
     }
 

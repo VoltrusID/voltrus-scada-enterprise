@@ -190,6 +190,7 @@ impl Storage {
                 param_values.push(Box::new(t));
                 param_idx += 1;
             }
+            let _ = param_idx;
 
             let sql = format!(
                 "SELECT id, action, username, resource, details, created_at

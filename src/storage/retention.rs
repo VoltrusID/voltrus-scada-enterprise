@@ -63,7 +63,7 @@ impl Storage {
                     )
                     .unwrap_or((0.0, 0.0, 0.0, 0, 0, 0));
 
-                let (avg, min_val, max_val, count, first_ts, last_ts) = result;
+                let (avg, min_val, max_val, count, _first_ts, _last_ts) = result;
 
                 if count > 0 {
                     let hour_ts = (cutoff_ts / 3600) * 3600;

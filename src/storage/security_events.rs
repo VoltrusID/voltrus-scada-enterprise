@@ -125,6 +125,7 @@ impl Storage {
                 param_values.push(Box::new(t));
                 param_idx += 1;
             }
+            let _ = param_idx;
 
             sql.push_str(" ORDER BY created_at ASC");
             let params: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
