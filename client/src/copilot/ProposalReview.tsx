@@ -51,7 +51,7 @@ export function ProposalReview({ proposal, onBack }: { proposal: AiProposal; onB
         <div>Created: {fmtTs(proposal.created_at)}</div>
         {proposal.reviewed_at && <div>Reviewed: {fmtTs(proposal.reviewed_at)} by {proposal.reviewed_by}</div>}
         {proposal.applied_at && <div>Applied: {fmtTs(proposal.applied_at)}</div>}
-        {proposal.tokens_used > 0 && <div>Tokens: {proposal.tokens_used}</div>}
+        {proposal.tokens_used != null && proposal.tokens_used > 0 && <div>Tokens: {proposal.tokens_used}</div>}
       </div>
 
       {proposal.error_message && (

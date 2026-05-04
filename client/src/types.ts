@@ -319,3 +319,39 @@ export interface WsAlarmEvent {
   value: number
   ts: number
 }
+
+export interface AiSettings {
+  provider: string
+  api_key: string
+  api_key_set: boolean
+  api_key_preview: string
+  default_model: string
+  enabled: boolean
+}
+
+export interface AiProposal {
+  id: number
+  proposal_type: string
+  title: string
+  description: string
+  status: string
+  proposed_config: any
+  applied_config: any
+  applied_at: number | null
+  reviewed_at: number | null
+  reviewed_by: string | null
+  model_used: string | null
+  tokens_used: number | null
+  error_message: string | null
+  created_at: number
+  updated_at: number
+}
+
+export interface EquipmentTemplate {
+  id: number
+  name: string
+  industry: string
+  equipment_type: string
+  description: string
+  registers: any[]
+}
