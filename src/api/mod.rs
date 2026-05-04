@@ -43,6 +43,7 @@ mod ai_copilot;
 mod websocket;
 mod auth_middleware;
 mod import_nodered;
+mod csv_import;
 
 use axum::{
     extract::{Request, State},
@@ -459,11 +460,22 @@ pub fn create_router(state: AppState) -> Router {
         )
     }
 
+    // CSV import router with increased body limit (admin-only)
+    let import_router = Router::new()
+        .route("/api/v1/import/csv", post(csv_import::import_csv))
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB for CSV upload
+        .layer(middleware::from_fn(admin_only_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            cookie_auth_middleware,
+        ));
+
     // API router with CORS, rate limiting, security headers, body limit
     let api_router = Router::new()
         .merge(public)
         .merge(protected)
         .merge(admin_protected)
+        .merge(import_router)
         .route("/api/v1/{*path}", get(api_not_found))
         .layer(middleware::from_fn_with_state(state.clone(), license_check_middleware))
         .layer(cors)

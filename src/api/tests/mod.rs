@@ -10,6 +10,7 @@ mod tag_tree;
 mod naming_convention;
 mod import_nodered;
 mod audit_log;
+mod csv_import;
 
 pub use helpers::*;
 
