@@ -192,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Load device configs from DB and start pollers (only with valid license)
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone());
+    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), network::NetworkManager::new(app_config.networks.clone()));
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
         let device_limit = license_tier.max_devices();

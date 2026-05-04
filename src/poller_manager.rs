@@ -13,14 +13,16 @@ pub struct PollerManager {
     handles: Arc<RwLock<HashMap<String, JoinHandle<()>>>>,
     cache: DeviceCache,
     storage: Storage,
+    network_manager: crate::network::NetworkManager,
 }
 
 impl PollerManager {
-    pub fn new(cache: DeviceCache, storage: Storage) -> Self {
+    pub fn new(cache: DeviceCache, storage: Storage, network_manager: crate::network::NetworkManager) -> Self {
         Self {
             handles: Arc::new(RwLock::new(HashMap::new())),
             cache,
             storage,
+            network_manager,
         }
     }
 
@@ -73,10 +75,17 @@ impl PollerManager {
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
+
+        let bind_addr = if let Some(ref net_id) = config.network {
+            self.network_manager.get_bind_address(net_id).await
+        } else {
+            None
+        };
+
         let cache = self.cache.clone();
         let pool = Arc::new(crate::modbus::ModbusPool::new());
         let handle = tokio::spawn(async move {
-            crate::modbus::poll_device(config, cache, pool).await;
+            crate::modbus::poll_device(config, cache, pool, bind_addr).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }

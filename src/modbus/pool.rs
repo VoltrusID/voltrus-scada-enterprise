@@ -28,6 +28,7 @@ impl ModbusPool {
         device_id: &str,
         addr: std::net::SocketAddr,
         unit_id: u8,
+        bind_addr: Option<std::net::SocketAddr>,
     ) -> anyhow::Result<tokio_modbus::client::Context> {
         let mut conns = self.connections.lock().await;
         if let Some(pooled) = conns.remove(device_id) {
@@ -39,7 +40,12 @@ impl ModbusPool {
         }
 
         tracing::debug!("Connecting to device {device_id} at {addr}");
-        let ctx = tcp::connect_slave(addr, Slave(unit_id)).await?;
+        let ctx = if let Some(local) = bind_addr {
+            let stream = crate::network::bind_and_connect(Some(local), addr).await?;
+            tokio_modbus::client::tcp::attach_slave(stream, Slave(unit_id))
+        } else {
+            tcp::connect_slave(addr, Slave(unit_id)).await?
+        };
         Ok(ctx)
     }
 
