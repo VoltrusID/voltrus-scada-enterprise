@@ -17,9 +17,12 @@ USAGE:
                                             Activate directly via internet
     voltrus-lite --reset-admin-password [CONFIG]
                                             Reset admin password (prints new password)
+    voltrus-lite --dump-openapi [CONFIG]    Print OpenAPI 3.1 spec as JSON and exit
     voltrus-lite backup [OPTIONS]           Create backup archive
     voltrus-lite restore <BACKUP_FILE> [OPTIONS]
                                             Restore from backup archive
+    voltrus-lite factory-reset [CONFIG]     Delete all data and reset to defaults
+    voltrus-lite db stats [CONFIG]          Print database statistics
     voltrus-lite config export [DIR]        Export config to YAML files
     voltrus-lite config import [DIR]        Import config from YAML files
     voltrus-lite config validate [DIR]      Validate YAML config files
@@ -84,6 +87,9 @@ pub async fn handle_cli(args: &[String]) -> bool {
         "discover" => handle_discover(args).await,
         "backup" => handle_backup(args),
         "restore" => handle_restore(args),
+        "factory-reset" => handle_factory_reset(args),
+        "db" => handle_db(args),
+        "--dump-openapi" => handle_dump_openapi(),
         "--license-status" => handle_license_status(args).await,
         other if other.starts_with('-') => {
             eprintln!("Unknown option: {}", other);
@@ -635,4 +641,122 @@ async fn handle_license_status(args: &[String]) -> bool {
             std::process::exit(1);
         }
     }
+}
+
+fn handle_factory_reset(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "voltrus.db".to_string());
+
+    println!("WARNING: This will permanently delete all data in {}", db_path);
+    println!("Type 'yes' to confirm:");
+
+    let mut input = String::new();
+    if std::io::stdin().read_line(&mut input).is_err() || input.trim() != "yes" {
+        println!("Aborted.");
+        return true;
+    }
+
+    match std::fs::remove_file(&db_path) {
+        Ok(()) => {
+            let _ = std::fs::remove_file(format!("{}-wal", db_path));
+            let _ = std::fs::remove_file(format!("{}-shm", db_path));
+            println!("Database deleted. Voltrus will create a fresh database on next start.");
+            true
+        }
+        Err(e) => {
+            eprintln!("Error deleting database: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_db(args: &[String]) -> bool {
+    if args.len() < 3 {
+        eprintln!("Usage: {} db stats [CONFIG_PATH]", args[0]);
+        return true;
+    }
+
+    match args[2].as_str() {
+        "stats" => handle_db_stats(args),
+        other => {
+            eprintln!("Unknown db subcommand: {}", other);
+            true
+        }
+    }
+}
+
+fn handle_db_stats(args: &[String]) -> bool {
+    let db_path = config::load_config(&find_config_path(args))
+        .map(|c| c.db_path.clone())
+        .unwrap_or_else(|_| "voltrus.db".to_string());
+
+    let storage = match Storage::new(&db_path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to open database: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        match storage.get_compression_stats().await {
+            Ok(stats) => {
+                println!("=== Voltrus Database Statistics ===");
+                println!("Database: {}", db_path);
+                println!("Size: {:.2} MB", stats.db_size_bytes as f64 / 1_048_576.0);
+                println!();
+                println!("Hot (raw telemetry):   {} rows", stats.hot_rows);
+                println!("Warm (hourly):         {} rows", stats.warm_rows);
+                println!("Cold (daily):          {} rows", stats.cold_rows);
+                println!();
+                let hot_mb = stats.hot_rows as f64 * 48.0 / 1_048_576.0;
+                let warm_mb = stats.warm_rows as f64 * 80.0 / 1_048_576.0;
+                let cold_mb = stats.cold_rows as f64 * 200.0 / 1_048_576.0;
+                println!("Estimated hot:  {:.2} MB", hot_mb);
+                println!("Estimated warm: {:.2} MB", warm_mb);
+                println!("Estimated cold: {:.2} MB", cold_mb);
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
+    });
+    true
+}
+
+fn handle_dump_openapi() -> bool {
+    #[cfg(feature = "openapi")]
+    {
+        let spec = crate::api::openapi::ApiDoc::openapi();
+        match serde_json::to_string_pretty(&spec) {
+            Ok(json) => {
+                println!("{}", json);
+                true
+            }
+            Err(e) => {
+                eprintln!("Error serializing OpenAPI spec: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+    #[cfg(not(feature = "openapi"))]
+    {
+        eprintln!("Error: --dump-openapi requires the 'openapi' feature.");
+        eprintln!("Build with: cargo build --features openapi");
+        std::process::exit(1);
+    }
+}
+
+fn find_config_path(args: &[String]) -> String {
+    for arg in args.iter().skip(2) {
+        if !arg.starts_with('-') && !arg.contains('/') || arg.ends_with(".yaml") || arg.ends_with(".yml") {
+            if arg != "factory-reset" && arg != "db" && arg != "stats" {
+                return arg.clone();
+            }
+        }
+    }
+    "config.yaml".to_string()
 }

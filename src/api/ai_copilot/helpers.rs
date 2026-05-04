@@ -109,8 +109,24 @@ pub(crate) async fn apply_tag_rename(state: &AppState, config: &serde_json::Valu
     Ok(())
 }
 
-pub(crate) async fn apply_dashboard_layout(_state: &AppState, _config: &serde_json::Value, _screen_id: &Option<String>) -> Result<(), AppError> {
-    // Placeholder — full implementation would update screen_layouts table
+pub(crate) async fn apply_dashboard_layout(state: &AppState, config: &serde_json::Value, screen_id: &Option<String>) -> Result<(), AppError> {
+    let screen_id = screen_id.as_ref()
+        .ok_or_else(|| AppError(anyhow::anyhow!("No screen ID specified for dashboard layout")))?;
+
+    let layout = config.get("layout")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| AppError(anyhow::anyhow!("Invalid dashboard layout format: missing 'layout' array")))?;
+
+    let layouts_array = serde_json::json!([
+        {"breakpoint": "lg", "layout": layout},
+        {"breakpoint": "md", "layout": layout},
+        {"breakpoint": "sm", "layout": layout}
+    ]);
+
+    state.storage.save_layouts(screen_id, &layouts_array)
+        .await
+        .map_err(|e| AppError(e.into()))?;
+
     Ok(())
 }
 

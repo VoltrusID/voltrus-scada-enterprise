@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::asset::models::*;
 
-pub(crate) fn generate_id() -> String {
+pub fn generate_id() -> String {
     rand::rng()
         .sample_iter(&rand::distr::Alphanumeric)
         .take(16)
@@ -14,7 +14,7 @@ pub(crate) fn generate_id() -> String {
         .to_lowercase()
 }
 
-pub(crate) fn now_iso() -> String {
+pub fn now_iso() -> String {
     let moment = time::OffsetDateTime::now_utc();
     format!(
         "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
@@ -310,7 +310,7 @@ impl AssetStorage {
             let allowed = [
                 "name", "asset_type", "vendor", "model", "firmware_version",
                 "serial_number", "ip_address", "mac_address", "location",
-                "criticality", "notes",
+                "criticality", "notes", "tags",
             ];
 
             let mut set_clauses: Vec<String> = Vec::new();

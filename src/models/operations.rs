@@ -318,6 +318,7 @@ pub struct CreateNotificationRequest {
 }
 
 /// Extract `@username` patterns from text, returning a deduplicated list of usernames.
+/// Ignores `@` when it is preceded by a word character (e.g. email addresses).
 pub fn parse_mentions(text: &str) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
     let mut result = Vec::new();
@@ -326,18 +327,24 @@ pub fn parse_mentions(text: &str) -> Vec<String> {
     let mut i = 0;
     while i < len {
         if bytes[i] == b'@' {
-            let start = i + 1;
-            let mut end = start;
-            while end < len && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
-                end += 1;
-            }
-            if end > start {
-                let name = text[start..end].to_string();
-                if seen.insert(name.clone()) {
-                    result.push(name);
+            // Skip if preceded by a word character (prevents matching email addresses)
+            let prev_is_word = i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
+            if !prev_is_word {
+                let start = i + 1;
+                let mut end = start;
+                while end < len && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+                    end += 1;
                 }
+                if end > start {
+                    let name = text[start..end].to_string();
+                    if seen.insert(name.clone()) {
+                        result.push(name);
+                    }
+                }
+                i = end;
+            } else {
+                i += 1;
             }
-            i = end;
         } else {
             i += 1;
         }

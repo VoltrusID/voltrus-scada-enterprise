@@ -220,6 +220,30 @@ pub struct ParsedObject {
     pub data: Vec<u8>,
 }
 
+/// Estimate the byte size of a single object instance based on its group,
+/// variation, and prefix size.  This is used by `parse_response_asdu` to
+/// advance the offset past the current object's data so that subsequent
+/// objects in the same response can be parsed.
+fn estimate_object_size(group: u8, variation: u8, prefix_size: usize) -> usize {
+    let data_size = match (group, variation) {
+        // Binary (1 bit per point, packed in whole bytes)
+        (1, 1) | (10, 1) => 0, // packed; byte count depends on point count, handled below
+        // Binary with flags (1 byte per point)
+        (1, 2) | (10, 2) | (12, 1) => 1,
+        // Int32 / Uint32 (4 bytes) — some include a 1-byte flags prefix
+        (20, 1) | (21, 1) | (30, 1) | (32, 1) | (40, 1) => 5, // flags + 4 bytes
+        (20, 2) | (21, 2) | (30, 2) | (32, 2) | (40, 2) => 3, // flags + 2 bytes
+        (20, 5) | (21, 5) | (30, 3) => 4, // no flags
+        // Float32 (4 bytes) — may include flags
+        (30, 4) | (32, 3) | (40, 3) => 5, // flags + 4 bytes
+        (30, 6) => 4,
+        // Float64 (8 bytes)
+        (32, 4) | (40, 4) => 9, // flags + 8 bytes
+        _ => 0,
+    };
+    prefix_size + data_size
+}
+
 /// Parse a response ASDU into object headers and data.
 pub fn parse_response_asdu(data: &[u8]) -> Result<(AsduHeader, Vec<ParsedObject>)> {
     if data.len() < 4 {
@@ -264,6 +288,12 @@ pub fn parse_response_asdu(data: &[u8]) -> Result<(AsduHeader, Vec<ParsedObject>
         };
 
         let object_data = data[offset..].to_vec();
+
+        // Estimate per-object data size so we can advance the offset for the
+        // next object header.  Without this the loop would always consume the
+        // first object and break, missing any remaining objects.
+        let per_object_bytes = estimate_object_size(group, variation, prefix_size);
+        let total_data_bytes = per_object_bytes.saturating_mul(count);
         objects.push(ParsedObject {
             group,
             variation,
@@ -272,7 +302,7 @@ pub fn parse_response_asdu(data: &[u8]) -> Result<(AsduHeader, Vec<ParsedObject>
             prefix_size,
             data: object_data,
         });
-        break;
+        offset = offset.saturating_add(total_data_bytes).min(data.len());
     }
 
     Ok((header, objects))

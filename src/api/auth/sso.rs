@@ -1,11 +1,32 @@
 use base64::Engine;
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
 use super::*;
+
+fn extract_ip(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+}
+
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
 
 // -- SSO request types --
 
@@ -96,8 +117,11 @@ pub async fn saml_metadata(
 /// POST /api/v1/auth/saml/acs -- SAML Assertion Consumer Service.
 pub async fn saml_acs(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<SamlAcsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let source_ip = extract_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
     if !state.license_tier.sso_saml() {
         return Ok((
             StatusCode::FORBIDDEN,
@@ -128,6 +152,15 @@ pub async fn saml_acs(
         .get_or_create_user_by_external_id("saml", &assertion.name_id, "user")
         .await?;
 
+    let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
+        event_type: "login_success".into(),
+        severity: "info".into(),
+        source_ip: source_ip.clone(),
+        user_agent: user_agent.clone(),
+        username: Some(user.username.clone()),
+        details: Some("SAML login successful".into()),
+    }).await;
+
     // Create a local session token
     let secret = &state.auth_secret;
     let access_token = create_token(&user.username, &user.role, secret);
@@ -144,8 +177,11 @@ pub async fn saml_acs(
 /// POST /api/v1/auth/ldap/login -- LDAP authentication endpoint.
 pub async fn ldap_login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<LdapLoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let source_ip = extract_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
     if !state.license_tier.sso_saml() {
         return Ok((
             StatusCode::FORBIDDEN,
@@ -191,6 +227,14 @@ pub async fn ldap_login(
 
     if !result.success {
         tracing::warn!("LDAP login failed for user: {}", body.username);
+        let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_failed".into(),
+            severity: "warning".into(),
+            source_ip: source_ip.clone(),
+            user_agent: user_agent.clone(),
+            username: Some(body.username.clone()),
+            details: Some("Invalid LDAP credentials".into()),
+        }).await;
         return Ok((
             StatusCode::UNAUTHORIZED,
             Json(json!({"error": "Invalid LDAP credentials"})),
@@ -209,6 +253,15 @@ pub async fn ldap_login(
     let access_token = create_token(&user.username, &user.role, secret);
 
     tracing::info!("LDAP login successful: user={}", body.username);
+
+    let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
+        event_type: "login_success".into(),
+        severity: "info".into(),
+        source_ip: source_ip.clone(),
+        user_agent: user_agent.clone(),
+        username: Some(body.username.clone()),
+        details: Some("LDAP login successful".into()),
+    }).await;
 
     Ok(Json(json!({
         "ok": true,

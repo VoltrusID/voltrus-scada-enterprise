@@ -1,48 +1,80 @@
 use super::Storage;
 use anyhow::Context;
 
+/// Compression tier statistics returned by get_compression_stats.
+pub struct CompressionStats {
+    pub hot_rows: i64,
+    pub warm_rows: i64,
+    pub cold_rows: i64,
+    pub db_size_bytes: u64,
+}
+
 impl Storage {
-    pub async fn compress_hot_to_warm(&self, cutoff_ms: i64) -> anyhow::Result<usize> {
+    /// Get compression statistics across all tiers.
+    pub async fn get_compression_stats(&self) -> anyhow::Result<CompressionStats> {
+        let conn = self.conn.clone();
+        let db_path = self.db_path.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+
+            let hot_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM telemetry", [], |row| row.get(0))
+                .unwrap_or(0);
+
+            let warm_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM telemetry_hourly", [], |row| row.get(0))
+                .unwrap_or(0);
+
+            let cold_rows: i64 = conn
+                .query_row("SELECT COUNT(*) FROM telemetry_daily", [], |row| row.get(0))
+                .unwrap_or(0);
+
+            let db_size_bytes = std::fs::metadata(&db_path)
+                .map(|m| m.len())
+                .unwrap_or(0);
+
+            Ok(CompressionStats { hot_rows, warm_rows, cold_rows, db_size_bytes })
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn compress_hot_to_warm(&self, cutoff_ts: i64) -> anyhow::Result<usize> {
+        // Aggregate raw telemetry into hourly buckets and insert into telemetry_hourly
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let rows: Vec<(i64, String, String)> = conn
+            let rows: Vec<(String, String)> = conn
                 .prepare(
-                    "SELECT DISTINCT device_id, metric, source_type FROM ts_data WHERE timestamp < ?1 AND tier = 'hot'",
+                    "SELECT DISTINCT device_id, metric FROM telemetry WHERE timestamp < ?1",
                 )?
-                .query_map(rusqlite::params![cutoff_ms], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                .query_map(rusqlite::params![cutoff_ts], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
                 })?
                 .filter_map(|r| r.ok())
                 .collect();
 
             let mut compressed = 0usize;
-            for (device_id, metric, source_type) in &rows {
-                let avg: f64 = conn
+            for (device_id, metric) in &rows {
+                let result: (f64, f64, f64, i64, i64, i64) = conn
                     .query_row(
-                        "SELECT COALESCE(AVG(value), 0) FROM ts_data WHERE device_id = ?1 AND metric = ?2 AND source_type = ?3 AND timestamp < ?4 AND tier = 'hot'",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms],
-                        |row| row.get(0),
+                        "SELECT COALESCE(AVG(value),0), COALESCE(MIN(value),0), COALESCE(MAX(value),0), COUNT(*), MIN(timestamp), MAX(timestamp) FROM telemetry WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
+                        rusqlite::params![device_id, metric, cutoff_ts],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
                     )
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, 0.0, 0.0, 0, 0, 0));
 
-                let count: i64 = conn
-                    .query_row(
-                        "SELECT COUNT(*) FROM ts_data WHERE device_id = ?1 AND metric = ?2 AND source_type = ?3 AND timestamp < ?4 AND tier = 'hot'",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms],
-                        |row| row.get(0),
-                    )
-                    .unwrap_or(0);
+                let (avg, min_val, max_val, count, first_ts, last_ts) = result;
 
                 if count > 0 {
+                    let hour_ts = (cutoff_ts / 3600) * 3600;
                     conn.execute(
-                        "INSERT OR REPLACE INTO ts_data_agg (device_id, metric, source_type, timestamp, avg, min_val, max_val, count, tier) VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, 'warm')",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms, avg, count],
+                        "INSERT OR REPLACE INTO telemetry_hourly (device_id, metric, timestamp, avg, min_val, max_val, count) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        rusqlite::params![device_id, metric, hour_ts, avg, min_val, max_val, count],
                     )?;
 
                     let deleted = conn.execute(
-                        "DELETE FROM ts_data WHERE device_id = ?1 AND metric = ?2 AND source_type = ?3 AND timestamp < ?4 AND tier = 'hot'",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms],
+                        "DELETE FROM telemetry WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
+                        rusqlite::params![device_id, metric, cutoff_ts],
                     )?;
                     compressed += deleted as usize;
                 }
@@ -52,47 +84,43 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn compress_warm_to_cold(&self, cutoff_ms: i64) -> anyhow::Result<usize> {
+    pub async fn compress_warm_to_cold(&self, cutoff_ts: i64) -> anyhow::Result<usize> {
+        // Aggregate hourly data into daily buckets
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let rows: Vec<(i64, String, String)> = conn
+            let rows: Vec<(String, String)> = conn
                 .prepare(
-                    "SELECT DISTINCT device_id, metric, source_type FROM ts_data_agg WHERE timestamp < ?1 AND tier = 'warm'",
+                    "SELECT DISTINCT device_id, metric FROM telemetry_hourly WHERE timestamp < ?1",
                 )?
-                .query_map(rusqlite::params![cutoff_ms], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                .query_map(rusqlite::params![cutoff_ts], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
                 })?
                 .filter_map(|r| r.ok())
                 .collect();
 
             let mut compressed = 0usize;
-            for (device_id, metric, source_type) in &rows {
-                let avg: f64 = conn
+            for (device_id, metric) in &rows {
+                let result: (f64, f64, f64, i64) = conn
                     .query_row(
-                        "SELECT COALESCE(AVG(avg), 0) FROM ts_data_agg WHERE device_id = ?1 AND metric = ?2 AND source_type = ?3 AND timestamp < ?4 AND tier = 'warm'",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms],
-                        |row| row.get(0),
+                        "SELECT COALESCE(AVG(avg),0), COALESCE(MIN(min_val),0), COALESCE(MAX(max_val),0), SUM(count) FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
+                        rusqlite::params![device_id, metric, cutoff_ts],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                     )
-                    .unwrap_or(0.0);
+                    .unwrap_or((0.0, 0.0, 0.0, 0));
 
-                let count: i64 = conn
-                    .query_row(
-                        "SELECT SUM(count) FROM ts_data_agg WHERE device_id = ?1 AND metric = ?2 AND source_type = ?3 AND timestamp < ?4 AND tier = 'warm'",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms],
-                        |row| row.get(0),
-                    )
-                    .unwrap_or(0);
+                let (avg, min_val, max_val, count) = result;
 
                 if count > 0 {
+                    let day_ts = (cutoff_ts / 86400) * 86400;
                     conn.execute(
-                        "INSERT OR REPLACE INTO ts_data_agg (device_id, metric, source_type, timestamp, avg, min_val, max_val, count, tier) VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, 'cold')",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms, avg, count],
+                        "INSERT OR REPLACE INTO telemetry_daily (device_id, metric, timestamp, avg, min_val, max_val, count) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        rusqlite::params![device_id, metric, day_ts, avg, min_val, max_val, count],
                     )?;
 
                     let deleted = conn.execute(
-                        "DELETE FROM ts_data_agg WHERE device_id = ?1 AND metric = ?2 AND source_type = ?3 AND timestamp < ?4 AND tier = 'warm'",
-                        rusqlite::params![device_id, metric, source_type, cutoff_ms],
+                        "DELETE FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
+                        rusqlite::params![device_id, metric, cutoff_ts],
                     )?;
                     compressed += deleted as usize;
                 }
@@ -126,6 +154,145 @@ impl Storage {
                 .filter_map(|r| r.ok())
                 .collect();
             Ok(metrics)
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn create_custom_metric(
+        &self,
+        name: &str,
+        description: &str,
+        formula: &str,
+        unit: Option<&str>,
+        tag_refs: &str,
+        validation_error: Option<&str>,
+    ) -> anyhow::Result<crate::models::CustomMetric> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let description = description.to_string();
+        let formula = formula.to_string();
+        let unit = unit.map(String::from);
+        let tag_refs = tag_refs.to_string();
+        let validation_error = validation_error.map(String::from);
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO custom_metrics (name, description, formula, unit, tag_refs, validation_error, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![name, description, formula, unit, tag_refs, validation_error, now, now],
+            ).context("Insert failed")?;
+            let id = conn.last_insert_rowid();
+            Ok(crate::models::CustomMetric {
+                id, name, description, formula, unit, tag_refs, validation_error,
+                created_at: now, updated_at: now,
+            })
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn update_custom_metric(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        description: Option<&str>,
+        formula: Option<&str>,
+        unit: Option<Option<&str>>,
+        tag_refs: Option<&str>,
+        validation_error: Option<Option<&str>>,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        let name = name.map(String::from);
+        let description = description.map(String::from);
+        let formula = formula.map(String::from);
+        let unit = unit.map(|o| o.map(String::from));
+        let tag_refs = tag_refs.map(String::from);
+        let validation_error = validation_error.map(|o| o.map(String::from));
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            let mut set_clauses = Vec::new();
+            let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+            if let Some(ref v) = name {
+                set_clauses.push("name = ?".to_string());
+                params.push(Box::new(v.clone()));
+            }
+            if let Some(ref v) = description {
+                set_clauses.push("description = ?".to_string());
+                params.push(Box::new(v.clone()));
+            }
+            if let Some(ref v) = formula {
+                set_clauses.push("formula = ?".to_string());
+                params.push(Box::new(v.clone()));
+            }
+            if let Some(ref v) = unit {
+                match v {
+                    Some(val) => { set_clauses.push("unit = ?".to_string()); params.push(Box::new(val.clone())); }
+                    None => { set_clauses.push("unit = NULL".to_string()); }
+                }
+            }
+            if let Some(ref v) = tag_refs {
+                set_clauses.push("tag_refs = ?".to_string());
+                params.push(Box::new(v.clone()));
+            }
+            if let Some(ref v) = validation_error {
+                match v {
+                    Some(val) => { set_clauses.push("validation_error = ?".to_string()); params.push(Box::new(val.clone())); }
+                    None => { set_clauses.push("validation_error = NULL".to_string()); }
+                }
+            }
+
+            if set_clauses.is_empty() {
+                return Ok(());
+            }
+
+            set_clauses.push("updated_at = ?".to_string());
+            params.push(Box::new(now));
+
+            let sql = format!("UPDATE custom_metrics SET {} WHERE id = ?", set_clauses.join(", "));
+            params.push(Box::new(id));
+
+            conn.execute(
+                &sql,
+                rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+            ).context("Update failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn delete_custom_metric(&self, id: i64) -> anyhow::Result<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute("DELETE FROM custom_metrics WHERE id = ?1", rusqlite::params![id])
+                .context("Delete failed")?;
+            Ok(())
+        }).await.context("Task join failed")?
+    }
+
+    pub async fn get_metric_values_for_range(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+    ) -> anyhow::Result<Vec<(i64, f64)>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT timestamp, value FROM telemetry WHERE device_id = ?1 AND metric = ?2 AND timestamp >= ?3 AND timestamp <= ?4 ORDER BY timestamp LIMIT 10000",
+            ).context("Prepare failed")?;
+
+            let rows = stmt.query_map(
+                rusqlite::params![device_id, metric, from, to],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, f64>(1)?)),
+            ).context("Query failed")?;
+
+            Ok(rows.filter_map(|r| r.ok()).collect())
         }).await.context("Task join failed")?
     }
 }

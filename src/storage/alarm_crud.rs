@@ -13,6 +13,7 @@ impl Storage {
         value: f64,
         threshold: f64,
         message: &str,
+        deadband: f64,
     ) -> Result<i64> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();
@@ -27,9 +28,9 @@ impl Storage {
                 _ => "warning",
             };
             conn.execute(
-                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at, priority, state)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active')",
-                rusqlite::params![source_key, severity, value, threshold, message, now, priority],
+                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at, priority, state, deadband)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active', ?8)",
+                rusqlite::params![source_key, severity, value, threshold, message, now, priority, deadband],
             )
             .context("Insert alarm failed")?;
             let id = conn.last_insert_rowid();

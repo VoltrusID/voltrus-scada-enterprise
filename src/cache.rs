@@ -17,6 +17,7 @@ pub struct DeviceCache {
     snapshot_tx: broadcast::Sender<DeviceSnapshot>,
     trigger: watch::Sender<bool>,
     ws_manager: Option<Arc<WsManager>>,
+    storage: Option<crate::storage::Storage>,
 }
 
 impl DeviceCache {
@@ -30,6 +31,7 @@ impl DeviceCache {
             snapshot_tx,
             trigger,
             ws_manager: None,
+            storage: None,
         }
     }
 
@@ -39,12 +41,23 @@ impl DeviceCache {
         self
     }
 
+    /// Attach a Storage so that device connect/disconnect events are written to the security log.
+    pub fn with_storage(mut self, storage: crate::storage::Storage) -> Self {
+        self.storage = Some(storage);
+        self
+    }
+
     pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>, simulated: bool) {
-        let snapshot = {
+        let (snapshot, was_offline) = {
             let mut devices = self.devices.write().await;
             let timestamp = crate::timeutil::now_secs();
 
-            devices
+            let was_offline = devices
+                .get(device_id)
+                .map(|e| e.status == DeviceStatus::Offline)
+                .unwrap_or(true);
+
+            let snapshot = devices
                 .entry(device_id.to_string())
                 .and_modify(|e| {
                     e.status = DeviceStatus::Online;
@@ -59,8 +72,24 @@ impl DeviceCache {
                     metrics,
                     simulated,
                 })
-                .clone()
+                .clone();
+
+            (snapshot, was_offline)
         };
+
+        // Log device connect on transition to online
+        if was_offline {
+            if let Some(ref storage) = self.storage {
+                let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
+                    event_type: "device_connected".into(),
+                    severity: "info".into(),
+                    source_ip: None,
+                    user_agent: None,
+                    username: None,
+                    details: Some(format!("Device {} connected", device_id)),
+                }).await;
+            }
+        }
 
         let _ = self.snapshot_tx.send(snapshot);
         let _ = self.trigger.send(true);
@@ -76,11 +105,41 @@ impl DeviceCache {
     }
 
     pub async fn set_status(&self, device_id: &str, status: DeviceStatus) {
-        let mut devices = self.devices.write().await;
-        if let Some(entry) = devices.get_mut(device_id) {
-            entry.status = status.clone();
+        let old_status = {
+            let mut devices = self.devices.write().await;
+            let old = devices.get(device_id).map(|e| e.status.clone());
+            if let Some(entry) = devices.get_mut(device_id) {
+                entry.status = status.clone();
+            }
+            old
+        };
+
+        // Log device connect/disconnect transitions
+        if let Some(ref storage) = self.storage {
+            match (&old_status, &status) {
+                (Some(DeviceStatus::Offline), DeviceStatus::Online) | (None, DeviceStatus::Online) => {
+                    let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
+                        event_type: "device_connected".into(),
+                        severity: "info".into(),
+                        source_ip: None,
+                        user_agent: None,
+                        username: None,
+                        details: Some(format!("Device {} connected", device_id)),
+                    }).await;
+                }
+                (Some(DeviceStatus::Online), DeviceStatus::Offline) => {
+                    let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
+                        event_type: "device_disconnected".into(),
+                        severity: "warning".into(),
+                        source_ip: None,
+                        user_agent: None,
+                        username: None,
+                        details: Some(format!("Device {} disconnected", device_id)),
+                    }).await;
+                }
+                _ => {}
+            }
         }
-        drop(devices);
 
         // Broadcast device status change via WebSocket
         if let Some(ref ws) = self.ws_manager {

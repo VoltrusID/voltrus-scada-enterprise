@@ -97,6 +97,11 @@ pub async fn create_device(
         )
         .await?;
 
+    // Sync to asset inventory
+    crate::asset::sync::on_device_created(
+        &state.storage.asset(), "bacnet", &id.to_string(), &req.name, Some(&req.ip), "controller",
+    ).await;
+
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_bacnet_device".to_string(),
         username: user.username.clone(),
@@ -203,6 +208,9 @@ pub async fn delete_device(
     state.poller_manager.stop(&device_key).await;
 
     state.storage.delete_bacnet_device(id).await?;
+
+    // Sync to asset inventory
+    crate::asset::sync::on_device_deleted(&state.storage.asset(), "bacnet", &id.to_string()).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_bacnet_device".to_string(),

@@ -117,6 +117,14 @@ export {
 } from './notifications'
 
 export {
+  useUserNotifications,
+  useMarkNotificationRead,
+  useDismissNotification,
+} from './user_notifications'
+
+export type { UserNotification } from './user_notifications'
+
+export {
   useApiKeys,
   useCreateApiKey,
   useRevokeApiKey,
@@ -219,6 +227,20 @@ export {
 export type { EnipDevice, EnipTag } from './enip'
 
 export * from './dnp3'
+
+export {
+  useBacnetDevices,
+  useBacnetDevice,
+  useCreateBacnetDevice,
+  useUpdateBacnetDevice,
+  useDeleteBacnetDevice,
+  useAddBacnetObject,
+  useRemoveBacnetObject,
+  useBrowseBacnetDevice,
+  useDiscoverBacnet,
+} from './bacnet'
+
+export type { BacnetDevice, BacnetObject, BacnetDiscoveredDevice, BacnetBrowsedObject } from './bacnet'
 
 export {
   useComplianceConfig,

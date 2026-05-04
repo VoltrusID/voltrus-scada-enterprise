@@ -5,6 +5,7 @@ import { HistoryRangeBar } from '../CustomRangePicker'
 import type { BrandingSettings } from '../BrandingDialog'
 import { ThemeToggle } from './ThemeToggle'
 import { LanguageSelector } from './LanguageSelector'
+import { NotificationBell } from './NotificationBell'
 
 const useIsMobile = () => {
   const [mobile, setMobile] = useState(window.innerWidth <= 768)
@@ -104,6 +105,8 @@ export function AppHeader({
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Notification bell */}
+          <NotificationBell authed={true} />
           {/* Alarm bell */}
           <button onClick={onAlarmPanelToggle} aria-label={`Alarms${activeAlarmCount > 0 ? ` (${activeAlarmCount} active)` : ''}`} style={{
             ...btnStyle, position: 'relative', borderColor: activeAlarmCount > 0 ? 'var(--crit)' : 'var(--border)',

@@ -46,7 +46,7 @@ use rusqlite::Connection;
 
 use crate::models::DataPoint;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Storage {
     conn: Arc<Mutex<Connection>>,
     db_path: String,
@@ -80,6 +80,18 @@ impl Storage {
         }
 
         schema::init_schema(&conn)?;
+
+        // Initialize asset tables
+        if let Err(e) = crate::asset::storage::AssetStorage::init_schema(&conn) {
+            tracing::warn!("Failed to initialize asset schema: {}", e);
+        }
+
+        // Enable WAL mode for better concurrent read/write performance
+        let _ = conn.execute_batch("PRAGMA journal_mode=WAL;");
+        let _ = conn.execute_batch("PRAGMA synchronous=NORMAL;");
+        let _ = conn.execute_batch("PRAGMA wal_autocheckpoint=1000;");
+        let _ = conn.execute_batch("PRAGMA busy_timeout=5000;");
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: path.to_string(),
@@ -89,6 +101,9 @@ impl Storage {
     pub fn new_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory().context("Failed to open in-memory DB")?;
         schema::init_schema(&conn)?;
+        if let Err(e) = crate::asset::storage::AssetStorage::init_schema(&conn) {
+            tracing::warn!("Failed to initialize asset schema: {}", e);
+        }
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             db_path: ":memory:".to_string(),
@@ -97,6 +112,11 @@ impl Storage {
 
     pub fn db_path(&self) -> &str {
         &self.db_path
+    }
+
+    /// Returns an `AssetStorage` handle backed by the same underlying connection.
+    pub fn asset(&self) -> crate::asset::storage::AssetStorage {
+        crate::asset::storage::AssetStorage::new(self.conn.clone())
     }
 
     pub async fn insert_batch(&self, records: &[(String, i64, String, f64)]) -> Result<()> {

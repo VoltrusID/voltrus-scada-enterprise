@@ -90,4 +90,37 @@ impl CommandQueue {
             .unwrap_or(default_port);
         (ip, port)
     }
+
+    pub(super) fn parse_dnp3_point_index(source_config: &str) -> Option<u16> {
+        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+        config
+            .get("point_index")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u16)
+            .or_else(|| {
+                config
+                    .get("index")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as u16)
+            })
+    }
+
+    pub(super) fn parse_bacnet_object_info(source_config: &str) -> Option<(String, u32, String)> {
+        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+        let object_type = config
+            .get("object_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("analogOutput")
+            .to_string();
+        let object_instance = config
+            .get("object_instance")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+        let property = config
+            .get("property")
+            .and_then(|v| v.as_str())
+            .unwrap_or("presentValue")
+            .to_string();
+        Some((object_type, object_instance, property))
+    }
 }

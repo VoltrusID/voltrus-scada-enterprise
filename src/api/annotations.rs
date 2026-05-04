@@ -45,7 +45,7 @@ pub async fn create_annotation(
                     .create_notification(&CreateNotificationRequest {
                         user_id: mentioned_user.id,
                         from_user_id: author_id,
-                        notification_type: "annotation_mention".to_string(),
+                        notification_type: "mention".to_string(),
                         message: format!(
                             "You were mentioned in an annotation on tag {}",
                             req.tag_id
@@ -156,10 +156,10 @@ mod tests {
 
     #[test]
     fn test_parse_mentions_not_in_word() {
-        // The @ must start a new mention — email-like strings should only
-        // capture the part after @ if preceded by non-word chars.
+        // The @ must start a new mention — email-like strings should NOT
+        // capture the part after @ when preceded by a word char.
         let mentions = parse_mentions("email@test.com @alice");
-        assert_eq!(mentions, vec!["test", "alice"]);
+        assert_eq!(mentions, vec!["alice"]);
     }
 
 }

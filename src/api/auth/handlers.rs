@@ -1,5 +1,5 @@
 use axum::extract::{Extension, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use axum_extra::extract::CookieJar;
@@ -7,11 +7,35 @@ use serde_json::json;
 
 use super::*;
 
+fn extract_ip(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+}
+
+fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
+
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
+    headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    let source_ip = extract_ip(&headers);
+    let user_agent = extract_user_agent(&headers);
     let rate_key_user = format!("login:{}", body.username);
 
     // Check username-based rate limit
@@ -37,17 +61,17 @@ pub async fn login(
                     let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
                         event_type: "login_locked".into(),
                         severity: "warning".into(),
-                        source_ip: None,
-                        user_agent: None,
+                        source_ip: source_ip.clone(),
+                        user_agent: user_agent.clone(),
                         username: Some(body.username.clone()),
                         details: Some("Attempted login on locked account".into()),
                     }).await;
                     (StatusCode::FORBIDDEN, json!({"error": "Account locked. Please try again later."}), jar)
                 } else {
-                    check_password_and_login(state, body, user, jar, &rate_key_user, now_secs).await
+                    check_password_and_login(state, body, user, jar, &rate_key_user, now_secs, source_ip.clone(), user_agent.clone()).await
                 }
             } else {
-                check_password_and_login(state, body, user, jar, &rate_key_user, now_secs).await
+                check_password_and_login(state, body, user, jar, &rate_key_user, now_secs, source_ip.clone(), user_agent.clone()).await
             }
         }
         None => {
@@ -55,8 +79,8 @@ pub async fn login(
             let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
                 event_type: "login_failed".into(),
                 severity: "warning".into(),
-                source_ip: None,
-                user_agent: None,
+                source_ip: source_ip.clone(),
+                user_agent: user_agent.clone(),
                 username: Some(body.username.clone()),
                 details: Some("Unknown username".into()),
             }).await;
@@ -80,6 +104,8 @@ async fn check_password_and_login(
     jar: CookieJar,
     rate_key_user: &str,
     now_secs: i64,
+    source_ip: Option<String>,
+    user_agent: Option<String>,
 ) -> (StatusCode, serde_json::Value, CookieJar) {
     if !verify_password(&body.password, &user.password_hash) {
         state.login_rate_limiter.record_attempt(rate_key_user);
@@ -95,8 +121,8 @@ async fn check_password_and_login(
         let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
             event_type: "login_failed".into(),
             severity: "warning".into(),
-            source_ip: None,
-            user_agent: None,
+            source_ip: source_ip.clone(),
+            user_agent: user_agent.clone(),
             username: Some(body.username.clone()),
             details: Some(format!("Invalid password (attempt {})", user.failed_attempts + 1)),
         }).await;
