@@ -1,0 +1,93 @@
+use super::*;
+
+impl CommandQueue {
+    // -- Address parsing helpers --
+
+    pub(super) fn parse_modbus_address(source_config: &str) -> Option<u16> {
+        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+        // Try "address" field first
+        if let Some(addr) = config.get("address").and_then(|v| v.as_u64()) {
+            let addr = addr as u16;
+            // Convert 5-digit Modbus address to 0-based protocol address
+            return Some(if addr >= 40001 {
+                addr - 40001
+            } else if addr >= 30001 {
+                addr - 30001
+            } else {
+                addr
+            });
+        }
+        // Try "register" field as fallback
+        config.get("register").and_then(|v| v.as_u64()).map(|v| {
+            let addr = v as u16;
+            if addr >= 40001 {
+                addr - 40001
+            } else if addr >= 30001 {
+                addr - 30001
+            } else {
+                addr
+            }
+        })
+    }
+
+    pub(super) fn parse_s7_address(source_config: &str) -> Option<(String, u32, u16)> {
+        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+        let area = config
+            .get("area")
+            .and_then(|v| v.as_str())
+            .unwrap_or("DB")
+            .to_string();
+        let db_number = config
+            .get("db_number")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1) as u32;
+        let offset = config
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u16;
+        Some((area, db_number, offset))
+    }
+
+    pub(super) fn parse_opcua_node_id(source_config: &str) -> Option<String> {
+        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+        config
+            .get("node_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                config
+                    .get("nodeId")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+    }
+
+    pub(super) fn parse_enip_tag_name(source_config: &str) -> Option<String> {
+        let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+        config
+            .get("tag_name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                config
+                    .get("tagName")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+    }
+
+    pub(super) fn parse_ip_port(url: &str, default_port: u16) -> (String, u16) {
+        // Strip protocol prefix if present
+        let url = url
+            .strip_prefix("tcp://")
+            .or_else(|| url.strip_prefix("http://"))
+            .unwrap_or(url);
+        let parts: Vec<&str> = url.split(':').collect();
+        let ip = parts[0].to_string();
+        let port = parts
+            .get(1)
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(default_port);
+        (ip, port)
+    }
+}

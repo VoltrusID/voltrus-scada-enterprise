@@ -1,0 +1,207 @@
+mod alarm_crud;
+mod alarm_management;
+mod ai_copilot;
+mod api_keys;
+mod bacnet;
+mod camera;
+mod cq_commands;
+mod cq_policies;
+mod config_snapshots_storage;
+mod device_crud;
+mod device_layouts;
+mod downsampling;
+mod dnp3;
+mod enip_storage;
+mod flows;
+mod hub;
+mod license_storage;
+mod modbus_storage;
+mod notifications;
+mod oee;
+mod opcua_storage;
+mod recipes_storage;
+mod reports;
+mod retention;
+mod s7_storage;
+mod scripts_storage;
+mod schema;
+mod security_events;
+mod security_extras;
+mod settings_audit;
+mod settings_compliance;
+mod settings_jit;
+mod settings_kv;
+mod settings_roles;
+mod settings_scada;
+mod settings_seed;
+mod settings_shortcuts;
+#[cfg(test)]
+mod tests;
+mod users;
+
+use std::sync::{Arc, Mutex};
+
+use anyhow::{Context, Result};
+use rusqlite::Connection;
+
+use crate::models::DataPoint;
+
+#[derive(Clone)]
+pub struct Storage {
+    conn: Arc<Mutex<Connection>>,
+    db_path: String,
+}
+
+impl Storage {
+    pub fn new(path: &str) -> Result<Self> {
+        Self::new_with_key(path, None)
+    }
+
+    pub fn new_with_key(path: &str, encryption_key: Option<&str>) -> Result<Self> {
+        let conn = Connection::open(path)
+            .with_context(|| format!("Failed to open database: {path}"))?;
+
+        if let Some(key) = encryption_key {
+            if let Err(e) = conn.execute_batch(&format!("PRAGMA key = '{}';", key.replace("'", "''"))) {
+                tracing::warn!(
+                    "Failed to set database encryption key (SQLCipher not available?): {}. Continuing without encryption.",
+                    e
+                );
+            } else {
+                tracing::info!("Database encryption key applied successfully");
+            }
+        }
+
+        schema::init_schema(&conn)?;
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+            db_path: path.to_string(),
+        })
+    }
+
+    pub fn new_in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory().context("Failed to open in-memory DB")?;
+        schema::init_schema(&conn)?;
+        Ok(Self {
+            conn: Arc::new(Mutex::new(conn)),
+            db_path: ":memory:".to_string(),
+        })
+    }
+
+    pub fn db_path(&self) -> &str {
+        &self.db_path
+    }
+
+    pub async fn insert_batch(&self, records: &[(String, i64, String, f64)]) -> Result<()> {
+        if records.is_empty() {
+            return Ok(());
+        }
+
+        let conn = self.conn.clone();
+        let records = records.to_vec();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let tx = conn.unchecked_transaction().context("Begin tx failed")?;
+            for (device_id, timestamp, metric, value) in &records {
+                tx.execute(
+                    "INSERT INTO telemetry (device_id, timestamp, metric, value) VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![device_id, timestamp, metric, value],
+                )
+                .context("Insert failed")?;
+            }
+            tx.commit().context("Commit failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn query_history(
+        &self,
+        device_id: &str,
+        metric: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<DataPoint>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+        let metric = metric.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT timestamp, value FROM telemetry
+                     WHERE device_id = ?1 AND metric = ?2
+                     AND timestamp >= ?3 AND timestamp <= ?4
+                     ORDER BY timestamp
+                     LIMIT 10000",
+                )
+                .context("Prepare failed")?;
+
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![device_id, metric, from, to],
+                    |row| {
+                        Ok(DataPoint {
+                            timestamp: row.get(0)?,
+                            value: row.get(1)?,
+                        })
+                    },
+                )
+                .context("Query failed")?;
+
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    pub async fn query_device_metrics(
+        &self,
+        device_id: &str,
+        from: i64,
+        to: i64,
+    ) -> Result<Vec<(i64, std::collections::HashMap<String, f64>)>> {
+        let conn = self.conn.clone();
+        let device_id = device_id.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT timestamp, metric, value FROM telemetry
+                     WHERE device_id = ?1
+                     AND timestamp >= ?2 AND timestamp <= ?3
+                     ORDER BY timestamp
+                     LIMIT 10000",
+                )
+                .context("Prepare failed")?;
+
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![device_id, from, to],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, f64>(2)?,
+                        ))
+                    },
+                )
+                .context("Query failed")?;
+
+            let mut grouped: std::collections::BTreeMap<i64, std::collections::HashMap<String, f64>> =
+                std::collections::BTreeMap::new();
+            for row in rows {
+                let (ts, metric, value) = row.context("Row mapping failed")?;
+                grouped.entry(ts).or_default().insert(metric, value);
+            }
+
+            Ok(grouped.into_iter().collect())
+        })
+        .await
+        .context("Task join failed")?
+    }
+}

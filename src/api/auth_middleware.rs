@@ -1,0 +1,147 @@
+use super::AppState;
+use axum::extract::{ConnectInfo, Extension, State};
+use axum::http::{StatusCode, header};
+use axum::middleware::Next;
+use axum::extract::Request;
+use axum::response::IntoResponse;
+use axum_extra::extract::CookieJar;
+use axum::Json;
+use serde_json::json;
+
+pub async fn admin_only_middleware(
+    Extension(auth): Extension<AuthUser>,
+    req: Request,
+    next: Next,
+) -> impl IntoResponse {
+    if auth.role != "admin" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "admin access required"})),
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
+#[derive(Clone)]
+pub struct AuthUser {
+    pub username: String,
+    pub role: String,
+}
+
+pub async fn cookie_auth_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> impl IntoResponse {
+    // Extract client IP if available (may not be present in test oneshot)
+    let client_ip = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>()
+        .map(|ci| ci.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let mut req = req;
+
+    // 1. Try API key authentication (X-API-Key header or ?api_key= query param)
+    if let Some(api_key) = extract_api_key(&req) {
+        match state.storage.validate_api_key(&api_key).await {
+            Ok(Some((id, permissions))) => {
+                req.extensions_mut().insert(AuthUser {
+                    username: format!("api_key:{}", id),
+                    role: "api".to_string(),
+                });
+                req.extensions_mut().insert(ApiKeyAuth {
+                    id,
+                    permissions,
+                });
+                return next.run(req).await;
+            }
+            _ => {
+                // Failed API key auth — record intrusion and reject immediately.
+                // If an API key was explicitly provided, it must be the sole auth method;
+                // do not fall through to cookie/JWT auth.
+                state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
+                return (StatusCode::UNAUTHORIZED, "Invalid or expired API key").into_response();
+            }
+        }
+    }
+
+    // 2. Try Bearer token (OIDC)
+    if state.oidc_config.enabled {
+        if let Some(auth_header) = req.headers().get("authorization") {
+            if let Some(token) = auth_header.to_str().ok().and_then(|v| v.strip_prefix("Bearer ")) {
+                if let Some(claims) = state.jwks_manager.validate_token(token, &state.oidc_config).await {
+                    let role = crate::auth::oidc::extract_role(&claims, &state.oidc_config);
+                    req.extensions_mut().insert(AuthUser {
+                        username: claims.sub,
+                        role,
+                    });
+                    return next.run(req).await;
+                }
+            }
+        }
+    }
+
+    // 3. Fall back to local cookie auth
+    let jar = CookieJar::from_headers(req.headers());
+    let token = jar
+        .get("voltrus_token")
+        .map(|c| c.value())
+        .unwrap_or("");
+    if token.is_empty() {
+        state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "unauthorized"})),
+        )
+            .into_response();
+    }
+    match super::auth::verify_token(token, &state.auth_secret) {
+        Some(claims) => {
+            req.extensions_mut().insert(AuthUser {
+                username: claims.username,
+                role: claims.role,
+            });
+            next.run(req).await
+        }
+        None => {
+            state.intrusion_detector.record_401_with_storage(&client_ip, &state.storage).await;
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "unauthorized"})),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// API key authentication info.
+/// Note: permissions field is stored for future use but not yet enforced.
+/// All valid API keys currently grant full read access to protected endpoints.
+#[derive(Clone, Debug)]
+pub struct ApiKeyAuth {
+    pub id: i64,
+    pub permissions: String,
+}
+
+/// Extract API key from X-API-Key header or ?api_key= query parameter.
+fn extract_api_key(req: &Request) -> Option<String> {
+    // Check X-API-Key header first
+    if let Some(header) = req.headers().get("X-API-Key") {
+        if let Ok(key) = header.to_str() {
+            if !key.is_empty() {
+                return Some(key.to_string());
+            }
+        }
+    }
+    // Fall back to query parameter
+    if let Some(query) = req.uri().query() {
+        for pair in query.split('&') {
+            if let Some(key) = pair.strip_prefix("api_key=") {
+                if !key.is_empty() {
+                    return Some(key.to_string());
+                }
+            }
+        }
+    }
+    None
+}
