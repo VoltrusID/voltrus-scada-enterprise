@@ -38,6 +38,7 @@ mod ws_types;
 mod ai_copilot;
 mod import_nodered;
 mod mqtt_broker;
+mod network;
 
 use api::AppState;
 use base64::Engine;
@@ -586,6 +587,7 @@ async fn main() -> anyhow::Result<()> {
         stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
         ws_manager: ws_manager.clone(),
         mqtt_broker_state,
+        network_manager: network::NetworkManager::new(app_config.networks.clone()),
     };
 
     api::stream::spawn_sse_composer(cache.clone(), storage.clone());
