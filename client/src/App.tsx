@@ -30,6 +30,7 @@ import { createDashboardStore, DashboardStoreProvider } from './store/dashboardS
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { TrialBanner } from './TrialBanner'
+import { HaBanner } from './components/HaBanner'
 import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
 import { VoltrusWebSocket } from './api/websocket'
 import { ThemeProvider } from './ThemeContext'
@@ -428,6 +429,7 @@ function AppInner() {
       {(licenseStatus === 'Trial' || licenseStatus === 'TrialExpired') && (
         <TrialBanner licenseInfo={licenseInfo} onActivate={() => setShowLicenseActivation(true)} />
       )}
+      <HaBanner />
       <header role="banner">
       <AppHeader
         branding={branding} editMode={editMode}
