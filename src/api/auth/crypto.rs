@@ -1,4 +1,3 @@
-use super::*;
 
 pub fn hash_password(password: &str) -> String {
     use argon2::password_hash::{SaltString, PasswordHasher};

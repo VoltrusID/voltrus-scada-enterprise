@@ -120,7 +120,7 @@ pub async fn create_downtime(
     }
 
     match state.storage.create_downtime_event(device_id, &state_str).await {
-        Ok(id) => {
+        Ok(_id) => {
             match state.storage.get_open_downtime_event(device_id).await {
                 Ok(Some(event)) => (HttpStatus::CREATED, Json(json!(event))).into_response(),
                 Ok(None) => (

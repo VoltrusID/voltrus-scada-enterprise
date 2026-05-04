@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/dnp3/master.rs
 
 use std::collections::HashMap;

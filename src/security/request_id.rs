@@ -1,7 +1,7 @@
 use axum::http::header;
 use axum::middleware::Next;
 use axum::extract::Request;
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use rand::Rng as _;
 
 pub fn generate_request_id() -> String {

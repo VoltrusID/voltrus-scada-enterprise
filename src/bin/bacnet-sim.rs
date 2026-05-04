@@ -172,6 +172,7 @@ fn encode_character_string(s: &str) -> Vec<u8> {
     buf
 }
 
+#[allow(dead_code)]
 fn encode_object_id(obj_type: u16, instance: u32) -> Vec<u8> {
     let id: u32 = ((obj_type as u32) << 22) | instance;
     let mut buf = vec![0xC4];

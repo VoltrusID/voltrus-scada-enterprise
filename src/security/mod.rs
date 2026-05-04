@@ -17,7 +17,6 @@ pub use rate_limiter::*;
 pub use request_filters::*;
 pub use request_id::*;
 pub use sanitization::*;
-pub use signing::*;
 
 // ── Tests ──
 

@@ -7,7 +7,6 @@
 use crate::cache::DeviceCache;
 use crate::storage::Storage;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 /// Settings key prefix for per-device OEE thresholds.

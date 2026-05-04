@@ -346,7 +346,7 @@ impl Storage {
                 |row| {
                     let count: i64 = row.get(4)?;
                     let avg: f64 = row.get(3)?;
-                    let mut sum_sq_diff = 0.0;
+                    let _sum_sq_diff = 0.0;
                     // stddev approximation: we need a subquery, but for simplicity
                     // we'll compute it from the result. Here we just return 0.0
                     // and the API layer can compute it if needed.

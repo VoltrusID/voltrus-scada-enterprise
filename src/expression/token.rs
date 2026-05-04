@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Token {
     Number(f64),

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use anyhow::{Context, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -203,7 +204,7 @@ impl EthernetIpClient {
         let mut pos = offset + 2;
         // Skip address item
         if pos + 4 <= body_buf.len() {
-            let addr_type = u16::from_le_bytes(body_buf[pos..pos + 2].try_into().unwrap());
+            let _addr_type = u16::from_le_bytes(body_buf[pos..pos + 2].try_into().unwrap());
             let addr_len = u16::from_le_bytes(body_buf[pos + 2..pos + 4].try_into().unwrap()) as usize;
             pos += 4 + addr_len;
         }

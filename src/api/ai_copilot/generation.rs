@@ -1,7 +1,6 @@
 use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
 use axum::Json;
-use serde_json::json;
 
 use super::super::{AppError, AppState, AuthUser};
 use crate::ai_copilot::{self, AiRequest, resolve_provider};

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // ── S7 Protocol Constants ──
 
 pub(crate) const TPKT_VERSION: u8 = 3;

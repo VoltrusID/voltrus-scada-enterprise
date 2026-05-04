@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // src/compression/bitio.rs — Bit-level I/O for compressed data
 
 /// Bit-level writer for encoding compressed data.

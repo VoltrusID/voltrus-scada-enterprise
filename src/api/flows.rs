@@ -75,7 +75,7 @@ pub async fn start_flow(State(state): State<AppState>, Extension(auth): Extensio
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn stop_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
+pub async fn stop_flow(State(state): State<AppState>, Extension(_auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
     if let Some(engine) = &state.flow_engine {
         if let Some(mut flow) = engine.get_flow(&id).await {
             flow.enabled = false;

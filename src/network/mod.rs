@@ -43,7 +43,7 @@ impl NetworkManager {
 
     pub fn detect_interfaces() -> Vec<InterfaceInfo> {
         let mut interfaces = Vec::new();
-        let mut nets = sysinfo::Networks::new_with_refreshed_list();
+        let nets = sysinfo::Networks::new_with_refreshed_list();
 
         for (name, data) in &nets {
             let addresses: Vec<String> = data.ip_networks().iter().map(|n| n.to_string()).collect();

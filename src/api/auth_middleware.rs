@@ -1,6 +1,6 @@
 use super::AppState;
 use axum::extract::{ConnectInfo, Extension, State};
-use axum::http::{StatusCode, header};
+use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::extract::Request;
 use axum::response::IntoResponse;

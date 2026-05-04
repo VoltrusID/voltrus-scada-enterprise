@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use bacnet_rs::object::{ObjectType, PropertyIdentifier};
 
 pub(super) fn object_type_from_str(s: &str) -> Option<ObjectType> {
