@@ -154,6 +154,7 @@ mod tests {
             device_id: "test".to_string(),
             equipment_id: None,
             chart_type: "sparkline".to_string(),
+            path: None,
         }
     }
 

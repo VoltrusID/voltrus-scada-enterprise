@@ -6,6 +6,7 @@ mod security_tests;
 mod hub_tests;
 mod oee_tests;
 mod command_tests;
+mod tag_tree_tests;
 
 use super::Storage;
 use crate::models::{DataPoint, Command, CommandQuery};
