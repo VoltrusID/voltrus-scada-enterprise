@@ -327,7 +327,7 @@ mod tests {
             ("PUMP_FLOW".to_string(), 150.0),
             ("PUMP_RATED".to_string(), 200.0),
         ]);
-        cache.update("pump_1", metrics).await;
+        cache.update("pump_1", metrics, false).await;
 
         let tag_refs = vec!["PUMP_FLOW".to_string(), "PUMP_RATED".to_string()];
         let values = resolve_tag_values(&cache, &tag_refs).await;
@@ -344,7 +344,7 @@ mod tests {
         let metrics = HashMap::from([
             ("VOLTAGE".to_string(), 220.0),
         ]);
-        cache.update("dev1", metrics).await;
+        cache.update("dev1", metrics, false).await;
 
         let tag_refs = vec!["VOLTAGE".to_string(), "MISSING".to_string()];
         let values = resolve_tag_values(&cache, &tag_refs).await;
@@ -363,7 +363,7 @@ mod tests {
             ("PUMP_FLOW".to_string(), 150.0),
             ("PUMP_RATED".to_string(), 200.0),
         ]);
-        cache.update("pump_1", metrics).await;
+        cache.update("pump_1", metrics, false).await;
 
         let metric = CustomMetric {
             id: 1,
