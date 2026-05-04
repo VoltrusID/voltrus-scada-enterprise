@@ -19,6 +19,7 @@ mod config_export;
 mod deadband;
 mod discovery;
 mod dnp3;
+mod edr_compat;
 mod ethernet_ip;
 mod expression;
 mod flow_engine;
