@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle } from './styles'
 import { useScanModbusRegisters } from './queries'
+import { useNetworks } from './queries/networks'
 import type { ScannedRegister } from './queries'
 import type { ModbusDevice, ModbusRegister } from './types'
 
@@ -33,6 +34,8 @@ export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) 
   const [unitId, setUnitId] = useState(source?.unit_id ?? 1)
   const [intervalMs, setIntervalMs] = useState(source?.interval_ms ?? 1000)
   const [endianness, setEndianness] = useState(source?.endianness ?? 'big')
+  const [network, setNetwork] = useState('')
+  const { data: networksData } = useNetworks()
   const [registers, setRegisters] = useState<RegisterRow[]>(
     source?.registers?.map(r => ({ name: r.name, address: r.address, register_type: r.register_type, register_area: r.register_area || 'holding', scale: r.scale })) ?? []
   )
@@ -128,6 +131,7 @@ export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) 
             <label style={labelStyle}><span style={labelTextStyle}>Unit ID</span><input type="number" value={unitId} onChange={e => setUnitId(parseInt(e.target.value) || 1)} style={monoInputStyle} /></label>
             <label style={labelStyle}><span style={labelTextStyle}>Interval (ms)</span><input type="number" value={intervalMs} onChange={e => setIntervalMs(parseInt(e.target.value) || 1000)} style={monoInputStyle} /></label>
             <label style={labelStyle}><span style={labelTextStyle}>Endianness</span><select value={endianness} onChange={e => setEndianness(e.target.value)} style={inputStyle}>{ENCODINGS.map(e => <option key={e} value={e}>{e}</option>)}</select></label>
+            <label style={labelStyle}><span style={labelTextStyle}>Network</span><select value={network} onChange={e => setNetwork(e.target.value)} style={inputStyle}><option value="">Default</option>{networksData?.configured_networks?.map(n => <option key={n} value={n}>{n}</option>)}</select></label>
           </div>
 
           <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
