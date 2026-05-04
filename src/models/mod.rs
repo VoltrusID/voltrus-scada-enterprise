@@ -93,6 +93,7 @@ pub struct DataSource {
     pub device_id: String,
     pub equipment_id: Option<String>,
     pub chart_type: String,
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

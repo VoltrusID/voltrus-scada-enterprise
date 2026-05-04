@@ -256,4 +256,7 @@ pub(super) fn run_migrations(conn: &Connection) {
     let _ = conn.execute_batch("ALTER TABLE devices ADD COLUMN sim_config TEXT");
     // Migration: v0.26.0 -- Simulation column on data_sources
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN sim_value REAL");
+
+    // Migration: v0.32.0 -- UNS path column on data_sources for tag browser tree
+    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN path TEXT DEFAULT NULL");
 }
