@@ -46,4 +46,9 @@ export const queryKeys = {
   shiftAutoReport: ['shiftAutoReport'] as const,
   uiTheme: ['uiTheme'] as const,
   uiLang: ['uiLang'] as const,
+  tagTree: (search?: string) => ['tagTree', search] as const,
+  namingConvention: ['namingConvention'] as const,
+  auditLogs: (params: Record<string, any>) => ['auditLogs', params] as const,
+  auditExport: (params: Record<string, any>) => ['auditExport', params] as const,
+  mqttBroker: ['mqttBroker'] as const,
 }

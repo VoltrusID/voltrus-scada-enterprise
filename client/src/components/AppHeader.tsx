@@ -28,7 +28,7 @@ interface Props {
   showShortcutsPanel: boolean
   onToggleShortcutsPanel: () => void
   shortcutsPanel: React.ReactNode
-  mode: 'live' | 'history' | 'system' | 'flows'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
   onModeChange: (mode: 'live' | 'history') => void
   historyRange: string
   onHistoryRangeChange: (range: string) => void
@@ -40,6 +40,7 @@ interface Props {
   onSettingsClick: () => void
   onDataManagerClick: () => void
   onFlowsClick: () => void
+  onTagsClick: () => void
   isAdmin: boolean
   onLogout: () => void
   onAlarmPanelToggle: () => void
@@ -48,6 +49,10 @@ interface Props {
   onAnnotationPanelToggle: () => void
   onShiftHandoverToggle: () => void
   onSnapshotsClick: () => void
+  onAuditPanelToggle: () => void
+  onImportWizardClick: () => void
+  onNodeRedWizardClick: () => void
+  onMqttPanelClick: () => void
 }
 
 export function AppHeader({
@@ -58,9 +63,9 @@ export function AppHeader({
   mode, onModeChange,
   historyRange, onHistoryRangeChange, historyDetail, onHistoryDetailChange, historyAutoAgg,
   turbo, onToggleTurbo,
-  onSettingsClick, onDataManagerClick, onFlowsClick, isAdmin,
+  onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
   onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onAnnotationPanelToggle, onShiftHandoverToggle,
-  onSnapshotsClick,
+  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick,
 }: Props) {
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -204,6 +209,45 @@ export function AppHeader({
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
               <span>Snapshots</span>
             </button>
+            {isAdmin && (
+              <button style={btnStyle} onClick={onAuditPanelToggle} aria-label="Audit log">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <span>Audit</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button style={btnStyle} onClick={onImportWizardClick} aria-label="Import data">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Import</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button style={btnStyle} onClick={onNodeRedWizardClick} aria-label="Node-RED import">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                <span>Node-RED</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button style={btnStyle} onClick={onMqttPanelClick} aria-label="MQTT broker">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>MQTT</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                aria-label="Tags"
+                style={{
+                  ...btnStyle,
+                  borderColor: mode === 'tags' ? 'var(--cyan)' : 'var(--border)',
+                  color: mode === 'tags' ? 'var(--cyan)' : 'var(--fg)',
+                  background: mode === 'tags' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+                }}
+                onClick={onTagsClick}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>Tags</span>
+              </button>
+            )}
             {isAdmin && (
               <button
                 aria-label="Flows"
