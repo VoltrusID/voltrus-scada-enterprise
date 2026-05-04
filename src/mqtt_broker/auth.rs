@@ -1,4 +1,4 @@
-use crate::models::{MqttAuthConfig, MqttUser};
+use crate::models::MqttAuthConfig;
 
 /// Validate MQTT credentials against the configured auth settings.
 pub fn validate_credentials(
@@ -26,6 +26,7 @@ pub fn validate_credentials(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::MqttUser;
 
     #[test]
     fn test_auth_disabled() {

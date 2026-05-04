@@ -7,8 +7,10 @@ pub mod spc_calculations;
 pub mod spc_attributes;
 
 // Re-export all public items so that `analytics::spc::xxx` still works.
-pub use spc_calculations::{cusum, ewma, xbar_r};
-pub use spc_attributes::{np_chart, p_chart};
+#[allow(unused_imports)]
+pub use spc_calculations::*;
+#[allow(unused_imports)]
+pub use spc_attributes::*;
 
 #[cfg(test)]
 mod tests {
