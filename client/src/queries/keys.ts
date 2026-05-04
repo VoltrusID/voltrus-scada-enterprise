@@ -44,4 +44,6 @@ export const queryKeys = {
   shiftHandovers: ['shiftHandovers'] as const,
   shiftHandoversFiltered: (date?: string, period?: string) => ['shiftHandovers', date, period] as const,
   shiftAutoReport: ['shiftAutoReport'] as const,
+  uiTheme: ['uiTheme'] as const,
+  uiLang: ['uiLang'] as const,
 }

@@ -32,6 +32,7 @@ import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { TrialBanner } from './TrialBanner'
 import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
 import { VoltrusWebSocket } from './api/websocket'
+import { ThemeProvider } from './ThemeContext'
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -566,7 +567,9 @@ export default function App() {
   const storeRef = useRef(createDashboardStore())
   return (
     <DashboardStoreProvider value={storeRef.current}>
-      <AppInner />
+      <ThemeProvider>
+        <AppInner />
+      </ThemeProvider>
     </DashboardStoreProvider>
   )
 }
