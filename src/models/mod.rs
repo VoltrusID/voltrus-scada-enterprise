@@ -184,6 +184,18 @@ pub struct Setting {
     pub value: String,
 }
 
+// ── Audit log types ──
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
+pub struct AuditLogEntry {
+    pub id: i64,
+    pub action: String,
+    pub username: String,
+    pub resource: String,
+    pub details: Option<String>,
+    pub created_at: i64,
+}
+
 // ── Flow types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
