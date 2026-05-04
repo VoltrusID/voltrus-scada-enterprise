@@ -21,6 +21,7 @@ mod discovery;
 mod dnp3;
 mod edr_compat;
 mod ethernet_ip;
+mod hardware_cert;
 mod expression;
 mod flow_engine;
 mod ha;

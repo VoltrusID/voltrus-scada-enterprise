@@ -22,6 +22,7 @@ mod enip_devices;
 mod firmware_catalog;
 mod flows;
 mod generators;
+pub(crate) mod hardware_cert;
 pub(crate) mod hub;
 mod import_nodered;
 mod layouts;
@@ -428,6 +429,20 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/edr/io-status", get(edr_compat::get_io_status))
         .route("/api/v1/edr/gpo-guide", get(edr_compat::get_gpo_guide))
+        // Hardware certification routes (any authenticated user can view)
+        .route("/api/v1/hw/report", get(hardware_cert::get_hw_report))
+        .route(
+            "/api/v1/hw/compatibility-matrix",
+            get(hardware_cert::get_compatibility_matrix),
+        )
+        .route(
+            "/api/v1/hw/edge-deploy",
+            get(hardware_cert::get_edge_deploy_guide),
+        )
+        .route(
+            "/api/v1/hw/edge-deploy/rpi-quickstart",
+            get(hardware_cert::get_rpi_quickstart),
+        )
         // AI Copilot routes (any authenticated user)
         .route("/api/v1/ai/settings", get(ai_copilot::get_ai_settings))
         .route(
@@ -755,6 +770,11 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/v1/edr/exclusions/ps1",
             get(edr_compat::get_defender_ps1),
+        )
+        // Hardware certification admin routes (benchmark is admin-only, writes to DB)
+        .route(
+            "/api/v1/hw/benchmark",
+            post(hardware_cert::run_hw_benchmark),
         )
         // RTSP Video / Camera routes (admin-only, Enterprise-gated)
         .route(
