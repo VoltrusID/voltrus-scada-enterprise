@@ -1,6 +1,6 @@
 [package]
 name = "voltrus-lite-rust-service"
-version = "0.29.0"
+version = "0.30.0"
 edition = "2024"
 license = "MIT"
 
@@ -24,11 +24,18 @@ path = "src/bin/opcua-sim.rs"
 name = "mqtt-sim"
 path = "src/bin/mqtt-sim.rs"
 
+[[bin]]
+name = "dnp3-sim"
+path = "src/bin/dnp3-sim.rs"
+
 [dependencies]
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
 tokio-stream = { version = "=0.1.18", features = ["sync"] }
 tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp", "tcp-server"] }
 axum = { version = "=0.8.9", features = ["ws"] }
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+utoipa-axum = "0.2"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 serde_yaml_neo = "0.11"

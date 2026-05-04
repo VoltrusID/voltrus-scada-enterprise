@@ -218,6 +218,8 @@ export {
 
 export type { EnipDevice, EnipTag } from './enip'
 
+export * from './dnp3'
+
 export {
   useComplianceConfig,
   useUpdateComplianceConfig,

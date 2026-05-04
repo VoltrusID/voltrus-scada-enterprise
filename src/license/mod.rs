@@ -148,6 +148,11 @@ impl LicenseTier {
         matches!(self, LicenseTier::Enterprise)
     }
 
+    /// DNP3 (IEEE 1815) protocol support — Enterprise only.
+    pub fn dnp3(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
+    }
+
     /// RTSP video integration.
     /// Only available on Enterprise tier.
     pub fn rtsp_video(&self) -> bool {
@@ -182,6 +187,7 @@ impl LicenseTier {
             "cfr_part_11": self.cfr_part_11(),
             "ethernet_ip": self.ethernet_ip(),
             "s7_protocol": self.s7_protocol(),
+            "dnp3": self.dnp3(),
             "rtsp_video": self.rtsp_video(),
         })
     }
