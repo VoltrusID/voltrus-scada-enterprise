@@ -33,9 +33,11 @@ import { TrialBanner } from './TrialBanner'
 import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
 import { VoltrusWebSocket } from './api/websocket'
 import { ThemeProvider } from './ThemeContext'
+import { useTranslation } from 'react-i18next'
 
 function AppInner() {
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
 
   // ── License state ────────────────────────────────────────────────
   const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null)
@@ -383,12 +385,12 @@ function AppInner() {
   }, [activeAlarms.count, startAlarm, stopAlarm])
 
   // ── Render gates ─────────────────────────────────────────────────
-  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Checking license...</div>
+  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('license.checking')}</div>
   const licenseStatus = licenseInfo.status
   const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Trial' || licenseStatus === 'TrialExpired'
   if (!isLicensed) return <LicenseActivationScreen />
   if (showLicenseActivation) return <LicenseActivationScreen />
-  if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
+  if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('common.loading')}</div>
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
 
   if (mustChangePassword) {
@@ -547,8 +549,8 @@ function AppInner() {
         {showSnapshotPanel && (
           <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Config Snapshots</h2>
-              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowSnapshotPanel(false)}>Close</button>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{t('snapshots.title')}</h2>
+              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowSnapshotPanel(false)}>{t('common.close')}</button>
             </div>
             <div style={{ flex: 1, overflow: 'auto' }}>
               <ConfigSnapshotPanel />
