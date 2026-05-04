@@ -57,6 +57,13 @@ impl Storage {
         Self::new_with_key(path, None)
     }
 
+    /// Simple health check — verify the connection is usable.
+    pub fn conn_health(&self) -> bool {
+        self.conn.lock().unwrap()
+            .execute_batch("SELECT 1")
+            .is_ok()
+    }
+
     pub fn new_with_key(path: &str, encryption_key: Option<&str>) -> Result<Self> {
         let conn = Connection::open(path)
             .with_context(|| format!("Failed to open database: {path}"))?;

@@ -93,6 +93,8 @@ pub struct AppState {
     pub ws_manager: Arc<crate::ws_manager::WsManager>,
     pub mqtt_broker_state: Option<crate::mqtt_broker::MqttBrokerState>,
     pub network_manager: crate::network::NetworkManager,
+    pub health_monitor: Arc<crate::ha::watchdog::HealthMonitor>,
+    pub ha_state: crate::ha::HaState,
 }
 
 #[derive(Debug)]
@@ -202,6 +204,7 @@ pub fn create_router(state: AppState) -> Router {
     let public = Router::new()
         .route("/api/v1/health", get(system::get_health))
         .route("/api/v1/networks", get(crate::network::handle_list_networks))
+        .route("/api/v1/health/detailed", get(crate::ha::ha_api::health_check))
         .route("/api/v1/auth/login", post(auth::login))
         .route("/api/v1/auth/refresh", post(auth::refresh_token))
         .route("/api/v1/auth/logout", post(auth::logout))
@@ -220,6 +223,9 @@ pub fn create_router(state: AppState) -> Router {
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
         .route("/api/v1/live", get(system::get_live))
+        .route("/api/v1/ha/status", get(crate::ha::ha_api::ha_status))
+        .route("/api/v1/ha/force-sync", post(crate::ha::ha_api::force_sync))
+        .route("/api/v1/ha/force-failover", post(crate::ha::ha_api::force_failover))
         .route("/api/v1/stream", get(stream::stream))
         .route("/api/v1/system", get(system::get_system))
         .route("/api/v1/version", get(system::get_version))

@@ -38,6 +38,7 @@ mod ws_types;
 mod ai_copilot;
 mod import_nodered;
 mod mqtt_broker;
+mod ha;
 mod network;
 
 use api::AppState;
@@ -562,6 +563,34 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Initialize health monitor and HA state
+    let health_monitor = Arc::new(ha::watchdog::HealthMonitor::new(app_config.watchdog.clone()));
+    {
+        let storage_check = {
+            let storage = storage.clone();
+            move || {
+                match storage.conn_health() {
+                    true => Ok("ok".to_string()),
+                    false => Err("connection unhealthy".to_string()),
+                }
+            }
+        };
+        health_monitor.register("storage", Box::new(storage_check)).await;
+    }
+    if app_config.watchdog.enabled {
+        health_monitor.start();
+        tracing::info!("Health monitor started (interval: {}s)", app_config.watchdog.health_check_interval_secs);
+    }
+
+    let ha_state = if app_config.ha.enabled {
+        let state = ha::HaState::new(&app_config.ha);
+        ha::start_ha(&app_config.ha, state.clone());
+        tracing::info!("HA enabled, node_id={}, role={}", app_config.ha.node_id, app_config.ha.role);
+        state
+    } else {
+        ha::HaState::disabled()
+    };
+
     let state = AppState {
         cache: cache.clone(),
         storage: storage.clone(),
@@ -588,6 +617,8 @@ async fn main() -> anyhow::Result<()> {
         ws_manager: ws_manager.clone(),
         mqtt_broker_state,
         network_manager: network::NetworkManager::new(app_config.networks.clone()),
+        health_monitor,
+        ha_state,
     };
 
     api::stream::spawn_sse_composer(cache.clone(), storage.clone());
