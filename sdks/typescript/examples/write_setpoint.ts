@@ -1,37 +1,27 @@
-import { Configuration, CommandsApi } from "voltrus";
+import { VoltrusClient } from "voltrus";
 
-const host = process.argv[2] || "http://localhost:3000";
+const host = process.argv[2] || "http://localhost:8080";
 const apiKey = process.argv[3] || "";
-const tagId = parseInt(process.argv[4] || "1");
-const value = process.argv[5] || "1";
 
-const config = new Configuration({
-  basePath: host,
-  apiKey,
-});
+const client = new VoltrusClient({ baseURL: host, apiKey });
 
 async function main() {
-  const api = new CommandsApi(config);
-  const result = await api.writeTag(tagId, { value });
-  const commandId = (result.data as any).command_id;
-  console.log(`Command submitted: ${commandId}`);
+  const tagId = process.argv[4] || "sensor-001";
+  const value = parseFloat(process.argv[5] || "42.5");
 
-  for (let i = 0; i < 30; i++) {
-    const status = await api.getCommandStatus(commandId);
-    const state = (status.data as any).status;
-    console.log(`  Status: ${state}`);
+  // Write a setpoint
+  const result = await client.writeTag(tagId, value);
+  console.log(`Write accepted: command_id=${result.command_id}, status=${result.status}`);
 
-    if (state === "acked" || state === "resolved") {
-      console.log("Command acknowledged!");
-      return;
-    }
-    if (state === "failed") {
-      console.log(`Command failed: ${(status.data as any).error_message}`);
-      return;
-    }
+  // Poll for acknowledgement
+  for (let i = 0; i < 10; i++) {
     await new Promise((r) => setTimeout(r, 1000));
+    const status = await client.getCommandStatus(result.command_id);
+    console.log(`  [${i + 1}s] status=${status.status}`);
+    if (status.status === "acked" || status.status === "failed") {
+      break;
+    }
   }
-  console.log("Timeout waiting for acknowledgment");
 }
 
 main().catch(console.error);

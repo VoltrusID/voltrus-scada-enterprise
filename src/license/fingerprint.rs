@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -31,11 +31,21 @@ impl Fingerprint {
 
     pub fn match_score(&self, other: &Fingerprint) -> usize {
         let mut score = 0;
-        if self.hostname == other.hostname { score += 1; }
-        if self.cpu == other.cpu { score += 1; }
-        if self.disk_serial == other.disk_serial { score += 1; }
-        if self.mac == other.mac { score += 1; }
-        if self.machine_id == other.machine_id { score += 1; }
+        if self.hostname == other.hostname {
+            score += 1;
+        }
+        if self.cpu == other.cpu {
+            score += 1;
+        }
+        if self.disk_serial == other.disk_serial {
+            score += 1;
+        }
+        if self.mac == other.mac {
+            score += 1;
+        }
+        if self.machine_id == other.machine_id {
+            score += 1;
+        }
         score
     }
 
@@ -93,10 +103,10 @@ fn get_disk_serial() -> String {
         {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
-                if line.contains("Device Identifier") {
-                    if let Some(id) = line.split(':').nth(1) {
-                        return id.trim().to_string();
-                    }
+                if line.contains("Device Identifier")
+                    && let Some(id) = line.split(':').nth(1)
+                {
+                    return id.trim().to_string();
                 }
             }
         }
@@ -152,12 +162,11 @@ fn get_machine_id() -> String {
         {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines() {
-                if line.contains("IOPlatformUUID") {
-                    if let Some(start) = line.find('"') {
-                        if let Some(end) = line[start + 1..].find('"') {
-                            return line[start + 1..start + 1 + end].to_string();
-                        }
-                    }
+                if line.contains("IOPlatformUUID")
+                    && let Some(start) = line.find('"')
+                    && let Some(end) = line[start + 1..].find('"')
+                {
+                    return line[start + 1..start + 1 + end].to_string();
                 }
             }
         }

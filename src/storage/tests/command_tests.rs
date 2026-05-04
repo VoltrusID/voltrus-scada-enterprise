@@ -75,7 +75,13 @@ async fn test_command_audit_trail() {
     storage.insert_command(&cmd).await.unwrap();
 
     storage
-        .update_command_status("cmd_audit1", "queued", Some("device offline"), "system", Some("retry"))
+        .update_command_status(
+            "cmd_audit1",
+            "queued",
+            Some("device offline"),
+            "system",
+            Some("retry"),
+        )
         .await
         .unwrap();
     storage

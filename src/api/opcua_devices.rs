@@ -1,13 +1,13 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use opcua::client::{ClientBuilder, IdentityToken, services::Browse, UARequest};
+use opcua::client::{ClientBuilder, IdentityToken, UARequest, services::Browse};
 use opcua::types::{
-    BrowseDescription, BrowseDescriptionResultMask, BrowseDirection,
-    NodeClass, NodeClassMask, NodeId, UserTokenPolicy,
+    BrowseDescription, BrowseDescriptionResultMask, BrowseDirection, NodeClass, NodeClassMask,
+    NodeId, UserTokenPolicy,
 };
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -62,7 +62,9 @@ pub async fn create_device(
         return Err(AppError(anyhow::anyhow!("Device URL is required")));
     }
     if !req.url.starts_with("opc.tcp://") {
-        return Err(AppError(anyhow::anyhow!("Device URL must start with opc.tcp://")));
+        return Err(AppError(anyhow::anyhow!(
+            "Device URL must start with opc.tcp://"
+        )));
     }
 
     let id = state
@@ -81,8 +83,14 @@ pub async fn create_device(
 
     // Sync to asset inventory
     crate::asset::sync::on_device_created(
-        &state.storage.asset(), "opcua", &id.to_string(), &req.name, None, "gateway",
-    ).await;
+        &state.storage.asset(),
+        "opcua",
+        &id.to_string(),
+        &req.name,
+        None,
+        "gateway",
+    )
+    .await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_opcua_device".to_string(),
@@ -111,10 +119,13 @@ pub async fn update_device(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if let Some(ref url) = req.url {
-        if !url.is_empty() && !url.starts_with("opc.tcp://") {
-            return Err(AppError(anyhow::anyhow!("Device URL must start with opc.tcp://")));
-        }
+    if let Some(ref url) = req.url
+        && !url.is_empty()
+        && !url.starts_with("opc.tcp://")
+    {
+        return Err(AppError(anyhow::anyhow!(
+            "Device URL must start with opc.tcp://"
+        )));
     }
 
     state

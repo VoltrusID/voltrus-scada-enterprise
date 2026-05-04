@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -66,7 +67,13 @@ impl DataStore {
         }
     }
 
-    fn read_bytes(&self, area_code: u8, db_number: u16, offset: u16, count: u16) -> Option<Vec<u8>> {
+    fn read_bytes(
+        &self,
+        area_code: u8,
+        db_number: u16,
+        offset: u16,
+        count: u16,
+    ) -> Option<Vec<u8>> {
         let area: &[u8] = match area_code {
             AREA_DB if db_number == 1 => &self.db1,
             AREA_DB => return None,
@@ -150,7 +157,12 @@ impl MeterData {
     fn read_f32(&self, offset: usize) -> f32 {
         let store = &self.store;
         if offset + 4 <= store.db1.len() {
-            f32::from_be_bytes([store.db1[offset], store.db1[offset + 1], store.db1[offset + 2], store.db1[offset + 3]])
+            f32::from_be_bytes([
+                store.db1[offset],
+                store.db1[offset + 1],
+                store.db1[offset + 2],
+                store.db1[offset + 3],
+            ])
         } else {
             0.0
         }
@@ -268,10 +280,14 @@ fn wrap_s7_in_cotp_dt_tpkt(s7_frame: &[u8]) -> Vec<u8> {
 fn build_s7_setup_comm_response(pdu_ref: u16) -> Vec<u8> {
     // Params: function=0xF0, reserved, max AMQ calling=1, max AMQ called=1, PDU size=480
     let params = [
-        S7_SETUP_COMM, 0x00,
-        0x00, 0x01, // max AMQ calling
-        0x00, 0x01, // max AMQ called
-        0x01, 0xE0, // PDU size = 480
+        S7_SETUP_COMM,
+        0x00,
+        0x00,
+        0x01, // max AMQ calling
+        0x00,
+        0x01, // max AMQ called
+        0x01,
+        0xE0, // PDU size = 480
     ];
     // Data: 4 zeros
     let data = [0x00u8; 4];
@@ -305,17 +321,19 @@ fn build_s7_read_var_response(
     for &(transport_size, _unused, num_elements, db_number, area_code, byte_offset) in items {
         // Determine byte count from transport_size and num_elements
         let byte_count = match transport_size {
-            0x01 => (num_elements as usize + 7) / 8, // bit
-            0x02 => num_elements as usize,            // byte
-            0x04 => num_elements as usize * 2,        // word
-            0x06 => num_elements as usize * 4,        // dword
-            0x08 => num_elements as usize * 4,        // real
-            _ => num_elements as usize,               // fallback: byte
+            0x01 => (num_elements as usize).div_ceil(8), // bit
+            0x02 => num_elements as usize,               // byte
+            0x04 => num_elements as usize * 2,           // word
+            0x06 => num_elements as usize * 4,           // dword
+            0x08 => num_elements as usize * 4,           // real
+            _ => num_elements as usize,                  // fallback: byte
         };
 
         let area_bytes = if should_garbage {
             let mut rng = rand::rng();
-            (0..byte_count).map(|_| rng.random::<u8>()).collect::<Vec<u8>>()
+            (0..byte_count)
+                .map(|_| rng.random::<u8>())
+                .collect::<Vec<u8>>()
         } else {
             match store.read_bytes(area_code, db_number, byte_offset, byte_count as u16) {
                 Some(b) => b,
@@ -400,13 +418,18 @@ fn parse_read_var_items(s7: &[u8]) -> Option<(u8, Vec<(u8, u16, u16, u8, u16)>)>
         let num_elements = u16::from_be_bytes([s7[pos + 4], s7[pos + 5]]);
         let db_number = u16::from_be_bytes([s7[pos + 6], s7[pos + 7]]);
         let area_code = s7[pos + 8];
-        let offset_bits = ((s7[pos + 9] as u32) << 16)
-            | ((s7[pos + 10] as u32) << 8)
-            | (s7[pos + 11] as u32);
+        let offset_bits =
+            ((s7[pos + 9] as u32) << 16) | ((s7[pos + 10] as u32) << 8) | (s7[pos + 11] as u32);
         // Convert bit offset to byte offset
         let byte_offset = (offset_bits / 8) as u16;
 
-        items.push((transport_size, num_elements, db_number, area_code, byte_offset));
+        items.push((
+            transport_size,
+            num_elements,
+            db_number,
+            area_code,
+            byte_offset,
+        ));
         pos += 12;
     }
 
@@ -447,12 +470,17 @@ fn parse_write_var_items(s7: &[u8]) -> Option<(u8, Vec<(u8, u16, u16, u8, u16, V
         let num_elements = u16::from_be_bytes([s7[pos + 4], s7[pos + 5]]);
         let db_number = u16::from_be_bytes([s7[pos + 6], s7[pos + 7]]);
         let area_code = s7[pos + 8];
-        let offset_bits = ((s7[pos + 9] as u32) << 16)
-            | ((s7[pos + 10] as u32) << 8)
-            | (s7[pos + 11] as u32);
+        let offset_bits =
+            ((s7[pos + 9] as u32) << 16) | ((s7[pos + 10] as u32) << 8) | (s7[pos + 11] as u32);
         let byte_offset = (offset_bits / 8) as u16;
 
-        param_items.push((transport_size, num_elements, db_number, area_code, byte_offset));
+        param_items.push((
+            transport_size,
+            num_elements,
+            db_number,
+            area_code,
+            byte_offset,
+        ));
         pos += 12;
     }
 
@@ -475,7 +503,14 @@ fn parse_write_var_items(s7: &[u8]) -> Option<(u8, Vec<(u8, u16, u16, u8, u16, V
         let data_bytes = s7[data_pos..data_pos + write_data_len].to_vec();
         data_pos += write_data_len;
 
-        results.push((transport_size, num_elements, db_number, area_code, byte_offset, data_bytes));
+        results.push((
+            transport_size,
+            num_elements,
+            db_number,
+            area_code,
+            byte_offset,
+            data_bytes,
+        ));
     }
 
     Some((item_count, results))
@@ -554,7 +589,10 @@ async fn handle_connection(
         let _param_len = u16::from_be_bytes([s7_frame[6], s7_frame[7]]) as usize;
 
         if msg_type != S7_MSG_TYPE_JOB {
-            tracing::warn!("Unsupported S7 message type: 0x{:02X} from {addr}", msg_type);
+            tracing::warn!(
+                "Unsupported S7 message type: 0x{:02X} from {addr}",
+                msg_type
+            );
             continue;
         }
 
@@ -613,7 +651,9 @@ async fn handle_connection(
                 if let Some((item_count, items)) = parse_write_var_items(s7_frame) {
                     let mut meter = meter_data.lock().unwrap();
                     for (_ts, _ne, db_number, area_code, byte_offset, data_bytes) in &items {
-                        meter.store.write_bytes(*area_code, *db_number, *byte_offset, data_bytes);
+                        meter
+                            .store
+                            .write_bytes(*area_code, *db_number, *byte_offset, data_bytes);
                     }
                     drop(meter);
                     build_s7_write_var_response(pdu_ref, item_count)
@@ -655,10 +695,13 @@ fn parse_args() -> (u16, FaultConfig) {
     while i < args.len() {
         match args[i].as_str() {
             "--port" => {
-                port = args.get(i + 1).and_then(|s| s.parse().ok()).unwrap_or_else(|| {
-                    eprintln!("Invalid port, using default 10200");
-                    10200
-                });
+                port = args
+                    .get(i + 1)
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_else(|| {
+                        eprintln!("Invalid port, using default 10200");
+                        10200
+                    });
                 i += 2;
             }
             "--delay" => {
@@ -705,8 +748,12 @@ async fn main() -> Result<()> {
                 d.tick();
                 tracing::debug!(
                     "V=[{:.1},{:.1},{:.1}] I=[{:.1},{:.1},{:.1}] PF={:.3} F={:.2}Hz E={:.1}kWh",
-                    d.read_f32(0), d.read_f32(4), d.read_f32(8),
-                    d.read_f32(12), d.read_f32(16), d.read_f32(20),
+                    d.read_f32(0),
+                    d.read_f32(4),
+                    d.read_f32(8),
+                    d.read_f32(12),
+                    d.read_f32(16),
+                    d.read_f32(20),
                     d.read_f32(24),
                     d.read_f32(28),
                     d.read_f32(32),

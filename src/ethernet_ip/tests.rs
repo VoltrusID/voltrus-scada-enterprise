@@ -8,13 +8,22 @@ fn test_build_enip_header_register_session() {
     let packet = build_enip_header(CMD_REGISTER_SESSION, 0, 0, &body);
     assert_eq!(packet.len(), ENIP_HEADER_SIZE + 4);
     // Command
-    assert_eq!(u16::from_le_bytes([packet[0], packet[1]]), CMD_REGISTER_SESSION);
+    assert_eq!(
+        u16::from_le_bytes([packet[0], packet[1]]),
+        CMD_REGISTER_SESSION
+    );
     // Length
     assert_eq!(u16::from_le_bytes([packet[2], packet[3]]), 4);
     // Session handle
-    assert_eq!(u32::from_le_bytes([packet[4], packet[5], packet[6], packet[7]]), 0);
+    assert_eq!(
+        u32::from_le_bytes([packet[4], packet[5], packet[6], packet[7]]),
+        0
+    );
     // Status
-    assert_eq!(u32::from_le_bytes([packet[8], packet[9], packet[10], packet[11]]), 0);
+    assert_eq!(
+        u32::from_le_bytes([packet[8], packet[9], packet[10], packet[11]]),
+        0
+    );
 }
 
 #[test]
@@ -23,7 +32,10 @@ fn test_build_enip_header_with_session() {
     let packet = build_enip_header(CMD_SEND_RR_DATA, 0x12345678, 0, &body);
     assert_eq!(packet.len(), ENIP_HEADER_SIZE + 4);
     assert_eq!(u16::from_le_bytes([packet[0], packet[1]]), CMD_SEND_RR_DATA);
-    assert_eq!(u32::from_le_bytes([packet[4], packet[5], packet[6], packet[7]]), 0x12345678);
+    assert_eq!(
+        u32::from_le_bytes([packet[4], packet[5], packet[6], packet[7]]),
+        0x12345678
+    );
 }
 
 #[test]
@@ -65,14 +77,35 @@ fn test_build_symbolic_path_long() {
 
 #[test]
 fn test_cip_data_type_from_code() {
-    assert_eq!(CipDataType::from_code(CIP_TYPE_BOOL), Some(CipDataType::Bool));
-    assert_eq!(CipDataType::from_code(CIP_TYPE_SINT), Some(CipDataType::Sint));
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_BOOL),
+        Some(CipDataType::Bool)
+    );
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_SINT),
+        Some(CipDataType::Sint)
+    );
     assert_eq!(CipDataType::from_code(CIP_TYPE_INT), Some(CipDataType::Int));
-    assert_eq!(CipDataType::from_code(CIP_TYPE_DINT), Some(CipDataType::Dint));
-    assert_eq!(CipDataType::from_code(CIP_TYPE_REAL), Some(CipDataType::Real));
-    assert_eq!(CipDataType::from_code(CIP_TYPE_STRING), Some(CipDataType::String));
-    assert_eq!(CipDataType::from_code(CIP_TYPE_DWORD), Some(CipDataType::Dword));
-    assert_eq!(CipDataType::from_code(CIP_TYPE_LINT), Some(CipDataType::Lint));
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_DINT),
+        Some(CipDataType::Dint)
+    );
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_REAL),
+        Some(CipDataType::Real)
+    );
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_STRING),
+        Some(CipDataType::String)
+    );
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_DWORD),
+        Some(CipDataType::Dword)
+    );
+    assert_eq!(
+        CipDataType::from_code(CIP_TYPE_LINT),
+        Some(CipDataType::Lint)
+    );
     assert_eq!(CipDataType::from_code(0xFF), None);
 }
 

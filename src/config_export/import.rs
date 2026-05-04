@@ -17,8 +17,8 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
                 if path.extension().and_then(|s| s.to_str()) != Some("yaml") {
                     continue;
                 }
-                let content = std::fs::read_to_string(&path)
-                    .context(format!("Failed to read {:?}", path))?;
+                let content =
+                    std::fs::read_to_string(&path).context(format!("Failed to read {:?}", path))?;
                 let device: DeviceExport = serde_yaml_neo::from_str(&content)
                     .context(format!("Failed to parse {:?}", path))?;
 
@@ -30,32 +30,39 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
                     anyhow::bail!("Device '{}' has empty ip", device.id);
                 }
 
-                let registers: Vec<crate::models::ModbusRegisterInput> = device.registers.iter().map(|r| {
-                    crate::models::ModbusRegisterInput {
+                let registers: Vec<crate::models::ModbusRegisterInput> = device
+                    .registers
+                    .iter()
+                    .map(|r| crate::models::ModbusRegisterInput {
                         name: r.name.clone(),
                         address: r.address,
                         register_type: r.register_type.clone(),
                         register_area: r.register_area.clone(),
                         scale: r.scale,
-                    }
-                }).collect();
+                    })
+                    .collect();
 
                 // Upsert: delete existing and re-create
                 let _ = storage.delete_modbus_device(&device.id).await;
-                storage.create_modbus_device(
-                    &device.id,
-                    &device.name,
-                    &device.ip,
-                    device.port,
-                    device.unit_id,
-                    device.interval_ms,
-                    &device.endianness,
-                    &registers,
-                ).await.context(format!("Failed to import device '{}'", device.id))?;
+                storage
+                    .create_modbus_device(
+                        &device.id,
+                        &device.name,
+                        &device.ip,
+                        device.port,
+                        device.unit_id,
+                        device.interval_ms,
+                        &device.endianness,
+                        &registers,
+                    )
+                    .await
+                    .context(format!("Failed to import device '{}'", device.id))?;
 
                 // Restore enabled state
                 if !device.enabled {
-                    storage.update_modbus_device(&device.id, &serde_json::json!({"enabled": false})).await?;
+                    storage
+                        .update_modbus_device(&device.id, &serde_json::json!({"enabled": false}))
+                        .await?;
                 }
             }
         }
@@ -69,8 +76,8 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
                 if path.extension().and_then(|s| s.to_str()) != Some("yaml") {
                     continue;
                 }
-                let content = std::fs::read_to_string(&path)
-                    .context(format!("Failed to read {:?}", path))?;
+                let content =
+                    std::fs::read_to_string(&path).context(format!("Failed to read {:?}", path))?;
                 let flow: FlowExport = serde_yaml_neo::from_str(&content)
                     .context(format!("Failed to parse {:?}", path))?;
 
@@ -83,13 +90,10 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
 
                 // Delete existing and recreate
                 let _ = storage.delete_flow(&flow.id).await;
-                storage.create_flow(
-                    &flow.id,
-                    &flow.name,
-                    flow.enabled,
-                    &trigger_config,
-                    &nodes,
-                ).await.context(format!("Failed to import flow '{}'", flow.id))?;
+                storage
+                    .create_flow(&flow.id, &flow.name, flow.enabled, &trigger_config, &nodes)
+                    .await
+                    .context(format!("Failed to import flow '{}'", flow.id))?;
             }
         }
 
@@ -97,16 +101,13 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
         let notif_path = base.join("notifications.yaml");
         if notif_path.exists() {
             let content = std::fs::read_to_string(&notif_path)?;
-            let notifications: Vec<NotificationExport> = serde_yaml_neo::from_str(&content)
-                .context("Failed to parse notifications.yaml")?;
+            let notifications: Vec<NotificationExport> =
+                serde_yaml_neo::from_str(&content).context("Failed to parse notifications.yaml")?;
             for n in &notifications {
                 let config = serde_json::to_string(&n.config)?;
-                storage.create_notification_setting(
-                    &n.source_key,
-                    &n.channel_type,
-                    &config,
-                    n.enabled,
-                ).await?;
+                storage
+                    .create_notification_setting(&n.source_key, &n.channel_type, &config, n.enabled)
+                    .await?;
             }
         }
 

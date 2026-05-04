@@ -41,10 +41,7 @@ impl CommandQueue {
             .get("db_number")
             .and_then(|v| v.as_u64())
             .unwrap_or(1) as u32;
-        let offset = config
-            .get("offset")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u16;
+        let offset = config.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as u16;
         Some((area, db_number, offset))
     }
 

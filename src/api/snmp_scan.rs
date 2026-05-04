@@ -1,8 +1,8 @@
 use std::sync::LazyLock;
 
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -32,9 +32,7 @@ pub async fn start_scan(
     Json(body): Json<SnmpScanRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if SCAN_STATE.is_scanning() {
-        return Err(AppError(anyhow::anyhow!(
-            "SNMP scan already in progress"
-        )));
+        return Err(AppError(anyhow::anyhow!("SNMP scan already in progress")));
     }
 
     if body.subnet.trim().is_empty() {
@@ -170,11 +168,7 @@ pub async fn import_scanned_device(
 
     // Recompute risk score
     let asset_storage = state.storage.asset();
-    let _ = crate::asset::risk::recompute_and_update(
-        &asset_storage,
-        &asset.id,
-    )
-    .await;
+    let _ = crate::asset::risk::recompute_and_update(&asset_storage, &asset.id).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "import_snmp_device".to_string(),

@@ -22,16 +22,14 @@ fn test_device_export_serialization() {
         interval_ms: 1000,
         endianness: "big".to_string(),
         enabled: true,
-        registers: vec![
-            RegisterExport {
-                name: "voltage".to_string(),
-                address: 0,
-                register_type: "float32".to_string(),
-                register_area: "holding".to_string(),
-                scale: 1.0,
-                sort_order: 0,
-            },
-        ],
+        registers: vec![RegisterExport {
+            name: "voltage".to_string(),
+            address: 0,
+            register_type: "float32".to_string(),
+            register_area: "holding".to_string(),
+            scale: 1.0,
+            sort_order: 0,
+        }],
     };
     let yaml = serde_yaml_neo::to_string(&device).unwrap();
     assert!(yaml.contains("id: plts_1") || yaml.contains("id: \"plts_1\""));
@@ -119,7 +117,8 @@ fn test_validate_config_with_files() {
     std::fs::write(
         base.join("devices/test_dev.yaml"),
         serde_yaml_neo::to_string(&device).unwrap(),
-    ).unwrap();
+    )
+    .unwrap();
 
     // Create valid flow file
     std::fs::create_dir_all(base.join("flows")).unwrap();
@@ -133,11 +132,20 @@ fn test_validate_config_with_files() {
     std::fs::write(
         base.join("flows/flow_1.yaml"),
         serde_yaml_neo::to_string(&flow).unwrap(),
-    ).unwrap();
+    )
+    .unwrap();
 
     let result = validate_config(base.to_str().unwrap()).unwrap();
-    assert!(result.iter().any(|m| m.contains("OK: devices/") && m.contains("test_dev")));
-    assert!(result.iter().any(|m| m.contains("OK: flows/") && m.contains("flow_1")));
+    assert!(
+        result
+            .iter()
+            .any(|m| m.contains("OK: devices/") && m.contains("test_dev"))
+    );
+    assert!(
+        result
+            .iter()
+            .any(|m| m.contains("OK: flows/") && m.contains("flow_1"))
+    );
 }
 
 #[test]
@@ -149,5 +157,9 @@ fn test_validate_config_invalid_file() {
     std::fs::write(base.join("devices/bad.yaml"), "not: valid: yaml: : :").unwrap();
 
     let result = validate_config(base.to_str().unwrap()).unwrap();
-    assert!(result.iter().any(|m| m.contains("ERROR") && m.contains("bad.yaml")));
+    assert!(
+        result
+            .iter()
+            .any(|m| m.contains("ERROR") && m.contains("bad.yaml"))
+    );
 }

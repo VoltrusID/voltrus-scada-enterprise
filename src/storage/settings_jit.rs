@@ -39,11 +39,8 @@ impl Storage {
             "provisioned_via": "jit",
             "provisioned_at": crate::timeutil::now_secs(),
         });
-        self.upsert_setting(
-            &format!("user_meta:{}", username),
-            &user_meta.to_string(),
-        )
-        .await?;
+        self.upsert_setting(&format!("user_meta:{}", username), &user_meta.to_string())
+            .await?;
 
         Ok(id)
     }

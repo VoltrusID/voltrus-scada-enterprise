@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -134,7 +134,11 @@ pub async fn delete_firmware_catalog(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    state.storage.asset().delete_firmware_catalog_entry(&id).await?;
+    state
+        .storage
+        .asset()
+        .delete_firmware_catalog_entry(&id)
+        .await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_firmware_catalog".to_string(),

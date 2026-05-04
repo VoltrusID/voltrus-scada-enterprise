@@ -18,7 +18,9 @@ pub(crate) fn evaluate_data_sources(
                 match metrics {
                     None => f64::NAN,
                     Some(m) => {
-                        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&ds.source_config) {
+                        if let Ok(cfg) =
+                            serde_json::from_str::<serde_json::Value>(&ds.source_config)
+                        {
                             if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
                                 if expr_str.is_empty() {
                                     m.get(&ds.key).copied().unwrap_or(f64::NAN)
@@ -26,7 +28,10 @@ pub(crate) fn evaluate_data_sources(
                                     match expression::evaluate(expr_str, m) {
                                         Ok(val) => val,
                                         Err(e) => {
-                                            tracing::warn!("Expression eval error for {}: {e}", ds.key);
+                                            tracing::warn!(
+                                                "Expression eval error for {}: {e}",
+                                                ds.key
+                                            );
                                             f64::NAN
                                         }
                                     }

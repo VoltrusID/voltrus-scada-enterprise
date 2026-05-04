@@ -31,7 +31,12 @@ impl IntrusionDetector {
         entries.push(now);
 
         if entries.len() >= threshold as usize {
-            tracing::warn!("SECURITY ALERT: {} failed auth attempts from IP {} in {}s", entries.len(), ip, window_secs);
+            tracing::warn!(
+                "SECURITY ALERT: {} failed auth attempts from IP {} in {}s",
+                entries.len(),
+                ip,
+                window_secs
+            );
         }
     }
 
@@ -52,14 +57,16 @@ impl IntrusionDetector {
     pub async fn record_401_with_storage(&self, ip: &str, storage: &crate::storage::Storage) {
         self.load_thresholds(storage).await;
         self.record_401(ip);
-        let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
-            event_type: "auth_401".into(),
-            severity: "warning".into(),
-            source_ip: Some(ip.to_string()),
-            user_agent: None,
-            username: None,
-            details: Some("Unauthorized request".into()),
-        }).await;
+        let _ = storage
+            .insert_security_event(&crate::models::CreateSecurityEvent {
+                event_type: "auth_401".into(),
+                severity: "warning".into(),
+                source_ip: Some(ip.to_string()),
+                user_agent: None,
+                username: None,
+                details: Some("Unauthorized request".into()),
+            })
+            .await;
     }
 }
 

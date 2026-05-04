@@ -1,16 +1,21 @@
-use std::collections::HashMap;
+#![allow(clippy::needless_range_loop)]
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
+use super::message::Message;
+use super::state::FlowState;
 use crate::cache::DeviceCache;
 use crate::models::Command;
 use crate::storage::Storage;
 use rand::Rng;
-use super::message::Message;
-use super::state::FlowState;
 
-fn default_flow_policy() -> String { "immediate".to_string() }
-fn default_flow_reason() -> String { "flow:unknown".to_string() }
+fn default_flow_policy() -> String {
+    "immediate".to_string()
+}
+fn default_flow_reason() -> String {
+    "flow:unknown".to_string()
+}
 
 #[derive(Debug, Clone)]
 pub enum NodeResult {
@@ -44,19 +49,57 @@ pub enum NodeConfig {
     #[serde(rename = "filter")]
     Filter { id: String, condition: String },
     #[serde(rename = "transform")]
-    Transform { id: String, #[serde(default)] map: HashMap<String, String> },
+    Transform {
+        id: String,
+        #[serde(default)]
+        map: HashMap<String, String>,
+    },
     #[serde(rename = "threshold")]
-    Threshold { id: String, field: String, rules: Vec<ThresholdRule> },
+    Threshold {
+        id: String,
+        field: String,
+        rules: Vec<ThresholdRule>,
+    },
     #[serde(rename = "lookup")]
-    Lookup { id: String, field: String, output_field: String, #[serde(default)] table: HashMap<String, Value>, default: Value },
+    Lookup {
+        id: String,
+        field: String,
+        output_field: String,
+        #[serde(default)]
+        table: HashMap<String, Value>,
+        default: Value,
+    },
     #[serde(rename = "expression")]
-    Expression { id: String, output_field: String, expr: String },
+    Expression {
+        id: String,
+        output_field: String,
+        expr: String,
+    },
     #[serde(rename = "data_source_out")]
-    DataSourceOut { id: String, value_field: String, source_key: String, name: String, unit: String, decimals: i64 },
+    DataSourceOut {
+        id: String,
+        value_field: String,
+        source_key: String,
+        name: String,
+        unit: String,
+        decimals: i64,
+    },
     #[serde(rename = "http_out")]
-    HttpOut { id: String, url: String, #[serde(default)] headers: HashMap<String, String>, timeout_ms: u64, retry_count: u64 },
+    HttpOut {
+        id: String,
+        url: String,
+        #[serde(default)]
+        headers: HashMap<String, String>,
+        timeout_ms: u64,
+        retry_count: u64,
+    },
     #[serde(rename = "alarm_out")]
-    AlarmOut { id: String, severity: String, source_key: String, message: String },
+    AlarmOut {
+        id: String,
+        severity: String,
+        source_key: String,
+        message: String,
+    },
     #[serde(rename = "write_out")]
     WriteOut {
         id: String,
@@ -111,23 +154,38 @@ impl NodeConfig {
                 }
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::Lookup { field, output_field, table, default, .. } => {
+            NodeConfig::Lookup {
+                field,
+                output_field,
+                table,
+                default,
+                ..
+            } => {
                 let field_value = get_json_path(&msg.payload, field)?;
                 let lookup_key = match &field_value {
                     Value::String(s) => s.clone(),
                     Value::Number(n) => n.to_string(),
                     _ => return Err("Unsupported lookup key type".to_string()),
                 };
-                let result = table.get(&lookup_key).cloned().unwrap_or_else(|| default.clone());
+                let result = table
+                    .get(&lookup_key)
+                    .cloned()
+                    .unwrap_or_else(|| default.clone());
                 set_json_path(&mut msg.payload, output_field, result);
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::Expression { output_field, expr, .. } => {
+            NodeConfig::Expression {
+                output_field, expr, ..
+            } => {
                 let result = crate::expression::evaluate_json(expr, &msg.payload)?;
                 set_json_path(&mut msg.payload, output_field, result);
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::DataSourceOut { value_field, source_key, .. } => {
+            NodeConfig::DataSourceOut {
+                value_field,
+                source_key,
+                ..
+            } => {
                 let value = get_json_path(&msg.payload, value_field)?;
                 let numeric_value = to_f64(&value)?;
                 let device_id = format!("flow_{}", ctx.flow_id);
@@ -139,7 +197,13 @@ impl NodeConfig {
                 });
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::HttpOut { url, headers, timeout_ms, retry_count, .. } => {
+            NodeConfig::HttpOut {
+                url,
+                headers,
+                timeout_ms,
+                retry_count,
+                ..
+            } => {
                 let payload = msg.payload.clone();
                 let url = url.clone();
                 let headers = headers.clone();
@@ -157,7 +221,10 @@ impl NodeConfig {
                             Ok(resp) if resp.status().is_success() => break,
                             _ => {
                                 if attempt < retry_count {
-                                    tokio::time::sleep(std::time::Duration::from_millis(100 * (attempt + 1) as u64)).await;
+                                    tokio::time::sleep(std::time::Duration::from_millis(
+                                        100 * (attempt + 1),
+                                    ))
+                                    .await;
                                 }
                             }
                         }
@@ -165,42 +232,64 @@ impl NodeConfig {
                 });
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::AlarmOut { severity, source_key, message, .. } => {
+            NodeConfig::AlarmOut {
+                severity,
+                source_key,
+                message,
+                ..
+            } => {
                 let storage = ctx.storage.clone();
                 let source_key = source_key.clone();
                 let severity = severity.clone();
                 let message = message.clone();
                 tokio::runtime::Handle::current().spawn(async move {
-                    let _ = storage.create_alarm(&source_key, &severity, 0.0, 0.0, &message, 0.0).await;
+                    let _ = storage
+                        .create_alarm(&source_key, &severity, 0.0, 0.0, &message, 0.0)
+                        .await;
                 });
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::WriteOut { data_source_id, value_expr, policy, reason, .. } => {
+            NodeConfig::WriteOut {
+                data_source_id,
+                value_expr,
+                policy,
+                reason,
+                ..
+            } => {
                 // 1. Resolve the write value
                 let value_str = if let Some(expr) = value_expr {
                     let result = crate::expression::evaluate_json(expr, &msg.payload)?;
                     match &result {
                         Value::Number(n) => {
-                            let f = n.as_f64().ok_or_else(|| "Invalid number in expression result".to_string())?;
+                            let f = n
+                                .as_f64()
+                                .ok_or_else(|| "Invalid number in expression result".to_string())?;
                             format!("{}", f)
                         }
                         Value::String(s) => s.clone(),
-                        other => return Err(format!("WriteOut value_expr must evaluate to a number or string, got {:?}", other)),
+                        other => {
+                            return Err(format!(
+                                "WriteOut value_expr must evaluate to a number or string, got {:?}",
+                                other
+                            ));
+                        }
                     }
                 } else {
                     // Take the first numeric value from message payload
                     let mut found: Option<String> = None;
                     if let Value::Object(map) = &msg.payload {
                         for (_key, v) in map {
-                            if let Value::Number(n) = v {
-                                if let Some(f) = n.as_f64() {
-                                    found = Some(format!("{}", f));
-                                    break;
-                                }
+                            if let Value::Number(n) = v
+                                && let Some(f) = n.as_f64()
+                            {
+                                found = Some(format!("{}", f));
+                                break;
                             }
                         }
                     }
-                    found.ok_or_else(|| "WriteOut: no numeric value found in message payload".to_string())?
+                    found.ok_or_else(|| {
+                        "WriteOut: no numeric value found in message payload".to_string()
+                    })?
                 };
 
                 // 2. Look up device info
@@ -246,7 +335,10 @@ impl NodeConfig {
                             }
                         }
                         Ok(None) => {
-                            tracing::warn!("WriteOut node: device not found for data_source_id {}", ds_id);
+                            tracing::warn!(
+                                "WriteOut node: device not found for data_source_id {}",
+                                ds_id
+                            );
                         }
                         Err(e) => {
                             tracing::warn!("WriteOut node: error looking up device: {}", e);
@@ -255,7 +347,9 @@ impl NodeConfig {
                 });
                 Ok(NodeResult::Continue(msg))
             }
-            NodeConfig::Script { script_id, inputs, .. } => {
+            NodeConfig::Script {
+                script_id, inputs, ..
+            } => {
                 let storage = ctx.storage.clone();
                 let flow_id = ctx.flow_id.clone();
                 let result = tokio::runtime::Handle::current().block_on(async {
@@ -274,45 +368,41 @@ impl NodeConfig {
                                 script.cpu_limit_ms as u64,
                                 script.memory_limit_bytes as u64,
                             );
-                            let _ = storage.create_script_execution(
-                                *script_id,
-                                Some(&flow_id),
-                                None,
-                                result.duration_ms as i64,
-                                if result.success { "success" } else { "error" },
-                                result.error.as_deref(),
-                                result.output.as_deref(),
-                            ).await;
+                            let _ = storage
+                                .create_script_execution(
+                                    *script_id,
+                                    Some(&flow_id),
+                                    None,
+                                    result.duration_ms as i64,
+                                    if result.success { "success" } else { "error" },
+                                    result.error.as_deref(),
+                                    result.output.as_deref(),
+                                )
+                                .await;
                             result
                         }
-                        Ok(Some(_)) => {
-                            crate::script_engine::ScriptResult {
-                                success: false,
-                                output: None,
-                                error: Some("Script has syntax error or is disabled".into()),
-                                duration_ms: 0,
-                            }
-                        }
-                        _ => {
-                            crate::script_engine::ScriptResult {
-                                success: false,
-                                output: None,
-                                error: Some("Script not found".into()),
-                                duration_ms: 0,
-                            }
-                        }
+                        Ok(Some(_)) => crate::script_engine::ScriptResult {
+                            success: false,
+                            output: None,
+                            error: Some("Script has syntax error or is disabled".into()),
+                            duration_ms: 0,
+                        },
+                        _ => crate::script_engine::ScriptResult {
+                            success: false,
+                            output: None,
+                            error: Some("Script not found".into()),
+                            duration_ms: 0,
+                        },
                     }
                 });
 
-                if result.success {
-                    if let Some(ref out) = result.output {
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(out) {
-                            if let serde_json::Value::Object(map) = parsed {
-                                for (k, v) in map {
-                                    set_json_path(&mut msg.payload, &k, v);
-                                }
-                            }
-                        }
+                if result.success
+                    && let Some(ref out) = result.output
+                    && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(out)
+                    && let serde_json::Value::Object(map) = parsed
+                {
+                    for (k, v) in map {
+                        set_json_path(&mut msg.payload, &k, v);
                     }
                 }
                 Ok(NodeResult::Continue(msg))
@@ -337,10 +427,16 @@ fn get_json_path(value: &Value, path: &str) -> Result<Value, String> {
     for segment in path.split('.') {
         match current {
             Value::Object(map) => {
-                current = map.get(segment)
+                current = map
+                    .get(segment)
                     .ok_or_else(|| format!("Path segment '{}' not found", segment))?;
             }
-            _ => return Err(format!("Cannot resolve path segment '{}' in non-object", segment)),
+            _ => {
+                return Err(format!(
+                    "Cannot resolve path segment '{}' in non-object",
+                    segment
+                ));
+            }
         }
     }
     Ok(current.clone())
@@ -368,42 +464,47 @@ fn set_json_path(value: &mut Value, path: &str, new_value: Value) {
     if !current.is_object() {
         *current = serde_json::json!({});
     }
-    current.as_object_mut().unwrap().insert(last.to_string(), new_value);
+    current
+        .as_object_mut()
+        .unwrap()
+        .insert(last.to_string(), new_value);
 }
 
 fn to_f64(value: &Value) -> Result<f64, String> {
     match value {
         Value::Number(n) => n.as_f64().ok_or_else(|| "Invalid number".to_string()),
-        Value::String(s) => s.parse().map_err(|_| format!("Cannot convert string '{}' to number", s)),
+        Value::String(s) => s
+            .parse()
+            .map_err(|_| format!("Cannot convert string '{}' to number", s)),
         _ => Err(format!("Cannot convert {:?} to number", value)),
     }
 }
 
 fn rule_matches(value: f64, rule: &ThresholdRule) -> bool {
-    if let Some(gt) = rule.gt {
-        if value <= gt {
-            return false;
-        }
+    if let Some(gt) = rule.gt
+        && value <= gt
+    {
+        return false;
     }
-    if let Some(gte) = rule.gte {
-        if value < gte {
-            return false;
-        }
+    if let Some(gte) = rule.gte
+        && value < gte
+    {
+        return false;
     }
-    if let Some(lt) = rule.lt {
-        if value >= lt {
-            return false;
-        }
+    if let Some(lt) = rule.lt
+        && value >= lt
+    {
+        return false;
     }
-    if let Some(lte) = rule.lte {
-        if value > lte {
-            return false;
-        }
+    if let Some(lte) = rule.lte
+        && value > lte
+    {
+        return false;
     }
-    if let Some(eq) = rule.eq {
-        if (value - eq).abs() > f64::EPSILON {
-            return false;
-        }
+    if let Some(eq) = rule.eq
+        && (value - eq).abs() > f64::EPSILON
+    {
+        return false;
     }
     true
 }

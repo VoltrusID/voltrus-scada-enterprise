@@ -1,6 +1,6 @@
-use super::*;
-use super::tier::LicenseTier;
 use super::status::LicenseStatus;
+use super::tier::LicenseTier;
+use super::*;
 
 #[test]
 fn test_license_tier_max_devices() {
@@ -136,15 +136,42 @@ fn test_trial_expired_is_not_valid() {
 fn test_from_tier_str() {
     assert_eq!(LicenseTier::from_tier_str(None), LicenseTier::Trial);
     assert_eq!(LicenseTier::from_tier_str(Some("")), LicenseTier::Trial);
-    assert_eq!(LicenseTier::from_tier_str(Some("unknown")), LicenseTier::Trial);
-    assert_eq!(LicenseTier::from_tier_str(Some("starter")), LicenseTier::Starter);
-    assert_eq!(LicenseTier::from_tier_str(Some("Starter")), LicenseTier::Starter);
-    assert_eq!(LicenseTier::from_tier_str(Some("STARTER")), LicenseTier::Starter);
-    assert_eq!(LicenseTier::from_tier_str(Some("professional")), LicenseTier::Professional);
-    assert_eq!(LicenseTier::from_tier_str(Some("pro")), LicenseTier::Professional);
-    assert_eq!(LicenseTier::from_tier_str(Some("Professional")), LicenseTier::Professional);
-    assert_eq!(LicenseTier::from_tier_str(Some("enterprise")), LicenseTier::Enterprise);
-    assert_eq!(LicenseTier::from_tier_str(Some("Enterprise")), LicenseTier::Enterprise);
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("unknown")),
+        LicenseTier::Trial
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("starter")),
+        LicenseTier::Starter
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("Starter")),
+        LicenseTier::Starter
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("STARTER")),
+        LicenseTier::Starter
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("professional")),
+        LicenseTier::Professional
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("pro")),
+        LicenseTier::Professional
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("Professional")),
+        LicenseTier::Professional
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("enterprise")),
+        LicenseTier::Enterprise
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("Enterprise")),
+        LicenseTier::Enterprise
+    );
 }
 
 #[test]

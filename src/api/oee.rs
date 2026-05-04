@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::StatusCode as HttpStatus,
     response::IntoResponse,
-    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -119,22 +119,24 @@ pub async fn create_downtime(
             .into_response();
     }
 
-    match state.storage.create_downtime_event(device_id, &state_str).await {
-        Ok(_id) => {
-            match state.storage.get_open_downtime_event(device_id).await {
-                Ok(Some(event)) => (HttpStatus::CREATED, Json(json!(event))).into_response(),
-                Ok(None) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "Downtime event created but could not be retrieved"})),
-                )
-                    .into_response(),
-                Err(e) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Failed to retrieve downtime event: {}", e)})),
-                )
-                    .into_response(),
-            }
-        }
+    match state
+        .storage
+        .create_downtime_event(device_id, &state_str)
+        .await
+    {
+        Ok(_id) => match state.storage.get_open_downtime_event(device_id).await {
+            Ok(Some(event)) => (HttpStatus::CREATED, Json(json!(event))).into_response(),
+            Ok(None) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Downtime event created but could not be retrieved"})),
+            )
+                .into_response(),
+            Err(e) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Failed to retrieve downtime event: {}", e)})),
+            )
+                .into_response(),
+        },
         Err(e) => (
             HttpStatus::INTERNAL_SERVER_ERROR,
             Json(json!({"error": format!("Failed to create downtime event: {}", e)})),
@@ -153,7 +155,11 @@ pub async fn close_downtime(
         return (status, body).into_response();
     }
 
-    match state.storage.close_downtime_event(id, req.reason.as_deref()).await {
+    match state
+        .storage
+        .close_downtime_event(id, req.reason.as_deref())
+        .await
+    {
         Ok(()) => (HttpStatus::OK, Json(json!({"ok": true, "id": id}))).into_response(),
         Err(e) => (
             HttpStatus::INTERNAL_SERVER_ERROR,
@@ -231,29 +237,33 @@ pub async fn create_shift(
 
     match state
         .storage
-        .create_shift(&name, req.start_hour, req.start_minute, req.duration_hours, req.days_mask)
+        .create_shift(
+            &name,
+            req.start_hour,
+            req.start_minute,
+            req.duration_hours,
+            req.days_mask,
+        )
         .await
     {
-        Ok(id) => {
-            match state.storage.list_shifts().await {
-                Ok(shifts) => {
-                    let created = shifts.into_iter().find(|s| s.id == id);
-                    match created {
-                        Some(shift) => (HttpStatus::CREATED, Json(json!(shift))).into_response(),
-                        None => (
-                            HttpStatus::INTERNAL_SERVER_ERROR,
-                            Json(json!({"error": "Shift created but could not be retrieved"})),
-                        )
-                            .into_response(),
-                    }
+        Ok(id) => match state.storage.list_shifts().await {
+            Ok(shifts) => {
+                let created = shifts.into_iter().find(|s| s.id == id);
+                match created {
+                    Some(shift) => (HttpStatus::CREATED, Json(json!(shift))).into_response(),
+                    None => (
+                        HttpStatus::INTERNAL_SERVER_ERROR,
+                        Json(json!({"error": "Shift created but could not be retrieved"})),
+                    )
+                        .into_response(),
                 }
-                Err(e) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Failed to retrieve shifts: {}", e)})),
-                )
-                    .into_response(),
             }
-        }
+            Err(e) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Failed to retrieve shifts: {}", e)})),
+            )
+                .into_response(),
+        },
         Err(e) => (
             HttpStatus::INTERNAL_SERVER_ERROR,
             Json(json!({"error": format!("Failed to create shift: {}", e)})),
@@ -263,10 +273,7 @@ pub async fn create_shift(
 }
 
 /// DELETE /api/v1/oee/shifts/{id} -- delete shift
-pub async fn delete_shift(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> impl IntoResponse {
+pub async fn delete_shift(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
     if let Some((status, body)) = oee_required(&state) {
         return (status, body).into_response();
     }

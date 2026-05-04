@@ -1,10 +1,10 @@
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState};
+use crate::models::*;
 
 /// GET /api/screens/{id}/layouts — get layouts for a screen, returned as {lg:[], md:[], sm:[]}
 #[utoipa::path(
@@ -85,7 +85,11 @@ pub async fn get_twin_layouts(
 ) -> Result<impl IntoResponse, AppError> {
     let layouts = state.storage.get_twin_layouts(&id).await?;
     let camera_key = format!("twin_camera:{id}");
-    let camera_settings = state.storage.get_settings(&[&camera_key]).await.unwrap_or_default();
+    let camera_settings = state
+        .storage
+        .get_settings(&[&camera_key])
+        .await
+        .unwrap_or_default();
     let camera: serde_json::Value = camera_settings
         .iter()
         .find(|s| s.key == camera_key)
@@ -114,21 +118,12 @@ pub async fn save_twin_layouts(
 
     let mut layouts = Vec::new();
     for item in arr {
-        let equipment_type = item["equipment_type"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let equipment_type = item["equipment_type"].as_str().unwrap_or("").to_string();
         layouts.push(TwinLayout {
             screen_id: id.clone(),
-            equipment_id: item["equipment_id"]
-                .as_str()
-                .unwrap_or("")
-                .to_string(),
+            equipment_id: item["equipment_id"].as_str().unwrap_or("").to_string(),
             equipment_type,
-            equipment_name: item["equipment_name"]
-                .as_str()
-                .unwrap_or("")
-                .to_string(),
+            equipment_name: item["equipment_name"].as_str().unwrap_or("").to_string(),
             position_x: item["position_x"].as_f64().unwrap_or(0.0),
             position_z: item["position_z"].as_f64().unwrap_or(0.0),
             rotation_y: item["rotation_y"].as_f64().unwrap_or(0.0),
@@ -236,7 +231,10 @@ pub async fn save_twin_connections(
         });
     }
 
-    state.storage.save_twin_connections(&id, &connections).await?;
+    state
+        .storage
+        .save_twin_connections(&id, &connections)
+        .await?;
     Ok(Json(json!({"ok": true})))
 }
 
@@ -311,7 +309,9 @@ pub async fn save_scada_equipment(
             sensor_bindings: item["sensor_bindings"]
                 .as_str()
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| serde_json::to_string(&item["sensor_bindings"]).unwrap_or("[]".to_string())),
+                .unwrap_or_else(|| {
+                    serde_json::to_string(&item["sensor_bindings"]).unwrap_or("[]".to_string())
+                }),
         });
     }
 
@@ -365,11 +365,19 @@ pub async fn save_scada_connections(
             waypoints: item["waypoints"]
                 .as_str()
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| serde_json::to_string(&item["waypoints"]).unwrap_or("[]".to_string())),
-            connection_type: item["connection_type"].as_str().unwrap_or("power").to_string(),
+                .unwrap_or_else(|| {
+                    serde_json::to_string(&item["waypoints"]).unwrap_or("[]".to_string())
+                }),
+            connection_type: item["connection_type"]
+                .as_str()
+                .unwrap_or("power")
+                .to_string(),
         });
     }
 
-    state.storage.save_scada_connections(&id, &connections).await?;
+    state
+        .storage
+        .save_scada_connections(&id, &connections)
+        .await?;
     Ok(Json(json!({"ok": true})))
 }

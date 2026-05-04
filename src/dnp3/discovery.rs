@@ -18,7 +18,11 @@ pub struct DiscoveredDnp3Device {
 }
 
 /// Scan a subnet for DNP3 outstations.
-pub async fn scan_network(cidr: &str, port: u16, timeout_ms: u64) -> Result<Vec<DiscoveredDnp3Device>> {
+pub async fn scan_network(
+    cidr: &str,
+    port: u16,
+    timeout_ms: u64,
+) -> Result<Vec<DiscoveredDnp3Device>> {
     let addresses = crate::discovery::parse_cidr(cidr)?;
     let concurrency_limit = 50;
     let timeout = std::time::Duration::from_millis(timeout_ms);
@@ -51,7 +55,11 @@ pub async fn scan_network(cidr: &str, port: u16, timeout_ms: u64) -> Result<Vec<
 }
 
 /// Probe a single IP:port for DNP3 outstation.
-async fn probe_outstation(ip: &str, port: u16, timeout: std::time::Duration) -> Option<DiscoveredDnp3Device> {
+async fn probe_outstation(
+    ip: &str,
+    port: u16,
+    timeout: std::time::Duration,
+) -> Option<DiscoveredDnp3Device> {
     let addr = format!("{}:{}", ip, port);
     let socket_addr: std::net::SocketAddr = addr.parse().ok()?;
 
@@ -101,7 +109,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_probe_nonexistent_device() {
-        let result = probe_outstation("192.0.2.1", 20000, std::time::Duration::from_millis(100)).await;
+        let result =
+            probe_outstation("192.0.2.1", 20000, std::time::Duration::from_millis(100)).await;
         assert!(result.is_none());
     }
 

@@ -1,13 +1,13 @@
-pub mod datalink;
-pub mod transport;
 pub mod application;
+pub mod datalink;
+pub mod discovery;
 pub mod master;
 pub mod objects;
-pub mod discovery;
+pub mod transport;
 
 use anyhow::Result;
 
-use crate::models::{Dnp3DeviceConfig, DeviceStatus};
+use crate::models::{DeviceStatus, Dnp3DeviceConfig};
 
 pub async fn poll_dnp3_device(config: Dnp3DeviceConfig, cache: crate::cache::DeviceCache) {
     let device_id = config.id.clone();

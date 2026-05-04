@@ -58,7 +58,10 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn list_recipes(&self, device_id: Option<&str>) -> Result<Vec<crate::models::Recipe>> {
+    pub async fn list_recipes(
+        &self,
+        device_id: Option<&str>,
+    ) -> Result<Vec<crate::models::Recipe>> {
         let conn = self.conn.clone();
         let device_id_owned = device_id.map(|s| s.to_string());
         tokio::task::spawn_blocking(move || {
@@ -133,34 +136,46 @@ impl Storage {
                 None => Ok(false),
                 Some(_existing_values) => {
                     let values_to_save = values.unwrap_or(_existing_values);
-                    let mut stmt = conn.prepare(
-                        "UPDATE recipes SET name = COALESCE(?1, name),
+                    let mut stmt = conn
+                        .prepare(
+                            "UPDATE recipes SET name = COALESCE(?1, name),
                          category = COALESCE(?2, category),
                          values = ?3,
                          description = COALESCE(?4, description),
                          version = version + 1,
                          updated_at = ?5
-                         WHERE id = ?6"
-                    ).context("Prepare update_recipe failed")?;
-                    let affected = stmt.execute(
-                        rusqlite::params![name, category, values_to_save, description, now, id]
-                    ).context("Execute update_recipe failed")?;
+                         WHERE id = ?6",
+                        )
+                        .context("Prepare update_recipe failed")?;
+                    let affected = stmt
+                        .execute(rusqlite::params![
+                            name,
+                            category,
+                            values_to_save,
+                            description,
+                            now,
+                            id
+                        ])
+                        .context("Execute update_recipe failed")?;
                     Ok(affected > 0)
                 }
             }
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_recipe(&self, id: i64) -> Result<bool> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let affected = conn.execute(
-                "DELETE FROM recipes WHERE id = ?1",
-                rusqlite::params![id],
-            ).context("Delete recipe failed")?;
+            let affected = conn
+                .execute("DELETE FROM recipes WHERE id = ?1", rusqlite::params![id])
+                .context("Delete recipe failed")?;
             Ok(affected > 0)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Save the current device metric values from cache as a recipe.
@@ -179,10 +194,10 @@ impl Storage {
             .map(|s| s.metrics.clone())
             .unwrap_or_default();
 
-        let values_json = serde_json::to_string(&metrics)
-            .context("Failed to serialize current metric values")?;
+        let values_json =
+            serde_json::to_string(&metrics).context("Failed to serialize current metric values")?;
 
-        self.create_recipe(name, category, device_id, &values_json, description).await
+        self.create_recipe(name, category, device_id, &values_json, description)
+            .await
     }
-
 }

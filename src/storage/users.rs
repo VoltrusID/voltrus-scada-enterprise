@@ -38,7 +38,13 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn create_user(&self, username: &str, password_hash: &str, salt: &str, role: &str) -> Result<i64> {
+    pub async fn create_user(
+        &self,
+        username: &str,
+        password_hash: &str,
+        salt: &str,
+        role: &str,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
         let username = username.to_string();
         let password_hash = password_hash.to_string();
@@ -210,7 +216,13 @@ impl Storage {
 
     // ── Refresh token management ──
 
-    pub async fn create_refresh_token(&self, username: &str, token_hash: &str, expires_at: i64, created_at: i64) -> Result<i64> {
+    pub async fn create_refresh_token(
+        &self,
+        username: &str,
+        token_hash: &str,
+        expires_at: i64,
+        created_at: i64,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
         let username = username.to_string();
         let token_hash = token_hash.to_string();
@@ -227,7 +239,10 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn get_refresh_token_by_hash(&self, token_hash: &str) -> Result<Option<crate::models::RefreshToken>> {
+    pub async fn get_refresh_token_by_hash(
+        &self,
+        token_hash: &str,
+    ) -> Result<Option<crate::models::RefreshToken>> {
         let conn = self.conn.clone();
         let token_hash = token_hash.to_string();
         tokio::task::spawn_blocking(move || {
@@ -299,5 +314,4 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
-
 }

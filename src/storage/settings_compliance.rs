@@ -87,7 +87,9 @@ impl Storage {
 
     // ── Compliance config ──
 
-    pub async fn get_compliance_config(&self) -> Result<Option<crate::compliance::ComplianceConfig>> {
+    pub async fn get_compliance_config(
+        &self,
+    ) -> Result<Option<crate::compliance::ComplianceConfig>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -100,8 +102,9 @@ impl Storage {
                 .ok();
             match config_json {
                 Some(json_str) => {
-                    let config: crate::compliance::ComplianceConfig = serde_json::from_str(&json_str)
-                        .context("Failed to parse compliance config")?;
+                    let config: crate::compliance::ComplianceConfig =
+                        serde_json::from_str(&json_str)
+                            .context("Failed to parse compliance config")?;
                     Ok(Some(config))
                 }
                 None => Ok(None),
@@ -111,9 +114,13 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn upsert_compliance_config(&self, config: &crate::compliance::ComplianceConfig) -> Result<()> {
+    pub async fn upsert_compliance_config(
+        &self,
+        config: &crate::compliance::ComplianceConfig,
+    ) -> Result<()> {
         let conn = self.conn.clone();
-        let config_json = serde_json::to_string(config).context("Failed to serialize compliance config")?;
+        let config_json =
+            serde_json::to_string(config).context("Failed to serialize compliance config")?;
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(

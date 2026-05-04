@@ -1,9 +1,15 @@
 #![allow(dead_code)]
 use serde::{Deserialize, Serialize};
 
-fn default_bacnet_port() -> u16 { 47808 }
-fn default_interval() -> u64 { 5000 }
-fn default_cov_lifetime() -> u32 { 3600 }
+fn default_bacnet_port() -> u16 {
+    47808
+}
+fn default_interval() -> u64 {
+    5000
+}
+fn default_cov_lifetime() -> u32 {
+    3600
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BacnetDevice {

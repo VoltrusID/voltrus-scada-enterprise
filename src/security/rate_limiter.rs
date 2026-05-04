@@ -3,10 +3,10 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use axum::extract::Request;
 use axum::extract::{ConnectInfo, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
-use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
@@ -173,7 +173,9 @@ pub async fn global_rate_limit_middleware(
     next: Next,
 ) -> Response {
     // Extract client IP if available (may not be present in test oneshot)
-    let ip = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>()
+    let ip = req
+        .extensions()
+        .get::<ConnectInfo<std::net::SocketAddr>>()
         .map(|ci| ci.ip().to_string())
         .unwrap_or_else(|| "unknown".to_string());
 

@@ -6,8 +6,7 @@ pub(crate) fn validate_archive(path: &str) -> Result<()> {
         anyhow::bail!("Archive not found: {}", path);
     }
 
-    let file = File::open(path)
-        .with_context(|| format!("Failed to open archive: {}", path))?;
+    let file = File::open(path).with_context(|| format!("Failed to open archive: {}", path))?;
     let decoder = GzDecoder::new(file);
     // Try to read the first byte to verify gzip validity.
     let mut buf = [0u8; 1];
@@ -52,8 +51,8 @@ pub(crate) fn read_metadata_from_archive(archive_path: &str) -> Result<BackupMet
         anyhow::bail!("backup.json not found in archive");
     }
 
-    let metadata: BackupMetadata = serde_json::from_str(&metadata_content)
-        .context("Failed to parse backup.json metadata")?;
+    let metadata: BackupMetadata =
+        serde_json::from_str(&metadata_content).context("Failed to parse backup.json metadata")?;
 
     Ok(metadata)
 }
@@ -65,8 +64,7 @@ pub(crate) fn create_sqlite_backup(db_path: &str) -> Result<String> {
     let mut dst = Connection::open(&temp_path)
         .with_context(|| format!("Failed to create temp database: {}", temp_path))?;
 
-    let backup = Backup::new(&src, &mut dst)
-        .context("Failed to initialize SQLite backup")?;
+    let backup = Backup::new(&src, &mut dst).context("Failed to initialize SQLite backup")?;
     backup
         .run_to_completion(5, std::time::Duration::from_millis(250), None)
         .context("SQLite backup failed")?;
@@ -81,8 +79,7 @@ pub(crate) fn create_archive(
     db_size_bytes: u64,
     output_path: &str,
 ) -> Result<()> {
-    let archive_file =
-        File::create(output_path).context("Failed to create archive file")?;
+    let archive_file = File::create(output_path).context("Failed to create archive file")?;
     let encoder = GzEncoder::new(archive_file, flate2::Compression::default());
     let mut builder = tar::Builder::new(encoder);
 
@@ -101,7 +98,7 @@ pub(crate) fn create_archive(
     } else {
         // Write an empty placeholder so the restore side can find the key.
         let mut empty = File::create("/dev/null").context("Failed to open /dev/null")?;
-        writeln!(empty, "").ok();
+        writeln!(empty).ok();
         // Use append_data instead so we don't need a real file on disk.
         let mut header = tar::Header::new_gnu();
         header.set_size(0);
@@ -119,8 +116,8 @@ pub(crate) fn create_archive(
         db_size_bytes,
         voltrus_version: env!("CARGO_PKG_VERSION").to_string(),
     };
-    let metadata_json = serde_json::to_string_pretty(&metadata)
-        .context("Failed to serialize backup metadata")?;
+    let metadata_json =
+        serde_json::to_string_pretty(&metadata).context("Failed to serialize backup metadata")?;
     let mut meta_header = tar::Header::new_gnu();
     let meta_bytes = metadata_json.as_bytes();
     meta_header.set_size(meta_bytes.len() as u64);

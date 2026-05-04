@@ -88,15 +88,24 @@ pub fn resolve_provider(settings: &AiSettings) -> AiProviderImpl {
     match settings.provider {
         AiProviderType::ByokOpenai => AiProviderImpl::OpenAi(OpenAiProvider {
             api_key: settings.api_key.clone(),
-            model: settings.default_model.clone().unwrap_or_else(|| "gpt-4o-mini".into()),
+            model: settings
+                .default_model
+                .clone()
+                .unwrap_or_else(|| "gpt-4o-mini".into()),
         }),
         AiProviderType::ByokAnthropic => AiProviderImpl::Anthropic(AnthropicProvider {
             api_key: settings.api_key.clone(),
-            model: settings.default_model.clone().unwrap_or_else(|| "claude-sonnet-4-6".into()),
+            model: settings
+                .default_model
+                .clone()
+                .unwrap_or_else(|| "claude-sonnet-4-6".into()),
         }),
         AiProviderType::VoltrusAi => AiProviderImpl::VoltrusAi(VoltrusAiProvider {
             license_key: settings.api_key.clone(),
-            model: settings.default_model.clone().unwrap_or_else(|| "voltrus-default".into()),
+            model: settings
+                .default_model
+                .clone()
+                .unwrap_or_else(|| "voltrus-default".into()),
         }),
     }
 }
@@ -157,14 +166,19 @@ impl OpenAiProvider {
         let status = resp.status();
         if status.is_client_error() || status.is_server_error() {
             let text = resp.text().await.unwrap_or_default();
-            return Err(AiError::ProviderError(format!("OpenAI API error ({status}): {text}")));
+            return Err(AiError::ProviderError(format!(
+                "OpenAI API error ({status}): {text}"
+            )));
         }
 
         let data: OpenAiResponse = resp.json().await.map_err(|e| {
             AiError::MalformedResponse(format!("Failed to parse OpenAI response: {e}"))
         })?;
 
-        let content = data.choices.into_iter().next()
+        let content = data
+            .choices
+            .into_iter()
+            .next()
             .map(|c| c.message.content)
             .unwrap_or_default();
 
@@ -235,14 +249,19 @@ impl AnthropicProvider {
         let status = resp.status();
         if status.is_client_error() || status.is_server_error() {
             let text = resp.text().await.unwrap_or_default();
-            return Err(AiError::ProviderError(format!("Anthropic API error ({status}): {text}")));
+            return Err(AiError::ProviderError(format!(
+                "Anthropic API error ({status}): {text}"
+            )));
         }
 
         let data: AnthropicResponse = resp.json().await.map_err(|e| {
             AiError::MalformedResponse(format!("Failed to parse Anthropic response: {e}"))
         })?;
 
-        let content = data.content.into_iter().next()
+        let content = data
+            .content
+            .into_iter()
+            .next()
             .map(|c| c.text)
             .unwrap_or_default();
 
@@ -306,7 +325,9 @@ impl VoltrusAiProvider {
         let status = resp.status();
         if status.is_client_error() || status.is_server_error() {
             let text = resp.text().await.unwrap_or_default();
-            return Err(AiError::ProviderError(format!("Voltrus AI error ({status}): {text}")));
+            return Err(AiError::ProviderError(format!(
+                "Voltrus AI error ({status}): {text}"
+            )));
         }
 
         let data: VoltrusAiResponse = resp.json().await.map_err(|e| {

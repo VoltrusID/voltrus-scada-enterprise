@@ -1,9 +1,9 @@
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use super::{AppState, AppError, AuthUser};
+use super::{AppError, AppState, AuthUser};
 
 /// GET /api/v1/shortcuts — get shortcuts for the current user
 #[utoipa::path(
@@ -17,7 +17,10 @@ pub async fn get_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.storage.get_user_by_username(&auth.username).await?
+    let user = state
+        .storage
+        .get_user_by_username(&auth.username)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let shortcuts = state.storage.get_user_shortcuts(user.id).await?;
     // Return as map: {data_source_id: shortcut}
@@ -42,7 +45,10 @@ pub async fn save_shortcuts(
     axum::Extension(auth): axum::Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.storage.get_user_by_username(&auth.username).await?
+    let user = state
+        .storage
+        .get_user_by_username(&auth.username)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let obj = body
         .as_object()
@@ -93,7 +99,10 @@ pub async fn get_nav_shortcuts(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.storage.get_user_by_username(&auth.username).await?
+    let user = state
+        .storage
+        .get_user_by_username(&auth.username)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
 
     // Build defaults from screens
@@ -138,7 +147,10 @@ pub async fn save_nav_shortcuts(
     axum::Extension(auth): axum::Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.storage.get_user_by_username(&auth.username).await?
+    let user = state
+        .storage
+        .get_user_by_username(&auth.username)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let obj = body
         .as_object()
@@ -167,6 +179,9 @@ pub async fn save_nav_shortcuts(
         .map(|(t, opt)| (t.clone(), opt.as_deref()))
         .collect();
 
-    state.storage.save_user_nav_shortcuts(user.id, &entries).await?;
+    state
+        .storage
+        .save_user_nav_shortcuts(user.id, &entries)
+        .await?;
     Ok(Json(json!({"ok": true})))
 }

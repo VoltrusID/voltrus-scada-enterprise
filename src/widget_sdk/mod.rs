@@ -19,7 +19,9 @@ pub struct DataBinding {
     pub label: String,
 }
 
-fn default_binding_type() -> String { "number".to_string() }
+fn default_binding_type() -> String {
+    "number".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigField {
@@ -39,8 +41,12 @@ pub struct WidgetSize {
     pub min_height: u32,
 }
 
-fn default_min_width() -> u32 { 2 }
-fn default_min_height() -> u32 { 2 }
+fn default_min_width() -> u32 {
+    2
+}
+fn default_min_height() -> u32 {
+    2
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WidgetManifest {
@@ -99,23 +105,30 @@ impl WidgetRegistry {
                     continue;
                 }
                 let manifest_path = path.join("manifest.json");
-                if let Ok(content) = fs::read_to_string(&manifest_path) {
-                    if let Ok(manifest) = serde_json::from_str::<WidgetManifest>(&content) {
-                        let widget_id = manifest.id.clone();
-                        let has_js = path.join("widget.js").exists();
-                        let has_css = path.join("widget.css").exists();
-                        result.insert(widget_id, WidgetInfo {
+                if let Ok(content) = fs::read_to_string(&manifest_path)
+                    && let Ok(manifest) = serde_json::from_str::<WidgetManifest>(&content)
+                {
+                    let widget_id = manifest.id.clone();
+                    let has_js = path.join("widget.js").exists();
+                    let has_css = path.join("widget.css").exists();
+                    result.insert(
+                        widget_id,
+                        WidgetInfo {
                             manifest,
                             installed: true,
                             has_js,
                             has_css,
-                        });
-                    }
+                        },
+                    );
                 }
             }
         }
 
-        tracing::info!("Loaded {} custom widgets from {:?}", result.len(), self.widgets_dir);
+        tracing::info!(
+            "Loaded {} custom widgets from {:?}",
+            result.len(),
+            self.widgets_dir
+        );
         result
     }
 
@@ -129,11 +142,7 @@ impl WidgetRegistry {
 
     pub fn asset_path(&self, widget_id: &str, filename: &str) -> Option<PathBuf> {
         let path = self.widgets_dir.join(widget_id).join(filename);
-        if path.exists() {
-            Some(path)
-        } else {
-            None
-        }
+        if path.exists() { Some(path) } else { None }
     }
 
     pub async fn install(&self, widget_id: &str, zip_data: &[u8]) -> anyhow::Result<()> {
@@ -178,12 +187,15 @@ impl WidgetRegistry {
 
         let has_js = js_path.exists();
         let has_css = widget_dir.join("widget.css").exists();
-        self.widgets.write().await.insert(manifest.id.clone(), WidgetInfo {
-            manifest,
-            installed: true,
-            has_js,
-            has_css,
-        });
+        self.widgets.write().await.insert(
+            manifest.id.clone(),
+            WidgetInfo {
+                manifest,
+                installed: true,
+                has_js,
+                has_css,
+            },
+        );
 
         Ok(())
     }

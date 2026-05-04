@@ -10,23 +10,43 @@ async fn test_downsample_raw_to_hourly() {
     for hour in 0..2 {
         let ts = base_ts + hour * 3600;
         records.push(("dev1".into(), ts, "voltage".into(), 220.0 + hour as f64));
-        records.push(("dev1".into(), ts + 60, "voltage".into(), 221.0 + hour as f64));
+        records.push((
+            "dev1".into(),
+            ts + 60,
+            "voltage".into(),
+            221.0 + hour as f64,
+        ));
     }
     storage.insert_batch(&records).await.unwrap();
 
     // Downsample everything (cutoff far in future)
-    let count = storage.downsample_raw_to_hourly(base_ts + 7200).await.unwrap();
+    let count = storage
+        .downsample_raw_to_hourly(base_ts + 7200)
+        .await
+        .unwrap();
     assert_eq!(count, 2); // 2 hourly buckets
 
     // Verify aggregated values via direct query
     let conn = storage.conn.lock().unwrap();
-    let mut stmt = conn.prepare(
-        "SELECT bucket_start, avg_value, min_value, max_value, sample_count
-         FROM telemetry_hourly WHERE device_id = 'dev1' ORDER BY bucket_start"
-    ).unwrap();
-    let rows: Vec<(i64, f64, f64, f64, i64)> = stmt.query_map([], |row| {
-        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
-    }).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT bucket_start, avg_value, min_value, max_value, sample_count
+         FROM telemetry_hourly WHERE device_id = 'dev1' ORDER BY bucket_start",
+        )
+        .unwrap();
+    let rows: Vec<(i64, f64, f64, f64, i64)> = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
     assert_eq!(rows.len(), 2);
     // First hour: avg of 220.0 and 221.0 = 220.5
@@ -81,6 +101,9 @@ async fn test_delete_raw_older_than() {
     let deleted = storage.delete_raw_older_than(2000).await.unwrap();
     assert_eq!(deleted, 1);
 
-    let points = storage.query_history("dev1", "voltage", 0, 9999).await.unwrap();
+    let points = storage
+        .query_history("dev1", "voltage", 0, 9999)
+        .await
+        .unwrap();
     assert_eq!(points.len(), 2);
 }

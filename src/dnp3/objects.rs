@@ -111,7 +111,12 @@ pub fn parse_analog_input_int32(data: &[u8], start_index: u16, count: u16) -> Ve
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 30,
                 variation: 3,
@@ -124,12 +129,21 @@ pub fn parse_analog_input_int32(data: &[u8], start_index: u16, count: u16) -> Ve
 }
 
 /// Parse analog input float32 (Group 30 Var 4 or 6).
-pub fn parse_analog_input_float32(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_input_float32(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 30,
                 variation: 4,
@@ -177,12 +191,21 @@ pub fn parse_binary_output_flags(data: &[u8], start_index: u16, count: u16) -> V
 }
 
 /// Parse analog output status int32 (Group 32 Var 1 or 2).
-pub fn parse_analog_output_status_int32(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_status_int32(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 32,
                 variation: 1,
@@ -195,7 +218,11 @@ pub fn parse_analog_output_status_int32(data: &[u8], start_index: u16, count: u1
 }
 
 /// Parse analog output status int16 (Group 32 Var 2).
-pub fn parse_analog_output_status_int16(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_status_int16(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 2;
@@ -213,12 +240,21 @@ pub fn parse_analog_output_status_int16(data: &[u8], start_index: u16, count: u1
 }
 
 /// Parse analog output status float32 (Group 32 Var 3 or float64 Var 4).
-pub fn parse_analog_output_status_float32(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_status_float32(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 32,
                 variation: 3,
@@ -231,14 +267,24 @@ pub fn parse_analog_output_status_float32(data: &[u8], start_index: u16, count: 
 }
 
 /// Parse analog output status float64 (Group 32 Var 4).
-pub fn parse_analog_output_status_float64(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_status_float64(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 8;
         if offset + 8 <= data.len() {
             let raw = u64::from_le_bytes([
-                data[offset], data[offset + 1], data[offset + 2], data[offset + 3],
-                data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
             ]);
             values.push(Dnp3PointValue {
                 group: 32,
@@ -252,12 +298,21 @@ pub fn parse_analog_output_status_float64(data: &[u8], start_index: u16, count: 
 }
 
 /// Parse analog output block int32 (Group 40 Var 1).
-pub fn parse_analog_output_block_int32(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_block_int32(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 40,
                 variation: 1,
@@ -270,7 +325,11 @@ pub fn parse_analog_output_block_int32(data: &[u8], start_index: u16, count: u16
 }
 
 /// Parse analog output block int16 (Group 40 Var 2).
-pub fn parse_analog_output_block_int16(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_block_int16(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 2;
@@ -288,12 +347,21 @@ pub fn parse_analog_output_block_int16(data: &[u8], start_index: u16, count: u16
 }
 
 /// Parse analog output block float32 (Group 40 Var 3).
-pub fn parse_analog_output_block_float32(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_block_float32(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 40,
                 variation: 3,
@@ -306,14 +374,24 @@ pub fn parse_analog_output_block_float32(data: &[u8], start_index: u16, count: u
 }
 
 /// Parse analog output block float64 (Group 40 Var 4).
-pub fn parse_analog_output_block_float64(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp3PointValue> {
+pub fn parse_analog_output_block_float64(
+    data: &[u8],
+    start_index: u16,
+    count: u16,
+) -> Vec<Dnp3PointValue> {
     let mut values = Vec::new();
     for i in 0..count as usize {
         let offset = i * 8;
         if offset + 8 <= data.len() {
             let raw = u64::from_le_bytes([
-                data[offset], data[offset + 1], data[offset + 2], data[offset + 3],
-                data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7],
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
             ]);
             values.push(Dnp3PointValue {
                 group: 40,
@@ -332,7 +410,12 @@ pub fn parse_counter_input(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp
     for i in 0..count as usize {
         let offset = i * 4;
         if offset + 4 <= data.len() {
-            let raw = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let raw = u32::from_le_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             values.push(Dnp3PointValue {
                 group: 20,
                 variation: 1,
@@ -345,7 +428,13 @@ pub fn parse_counter_input(data: &[u8], start_index: u16, count: u16) -> Vec<Dnp
 }
 
 /// Parse objects from an ASDU response body.
-pub fn parse_objects(group: u8, variation: u8, start_index: u16, count: u16, data: &[u8]) -> Vec<Dnp3PointValue> {
+pub fn parse_objects(
+    group: u8,
+    variation: u8,
+    start_index: u16,
+    count: u16,
+    data: &[u8],
+) -> Vec<Dnp3PointValue> {
     match (group, variation) {
         (1, 1) => parse_binary_input_packed(data, start_index),
         (1, 2) => parse_binary_input_flags(data, start_index, count),

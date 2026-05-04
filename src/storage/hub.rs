@@ -1,9 +1,15 @@
 use super::Storage;
-use anyhow::{Context, Result};
 use crate::models::HubSite;
+use anyhow::{Context, Result};
 
 impl Storage {
-    pub async fn create_hub_site(&self, name: &str, url: &str, api_key: &str, enabled: bool) -> Result<i64> {
+    pub async fn create_hub_site(
+        &self,
+        name: &str,
+        url: &str,
+        api_key: &str,
+        enabled: bool,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
         let name = name.to_string();
         let url = url.to_string();
@@ -48,7 +54,14 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn update_hub_site(&self, id: i64, name: Option<&str>, url: Option<&str>, api_key: Option<&str>, enabled: Option<bool>) -> Result<()> {
+    pub async fn update_hub_site(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        url: Option<&str>,
+        api_key: Option<&str>,
+        enabled: Option<bool>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let name = name.map(|s| s.to_string());
         let url = url.map(|s| s.to_string());
@@ -56,20 +69,32 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             if let Some(name) = &name {
-                conn.execute("UPDATE hub_sites SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
-                    .context("Update hub_site name failed")?;
+                conn.execute(
+                    "UPDATE hub_sites SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update hub_site name failed")?;
             }
             if let Some(url) = &url {
-                conn.execute("UPDATE hub_sites SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
-                    .context("Update hub_site url failed")?;
+                conn.execute(
+                    "UPDATE hub_sites SET url = ?1 WHERE id = ?2",
+                    rusqlite::params![url, id],
+                )
+                .context("Update hub_site url failed")?;
             }
             if let Some(api_key) = &api_key {
-                conn.execute("UPDATE hub_sites SET api_key = ?1 WHERE id = ?2", rusqlite::params![api_key, id])
-                    .context("Update hub_site api_key failed")?;
+                conn.execute(
+                    "UPDATE hub_sites SET api_key = ?1 WHERE id = ?2",
+                    rusqlite::params![api_key, id],
+                )
+                .context("Update hub_site api_key failed")?;
             }
             if let Some(enabled) = enabled {
-                conn.execute("UPDATE hub_sites SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
-                    .context("Update hub_site enabled failed")?;
+                conn.execute(
+                    "UPDATE hub_sites SET enabled = ?1 WHERE id = ?2",
+                    rusqlite::params![enabled as i64, id],
+                )
+                .context("Update hub_site enabled failed")?;
             }
             Ok(())
         })
@@ -94,8 +119,11 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
-            conn.execute("UPDATE hub_sites SET last_seen = ?1 WHERE id = ?2", rusqlite::params![now, id])
-                .context("Update hub_site last_seen failed")?;
+            conn.execute(
+                "UPDATE hub_sites SET last_seen = ?1 WHERE id = ?2",
+                rusqlite::params![now, id],
+            )
+            .context("Update hub_site last_seen failed")?;
             Ok(())
         })
         .await
@@ -128,4 +156,3 @@ impl Storage {
         .context("Task join failed")?
     }
 }
-

@@ -1,6 +1,6 @@
+use crate::models::AppConfig;
 use anyhow::{Context, Result};
 use std::fs;
-use crate::models::AppConfig;
 
 pub fn load_config(path: &str) -> Result<AppConfig> {
     let content = match fs::read_to_string(path) {
@@ -70,7 +70,10 @@ fn validate(config: &AppConfig) -> Result<()> {
     // Validate HA config
     if config.ha.enabled {
         anyhow::ensure!(!config.ha.node_id.is_empty(), "HA node_id cannot be empty");
-        anyhow::ensure!(!config.ha.peer_address.is_empty(), "HA peer_address is required when HA is enabled");
+        anyhow::ensure!(
+            !config.ha.peer_address.is_empty(),
+            "HA peer_address is required when HA is enabled"
+        );
         anyhow::ensure!(
             ["primary", "standby", "auto"].contains(&config.ha.role.as_str()),
             "HA role must be 'primary', 'standby', or 'auto'"
@@ -81,7 +84,11 @@ fn validate(config: &AppConfig) -> Result<()> {
     let mut net_ids = std::collections::HashSet::new();
     for net in &config.networks {
         anyhow::ensure!(!net.id.is_empty(), "Network ID cannot be empty");
-        anyhow::ensure!(net_ids.insert(net.id.clone()), "Duplicate network ID: {}", net.id);
+        anyhow::ensure!(
+            net_ids.insert(net.id.clone()),
+            "Duplicate network ID: {}",
+            net.id
+        );
     }
 
     // Validate device network references
@@ -90,7 +97,8 @@ fn validate(config: &AppConfig) -> Result<()> {
             anyhow::ensure!(
                 net_ids.contains(net_id),
                 "Device '{}' references unknown network '{}'",
-                device.id, net_id
+                device.id,
+                net_id
             );
         }
     }
@@ -182,7 +190,12 @@ devices:
         f.write_all(yaml.as_bytes()).unwrap();
         let result = load_config(f.path().to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Duplicate device ID"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate device ID")
+        );
     }
 
     #[test]
@@ -201,7 +214,12 @@ devices:
         f.write_all(yaml.as_bytes()).unwrap();
         let result = load_config(f.path().to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Duplicate register name"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate register name")
+        );
     }
 
     #[test]
@@ -222,7 +240,12 @@ smtp:
         f.write_all(yaml.as_bytes()).unwrap();
         let result = load_config(f.path().to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("SMTP host is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("SMTP host is required")
+        );
     }
 
     #[test]
@@ -264,7 +287,12 @@ push:
         f.write_all(yaml.as_bytes()).unwrap();
         let result = load_config(f.path().to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("VAPID private key is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("VAPID private key is required")
+        );
     }
 
     #[test]
@@ -278,7 +306,12 @@ push:
         f.write_all(yaml.as_bytes()).unwrap();
         let result = load_config(f.path().to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("VAPID public key is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("VAPID public key is required")
+        );
     }
 
     #[test]

@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -81,8 +81,14 @@ pub async fn create_device(
 
     // Sync to asset inventory
     crate::asset::sync::on_device_created(
-        &state.storage.asset(), "s7", &id.to_string(), &req.name, None, "plc",
-    ).await;
+        &state.storage.asset(),
+        "s7",
+        &id.to_string(),
+        &req.name,
+        None,
+        "plc",
+    )
+    .await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_s7_device".to_string(),
@@ -132,26 +138,26 @@ pub async fn update_device(
 
     // Restart poller if running
     let device_key = format!("s7_{}", id);
-    if state.poller_manager.is_running(&device_key).await {
-        if let Ok(Some(device)) = state.storage.get_s7_device(id).await {
-            let tags = state.storage.list_s7_tags(id).await?;
-            let mut s7_tags = Vec::new();
-            for tag_row in &tags {
-                match S7Client::parse_tag_address(&tag_row.tag_address) {
-                    Ok(s7_tag) => s7_tags.push(s7_tag),
-                    Err(_) => continue,
-                }
+    if state.poller_manager.is_running(&device_key).await
+        && let Ok(Some(device)) = state.storage.get_s7_device(id).await
+    {
+        let tags = state.storage.list_s7_tags(id).await?;
+        let mut s7_tags = Vec::new();
+        for tag_row in &tags {
+            match S7Client::parse_tag_address(&tag_row.tag_address) {
+                Ok(s7_tag) => s7_tags.push(s7_tag),
+                Err(_) => continue,
             }
-            let config = S7DeviceConfig {
-                id: device_key.clone(),
-                url: device.url,
-                rack: device.rack,
-                slot: device.slot,
-                interval_ms: device.interval_ms,
-                tags: s7_tags,
-            };
-            state.poller_manager.start_s7(config).await;
         }
+        let config = S7DeviceConfig {
+            id: device_key.clone(),
+            url: device.url,
+            rack: device.rack,
+            slot: device.slot,
+            interval_ms: device.interval_ms,
+            tags: s7_tags,
+        };
+        state.poller_manager.start_s7(config).await;
     }
 
     state.audit_logger.log(crate::security::AuditEvent {
@@ -248,12 +254,17 @@ pub async fn add_tag(
     // Validate tag address can be parsed
     if let Err(e) = S7Client::parse_tag_address(&req.tag_address) {
         return Err(AppError(anyhow::anyhow!(
-            "Invalid S7 tag address '{}': {}", req.tag_address, e
+            "Invalid S7 tag address '{}': {}",
+            req.tag_address,
+            e
         )));
     }
 
     // Look up device name for data source key generation
-    let device = state.storage.get_s7_device(device_id).await?
+    let device = state
+        .storage
+        .get_s7_device(device_id)
+        .await?
         .ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
 
     let id = state
@@ -324,7 +335,10 @@ pub async fn start_device(
     }
 
     // Load device from DB
-    let device = state.storage.get_s7_device(id).await?
+    let device = state
+        .storage
+        .get_s7_device(id)
+        .await?
         .ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
 
     if !device.enabled {
@@ -350,7 +364,9 @@ pub async fn start_device(
             Ok(s7_tag) => s7_tags.push(s7_tag),
             Err(e) => {
                 return Err(AppError(anyhow::anyhow!(
-                    "Failed to parse tag '{}': {}", tag_row.tag_address, e
+                    "Failed to parse tag '{}': {}",
+                    tag_row.tag_address,
+                    e
                 )));
             }
         }
@@ -429,7 +445,10 @@ pub async fn browse_device(
     }
 
     // Load device from DB
-    let device = state.storage.get_s7_device(id).await?
+    let device = state
+        .storage
+        .get_s7_device(id)
+        .await?
         .ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
 
     // Attempt to connect and list common areas

@@ -1,12 +1,12 @@
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState};
+use crate::models::*;
 
 fn require_enterprise(state: &AppState) -> Result<(), AppError> {
     if !matches!(state.license_tier, crate::license::LicenseTier::Enterprise) {
@@ -38,14 +38,17 @@ pub async fn list_security_events(
     Query(params): Query<ListEventsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     require_enterprise(&state)?;
-    let events = state.storage.list_security_events(
-        params.event_type.as_deref(),
-        params.severity.as_deref(),
-        params.from,
-        params.to,
-        params.limit.min(1000),
-        params.offset,
-    ).await?;
+    let events = state
+        .storage
+        .list_security_events(
+            params.event_type.as_deref(),
+            params.severity.as_deref(),
+            params.from,
+            params.to,
+            params.limit.min(1000),
+            params.offset,
+        )
+        .await?;
 
     Ok(Json(json!({
         "events": events,
@@ -64,10 +67,10 @@ pub async fn export_security_csv(
     Query(params): Query<ExportCsvQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     require_enterprise(&state)?;
-    let csv = state.storage.export_security_events_csv(
-        params.from,
-        params.to,
-    ).await?;
+    let csv = state
+        .storage
+        .export_security_events_csv(params.from, params.to)
+        .await?;
 
     let filename = format!(
         "security-log-{}.csv",
@@ -103,23 +106,30 @@ pub async fn update_security_thresholds(
 ) -> Result<impl IntoResponse, AppError> {
     // Validate ranges
     require_enterprise(&state)?;
-    if body.failed_login_threshold == 0 || body.suspicious_401_threshold == 0 || body.rate_limit_threshold == 0 {
+    if body.failed_login_threshold == 0
+        || body.suspicious_401_threshold == 0
+        || body.rate_limit_threshold == 0
+    {
         return Ok((
             StatusCode::BAD_REQUEST,
             Json(json!({"error": "Thresholds must be greater than 0"})),
-        ).into_response());
+        )
+            .into_response());
     }
 
     state.storage.update_security_thresholds(&body).await?;
 
-    let _ = state.storage.insert_security_event(&CreateSecurityEvent {
-        event_type: "config_change".into(),
-        severity: "info".into(),
-        source_ip: None,
-        user_agent: None,
-        username: None,
-        details: Some("Security thresholds updated".into()),
-    }).await;
+    let _ = state
+        .storage
+        .insert_security_event(&CreateSecurityEvent {
+            event_type: "config_change".into(),
+            severity: "info".into(),
+            source_ip: None,
+            user_agent: None,
+            username: None,
+            details: Some("Security thresholds updated".into()),
+        })
+        .await;
 
     Ok((StatusCode::OK, Json(json!({"ok": true}))).into_response())
 }

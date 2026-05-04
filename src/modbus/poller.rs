@@ -78,12 +78,14 @@ async fn try_poll(
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
                     ctx.read_input_registers(addr, count),
-                ).await
+                )
+                .await
             } else {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
                     ctx.read_holding_registers(addr, count),
-                ).await
+                )
+                .await
             };
 
             let response = read_result

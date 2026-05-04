@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use rusqlite::backup::Backup;
 use rusqlite::Connection;
+use rusqlite::backup::Backup;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -18,9 +18,9 @@ mod utils;
 mod tests;
 
 // Re-export public API for backward compatibility (crate::backup::Foo still works).
-pub use types::{BackupOptions, RestoreOptions};
 pub use backup_op::run_backup;
 pub use restore::run_restore;
+pub use types::{BackupOptions, RestoreOptions};
 
 // Re-export internal items so sub-modules can use `super::*` to access them.
 pub(crate) use archive::{

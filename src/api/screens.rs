@@ -1,11 +1,11 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState, AuthUser};
+use crate::models::*;
 
 /// GET /api/screens — list all screens (devices)
 #[utoipa::path(
@@ -33,10 +33,7 @@ pub async fn create_screen(
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let name = body["name"]
-        .as_str()
-        .unwrap_or("New Screen")
-        .to_string();
+    let name = body["name"].as_str().unwrap_or("New Screen").to_string();
 
     // Generate slug id from name
     let slug = name
@@ -100,10 +97,7 @@ pub async fn update_screen(
     let name = body["name"].as_str();
     let sort_order = body["sort_order"].as_i64();
 
-    state
-        .storage
-        .update_device(&id, name, sort_order)
-        .await?;
+    state.storage.update_device(&id, name, sort_order).await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "update_screen".to_string(),
@@ -190,10 +184,7 @@ pub async fn add_screen_sensor(
         .add_screen_data_source(&id, data_source_id, max_sort + 1)
         .await?;
 
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({"ok": true})),
-    ))
+    Ok((StatusCode::CREATED, Json(json!({"ok": true}))))
 }
 
 /// PUT /api/screens/{id}/data-sources/{data_source_id} — update screen data source sort order

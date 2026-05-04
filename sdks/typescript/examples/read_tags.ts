@@ -1,20 +1,26 @@
-import { Configuration, DataApi } from "voltrus";
+import { VoltrusClient } from "voltrus";
 
-const host = process.argv[2] || "http://localhost:3000";
+const host = process.argv[2] || "http://localhost:8080";
 const apiKey = process.argv[3] || "";
 
-const config = new Configuration({
-  basePath: host,
-  apiKey,
-});
+const client = new VoltrusClient({ baseURL: host, apiKey });
 
 async function main() {
-  const api = new DataApi(config);
-  const data = await api.getData({ screen: "overview" });
+  // List screens
+  const screens = await client.listScreens();
+  console.log(`Found ${screens.length} screens`);
 
-  for (const ds of data) {
-    const icon = { normal: "OK", warning: "WARN", critical: "CRIT", offline: "OFF" }[ds.status] || "?";
-    console.log(`[${icon}] ${ds.key} = ${ds.value.toFixed(2)} (warn=${ds.warn}, crit=${ds.crit})`);
+  if (screens.length === 0) {
+    console.log("No screens found. Create one in the Voltrus UI first.");
+    return;
+  }
+
+  // Read live data from first screen
+  const data = await client.getLiveData(screens[0].id);
+
+  for (const tag of data) {
+    const icon = tag.quality === "good" ? "OK" : tag.quality === "bad" ? "BAD" : "???";
+    console.log(`[${icon}] ${tag.name} = ${tag.value}`);
   }
 }
 

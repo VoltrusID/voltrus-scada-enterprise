@@ -4,29 +4,29 @@ use crate::config;
 use crate::storage::Storage;
 
 const HELP_TEXT: &str = "\
-voltrus-lite — Industrial Modbus monitoring dashboard
+voltrus — Industrial Modbus monitoring dashboard
 
 USAGE:
-    voltrus-lite [CONFIG_PATH]              Start server (default: config.yaml)
-    voltrus-lite --help                     Show this help
-    voltrus-lite --license-status [CONFIG]  Check current license status
-    voltrus-lite --generate-request <KEY>   Generate license-request.bin
-    voltrus-lite --import-activation <FILE> [CONFIG]
+    voltrus [CONFIG_PATH]              Start server (default: config.yaml)
+    voltrus --help                     Show this help
+    voltrus --license-status [CONFIG]  Check current license status
+    voltrus --generate-request <KEY>   Generate license-request.bin
+    voltrus --import-activation <FILE> [CONFIG]
                                             Import license-activation.bin
-    voltrus-lite --online-activate <KEY> [CONFIG]
+    voltrus --online-activate <KEY> [CONFIG]
                                             Activate directly via internet
-    voltrus-lite --reset-admin-password [CONFIG]
+    voltrus --reset-admin-password [CONFIG]
                                             Reset admin password (prints new password)
-    voltrus-lite --dump-openapi [CONFIG]    Print OpenAPI 3.1 spec as JSON and exit
-    voltrus-lite backup [OPTIONS]           Create backup archive
-    voltrus-lite restore <BACKUP_FILE> [OPTIONS]
+    voltrus --dump-openapi [CONFIG]    Print OpenAPI 3.1 spec as JSON and exit
+    voltrus backup [OPTIONS]           Create backup archive
+    voltrus restore <BACKUP_FILE> [OPTIONS]
                                             Restore from backup archive
-    voltrus-lite factory-reset [CONFIG]     Delete all data and reset to defaults
-    voltrus-lite db stats [CONFIG]          Print database statistics
-    voltrus-lite config export [DIR]        Export config to YAML files
-    voltrus-lite config import [DIR]        Import config from YAML files
-    voltrus-lite config validate [DIR]      Validate YAML config files
-    voltrus-lite discover --range <CIDR>    Scan subnet for Modbus TCP devices
+    voltrus factory-reset [CONFIG]     Delete all data and reset to defaults
+    voltrus db stats [CONFIG]          Print database statistics
+    voltrus config export [DIR]        Export config to YAML files
+    voltrus config import [DIR]        Import config from YAML files
+    voltrus config validate [DIR]      Validate YAML config files
+    voltrus discover --range <CIDR>    Scan subnet for Modbus TCP devices
 
 BACKUP OPTIONS:
     --output <PATH>    Output archive path (default: voltrus-backup-YYYYMMDD-HHMMSS.tar.gz)
@@ -52,20 +52,20 @@ OPTIONS:
     --reset-admin-password        Generate a new random password for admin user
 
 EXAMPLES:
-    voltrus-lite                              # Start with config.yaml
-    voltrus-lite /etc/voltrus/prod.yaml       # Start with custom config
-    voltrus-lite --online-activate VOLTRUS-XXXX   # Activate online
-    voltrus-lite --reset-admin-password       # Reset lost admin password
-    voltrus-lite --license-status             # Check license
-    voltrus-lite backup                       # Create backup in current directory
-    voltrus-lite backup --output /tmp/bak.tar.gz  # Custom output path
-    voltrus-lite restore backup.tar.gz        # Restore from archive
-    voltrus-lite restore backup.tar.gz --force  # Restore without confirmation
-    voltrus-lite restore backup.tar.gz --config /etc/voltrus/prod.yaml
-    voltrus-lite config export ./my-config    # Export config to directory
-    voltrus-lite config import ./my-config    # Import config from directory
-    voltrus-lite config validate ./my-config  # Validate config files
-    voltrus-lite discover --range 192.168.1.0/24 --port 502
+    voltrus                              # Start with config.yaml
+    voltrus /etc/voltrus/prod.yaml       # Start with custom config
+    voltrus --online-activate VOLTRUS-XXXX   # Activate online
+    voltrus --reset-admin-password       # Reset lost admin password
+    voltrus --license-status             # Check license
+    voltrus backup                       # Create backup in current directory
+    voltrus backup --output /tmp/bak.tar.gz  # Custom output path
+    voltrus restore backup.tar.gz        # Restore from archive
+    voltrus restore backup.tar.gz --force  # Restore without confirmation
+    voltrus restore backup.tar.gz --config /etc/voltrus/prod.yaml
+    voltrus config export ./my-config    # Export config to directory
+    voltrus config import ./my-config    # Import config from directory
+    voltrus config validate ./my-config  # Validate config files
+    voltrus discover --range 192.168.1.0/24 --port 502
 ";
 
 /// Handle CLI subcommands. Returns true if a subcommand was handled (should exit).
@@ -119,7 +119,10 @@ fn handle_generate_request(args: &[String]) -> bool {
 
 async fn handle_import_activation(args: &[String]) -> bool {
     if args.len() < 3 {
-        eprintln!("Usage: {} --import-activation <PATH> [CONFIG_PATH]", args[0]);
+        eprintln!(
+            "Usage: {} --import-activation <PATH> [CONFIG_PATH]",
+            args[0]
+        );
         std::process::exit(1);
     }
     let activation_path = &args[2];
@@ -128,15 +131,17 @@ async fn handle_import_activation(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage = Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("DB error: {e}");
+                std::process::exit(1);
+            });
+    let activation = crate::license::activation::import_activation_file(activation_path)
         .unwrap_or_else(|e| {
-            eprintln!("DB error: {e}");
+            eprintln!("Activation error: {e}");
             std::process::exit(1);
         });
-    let activation = crate::license::activation::import_activation_file(activation_path).unwrap_or_else(|e| {
-        eprintln!("Activation error: {e}");
-        std::process::exit(1);
-    });
     let fingerprint = crate::license::fingerprint::collect_fingerprint();
     let row = crate::models::LicenseActivationRow {
         license_key: activation.license_key.clone(),
@@ -169,7 +174,10 @@ async fn handle_import_activation(args: &[String]) -> bool {
 
 async fn handle_online_activate(args: &[String]) -> bool {
     if args.len() < 3 {
-        eprintln!("Usage: {} --online-activate <LICENSE_KEY> [CONFIG_PATH]", args[0]);
+        eprintln!(
+            "Usage: {} --online-activate <LICENSE_KEY> [CONFIG_PATH]",
+            args[0]
+        );
         std::process::exit(1);
     }
     let license_key = &args[2];
@@ -178,11 +186,12 @@ async fn handle_online_activate(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage = Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-        .unwrap_or_else(|e| {
-            eprintln!("DB error: {e}");
-            std::process::exit(1);
-        });
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("DB error: {e}");
+                std::process::exit(1);
+            });
 
     eprintln!("Generating license request...");
     let request_data = {
@@ -202,7 +211,8 @@ async fn handle_online_activate(args: &[String]) -> bool {
     let client = reqwest::Client::new();
     let file_part = reqwest::multipart::Part::bytes(request_data.clone())
         .file_name("license-request.bin")
-        .mime_str("application/octet-stream").unwrap_or_else(|e| {
+        .mime_str("application/octet-stream")
+        .unwrap_or_else(|e| {
             eprintln!("MIME error: {e}");
             std::process::exit(1);
         });
@@ -217,7 +227,10 @@ async fn handle_online_activate(args: &[String]) -> bool {
         .send()
         .await
         .unwrap_or_else(|e| {
-            eprintln!("Failed to connect to activation server: {}. Ensure you have internet access.", e);
+            eprintln!(
+                "Failed to connect to activation server: {}. Ensure you have internet access.",
+                e
+            );
             std::process::exit(1);
         });
 
@@ -236,22 +249,22 @@ async fn handle_online_activate(args: &[String]) -> bool {
         std::process::exit(1);
     }
 
-    let activation_b64 = result["activation_file"]
-        .as_str()
-        .unwrap_or_else(|| {
-            eprintln!("Activation server did not return activation file");
-            std::process::exit(1);
-        });
+    let activation_b64 = result["activation_file"].as_str().unwrap_or_else(|| {
+        eprintln!("Activation server did not return activation file");
+        std::process::exit(1);
+    });
     let activation_blob = base64::engine::general_purpose::STANDARD
-        .decode(activation_b64).unwrap_or_else(|e| {
+        .decode(activation_b64)
+        .unwrap_or_else(|e| {
             eprintln!("Decode error: {e}");
             std::process::exit(1);
         });
 
-    let activation = crate::license::activation::verify_activation_signature(&activation_blob).unwrap_or_else(|e| {
-        eprintln!("Signature error: {e}");
-        std::process::exit(1);
-    });
+    let activation = crate::license::activation::verify_activation_signature(&activation_blob)
+        .unwrap_or_else(|e| {
+            eprintln!("Signature error: {e}");
+            std::process::exit(1);
+        });
     let fingerprint = crate::license::fingerprint::collect_fingerprint();
     let row = crate::models::LicenseActivationRow {
         license_key: activation.license_key.clone(),
@@ -348,16 +361,19 @@ fn handle_config(args: &[String]) -> bool {
                 eprintln!("Config error: {e}");
                 std::process::exit(1);
             });
-            let storage = Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-                .unwrap_or_else(|e| {
-                    eprintln!("DB error: {e}");
-                    std::process::exit(1);
-                });
+            let storage =
+                Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+                    .unwrap_or_else(|e| {
+                        eprintln!("DB error: {e}");
+                        std::process::exit(1);
+                    });
             // Check license synchronously (blocking context in non-async fn)
             let rt = tokio::runtime::Runtime::new().unwrap();
             let status = rt.block_on(crate::license::verify_license(&storage));
             if !status.is_valid() || !status.tier().backup_restore() {
-                eprintln!("Config export requires a valid Starter+ license (backup_restore feature).");
+                eprintln!(
+                    "Config export requires a valid Starter+ license (backup_restore feature)."
+                );
                 std::process::exit(1);
             }
             match crate::config_export::export_config(&storage, path) {
@@ -377,15 +393,18 @@ fn handle_config(args: &[String]) -> bool {
                 eprintln!("Config error: {e}");
                 std::process::exit(1);
             });
-            let storage = Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-                .unwrap_or_else(|e| {
-                    eprintln!("DB error: {e}");
-                    std::process::exit(1);
-                });
+            let storage =
+                Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+                    .unwrap_or_else(|e| {
+                        eprintln!("DB error: {e}");
+                        std::process::exit(1);
+                    });
             let rt = tokio::runtime::Runtime::new().unwrap();
             let status = rt.block_on(crate::license::verify_license(&storage));
             if !status.is_valid() || !status.tier().backup_restore() {
-                eprintln!("Config import requires a valid Starter+ license (backup_restore feature).");
+                eprintln!(
+                    "Config import requires a valid Starter+ license (backup_restore feature)."
+                );
                 std::process::exit(1);
             }
             match crate::config_export::import_config(&storage, path) {
@@ -399,21 +418,19 @@ fn handle_config(args: &[String]) -> bool {
                 }
             }
         }
-        "validate" => {
-            match crate::config_export::validate_config(path) {
-                Ok(messages) => {
-                    for msg in &messages {
-                        println!("{}", msg);
-                    }
-                    let has_errors = messages.iter().any(|m| m.starts_with("ERROR"));
-                    std::process::exit(if has_errors { 1 } else { 0 });
+        "validate" => match crate::config_export::validate_config(path) {
+            Ok(messages) => {
+                for msg in &messages {
+                    println!("{}", msg);
                 }
-                Err(e) => {
-                    eprintln!("Validation failed: {e}");
-                    std::process::exit(1);
-                }
+                let has_errors = messages.iter().any(|m| m.starts_with("ERROR"));
+                std::process::exit(if has_errors { 1 } else { 0 });
             }
-        }
+            Err(e) => {
+                eprintln!("Validation failed: {e}");
+                std::process::exit(1);
+            }
+        },
         _ => {
             eprintln!("Usage: {} config [export|import|validate] [PATH]", args[0]);
             eprintln!();
@@ -477,11 +494,12 @@ async fn handle_discover(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage = Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-        .unwrap_or_else(|e| {
-            eprintln!("DB error: {e}");
-            std::process::exit(1);
-        });
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("DB error: {e}");
+                std::process::exit(1);
+            });
     let status = crate::license::verify_license(&storage).await;
     if !status.is_valid() || !status.tier().auto_discovery() {
         eprintln!("Network discovery requires a valid Starter+ license (auto_discovery feature).");
@@ -530,12 +548,18 @@ fn handle_backup(args: &[String]) -> bool {
             }
             flag if flag.starts_with('-') => {
                 eprintln!("Unknown backup option: {}", flag);
-                eprintln!("Usage: {} backup [--config <PATH>] [--output <PATH>]", args[0]);
+                eprintln!(
+                    "Usage: {} backup [--config <PATH>] [--output <PATH>]",
+                    args[0]
+                );
                 std::process::exit(1);
             }
             _ => {
                 eprintln!("Unexpected argument: {}", args[i]);
-                eprintln!("Usage: {} backup [--config <PATH>] [--output <PATH>]", args[0]);
+                eprintln!(
+                    "Usage: {} backup [--config <PATH>] [--output <PATH>]",
+                    args[0]
+                );
                 std::process::exit(1);
             }
         }
@@ -579,13 +603,19 @@ fn handle_restore(args: &[String]) -> bool {
             }
             flag if flag.starts_with('-') => {
                 eprintln!("Unknown restore option: {}", flag);
-                eprintln!("Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]", args[0]);
+                eprintln!(
+                    "Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]",
+                    args[0]
+                );
                 std::process::exit(1);
             }
             arg => {
                 if archive_path.is_some() {
                     eprintln!("Unexpected argument: {}", arg);
-                    eprintln!("Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]", args[0]);
+                    eprintln!(
+                        "Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]",
+                        args[0]
+                    );
                     std::process::exit(1);
                 }
                 archive_path = Some(arg.to_string());
@@ -596,7 +626,10 @@ fn handle_restore(args: &[String]) -> bool {
     let archive_path = match archive_path {
         Some(p) => p,
         None => {
-            eprintln!("Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]", args[0]);
+            eprintln!(
+                "Usage: {} restore <BACKUP_FILE> [--config <PATH>] [--force]",
+                args[0]
+            );
             std::process::exit(1);
         }
     };
@@ -625,11 +658,12 @@ async fn handle_license_status(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage = Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-        .unwrap_or_else(|e| {
-            eprintln!("DB error: {e}");
-            std::process::exit(1);
-        });
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("DB error: {e}");
+                std::process::exit(1);
+            });
     let status = crate::license::verify_license(&storage).await;
     match serde_json::to_string_pretty(&status) {
         Ok(json) => {
@@ -648,7 +682,10 @@ fn handle_factory_reset(args: &[String]) -> bool {
         .map(|c| c.db_path.clone())
         .unwrap_or_else(|_| "voltrus.db".to_string());
 
-    println!("WARNING: This will permanently delete all data in {}", db_path);
+    println!(
+        "WARNING: This will permanently delete all data in {}",
+        db_path
+    );
     println!("Type 'yes' to confirm:");
 
     let mut input = String::new();
@@ -752,10 +789,14 @@ fn handle_dump_openapi() -> bool {
 
 fn find_config_path(args: &[String]) -> String {
     for arg in args.iter().skip(2) {
-        if !arg.starts_with('-') && !arg.contains('/') || arg.ends_with(".yaml") || arg.ends_with(".yml") {
-            if arg != "factory-reset" && arg != "db" && arg != "stats" {
-                return arg.clone();
-            }
+        if (!arg.starts_with('-') && !arg.contains('/')
+            || arg.ends_with(".yaml")
+            || arg.ends_with(".yml"))
+            && arg != "factory-reset"
+            && arg != "db"
+            && arg != "stats"
+        {
+            return arg.clone();
         }
     }
     "config.yaml".to_string()

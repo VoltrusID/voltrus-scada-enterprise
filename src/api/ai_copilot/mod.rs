@@ -1,10 +1,10 @@
-mod settings;
-mod proposals;
 mod generation;
-mod templates;
 mod helpers;
+mod proposals;
+mod settings;
+mod templates;
 
-pub use settings::*;
-pub use proposals::*;
 pub use generation::*;
+pub use proposals::*;
+pub use settings::*;
 pub use templates::*;

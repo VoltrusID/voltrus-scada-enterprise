@@ -1,10 +1,9 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{EnipDevice, EnipTag, EnipDeviceConfig};
+use crate::models::{EnipDevice, EnipDeviceConfig, EnipTag};
 
 impl Storage {
-
     pub async fn create_enip_device(
         &self,
         name: &str,
@@ -109,24 +108,39 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             if let Some(name) = &name {
-                conn.execute("UPDATE enip_devices SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
-                    .context("Update enip device name failed")?;
+                conn.execute(
+                    "UPDATE enip_devices SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update enip device name failed")?;
             }
             if let Some(url) = &url {
-                conn.execute("UPDATE enip_devices SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
-                    .context("Update enip device url failed")?;
+                conn.execute(
+                    "UPDATE enip_devices SET url = ?1 WHERE id = ?2",
+                    rusqlite::params![url, id],
+                )
+                .context("Update enip device url failed")?;
             }
             if let Some(slot) = slot {
-                conn.execute("UPDATE enip_devices SET slot = ?1 WHERE id = ?2", rusqlite::params![slot, id])
-                    .context("Update enip device slot failed")?;
+                conn.execute(
+                    "UPDATE enip_devices SET slot = ?1 WHERE id = ?2",
+                    rusqlite::params![slot, id],
+                )
+                .context("Update enip device slot failed")?;
             }
             if let Some(interval_ms) = interval_ms {
-                conn.execute("UPDATE enip_devices SET interval_ms = ?1 WHERE id = ?2", rusqlite::params![interval_ms, id])
-                    .context("Update enip device interval_ms failed")?;
+                conn.execute(
+                    "UPDATE enip_devices SET interval_ms = ?1 WHERE id = ?2",
+                    rusqlite::params![interval_ms, id],
+                )
+                .context("Update enip device interval_ms failed")?;
             }
             if let Some(enabled) = enabled {
-                conn.execute("UPDATE enip_devices SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
-                    .context("Update enip device enabled failed")?;
+                conn.execute(
+                    "UPDATE enip_devices SET enabled = ?1 WHERE id = ?2",
+                    rusqlite::params![enabled as i64, id],
+                )
+                .context("Update enip device enabled failed")?;
             }
             Ok(())
         })
@@ -157,19 +171,20 @@ impl Storage {
                     .query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
                     .context("Query enip tags failed")?;
 
-                for tag_row in tag_rows {
-                    if let Ok(tag_name) = tag_row {
-                        let source_key = format!("{}:{}", device_name, tag_name);
-                        let _ = conn.execute(
-                            "DELETE FROM data_sources WHERE key = ?1",
-                            rusqlite::params![source_key],
-                        );
-                    }
+                for tag_name in tag_rows.flatten() {
+                    let source_key = format!("{}:{}", device_name, tag_name);
+                    let _ = conn.execute(
+                        "DELETE FROM data_sources WHERE key = ?1",
+                        rusqlite::params![source_key],
+                    );
                 }
             }
 
-            conn.execute("DELETE FROM enip_devices WHERE id = ?1", rusqlite::params![id])
-                .context("Delete enip device failed")
+            conn.execute(
+                "DELETE FROM enip_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete enip device failed")
         })
         .await
         .context("Task join failed")?
@@ -264,18 +279,16 @@ impl Storage {
                 "SELECT name, device_id FROM enip_tags WHERE id = ?1",
                 rusqlite::params![id],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            ) && let Ok(device_name) = conn.query_row(
+                "SELECT name FROM enip_devices WHERE id = ?1",
+                rusqlite::params![device_id],
+                |row| row.get::<_, String>(0),
             ) {
-                if let Ok(device_name) = conn.query_row(
-                    "SELECT name FROM enip_devices WHERE id = ?1",
-                    rusqlite::params![device_id],
-                    |row| row.get::<_, String>(0),
-                ) {
-                    let source_key = format!("{}:{}", device_name, tag_name);
-                    let _ = conn.execute(
-                        "DELETE FROM data_sources WHERE key = ?1",
-                        rusqlite::params![source_key],
-                    );
-                }
+                let source_key = format!("{}:{}", device_name, tag_name);
+                let _ = conn.execute(
+                    "DELETE FROM data_sources WHERE key = ?1",
+                    rusqlite::params![source_key],
+                );
             }
 
             conn.execute("DELETE FROM enip_tags WHERE id = ?1", rusqlite::params![id])
@@ -291,7 +304,9 @@ impl Storage {
         let devices = self.list_enip_devices().await?;
         let mut configs = Vec::new();
         for device in &devices {
-            if !device.enabled { continue; }
+            if !device.enabled {
+                continue;
+            }
             let tags = self.list_enip_tags(device.id).await?;
             let device_key = format!("enip_{}", device.id);
             configs.push(EnipDeviceConfig {
@@ -299,11 +314,14 @@ impl Storage {
                 url: device.url.clone(),
                 slot: device.slot,
                 interval_ms: device.interval_ms,
-                tags: tags.iter().map(|t| crate::ethernet_ip::EnipTagConfig {
-                    tag_name: t.tag_name.clone(),
-                    name: t.name.clone(),
-                    data_type: t.data_type.clone(),
-                }).collect(),
+                tags: tags
+                    .iter()
+                    .map(|t| crate::ethernet_ip::EnipTagConfig {
+                        tag_name: t.tag_name.clone(),
+                        name: t.name.clone(),
+                        data_type: t.data_type.clone(),
+                    })
+                    .collect(),
             });
         }
         Ok(configs)

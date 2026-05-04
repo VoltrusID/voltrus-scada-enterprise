@@ -1,10 +1,12 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{OpcUaDevice, OpcUaNode, OpcUaDeviceConfig, OpcUaNodeConfig, OpcUaSecurityPolicy, OpcUaSecurityMode};
+use crate::models::{
+    OpcUaDevice, OpcUaDeviceConfig, OpcUaNode, OpcUaNodeConfig, OpcUaSecurityMode,
+    OpcUaSecurityPolicy,
+};
 
 impl Storage {
-
     pub async fn create_opcua_device(
         &self,
         name: &str,
@@ -19,8 +21,10 @@ impl Storage {
         let conn = self.conn.clone();
         let name = name.to_string();
         let url = url.to_string();
-        let security_policy = serde_json::to_string(security_policy).unwrap_or_else(|_| "none".to_string());
-        let security_mode = serde_json::to_string(security_mode).unwrap_or_else(|_| "none".to_string());
+        let security_policy =
+            serde_json::to_string(security_policy).unwrap_or_else(|_| "none".to_string());
+        let security_mode =
+            serde_json::to_string(security_mode).unwrap_or_else(|_| "none".to_string());
         let username = username.map(|s| s.to_string());
         let password = password.map(|s| s.to_string());
         tokio::task::spawn_blocking(move || {
@@ -125,44 +129,70 @@ impl Storage {
         let conn = self.conn.clone();
         let name = name.map(|s| s.to_string());
         let url = url.map(|s| s.to_string());
-        let security_policy = security_policy.map(|p| serde_json::to_string(p).unwrap_or_else(|_| "none".to_string()));
-        let security_mode = security_mode.map(|m| serde_json::to_string(m).unwrap_or_else(|_| "none".to_string()));
+        let security_policy = security_policy
+            .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "none".to_string()));
+        let security_mode =
+            security_mode.map(|m| serde_json::to_string(m).unwrap_or_else(|_| "none".to_string()));
         let username = username.map(|o| o.map(|s| s.to_string()));
         let password = password.map(|o| o.map(|s| s.to_string()));
 
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             if let Some(name) = &name {
-                conn.execute("UPDATE opcua_devices SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
-                    .context("Update opcua device name failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update opcua device name failed")?;
             }
             if let Some(url) = &url {
-                conn.execute("UPDATE opcua_devices SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
-                    .context("Update opcua device url failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET url = ?1 WHERE id = ?2",
+                    rusqlite::params![url, id],
+                )
+                .context("Update opcua device url failed")?;
             }
             if let Some(policy) = &security_policy {
-                conn.execute("UPDATE opcua_devices SET security_policy = ?1 WHERE id = ?2", rusqlite::params![policy, id])
-                    .context("Update opcua device security_policy failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET security_policy = ?1 WHERE id = ?2",
+                    rusqlite::params![policy, id],
+                )
+                .context("Update opcua device security_policy failed")?;
             }
             if let Some(mode) = &security_mode {
-                conn.execute("UPDATE opcua_devices SET security_mode = ?1 WHERE id = ?2", rusqlite::params![mode, id])
-                    .context("Update opcua device security_mode failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET security_mode = ?1 WHERE id = ?2",
+                    rusqlite::params![mode, id],
+                )
+                .context("Update opcua device security_mode failed")?;
             }
             if let Some(ref username) = username {
-                conn.execute("UPDATE opcua_devices SET username = ?1 WHERE id = ?2", rusqlite::params![username, id])
-                    .context("Update opcua device username failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET username = ?1 WHERE id = ?2",
+                    rusqlite::params![username, id],
+                )
+                .context("Update opcua device username failed")?;
             }
             if let Some(ref password) = password {
-                conn.execute("UPDATE opcua_devices SET password = ?1 WHERE id = ?2", rusqlite::params![password, id])
-                    .context("Update opcua device password failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET password = ?1 WHERE id = ?2",
+                    rusqlite::params![password, id],
+                )
+                .context("Update opcua device password failed")?;
             }
             if let Some(interval_ms) = interval_ms {
-                conn.execute("UPDATE opcua_devices SET interval_ms = ?1 WHERE id = ?2", rusqlite::params![interval_ms, id])
-                    .context("Update opcua device interval_ms failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET interval_ms = ?1 WHERE id = ?2",
+                    rusqlite::params![interval_ms, id],
+                )
+                .context("Update opcua device interval_ms failed")?;
             }
             if let Some(enabled) = enabled {
-                conn.execute("UPDATE opcua_devices SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
-                    .context("Update opcua device enabled failed")?;
+                conn.execute(
+                    "UPDATE opcua_devices SET enabled = ?1 WHERE id = ?2",
+                    rusqlite::params![enabled as i64, id],
+                )
+                .context("Update opcua device enabled failed")?;
             }
             Ok(())
         })
@@ -193,19 +223,20 @@ impl Storage {
                     .query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
                     .context("Query opcua nodes failed")?;
 
-                for node_row in node_rows {
-                    if let Ok(node_name) = node_row {
-                        let source_key = format!("{}:{}", device_name, node_name);
-                        let _ = conn.execute(
-                            "DELETE FROM data_sources WHERE key = ?1",
-                            rusqlite::params![source_key],
-                        );
-                    }
+                for node_name in node_rows.flatten() {
+                    let source_key = format!("{}:{}", device_name, node_name);
+                    let _ = conn.execute(
+                        "DELETE FROM data_sources WHERE key = ?1",
+                        rusqlite::params![source_key],
+                    );
                 }
             }
 
-            conn.execute("DELETE FROM opcua_devices WHERE id = ?1", rusqlite::params![id])
-                .context("Delete opcua device failed")
+            conn.execute(
+                "DELETE FROM opcua_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete opcua device failed")
         })
         .await
         .context("Task join failed")?
@@ -300,22 +331,23 @@ impl Storage {
                 "SELECT name, device_id FROM opcua_nodes WHERE id = ?1",
                 rusqlite::params![id],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            ) && let Ok(device_name) = conn.query_row(
+                "SELECT name FROM opcua_devices WHERE id = ?1",
+                rusqlite::params![device_id],
+                |row| row.get::<_, String>(0),
             ) {
-                if let Ok(device_name) = conn.query_row(
-                    "SELECT name FROM opcua_devices WHERE id = ?1",
-                    rusqlite::params![device_id],
-                    |row| row.get::<_, String>(0),
-                ) {
-                    let source_key = format!("{}:{}", device_name, node_name);
-                    let _ = conn.execute(
-                        "DELETE FROM data_sources WHERE key = ?1",
-                        rusqlite::params![source_key],
-                    );
-                }
+                let source_key = format!("{}:{}", device_name, node_name);
+                let _ = conn.execute(
+                    "DELETE FROM data_sources WHERE key = ?1",
+                    rusqlite::params![source_key],
+                );
             }
 
-            conn.execute("DELETE FROM opcua_nodes WHERE id = ?1", rusqlite::params![id])
-                .context("Delete opcua node failed")
+            conn.execute(
+                "DELETE FROM opcua_nodes WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete opcua node failed")
         })
         .await
         .context("Task join failed")?
@@ -327,7 +359,9 @@ impl Storage {
         let devices = self.list_opcua_devices().await?;
         let mut configs = Vec::new();
         for device in &devices {
-            if !device.enabled { continue; }
+            if !device.enabled {
+                continue;
+            }
             let nodes = self.list_opcua_nodes(device.id).await?;
             let device_key = format!("opcua_{}", device.id);
             configs.push(OpcUaDeviceConfig {
@@ -338,15 +372,17 @@ impl Storage {
                 username: device.username.clone(),
                 password: device.password.clone(),
                 interval_ms: device.interval_ms,
-                nodes: nodes.iter().map(|n| OpcUaNodeConfig {
-                    node_id: n.node_id.clone(),
-                    name: n.name.clone(),
-                    display_name: n.display_name.clone(),
-                    data_type: n.data_type.clone(),
-                }).collect(),
+                nodes: nodes
+                    .iter()
+                    .map(|n| OpcUaNodeConfig {
+                        node_id: n.node_id.clone(),
+                        name: n.name.clone(),
+                        display_name: n.display_name.clone(),
+                        data_type: n.data_type.clone(),
+                    })
+                    .collect(),
             });
         }
         Ok(configs)
     }
-
 }

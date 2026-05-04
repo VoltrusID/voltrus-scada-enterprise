@@ -14,9 +14,9 @@ impl Storage {
             let mut stmt = conn
                 .prepare("SELECT value FROM settings WHERE key = ?1")
                 .context("Prepare failed")?;
-            let mut rows = stmt.query_map(rusqlite::params![key], |row| {
-                row.get::<_, String>(0)
-            }).context("Query failed")?;
+            let mut rows = stmt
+                .query_map(rusqlite::params![key], |row| row.get::<_, String>(0))
+                .context("Query failed")?;
             match rows.next() {
                 Some(Ok(v)) => Ok(Some(v)),
                 Some(Err(e)) => Err(e).context("Row mapping failed"),
@@ -228,7 +228,10 @@ impl Storage {
 
     // ── Equipment Templates ──
 
-    pub async fn list_equipment_templates(&self, industry: Option<&str>) -> Result<Vec<EquipmentTemplate>> {
+    pub async fn list_equipment_templates(
+        &self,
+        industry: Option<&str>,
+    ) -> Result<Vec<EquipmentTemplate>> {
         let conn = self.conn.clone();
         let industry = industry.map(|s| s.to_string());
         tokio::task::spawn_blocking(move || {

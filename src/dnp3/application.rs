@@ -74,14 +74,30 @@ pub struct Iin {
 impl Iin {
     pub fn to_low_byte(&self) -> u8 {
         let mut byte = 0u8;
-        if self.all_stations { byte |= 0x01; }
-        if self.device_restart { byte |= 0x02; }
-        if self.device_trouble { byte |= 0x04; }
-        if self.local_control { byte |= 0x08; }
-        if self.need_time { byte |= 0x10; }
-        if self.class_1_events { byte |= 0x20; }
-        if self.class_2_events { byte |= 0x40; }
-        if self.class_3_events { byte |= 0x80; }
+        if self.all_stations {
+            byte |= 0x01;
+        }
+        if self.device_restart {
+            byte |= 0x02;
+        }
+        if self.device_trouble {
+            byte |= 0x04;
+        }
+        if self.local_control {
+            byte |= 0x08;
+        }
+        if self.need_time {
+            byte |= 0x10;
+        }
+        if self.class_1_events {
+            byte |= 0x20;
+        }
+        if self.class_2_events {
+            byte |= 0x40;
+        }
+        if self.class_3_events {
+            byte |= 0x80;
+        }
         byte
     }
 
@@ -110,19 +126,18 @@ pub struct AsduHeader {
 impl AsduHeader {
     pub fn encode(&self) -> [u8; 4] {
         let ac = 0xC0 | (self.sequence & 0x0F);
-        [
-            self.function as u8,
-            ac,
-            self.iin.to_low_byte(),
-            0x00,
-        ]
+        [self.function as u8, ac, self.iin.to_low_byte(), 0x00]
     }
 
     pub fn decode(bytes: &[u8; 4]) -> Result<Self> {
         let function = FunctionCode::from_u8(bytes[0])?;
         let sequence = bytes[1] & 0x0F;
         let iin = Iin::from_bytes(bytes[2], bytes[3]);
-        Ok(Self { function, sequence, iin })
+        Ok(Self {
+            function,
+            sequence,
+            iin,
+        })
     }
 }
 
@@ -234,7 +249,7 @@ fn estimate_object_size(group: u8, variation: u8, prefix_size: usize) -> usize {
         // Int32 / Uint32 (4 bytes) — some include a 1-byte flags prefix
         (20, 1) | (21, 1) | (30, 1) | (32, 1) | (40, 1) => 5, // flags + 4 bytes
         (20, 2) | (21, 2) | (30, 2) | (32, 2) | (40, 2) => 3, // flags + 2 bytes
-        (20, 5) | (21, 5) | (30, 3) => 4, // no flags
+        (20, 5) | (21, 5) | (30, 3) => 4,                     // no flags
         // Float32 (4 bytes) — may include flags
         (30, 4) | (32, 3) | (40, 3) => 5, // flags + 4 bytes
         (30, 6) => 4,
@@ -263,7 +278,9 @@ pub fn parse_response_asdu(data: &[u8]) -> Result<(AsduHeader, Vec<ParsedObject>
 
         let (count, start_index, prefix_size) = match qualifier_byte {
             0x00 => {
-                if offset + 2 > data.len() { break; }
+                if offset + 2 > data.len() {
+                    break;
+                }
                 let start = data[offset] as u16;
                 let stop = data[offset + 1] as u16;
                 offset += 2;
@@ -271,13 +288,17 @@ pub fn parse_response_asdu(data: &[u8]) -> Result<(AsduHeader, Vec<ParsedObject>
                 (count, start, 0)
             }
             0x07 => {
-                if offset + 1 > data.len() { break; }
+                if offset + 1 > data.len() {
+                    break;
+                }
                 let count = data[offset] as usize;
                 offset += 1;
                 (count, 0, 0)
             }
             0x17 => {
-                if offset + 1 > data.len() { break; }
+                if offset + 1 > data.len() {
+                    break;
+                }
                 let count = data[offset] as usize;
                 offset += 1;
                 (count, 0, 1)

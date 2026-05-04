@@ -102,15 +102,21 @@ impl MeterData {
 
         // Voltage: slight drift
         let v_common = rng.random_range(-1.5..1.5);
-        self.voltage_l1 = (self.voltage_l1 + v_common + rng.random_range(-0.8..0.8)).clamp(210.0, 230.0);
-        self.voltage_l2 = (self.voltage_l2 + v_common + rng.random_range(-0.8..0.8)).clamp(210.0, 230.0);
-        self.voltage_l3 = (self.voltage_l3 + v_common + rng.random_range(-0.8..0.8)).clamp(210.0, 230.0);
+        self.voltage_l1 =
+            (self.voltage_l1 + v_common + rng.random_range(-0.8..0.8)).clamp(210.0, 230.0);
+        self.voltage_l2 =
+            (self.voltage_l2 + v_common + rng.random_range(-0.8..0.8)).clamp(210.0, 230.0);
+        self.voltage_l3 =
+            (self.voltage_l3 + v_common + rng.random_range(-0.8..0.8)).clamp(210.0, 230.0);
 
         // Current: drift
         let i_common = rng.random_range(-2.0..2.0);
-        self.current_l1 = (self.current_l1 + i_common + rng.random_range(-5.0..5.0)).clamp(5.0, 80.0);
-        self.current_l2 = (self.current_l2 + i_common + rng.random_range(-5.0..5.0)).clamp(5.0, 80.0);
-        self.current_l3 = (self.current_l3 + i_common + rng.random_range(-5.0..5.0)).clamp(5.0, 80.0);
+        self.current_l1 =
+            (self.current_l1 + i_common + rng.random_range(-5.0..5.0)).clamp(5.0, 80.0);
+        self.current_l2 =
+            (self.current_l2 + i_common + rng.random_range(-5.0..5.0)).clamp(5.0, 80.0);
+        self.current_l3 =
+            (self.current_l3 + i_common + rng.random_range(-5.0..5.0)).clamp(5.0, 80.0);
 
         // Power factor: slow drift
         self.power_factor = (self.power_factor + rng.random_range(-0.005..0.005)).clamp(0.80, 0.99);
@@ -135,19 +141,84 @@ impl MeterData {
 
 fn build_tag_table() -> Vec<TagDef> {
     vec![
-        TagDef { name: "Voltage_L1", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.voltage_l1.to_le_bytes().to_vec() },
-        TagDef { name: "Voltage_L2", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.voltage_l2.to_le_bytes().to_vec() },
-        TagDef { name: "Voltage_L3", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.voltage_l3.to_le_bytes().to_vec() },
-        TagDef { name: "Current_L1", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.current_l1.to_le_bytes().to_vec() },
-        TagDef { name: "Current_L2", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.current_l2.to_le_bytes().to_vec() },
-        TagDef { name: "Current_L3", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.current_l3.to_le_bytes().to_vec() },
-        TagDef { name: "PowerFactor", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.power_factor.to_le_bytes().to_vec() },
-        TagDef { name: "Frequency", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.frequency.to_le_bytes().to_vec() },
-        TagDef { name: "Energy_kWh", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.energy_kwh.to_le_bytes().to_vec() },
-        TagDef { name: "THD_Voltage", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.thd_voltage.to_le_bytes().to_vec() },
-        TagDef { name: "THD_Current", type_code: CIP_TYPE_REAL, element_size: 4, getter: |d| d.thd_current.to_le_bytes().to_vec() },
-        TagDef { name: "Running", type_code: CIP_TYPE_BOOL, element_size: 1, getter: |d| vec![if d.running { 0xFF } else { 0x00 }, 0x00, 0x00, 0x00] },
-        TagDef { name: "Alarm_Count", type_code: CIP_TYPE_DINT, element_size: 4, getter: |d| d.alarm_count.to_le_bytes().to_vec() },
+        TagDef {
+            name: "Voltage_L1",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.voltage_l1.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Voltage_L2",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.voltage_l2.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Voltage_L3",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.voltage_l3.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Current_L1",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.current_l1.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Current_L2",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.current_l2.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Current_L3",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.current_l3.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "PowerFactor",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.power_factor.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Frequency",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.frequency.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Energy_kWh",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.energy_kwh.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "THD_Voltage",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.thd_voltage.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "THD_Current",
+            type_code: CIP_TYPE_REAL,
+            element_size: 4,
+            getter: |d| d.thd_current.to_le_bytes().to_vec(),
+        },
+        TagDef {
+            name: "Running",
+            type_code: CIP_TYPE_BOOL,
+            element_size: 1,
+            getter: |d| vec![if d.running { 0xFF } else { 0x00 }, 0x00, 0x00, 0x00],
+        },
+        TagDef {
+            name: "Alarm_Count",
+            type_code: CIP_TYPE_DINT,
+            element_size: 4,
+            getter: |d| d.alarm_count.to_le_bytes().to_vec(),
+        },
     ]
 }
 
@@ -163,7 +234,9 @@ struct FaultConfig {
 
 /// Read exactly 24 bytes of ENIP encapsulation header.
 /// Returns (command, body_length, session_handle, sender_context).
-async fn read_enip_header(stream: &mut TcpStream) -> std::io::Result<Option<(u16, usize, u32, u64)>> {
+async fn read_enip_header(
+    stream: &mut TcpStream,
+) -> std::io::Result<Option<(u16, usize, u32, u64)>> {
     let mut buf = [0u8; ENIP_HEADER_SIZE];
     use tokio::io::AsyncReadExt;
     let n = AsyncReadExt::read_exact(stream, &mut buf).await;
@@ -186,7 +259,12 @@ async fn read_enip_header(stream: &mut TcpStream) -> std::io::Result<Option<(u16
 }
 
 /// Build an ENIP encapsulation header + body.
-fn build_enip_response(command: u16, session_handle: u32, sender_context: u64, body: &[u8]) -> Vec<u8> {
+fn build_enip_response(
+    command: u16,
+    session_handle: u32,
+    sender_context: u64,
+    body: &[u8],
+) -> Vec<u8> {
     let mut buf = Vec::with_capacity(ENIP_HEADER_SIZE + body.len());
     buf.extend_from_slice(&command.to_le_bytes());
     buf.extend_from_slice(&(body.len() as u16).to_le_bytes());
@@ -265,7 +343,10 @@ fn handle_cip_request(
     let service = cip_request[0];
 
     if should_garbage {
-        tracing::warn!("Fault injection: returning CIP error for service 0x{:02X}", service);
+        tracing::warn!(
+            "Fault injection: returning CIP error for service 0x{:02X}",
+            service
+        );
         return cip_error_reply(service, 0x04); // general error
     }
 
@@ -301,10 +382,8 @@ fn handle_read_tag(cip_request: &[u8], data: &Arc<Mutex<MeterData>>, tags: &[Tag
         }
     };
 
-    let num_elements = u16::from_le_bytes([
-        cip_request[2 + path_bytes],
-        cip_request[3 + path_bytes],
-    ]);
+    let num_elements =
+        u16::from_le_bytes([cip_request[2 + path_bytes], cip_request[3 + path_bytes]]);
 
     // Find tag
     let tag_idx = match tags.iter().position(|t| t.name == tag_name) {
@@ -328,7 +407,12 @@ fn handle_read_tag(cip_request: &[u8], data: &Arc<Mutex<MeterData>>, tags: &[Tag
         reply.extend_from_slice(&value_bytes);
     }
 
-    tracing::debug!("Read tag '{}' -> type=0x{:04X}, {} bytes", tag_name, tag.type_code, value_bytes.len());
+    tracing::debug!(
+        "Read tag '{}' -> type=0x{:04X}, {} bytes",
+        tag_name,
+        tag.type_code,
+        value_bytes.len()
+    );
     reply
 }
 
@@ -353,14 +437,9 @@ fn handle_write_tag(cip_request: &[u8], _data: &Arc<Mutex<MeterData>>, tags: &[T
         }
     };
 
-    let _type_code = u16::from_le_bytes([
-        cip_request[2 + path_bytes],
-        cip_request[3 + path_bytes],
-    ]);
-    let _num_elements = u16::from_le_bytes([
-        cip_request[4 + path_bytes],
-        cip_request[5 + path_bytes],
-    ]);
+    let _type_code = u16::from_le_bytes([cip_request[2 + path_bytes], cip_request[3 + path_bytes]]);
+    let _num_elements =
+        u16::from_le_bytes([cip_request[4 + path_bytes], cip_request[5 + path_bytes]]);
 
     // Check tag exists
     if !tags.iter().any(|t| t.name == tag_name) {
@@ -370,7 +449,10 @@ fn handle_write_tag(cip_request: &[u8], _data: &Arc<Mutex<MeterData>>, tags: &[T
 
     // For the simulator, we accept writes but don't actually update the data model
     // (the meter data ticks on its own). Log it for debugging.
-    tracing::debug!("Write tag '{}' accepted (simulator ignores writes)", tag_name);
+    tracing::debug!(
+        "Write tag '{}' accepted (simulator ignores writes)",
+        tag_name
+    );
 
     cip_reply_header(CIP_WRITE_TAG)
 }
@@ -460,7 +542,11 @@ fn handle_get_attribute_all(cip_request: &[u8], tags: &[TagDef]) -> Vec<u8> {
         id if id as usize <= tags.len() => (id - 1) as usize,
         _ => {
             // Instance beyond range — signal "no more instances"
-            tracing::debug!("GetAttributeAll instance {} beyond tag count {}", instance_id, tags.len());
+            tracing::debug!(
+                "GetAttributeAll instance {} beyond tag count {}",
+                instance_id,
+                tags.len()
+            );
             return cip_error_reply(CIP_GET_ATTRIBUTES_ALL, 0x08); // object does not exist
         }
     };
@@ -482,7 +568,7 @@ fn handle_get_attribute_all(cip_request: &[u8], tags: &[TagDef]) -> Vec<u8> {
     // Name bytes
     body.extend_from_slice(name_bytes);
     // Pad name to even length
-    if name_bytes.len() % 2 != 0 {
+    if !name_bytes.len().is_multiple_of(2) {
         body.push(0x00);
     }
     // Type word: lower byte = type code, upper byte = element count (1)
@@ -518,25 +604,26 @@ async fn handle_connection(
 
     loop {
         // Read ENIP header
-        let (command, body_length, _req_session, sender_context) = match read_enip_header(&mut stream).await {
-            Ok(Some(hdr)) => hdr,
-            Ok(None) => {
-                tracing::info!("ENIP client {} disconnected (EOF)", addr);
-                break;
-            }
-            Err(e) => {
-                tracing::warn!("ENIP read error from {}: {}", addr, e);
-                break;
-            }
-        };
+        let (command, body_length, _req_session, sender_context) =
+            match read_enip_header(&mut stream).await {
+                Ok(Some(hdr)) => hdr,
+                Ok(None) => {
+                    tracing::info!("ENIP client {} disconnected (EOF)", addr);
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!("ENIP read error from {}: {}", addr, e);
+                    break;
+                }
+            };
 
         // Read body
         let mut body_buf = vec![0u8; body_length];
-        if body_length > 0 {
-            if let Err(e) = stream.read_exact(&mut body_buf).await {
-                tracing::warn!("ENIP body read error from {}: {}", addr, e);
-                break;
-            }
+        if body_length > 0
+            && let Err(e) = stream.read_exact(&mut body_buf).await
+        {
+            tracing::warn!("ENIP body read error from {}: {}", addr, e);
+            break;
         }
 
         tracing::debug!(
@@ -556,7 +643,12 @@ async fn handle_connection(
                 resp_body.extend_from_slice(&1u16.to_le_bytes()); // protocol version
                 resp_body.extend_from_slice(&0u16.to_le_bytes()); // options
 
-                let packet = build_enip_response(CMD_REGISTER_SESSION, session_handle, sender_context, &resp_body);
+                let packet = build_enip_response(
+                    CMD_REGISTER_SESSION,
+                    session_handle,
+                    sender_context,
+                    &resp_body,
+                );
                 if let Err(e) = stream.write_all(&packet).await {
                     tracing::warn!("Failed to send RegisterSession response to {}: {}", addr, e);
                     break;
@@ -571,7 +663,11 @@ async fn handle_connection(
             }
 
             CMD_UNREGISTER_SESSION => {
-                tracing::info!("ENIP UnregisterSession from {} (handle=0x{:08X})", addr, session_handle);
+                tracing::info!(
+                    "ENIP UnregisterSession from {} (handle=0x{:08X})",
+                    addr,
+                    session_handle
+                );
                 break;
             }
 
@@ -684,10 +780,13 @@ fn parse_args() -> (u16, FaultConfig) {
     while i < args.len() {
         match args[i].as_str() {
             "--port" => {
-                port = args.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or_else(|| {
-                    eprintln!("Invalid port, using default 44818");
-                    44818
-                });
+                port = args
+                    .get(i + 1)
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or_else(|| {
+                        eprintln!("Invalid port, using default 44818");
+                        44818
+                    });
                 i += 2;
             }
             "--delay" => {
@@ -703,7 +802,9 @@ fn parse_args() -> (u16, FaultConfig) {
                 i += 2;
             }
             "--help" | "-h" => {
-                eprintln!("Usage: enip-sim [--port PORT] [--delay PROB] [--disconnect PROB] [--garbage PROB]");
+                eprintln!(
+                    "Usage: enip-sim [--port PORT] [--delay PROB] [--disconnect PROB] [--garbage PROB]"
+                );
                 eprintln!("Default port: 44818");
                 std::process::exit(0);
             }
@@ -740,8 +841,12 @@ async fn main() -> Result<()> {
                 d.tick();
                 tracing::debug!(
                     "V=[{:.1},{:.1},{:.1}] I=[{:.1},{:.1},{:.1}] PF={:.3} F={:.2}Hz E={:.1}kWh",
-                    d.voltage_l1, d.voltage_l2, d.voltage_l3,
-                    d.current_l1, d.current_l2, d.current_l3,
+                    d.voltage_l1,
+                    d.voltage_l2,
+                    d.voltage_l3,
+                    d.current_l1,
+                    d.current_l2,
+                    d.current_l3,
                     d.power_factor,
                     d.frequency,
                     d.energy_kwh,
@@ -757,7 +862,8 @@ async fn main() -> Result<()> {
         faults.disconnect * 100.0,
         faults.garbage * 100.0,
     );
-    tracing::info!("Tags: {}",
+    tracing::info!(
+        "Tags: {}",
         tags.iter().map(|t| t.name).collect::<Vec<_>>().join(", ")
     );
 

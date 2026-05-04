@@ -1,7 +1,8 @@
 #![allow(dead_code)]
-use super::{DeviceConfig, Endianness, RegisterConfig, RegisterType,
-    default_modbus_port, default_unit_id, default_interval, default_scale,
-    default_register_area, default_interval_ms, default_true};
+use super::{
+    DeviceConfig, Endianness, RegisterConfig, RegisterType, default_interval, default_interval_ms,
+    default_modbus_port, default_register_area, default_scale, default_true, default_unit_id,
+};
 // ── DB-persisted Modbus types ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -31,18 +32,21 @@ impl ModbusDevice {
                 "swapped" => Endianness::Swapped,
                 _ => Endianness::Big,
             },
-            registers: registers.iter().map(|r| RegisterConfig {
-                name: r.name.clone(),
-                address: r.address,
-                reg_type: match r.register_type.as_str() {
-                    "int16" => RegisterType::Int16,
-                    "uint16" => RegisterType::Uint16,
-                    "int32" => RegisterType::Int32,
-                    _ => RegisterType::Float32,
-                },
-                scale: r.scale,
-                register_area: r.register_area.clone(),
-            }).collect(),
+            registers: registers
+                .iter()
+                .map(|r| RegisterConfig {
+                    name: r.name.clone(),
+                    address: r.address,
+                    reg_type: match r.register_type.as_str() {
+                        "int16" => RegisterType::Int16,
+                        "uint16" => RegisterType::Uint16,
+                        "int32" => RegisterType::Int32,
+                        _ => RegisterType::Float32,
+                    },
+                    scale: r.scale,
+                    register_area: r.register_area.clone(),
+                })
+                .collect(),
             readback: None,
             network: None,
         }
@@ -138,27 +142,21 @@ pub struct PollerStatus {
 
 // ── OPC-UA config types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub enum OpcUaSecurityPolicy {
+    #[default]
     None,
     #[serde(rename = "basic256sha256")]
     Basic256Sha256,
 }
 
-impl Default for OpcUaSecurityPolicy {
-    fn default() -> Self { Self::None }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub enum OpcUaSecurityMode {
+    #[default]
     None,
     Sign,
     #[serde(rename = "signandencrypt")]
     SignAndEncrypt,
-}
-
-impl Default for OpcUaSecurityMode {
-    fn default() -> Self { Self::None }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -270,8 +268,12 @@ pub struct S7Device {
     pub created_at: i64,
 }
 
-fn default_s7_rack() -> u8 { 0 }
-fn default_s7_slot() -> u8 { 1 }
+fn default_s7_rack() -> u8 {
+    0
+}
+fn default_s7_slot() -> u8 {
+    1
+}
 
 /// Database row for s7_tags table.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -338,7 +340,9 @@ pub struct EnipDevice {
     pub created_at: i64,
 }
 
-fn default_enip_slot() -> u8 { 0 }
+fn default_enip_slot() -> u8 {
+    0
+}
 
 /// Database row for enip_tags table.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

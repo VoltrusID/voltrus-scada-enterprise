@@ -28,22 +28,22 @@ struct DeviceOeeState {
 
 /// Load per-device OEE threshold config from settings.
 /// Returns (metric_name, running_above_threshold).
-async fn get_device_threshold(
-    storage: &Storage,
-    device_id: &str,
-) -> (Option<String>, f64) {
+async fn get_device_threshold(storage: &Storage, device_id: &str) -> (Option<String>, f64) {
     let key = format!("{}{}", OEE_THRESHOLD_PREFIX, device_id);
     match storage.get_settings(&[&key]).await {
         Ok(settings) => {
-            if let Some(setting) = settings.into_iter().next() {
-                if let Ok(config) = serde_json::from_str::<serde_json::Value>(&setting.value) {
-                    let metric = config.get("metric").and_then(|v| v.as_str()).map(|s| s.to_string());
-                    let running_above = config
-                        .get("running_above")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(DEFAULT_RUNNING_ABOVE);
-                    return (metric, running_above);
-                }
+            if let Some(setting) = settings.into_iter().next()
+                && let Ok(config) = serde_json::from_str::<serde_json::Value>(&setting.value)
+            {
+                let metric = config
+                    .get("metric")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let running_above = config
+                    .get("running_above")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(DEFAULT_RUNNING_ABOVE);
+                return (metric, running_above);
             }
         }
         Err(e) => {
@@ -63,10 +63,7 @@ fn determine_state(value: f64, running_above: f64) -> &'static str {
 }
 
 /// Background task that monitors device metrics and creates/closes downtime events.
-pub async fn run_oee_monitor(
-    cache: DeviceCache,
-    storage: Storage,
-) {
+pub async fn run_oee_monitor(cache: DeviceCache, storage: Storage) {
     let mut interval = tokio::time::interval(Duration::from_secs(MONITOR_INTERVAL_SECS));
     let mut device_states: HashMap<String, DeviceOeeState> = HashMap::new();
 
@@ -113,12 +110,13 @@ pub async fn run_oee_monitor(
                 // State transition detected
                 if new_state == "running" {
                     // Close any open downtime event
-                    if let Some(existing) = device_states.get(device_id) {
-                        if let Some(event_id) = existing.open_event_id {
-                            if let Err(e) = storage.close_downtime_event(event_id, Some("Auto-resumed: running detected")).await {
-                                tracing::warn!("Failed to close downtime event for {}: {}", device_id, e);
-                            }
-                        }
+                    if let Some(existing) = device_states.get(device_id)
+                        && let Some(event_id) = existing.open_event_id
+                        && let Err(e) = storage
+                            .close_downtime_event(event_id, Some("Auto-resumed: running detected"))
+                            .await
+                    {
+                        tracing::warn!("Failed to close downtime event for {}: {}", device_id, e);
                     }
                 } else {
                     // Create a new downtime event
@@ -126,7 +124,10 @@ pub async fn run_oee_monitor(
                         Ok(event_id) => {
                             tracing::info!(
                                 "OEE: device {} transitioned {} -> {}, created downtime event #{}",
-                                device_id, prev_state, new_state, event_id
+                                device_id,
+                                prev_state,
+                                new_state,
+                                event_id
                             );
                             device_states.insert(
                                 device_id.clone(),
@@ -138,7 +139,11 @@ pub async fn run_oee_monitor(
                             continue; // skip the update below
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to create downtime event for {}: {}", device_id, e);
+                            tracing::warn!(
+                                "Failed to create downtime event for {}: {}",
+                                device_id,
+                                e
+                            );
                         }
                     }
                 }

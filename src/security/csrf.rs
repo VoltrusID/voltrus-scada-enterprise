@@ -1,7 +1,7 @@
 #![allow(dead_code)]
+use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
-use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use rand::Rng as _;
 use serde_json::json;

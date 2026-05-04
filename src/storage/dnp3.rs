@@ -3,9 +3,15 @@ use anyhow::Context;
 
 impl Storage {
     pub async fn create_dnp3_device(
-        &self, name: &str, ip: &str, port: u16, master_address: u16,
-        outstation_address: u16, enable_unsolicited: bool,
-        integrity_poll_interval_secs: u64, event_scan_interval_ms: Option<u64>,
+        &self,
+        name: &str,
+        ip: &str,
+        port: u16,
+        master_address: u16,
+        outstation_address: u16,
+        enable_unsolicited: bool,
+        integrity_poll_interval_secs: u64,
+        event_scan_interval_ms: Option<u64>,
         enabled: bool,
     ) -> anyhow::Result<i64> {
         let conn = self.conn.clone();
@@ -50,7 +56,10 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn get_dnp3_device(&self, id: i64) -> anyhow::Result<Option<crate::models::Dnp3Device>> {
+    pub async fn get_dnp3_device(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<crate::models::Dnp3Device>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -82,7 +91,19 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn update_dnp3_device(&self, id: i64, name: Option<&str>, ip: Option<&str>, port: Option<u16>, master_address: Option<u16>, outstation_address: Option<u16>, enable_unsolicited: Option<bool>, integrity_poll_interval_secs: Option<u64>, event_scan_interval_ms: Option<Option<u64>>, enabled: Option<bool>) -> anyhow::Result<bool> {
+    pub async fn update_dnp3_device(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        ip: Option<&str>,
+        port: Option<u16>,
+        master_address: Option<u16>,
+        outstation_address: Option<u16>,
+        enable_unsolicited: Option<bool>,
+        integrity_poll_interval_secs: Option<u64>,
+        event_scan_interval_ms: Option<Option<u64>>,
+        enabled: Option<bool>,
+    ) -> anyhow::Result<bool> {
         let conn = self.conn.clone();
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
         let name = name.map(String::from);
@@ -130,14 +151,30 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let rows = conn.execute("DELETE FROM dnp3_devices WHERE id = ?1", rusqlite::params![id])?;
+            let rows = conn.execute(
+                "DELETE FROM dnp3_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )?;
             Ok(rows > 0)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── DNP3 point CRUD ──
 
-    pub async fn create_dnp3_point(&self, device_id: i64, group_num: u8, variation: u8, point_index: u16, name: &str, display_name: &str, data_type: &str, scale: f64, deadband: f64) -> anyhow::Result<i64> {
+    pub async fn create_dnp3_point(
+        &self,
+        device_id: i64,
+        group_num: u8,
+        variation: u8,
+        point_index: u16,
+        name: &str,
+        display_name: &str,
+        data_type: &str,
+        scale: f64,
+        deadband: f64,
+    ) -> anyhow::Result<i64> {
         let conn = self.conn.clone();
         let now = time::OffsetDateTime::now_utc().unix_timestamp();
         let name = name.to_string();
@@ -153,7 +190,10 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn list_dnp3_points(&self, device_id: i64) -> anyhow::Result<Vec<crate::models::Dnp3Point>> {
+    pub async fn list_dnp3_points(
+        &self,
+        device_id: i64,
+    ) -> anyhow::Result<Vec<crate::models::Dnp3Point>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -183,9 +223,13 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let rows = conn.execute("DELETE FROM dnp3_points WHERE id = ?1", rusqlite::params![id])?;
+            let rows = conn.execute(
+                "DELETE FROM dnp3_points WHERE id = ?1",
+                rusqlite::params![id],
+            )?;
             Ok(rows > 0)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 }
-

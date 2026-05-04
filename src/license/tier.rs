@@ -1,4 +1,3 @@
-
 // ── License Tier ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]

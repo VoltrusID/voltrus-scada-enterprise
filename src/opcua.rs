@@ -4,12 +4,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use opcua::client::{
-    ClientBuilder, DataChangeCallback, IdentityToken, MonitoredItem,
-};
+use opcua::client::{ClientBuilder, DataChangeCallback, IdentityToken, MonitoredItem};
 use opcua::types::{
-    AttributeId, DataValue, MessageSecurityMode, MonitoringMode, MonitoringParameters,
-    NodeId, NumericRange, ReadValueId, TimestampsToReturn, UserTokenPolicy, Variant,
+    AttributeId, DataValue, MessageSecurityMode, MonitoringMode, MonitoringParameters, NodeId,
+    NumericRange, ReadValueId, TimestampsToReturn, UserTokenPolicy, Variant,
 };
 
 use crate::cache::DeviceCache;
@@ -28,20 +26,14 @@ pub async fn poll_opcua_device(config: OpcUaDeviceConfig, cache: DeviceCache) {
             Ok(()) => {
                 backoff.reset();
                 // Connection lost or session ended -- retry
-                tracing::warn!(
-                    "OPC-UA device {} connection lost, reconnecting",
-                    device_id
-                );
+                tracing::warn!("OPC-UA device {} connection lost, reconnecting", device_id);
                 cache.set_status(&device_id, DeviceStatus::Offline).await;
             }
             Err(e) => {
                 tracing::warn!("OPC-UA device {} error: {e}", device_id);
                 cache.set_status(&device_id, DeviceStatus::Offline).await;
                 let delay = backoff.next();
-                tracing::info!(
-                    "OPC-UA device {} retrying in {delay}ms",
-                    device_id
-                );
+                tracing::info!("OPC-UA device {} retrying in {delay}ms", device_id);
                 tokio::time::sleep(Duration::from_millis(delay)).await;
             }
         }
@@ -91,9 +83,7 @@ async fn try_connect_and_subscribe(config: &OpcUaDeviceConfig, cache: &DeviceCac
 
     // --- Identity token ---
     let identity_token = match (&config.username, &config.password) {
-        (Some(user), Some(pass)) => {
-            IdentityToken::new_user_name(user.clone(), pass.clone())
-        }
+        (Some(user), Some(pass)) => IdentityToken::new_user_name(user.clone(), pass.clone()),
         _ => IdentityToken::Anonymous,
     };
 
@@ -119,25 +109,23 @@ async fn try_connect_and_subscribe(config: &OpcUaDeviceConfig, cache: &DeviceCac
         }
     }
 
-    tracing::info!(
-        "OPC-UA device {} connected to {}",
-        device_id,
-        config.url
-    );
+    tracing::info!("OPC-UA device {} connected to {}", device_id, config.url);
 
     // --- Create subscription ---
     let interval_ms = config.interval_ms.max(100);
     let subscription_id = session
         .create_subscription(
             Duration::from_millis(interval_ms),
-            10,  // lifetime_count
-            30,  // max_keep_alive_count
-            0,   // max_notifications_per_publish
-            0,   // priority
+            10,   // lifetime_count
+            30,   // max_keep_alive_count
+            0,    // max_notifications_per_publish
+            0,    // priority
             true, // publishing_enabled
-            DataChangeCallback::new(
-                create_data_change_callback(device_id.clone(), cache.clone(), &config.nodes),
-            ),
+            DataChangeCallback::new(create_data_change_callback(
+                device_id.clone(),
+                cache.clone(),
+                &config.nodes,
+            )),
         )
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create subscription: {:?}", e))?;
@@ -178,19 +166,12 @@ async fn try_connect_and_subscribe(config: &OpcUaDeviceConfig, cache: &DeviceCac
         .collect();
 
     if items_to_create.is_empty() {
-        tracing::warn!(
-            "OPC-UA device {} has no valid nodes to monitor",
-            device_id
-        );
+        tracing::warn!("OPC-UA device {} has no valid nodes to monitor", device_id);
         return Ok(());
     }
 
     let results = session
-        .create_monitored_items(
-            subscription_id,
-            TimestampsToReturn::Source,
-            items_to_create,
-        )
+        .create_monitored_items(subscription_id, TimestampsToReturn::Source, items_to_create)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to create monitored items: {:?}", e))?;
 
@@ -323,11 +304,7 @@ pub(crate) fn security_mode_to_opcua(mode: &OpcUaSecurityMode) -> MessageSecurit
 /// which adds significant complexity.
 ///
 /// Returns `WriteResult` with `success: false` and an explanatory error.
-pub async fn write_tag(
-    _endpoint: &str,
-    _node_id: &str,
-    _value: f64,
-) -> WriteResult {
+pub async fn write_tag(_endpoint: &str, _node_id: &str, _value: f64) -> WriteResult {
     WriteResult {
         success: false,
         device_response: None,

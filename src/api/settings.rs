@@ -1,11 +1,11 @@
-use axum::extract::{Extension, State};
-use axum::body::Body;
-use axum::response::{IntoResponse, Response};
 use axum::Json;
+use axum::body::Body;
+use axum::extract::{Extension, State};
 use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use serde_json::json;
 
-use super::{AppState, AppError, AuthUser};
+use super::{AppError, AppState, AuthUser};
 
 /// GET /api/settings/branding — get branding settings with defaults
 #[utoipa::path(
@@ -14,9 +14,7 @@ use super::{AppState, AppError, AuthUser};
     responses((status = 200, body = crate::models::BrandingSettings)),
     tag = "Settings"
 )]
-pub async fn get_branding(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     // Trial tier cannot use custom branding — return hardcoded defaults
     if !state.license_tier.white_label() {
         return Ok(Json(json!({
@@ -73,7 +71,9 @@ pub async fn update_branding(
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.white_label() {
-        return Err(AppError(anyhow::anyhow!("White-label branding requires Starter tier or above. Upgrade at https://voltrus.id")));
+        return Err(AppError(anyhow::anyhow!(
+            "White-label branding requires Starter tier or above. Upgrade at https://voltrus.id"
+        )));
     }
 
     // Starter tier can only update logo (basic branding).
@@ -91,7 +91,10 @@ pub async fn update_branding(
 
     if let Some(title) = body.get("title").and_then(|v| v.as_str()) {
         let sanitized = crate::security::sanitize_brand_input(title);
-        state.storage.upsert_setting("brand_title", &sanitized).await?;
+        state
+            .storage
+            .upsert_setting("brand_title", &sanitized)
+            .await?;
     }
     if let Some(subtitle) = body.get("subtitle").and_then(|v| v.as_str()) {
         let sanitized = crate::security::sanitize_brand_input(subtitle);
@@ -102,7 +105,10 @@ pub async fn update_branding(
     }
     if let Some(logo) = body.get("logo").and_then(|v| v.as_str()) {
         let sanitized = crate::security::sanitize_logo_input(logo);
-        state.storage.upsert_setting("brand_logo", &sanitized).await?;
+        state
+            .storage
+            .upsert_setting("brand_logo", &sanitized)
+            .await?;
     }
 
     state.audit_logger.log(crate::security::AuditEvent {
@@ -148,12 +154,12 @@ pub async fn update_alarm_cooldown(
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let secs = body
-        .get("secs")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(300);
+    let secs = body.get("secs").and_then(|v| v.as_i64()).unwrap_or(300);
     let clamped = secs.clamp(0, 86400);
-    state.storage.upsert_setting("alarm_cooldown_secs", &clamped.to_string()).await?;
+    state
+        .storage
+        .upsert_setting("alarm_cooldown_secs", &clamped.to_string())
+        .await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "update_alarm_cooldown".to_string(),
@@ -201,9 +207,16 @@ pub async fn update_ui_theme(
     let theme = body.get("theme").and_then(|v| v.as_str()).unwrap_or("dark");
     let valid = ["light", "dark", "system"].contains(&theme);
     if !valid {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid theme. Must be 'light', 'dark', or 'system'."}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid theme. Must be 'light', 'dark', or 'system'."})),
+        )
+            .into_response());
     }
-    state.storage.set_user_preference(&auth.username, "ui_theme", theme).await?;
+    state
+        .storage
+        .set_user_preference(&auth.username, "ui_theme", theme)
+        .await?;
     state.audit_logger.log(crate::security::AuditEvent {
         action: "update_ui_theme".to_string(),
         username: auth.username.clone(),
@@ -249,9 +262,16 @@ pub async fn update_ui_lang(
     let lang = body.get("lang").and_then(|v| v.as_str()).unwrap_or("en");
     let valid = ["en", "id", "zh", "de"].contains(&lang);
     if !valid {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "Invalid language. Must be one of: en, id, zh, de."}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Invalid language. Must be one of: en, id, zh, de."})),
+        )
+            .into_response());
     }
-    state.storage.set_user_preference(&auth.username, "ui_lang", lang).await?;
+    state
+        .storage
+        .set_user_preference(&auth.username, "ui_lang", lang)
+        .await?;
     state.audit_logger.log(crate::security::AuditEvent {
         action: "update_ui_lang".to_string(),
         username: auth.username.clone(),

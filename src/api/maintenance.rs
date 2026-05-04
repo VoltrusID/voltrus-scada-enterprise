@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 
 use crate::api::{AppError, AppState, AuthUser};
 use crate::asset::models::CreateMaintenanceRequest;
@@ -67,7 +67,13 @@ pub async fn create_maintenance(
         return Err(AppError(anyhow::anyhow!("Description is required")));
     }
 
-    if body.technician.as_ref().map(|s| s.trim()).unwrap_or("").is_empty() {
+    if body
+        .technician
+        .as_ref()
+        .map(|s| s.trim())
+        .unwrap_or("")
+        .is_empty()
+    {
         return Err(AppError(anyhow::anyhow!("Technician is required")));
     }
 
@@ -83,11 +89,7 @@ pub async fn create_maintenance(
 
     // Recompute risk score (maintenance date changed)
     let asset_storage = state.storage.asset();
-    let _ = crate::asset::risk::recompute_and_update(
-        &asset_storage,
-        &id,
-    )
-    .await;
+    let _ = crate::asset::risk::recompute_and_update(&asset_storage, &id).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_maintenance_log".to_string(),

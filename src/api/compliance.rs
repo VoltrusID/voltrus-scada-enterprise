@@ -1,12 +1,12 @@
+use axum::Json;
 use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::compliance::*;
 use super::{AppError, AppState};
+use crate::compliance::*;
 
 // ── Query params for listing signatures ──
 
@@ -17,14 +17,16 @@ pub struct SignatureQuery {
 }
 
 fn license_forbidden() -> Response {
-    (StatusCode::FORBIDDEN, Json(json!({"error": "CFR Part 11 requires Enterprise license"}))).into_response()
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({"error": "CFR Part 11 requires Enterprise license"})),
+    )
+        .into_response()
 }
 
 // ── Get compliance config ──
 
-pub async fn get_compliance_config(
-    State(state): State<AppState>,
-) -> Result<Response, AppError> {
+pub async fn get_compliance_config(State(state): State<AppState>) -> Result<Response, AppError> {
     if !state.license_tier.cfr_part_11() {
         return Ok(license_forbidden());
     }
@@ -45,27 +47,57 @@ pub async fn update_compliance_config(
         return Ok(license_forbidden());
     }
 
-    let current = state.storage.get_compliance_config().await?.unwrap_or_default();
+    let current = state
+        .storage
+        .get_compliance_config()
+        .await?
+        .unwrap_or_default();
 
     let updated = ComplianceConfig {
-        auto_logout_minutes: body.auto_logout_minutes.unwrap_or(current.auto_logout_minutes),
-        password_min_length: body.password_min_length.unwrap_or(current.password_min_length),
-        password_require_uppercase: body.password_require_uppercase.unwrap_or(current.password_require_uppercase),
-        password_require_number: body.password_require_number.unwrap_or(current.password_require_number),
-        password_require_special: body.password_require_special.unwrap_or(current.password_require_special),
-        password_rotation_days: body.password_rotation_days.unwrap_or(current.password_rotation_days),
-        authority_to_change: body.authority_to_change.unwrap_or(current.authority_to_change),
+        auto_logout_minutes: body
+            .auto_logout_minutes
+            .unwrap_or(current.auto_logout_minutes),
+        password_min_length: body
+            .password_min_length
+            .unwrap_or(current.password_min_length),
+        password_require_uppercase: body
+            .password_require_uppercase
+            .unwrap_or(current.password_require_uppercase),
+        password_require_number: body
+            .password_require_number
+            .unwrap_or(current.password_require_number),
+        password_require_special: body
+            .password_require_special
+            .unwrap_or(current.password_require_special),
+        password_rotation_days: body
+            .password_rotation_days
+            .unwrap_or(current.password_rotation_days),
+        authority_to_change: body
+            .authority_to_change
+            .unwrap_or(current.authority_to_change),
     };
 
     // Validate ranges
     if updated.auto_logout_minutes == 0 {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "auto_logout_minutes must be at least 1"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "auto_logout_minutes must be at least 1"})),
+        )
+            .into_response());
     }
     if updated.password_min_length == 0 {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "password_min_length must be at least 1"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "password_min_length must be at least 1"})),
+        )
+            .into_response());
     }
     if updated.password_rotation_days == 0 {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "password_rotation_days must be at least 1"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "password_rotation_days must be at least 1"})),
+        )
+            .into_response());
     }
 
     state.storage.upsert_compliance_config(&updated).await?;
@@ -74,8 +106,12 @@ pub async fn update_compliance_config(
         action: "update_compliance_config".to_string(),
         username: auth.username.clone(),
         resource: "compliance_config".to_string(),
-        details: Some(format!("auto_logout={}min, password_min_len={}, rotation={}days",
-            updated.auto_logout_minutes, updated.password_min_length, updated.password_rotation_days)),
+        details: Some(format!(
+            "auto_logout={}min, password_min_len={}, rotation={}days",
+            updated.auto_logout_minutes,
+            updated.password_min_length,
+            updated.password_rotation_days
+        )),
     });
 
     Ok(Json(json!({"ok": true})).into_response())
@@ -93,11 +129,19 @@ pub async fn create_electronic_signature(
     }
 
     if body.reason.trim().is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "reason is required"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "reason is required"})),
+        )
+            .into_response());
     }
 
     if body.meaning.trim().is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "meaning is required"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "meaning is required"})),
+        )
+            .into_response());
     }
 
     let now = crate::timeutil::now_secs();
@@ -136,7 +180,8 @@ pub async fn create_electronic_signature(
         "id": id,
         "signature_hash": signature_hash,
         "created_at": now,
-    })).into_response())
+    }))
+    .into_response())
 }
 
 // ── List electronic signatures ──
@@ -151,10 +196,7 @@ pub async fn list_electronic_signatures(
 
     let signatures = state
         .storage
-        .list_electronic_signatures(
-            query.resource_type.as_deref(),
-            query.resource_id.as_deref(),
-        )
+        .list_electronic_signatures(query.resource_type.as_deref(), query.resource_id.as_deref())
         .await?;
 
     Ok(Json(signatures).into_response())

@@ -20,7 +20,7 @@ pub fn p_chart(
     if defectives.len() != sample_sizes.len() {
         return Err("defectives and sample_sizes must have the same length".to_string());
     }
-    if sample_sizes.iter().any(|&n| n == 0) {
+    if sample_sizes.contains(&0) {
         return Err("sample sizes must be > 0".to_string());
     }
 

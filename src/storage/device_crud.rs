@@ -1,7 +1,7 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{Device, DataSource, ScreenDataSource};
+use crate::models::{DataSource, Device, ScreenDataSource};
 
 impl Storage {
     // ── Devices ──
@@ -25,7 +25,11 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let count: i64 = conn
-                .query_row("SELECT COUNT(*) FROM devices WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
+                .query_row(
+                    "SELECT COUNT(*) FROM devices WHERE id = ?1",
+                    rusqlite::params![id],
+                    |row| row.get(0),
+                )
                 .context("Check device exists failed")?;
             Ok(count > 0)
         })
@@ -74,7 +78,12 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn update_device(&self, id: &str, name: Option<&str>, sort_order: Option<i64>) -> Result<()> {
+    pub async fn update_device(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        sort_order: Option<i64>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let id = id.to_string();
         let name = name.map(|s| s.to_string());
@@ -120,7 +129,9 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let max: Option<i64> = conn
-                .query_row("SELECT MAX(sort_order) FROM data_sources", [], |row| row.get(0))
+                .query_row("SELECT MAX(sort_order) FROM data_sources", [], |row| {
+                    row.get(0)
+                })
                 .ok();
             Ok(max.unwrap_or(-1))
         })
@@ -280,13 +291,24 @@ impl Storage {
         let fields = fields.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let obj = fields
-                .as_object()
-                .context("fields must be a JSON object")?;
+            let obj = fields.as_object().context("fields must be a JSON object")?;
             let allowed = [
-                "key", "name", "unit", "color", "min_val", "max_val",
-                "warn_val", "crit_val", "base_val", "sort_order", "decimals",
-                "source_type", "source_config", "device_id", "equipment_id", "chart_type",
+                "key",
+                "name",
+                "unit",
+                "color",
+                "min_val",
+                "max_val",
+                "warn_val",
+                "crit_val",
+                "base_val",
+                "sort_order",
+                "decimals",
+                "source_type",
+                "source_config",
+                "device_id",
+                "equipment_id",
+                "chart_type",
                 "path",
             ];
             let mut parts = Vec::new();
@@ -333,8 +355,11 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM data_sources WHERE id = ?1", rusqlite::params![id])
-                .context("Delete data source failed")?;
+            conn.execute(
+                "DELETE FROM data_sources WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete data source failed")?;
             Ok(())
         })
         .await
@@ -403,7 +428,11 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn remove_screen_data_source(&self, screen_id: &str, data_source_id: i64) -> Result<()> {
+    pub async fn remove_screen_data_source(
+        &self,
+        screen_id: &str,
+        data_source_id: i64,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         tokio::task::spawn_blocking(move || {

@@ -15,7 +15,8 @@ impl Storage {
                 .collect();
             let password_hash = crate::api::auth::hash_password(&password);
 
-            self.create_user("admin", &password_hash, "", "admin").await?;
+            self.create_user("admin", &password_hash, "", "admin")
+                .await?;
             self.set_must_change_password("admin", true).await?;
 
             tracing::warn!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -50,29 +51,126 @@ impl Storage {
 
         // Data source definitions matching Modbus register names from config.yaml
         // (key, name, unit, color, min, max, warn, crit, base, sort, decimals, source_type, source_config)
-        let data_source_defs: &[(&str, &str, &str, &str, f64, f64, f64, f64, f64, i64, i64, &str, &str)] = &[
-            ("voltage", "Voltage", "V", "#f59e0b", 0.0, 450.0, 400.0, 420.0, 380.0, 0, 1, "modbus", "{}"),
-            ("current", "Current", "A", "#06b6d4", 0.0, 100.0, 85.0, 95.0, 65.0, 1, 2, "modbus", "{}"),
-            ("power", "Power", "W", "#a855f7", 0.0, 50000.0, 40000.0, 45000.0, 24700.0, 2, 0, "modbus", "{}"),
-            ("frequency", "Frequency", "Hz", "#22c55e", 45.0, 55.0, 51.0, 52.0, 50.0, 3, 2, "modbus", "{}"),
-            ("power_factor", "Power Factor", "", "#ef4444", 0.0, 1.0, 0.95, 0.98, 0.92, 4, 3, "modbus", "{}"),
-            ("energy_total", "Energy Total", "kWh", "#8b5cf6", 0.0, 999999.0, 800000.0, 900000.0, 158732.0, 5, 1, "modbus", "{}"),
+        let data_source_defs: &[(
+            &str,
+            &str,
+            &str,
+            &str,
+            f64,
+            f64,
+            f64,
+            f64,
+            f64,
+            i64,
+            i64,
+            &str,
+            &str,
+        )] = &[
+            (
+                "voltage", "Voltage", "V", "#f59e0b", 0.0, 450.0, 400.0, 420.0, 380.0, 0, 1,
+                "modbus", "{}",
+            ),
+            (
+                "current", "Current", "A", "#06b6d4", 0.0, 100.0, 85.0, 95.0, 65.0, 1, 2, "modbus",
+                "{}",
+            ),
+            (
+                "power", "Power", "W", "#a855f7", 0.0, 50000.0, 40000.0, 45000.0, 24700.0, 2, 0,
+                "modbus", "{}",
+            ),
+            (
+                "frequency",
+                "Frequency",
+                "Hz",
+                "#22c55e",
+                45.0,
+                55.0,
+                51.0,
+                52.0,
+                50.0,
+                3,
+                2,
+                "modbus",
+                "{}",
+            ),
+            (
+                "power_factor",
+                "Power Factor",
+                "",
+                "#ef4444",
+                0.0,
+                1.0,
+                0.95,
+                0.98,
+                0.92,
+                4,
+                3,
+                "modbus",
+                "{}",
+            ),
+            (
+                "energy_total",
+                "Energy Total",
+                "kWh",
+                "#8b5cf6",
+                0.0,
+                999999.0,
+                800000.0,
+                900000.0,
+                158732.0,
+                5,
+                1,
+                "modbus",
+                "{}",
+            ),
         ];
 
         let mut plts1_data_source_ids: Vec<i64> = Vec::new();
         let mut plts2_data_source_ids: Vec<i64> = Vec::new();
 
         for (i, def) in data_source_defs.iter().enumerate() {
-            let plts1_id = self.create_data_source(
-                def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
-                def.8, def.9, def.10, def.11, def.12, "plts_1", None, "sparkline",
-            ).await?;
+            let plts1_id = self
+                .create_data_source(
+                    def.0,
+                    def.1,
+                    def.2,
+                    def.3,
+                    def.4,
+                    def.5,
+                    def.6,
+                    def.7,
+                    def.8,
+                    def.9,
+                    def.10,
+                    def.11,
+                    def.12,
+                    "plts_1",
+                    None,
+                    "sparkline",
+                )
+                .await?;
             plts1_data_source_ids.push(plts1_id);
 
-            let plts2_id = self.create_data_source(
-                def.0, def.1, def.2, def.3, def.4, def.5, def.6, def.7,
-                def.8, i as i64 + 6, def.10, def.11, def.12, "plts_2", None, "sparkline",
-            ).await?;
+            let plts2_id = self
+                .create_data_source(
+                    def.0,
+                    def.1,
+                    def.2,
+                    def.3,
+                    def.4,
+                    def.5,
+                    def.6,
+                    def.7,
+                    def.8,
+                    i as i64 + 6,
+                    def.10,
+                    def.11,
+                    def.12,
+                    "plts_2",
+                    None,
+                    "sparkline",
+                )
+                .await?;
             plts2_data_source_ids.push(plts2_id);
         }
 

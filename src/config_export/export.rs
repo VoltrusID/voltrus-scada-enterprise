@@ -26,14 +26,17 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                 interval_ms: device.interval_ms,
                 endianness: device.endianness.clone(),
                 enabled: device.enabled,
-                registers: registers.iter().map(|r| RegisterExport {
-                    name: r.name.clone(),
-                    address: r.address,
-                    register_type: r.register_type.clone(),
-                    register_area: r.register_area.clone(),
-                    scale: r.scale,
-                    sort_order: r.sort_order,
-                }).collect(),
+                registers: registers
+                    .iter()
+                    .map(|r| RegisterExport {
+                        name: r.name.clone(),
+                        address: r.address,
+                        register_type: r.register_type.clone(),
+                        register_area: r.register_area.clone(),
+                        scale: r.scale,
+                        sort_order: r.sort_order,
+                    })
+                    .collect(),
             };
             let yaml = serde_yaml_neo::to_string(&export).context("Failed to serialize device")?;
             let filename = sanitize_filename(&device.id);
@@ -48,15 +51,18 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
 
             // Get layouts for this screen
             let layouts = storage.get_layouts(&screen.id).await.unwrap_or_default();
-            let layout_exports: Vec<ScreenLayoutExport> = layouts.iter().map(|l| {
-                ScreenLayoutExport {
+            let layout_exports: Vec<ScreenLayoutExport> = layouts
+                .iter()
+                .map(|l| ScreenLayoutExport {
                     breakpoint: l.breakpoint.clone(),
                     layout: serde_json::from_str(&l.layout).unwrap_or(serde_json::json!(null)),
-                }
-            }).collect();
+                })
+                .collect();
 
             // Get screen data source associations
-            let ds_exports: Vec<ScreenDataSourceExport> = storage.get_screen_data_sources(&screen.id).await
+            let ds_exports: Vec<ScreenDataSourceExport> = storage
+                .get_screen_data_sources(&screen.id)
+                .await
                 .unwrap_or_default()
                 .iter()
                 .map(|s| ScreenDataSourceExport {
@@ -101,33 +107,39 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
 
         // ── Export alarm thresholds (from data sources) ──
         let all_sources = storage.list_data_sources(None).await?;
-        let alarm_exports: Vec<AlarmExport> = all_sources.iter().filter(|s| {
-            s.warn_val > 0.0 || s.crit_val > 0.0
-        }).map(|s| {
-            AlarmExport {
+        let alarm_exports: Vec<AlarmExport> = all_sources
+            .iter()
+            .filter(|s| s.warn_val > 0.0 || s.crit_val > 0.0)
+            .map(|s| AlarmExport {
                 source_key: s.key.clone(),
                 source_name: s.name.clone(),
                 severity: "threshold".to_string(),
                 value: 0.0,
                 threshold: s.crit_val,
-                message: format!("{} threshold: warn={} crit={} {}", s.name, s.warn_val, s.crit_val, s.unit),
-            }
-        }).collect();
-        let alarm_yaml = serde_yaml_neo::to_string(&alarm_exports).context("Failed to serialize alarms")?;
+                message: format!(
+                    "{} threshold: warn={} crit={} {}",
+                    s.name, s.warn_val, s.crit_val, s.unit
+                ),
+            })
+            .collect();
+        let alarm_yaml =
+            serde_yaml_neo::to_string(&alarm_exports).context("Failed to serialize alarms")?;
         std::fs::write(base.join("alarms.yaml"), alarm_yaml)
             .context("Failed to write alarms.yaml")?;
 
         // ── Export notification settings ──
         let notifications = storage.get_all_notification_settings().await?;
-        let notif_exports: Vec<NotificationExport> = notifications.iter().map(|n| {
-            NotificationExport {
+        let notif_exports: Vec<NotificationExport> = notifications
+            .iter()
+            .map(|n| NotificationExport {
                 source_key: n.source_key.clone(),
                 channel_type: n.channel_type.clone(),
                 config: serde_json::from_str(&n.config).unwrap_or(serde_json::json!({})),
                 enabled: n.enabled,
-            }
-        }).collect();
-        let notif_yaml = serde_yaml_neo::to_string(&notif_exports).context("Failed to serialize notifications")?;
+            })
+            .collect();
+        let notif_yaml = serde_yaml_neo::to_string(&notif_exports)
+            .context("Failed to serialize notifications")?;
         std::fs::write(base.join("notifications.yaml"), notif_yaml)
             .context("Failed to write notifications.yaml")?;
 

@@ -20,20 +20,12 @@ pub fn run_backup(opts: BackupOptions) -> Result<String> {
     // 3. Determine output path.
     let output_path = match opts.output_path {
         Some(ref p) => p.clone(),
-        None => format!(
-            "voltrus-backup-{}.tar.gz",
-            chrono_now_timestamp()
-        ),
+        None => format!("voltrus-backup-{}.tar.gz", chrono_now_timestamp()),
     };
 
     // 4. Build the tar.gz archive.
     println!("Creating archive: {}", output_path);
-    create_archive(
-        &temp_db,
-        &opts.config_path,
-        db_size,
-        &output_path,
-    )?;
+    create_archive(&temp_db, &opts.config_path, db_size, &output_path)?;
 
     // 5. Clean up temp file.
     let _ = fs::remove_file(&temp_db);

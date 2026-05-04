@@ -135,10 +135,7 @@ pub fn validate_formula(formula: &str) -> Result<(), String> {
 
 /// Resolve tag values from the device cache.
 /// Gets all device snapshots and searches for matching metric keys.
-pub async fn resolve_tag_values(
-    cache: &DeviceCache,
-    tag_refs: &[String],
-) -> HashMap<String, f64> {
+pub async fn resolve_tag_values(cache: &DeviceCache, tag_refs: &[String]) -> HashMap<String, f64> {
     let snapshots = cache.get_all().await;
     let mut values = HashMap::new();
 
@@ -159,8 +156,8 @@ pub async fn evaluate_metric(
     cache: &DeviceCache,
     metric: &CustomMetric,
 ) -> Result<CustomMetricValue> {
-    let tag_refs: Vec<String> = serde_json::from_str(&metric.tag_refs)
-        .context("Failed to parse tag_refs JSON")?;
+    let tag_refs: Vec<String> =
+        serde_json::from_str(&metric.tag_refs).context("Failed to parse tag_refs JSON")?;
 
     let tag_values = resolve_tag_values(cache, &tag_refs).await;
 
@@ -341,9 +338,7 @@ mod tests {
         use crate::cache::DeviceCache;
 
         let cache = DeviceCache::new();
-        let metrics = HashMap::from([
-            ("VOLTAGE".to_string(), 220.0),
-        ]);
+        let metrics = HashMap::from([("VOLTAGE".to_string(), 220.0)]);
         cache.update("dev1", metrics, false).await;
 
         let tag_refs = vec!["VOLTAGE".to_string(), "MISSING".to_string()];

@@ -1,35 +1,35 @@
-const host = process.argv[2] || "http://localhost:3000";
+import { VoltrusClient } from "voltrus";
+
+const host = process.argv[2] || "http://localhost:8080";
 const apiKey = process.argv[3] || "";
-const url = `${host}/api/v1/stream`;
 
-console.log(`Connecting to ${url}...`);
+const client = new VoltrusClient({ baseURL: host, apiKey });
 
-const headers: Record<string, string> = {};
-if (apiKey) headers["X-API-Key"] = apiKey;
+async function main() {
+  // Get alarm summary
+  const summary = await client.getAlarmSummary();
+  console.log("=== Alarm Summary ===");
+  console.log(`  Active: ${summary.active} (Critical: ${summary.critical}, Warning: ${summary.warning}, Info: ${summary.info})`);
+  console.log(`  Acknowledged: ${summary.acknowledged}`);
+  console.log(`  Shelved: ${summary.shelved}`);
 
-fetch(url, { headers })
-  .then((res) => {
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
+  // List active alarms
+  const alarms = await client.listAlarms({ state: "active", limit: 10 });
+  console.log("\n=== Recent Active Alarms ===");
+  for (const alarm of alarms) {
+    console.log(`  [${alarm.severity.toUpperCase()}] ${alarm.source_name}: ${alarm.message}`);
+  }
 
-    function read(): Promise<void> {
-      return reader!.read().then(({ done, value }) => {
-        if (done) return;
-        const text = decoder.decode(value);
-        for (const line of text.split("\n")) {
-          if (line.startsWith("data:")) {
-            try {
-              const event = JSON.parse(line.slice(5));
-              if (event.type === "alarm") {
-                const alarm = event.data;
-                console.log(`[ALARM] ${(alarm.severity || "?").toUpperCase()}: ${alarm.message || "N/A"}`);
-              }
-            } catch {}
-          }
-        }
-        return read();
-      });
-    }
-    return read();
-  })
-  .catch(console.error);
+  // Subscribe to real-time alarms via SSE
+  console.log("\n=== Subscribing to real-time alarms (Ctrl+C to exit) ===");
+  const es = client.subscribeAlarms((alarm) => {
+    console.log(`⚡ [${alarm.severity.toUpperCase()}] ${alarm.source_name}: ${alarm.message}`);
+  });
+
+  process.on("SIGINT", () => {
+    es.close();
+    process.exit(0);
+  });
+}
+
+main().catch(console.error);

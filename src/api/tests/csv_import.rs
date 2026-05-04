@@ -18,7 +18,10 @@ async fn test_csv_import_requires_auth() {
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/import/csv")
-                .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={}", boundary),
+                )
                 .body(Body::from(body))
                 .unwrap(),
         )
@@ -45,7 +48,10 @@ async fn test_csv_import_dry_run() {
                 .method("POST")
                 .uri("/api/v1/import/csv?dry_run=true")
                 .header("cookie", format!("voltrus_token={}", cookie))
-                .header("content-type", format!("multipart/form-data; boundary={}", boundary))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={}", boundary),
+                )
                 .body(Body::from(body))
                 .unwrap(),
         )

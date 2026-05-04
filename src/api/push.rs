@@ -1,10 +1,10 @@
+use axum::Json;
 use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState, AuthUser};
+use crate::models::*;
 
 /// GET /api/v1/push/vapid-key
 ///
@@ -15,7 +15,9 @@ pub async fn vapid_public_key(
 ) -> Result<impl IntoResponse, AppError> {
     match &state.vapid_public_key {
         Some(key) => Ok(Json(json!({"publicKey": key}))),
-        None => Err(AppError(anyhow::anyhow!("Push notifications are not configured"))),
+        None => Err(AppError(anyhow::anyhow!(
+            "Push notifications are not configured"
+        ))),
     }
 }
 

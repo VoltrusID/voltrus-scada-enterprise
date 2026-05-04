@@ -22,7 +22,11 @@ pub fn test_jwks_manager() -> JwksManager {
 pub fn test_app() -> Router {
     let cache = DeviceCache::new();
     let storage = Storage::new_in_memory().unwrap();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     let state = AppState {
         cache,
         storage,
@@ -55,18 +59,19 @@ pub fn test_app() -> Router {
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+            crate::models::WatchdogConfig::default(),
+        )),
         ha_state: crate::ha::HaState::disabled(),
-        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
     create_router(state)
 }
 
 pub async fn seed_cache(cache: &DeviceCache) {
-    let metrics = HashMap::from([
-        ("voltage".to_string(), 220.5),
-        ("current".to_string(), 5.2),
-    ]);
+    let metrics = HashMap::from([("voltage".to_string(), 220.5), ("current".to_string(), 5.2)]);
     cache.update("plts_1", metrics, false).await;
 }
 
@@ -105,7 +110,10 @@ pub async fn seed_and_get_cookie(app: &Router) -> String {
     // Simplified: use a separate test helper
     let storage = Storage::new_in_memory().unwrap();
     let password_hash = crate::api::auth::hash_password("admin");
-    storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+    storage
+        .create_user("admin", &password_hash, "", "admin")
+        .await
+        .unwrap();
 
     // Login
     let login_body = serde_json::json!({"username": "admin", "password": "admin"});
@@ -132,7 +140,11 @@ pub fn seeded_admin_state() -> (Storage, DeviceCache, PollerManager) {
     // We can't await here in a non-async fn, so callers should use the inline pattern
     let _ = password_hash;
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     (storage, cache, poller_manager)
 }
 
@@ -140,10 +152,17 @@ pub fn seeded_admin_state() -> (Storage, DeviceCache, PollerManager) {
 pub async fn test_app_with_seeded_admin() -> Router {
     let storage = Storage::new_in_memory().unwrap();
     let password_hash = crate::api::auth::hash_password("admin");
-    storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+    storage
+        .create_user("admin", &password_hash, "", "admin")
+        .await
+        .unwrap();
 
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     let state = AppState {
         cache,
         storage,
@@ -176,17 +195,28 @@ pub async fn test_app_with_seeded_admin() -> Router {
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+            crate::models::WatchdogConfig::default(),
+        )),
         ha_state: crate::ha::HaState::disabled(),
-        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
     create_router(state)
 }
 
-pub fn test_app_with_license_status(license_status: crate::license::LicenseStatus, license_tier: crate::license::LicenseTier) -> Router {
+pub fn test_app_with_license_status(
+    license_status: crate::license::LicenseStatus,
+    license_tier: crate::license::LicenseTier,
+) -> Router {
     let cache = DeviceCache::new();
     let storage = Storage::new_in_memory().unwrap();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     let feature_flags = license_tier.to_feature_flags();
     let state = AppState {
         cache,
@@ -214,9 +244,13 @@ pub fn test_app_with_license_status(license_status: crate::license::LicenseStatu
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+            crate::models::WatchdogConfig::default(),
+        )),
         ha_state: crate::ha::HaState::disabled(),
-        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
     create_router(state)
 }

@@ -41,28 +41,52 @@ pub async fn get_history(
         .collect();
 
     let now = crate::timeutil::now_secs();
-    let raw_keep = state.retention_config.tiers.iter()
-        .find(|t| t.name == "raw").and_then(|t| t.keep).unwrap_or(604800) as i64;
-    let hourly_keep = state.retention_config.tiers.iter()
-        .find(|t| t.name == "hourly").and_then(|t| t.keep).unwrap_or(7776000) as i64;
+    let raw_keep = state
+        .retention_config
+        .tiers
+        .iter()
+        .find(|t| t.name == "raw")
+        .and_then(|t| t.keep)
+        .unwrap_or(604800) as i64;
+    let hourly_keep = state
+        .retention_config
+        .tiers
+        .iter()
+        .find(|t| t.name == "hourly")
+        .and_then(|t| t.keep)
+        .unwrap_or(7776000) as i64;
     let raw_cutoff = now - raw_keep;
     let hourly_cutoff = raw_cutoff - hourly_keep;
     let min_interval_secs = (interval_ms / 1000).max(1) as i64;
 
     // Query all telemetry for modbus devices across all tiers
-    let mut device_data: std::collections::HashMap<String, Vec<(i64, std::collections::HashMap<String, f64>)>> =
-        std::collections::HashMap::new();
+    let mut device_data: std::collections::HashMap<
+        String,
+        Vec<(i64, std::collections::HashMap<String, f64>)>,
+    > = std::collections::HashMap::new();
     for device_id in &modbus_device_ids {
-        let data = state.storage.query_device_metrics_merged(
-            device_id, start, end, raw_cutoff, hourly_cutoff, min_interval_secs,
-        ).await?;
+        let data = state
+            .storage
+            .query_device_metrics_merged(
+                device_id,
+                start,
+                end,
+                raw_cutoff,
+                hourly_cutoff,
+                min_interval_secs,
+            )
+            .await?;
         device_data.insert(device_id.clone(), data);
     }
 
     let mut data_source_summaries: Vec<DataSourceSummary> = Vec::new();
     let mut data_map = serde_json::Map::new();
 
-    let sub_samples = if agg == "sampling" { 1 } else { (interval_ms / 1000).max(1) as usize };
+    let sub_samples = if agg == "sampling" {
+        1
+    } else {
+        (interval_ms / 1000).max(1) as usize
+    };
 
     for data_source in &data_sources {
         data_source_summaries.push(DataSourceSummary {
@@ -79,30 +103,45 @@ pub async fn get_history(
 
         let points = if data_source.source_type == "modbus" {
             // Real data from telemetry DB
-            let raw_points = device_data.get(&data_source.device_id)
+            let raw_points = device_data
+                .get(&data_source.device_id)
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
 
             // Check if there's an expression to evaluate
-            let expr: Option<String> = serde_json::from_str::<serde_json::Value>(&data_source.source_config)
-                .ok()
-                .and_then(|cfg| cfg.get("expression").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()));
+            let expr: Option<String> =
+                serde_json::from_str::<serde_json::Value>(&data_source.source_config)
+                    .ok()
+                    .and_then(|cfg| {
+                        cfg.get("expression")
+                            .and_then(|v| v.as_str())
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string())
+                    });
 
             if let Some(ref expr_str) = expr {
                 // Expression-based: evaluate at each timestamp
-                raw_points.iter()
-                    .filter_map(|(ts, metrics)| {
-                        match expression::evaluate(expr_str, metrics) {
-                            Ok(val) => Some(DataPoint { timestamp: *ts, value: val }),
+                raw_points
+                    .iter()
+                    .filter_map(
+                        |(ts, metrics)| match expression::evaluate(expr_str, metrics) {
+                            Ok(val) => Some(DataPoint {
+                                timestamp: *ts,
+                                value: val,
+                            }),
                             Err(_) => None,
-                        }
-                    })
+                        },
+                    )
                     .collect::<Vec<_>>()
             } else {
                 // Simple metric lookup
-                raw_points.iter()
+                raw_points
+                    .iter()
                     .filter_map(|(ts, metrics)| {
-                        metrics.get(&data_source.key).map(|&v| DataPoint { timestamp: *ts, value: v })
+                        metrics.get(&data_source.key).map(|&v| DataPoint {
+                            timestamp: *ts,
+                            value: v,
+                        })
                     })
                     .collect::<Vec<_>>()
             }
@@ -116,13 +155,21 @@ pub async fn get_history(
                 match agg {
                     "avg" | "minmax" => {
                         let (avg, _mn, _mx) = generators::aggregate_bucket(
-                            data_source, bucket_start as f64, sub_samples,
+                            data_source,
+                            bucket_start as f64,
+                            sub_samples,
                         );
-                        pts.push(DataPoint { timestamp: bucket_start, value: avg });
+                        pts.push(DataPoint {
+                            timestamp: bucket_start,
+                            value: avg,
+                        });
                     }
                     _ => {
                         let value = generators::generate_value(data_source, bucket_start as f64);
-                        pts.push(DataPoint { timestamp: bucket_start, value: (value * 100.0).round() / 100.0 });
+                        pts.push(DataPoint {
+                            timestamp: bucket_start,
+                            value: (value * 100.0).round() / 100.0,
+                        });
                     }
                 }
             }
@@ -232,12 +279,16 @@ pub async fn export_data(
     Query(params): Query<ExportQuery>,
 ) -> Result<axum::response::Response, AppError> {
     // Parse time range
-    let from_ts = params.from.as_deref()
+    let from_ts = params
+        .from
+        .as_deref()
         .map(helpers::parse_time_param)
         .transpose()
         .map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
-    let to_ts = params.to.as_deref()
+    let to_ts = params
+        .to
+        .as_deref()
         .map(helpers::parse_time_param)
         .transpose()
         .map_err(|e| AppError(anyhow::anyhow!(e)))?;
@@ -268,22 +319,26 @@ pub async fn export_data(
     let interval = if intv.is_empty() { None } else { Some(intv) };
 
     // Pagination with defaults and clamping
-    let limit = params.limit
+    let limit = params
+        .limit
         .unwrap_or(helpers::DEFAULT_EXPORT_LIMIT)
         .min(helpers::MAX_EXPORT_LIMIT);
     let offset = params.offset.unwrap_or(0);
 
     // Query data
-    let (rows, total) = state.storage.query_telemetry_export(
-        params.device.as_deref(),
-        params.metric.as_deref(),
-        from_ts,
-        to_ts,
-        aggregation,
-        interval,
-        limit,
-        offset,
-    ).await?;
+    let (rows, total) = state
+        .storage
+        .query_telemetry_export(
+            params.device.as_deref(),
+            params.metric.as_deref(),
+            from_ts,
+            to_ts,
+            aggregation,
+            interval,
+            limit,
+            offset,
+        )
+        .await?;
 
     // Determine response format
     let format = params.format.as_deref().unwrap_or("json");
@@ -315,7 +370,8 @@ pub async fn export_data(
                     ),
                 ],
                 csv,
-            ).into_response())
+            )
+                .into_response())
         }
         _ => {
             // JSON response

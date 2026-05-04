@@ -6,8 +6,8 @@ use anyhow::Result;
 use rand::Rng;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_modbus::prelude::*;
-use tokio_modbus::server::tcp::{accept_tcp_connection, Server};
 use tokio_modbus::server::Service;
+use tokio_modbus::server::tcp::{Server, accept_tcp_connection};
 
 // --- Config ---
 
@@ -56,14 +56,14 @@ fn f32_to_regs_be(val: f32) -> [u16; 2] {
 const NUM_REGS: usize = 28;
 
 struct MeterData {
-    voltage: [f32; 3],       // L1-N, L2-N, L3-N
-    current: [f32; 3],       // L1, L2, L3
-    power_factor: [f32; 3],  // per-phase
+    voltage: [f32; 3],      // L1-N, L2-N, L3-N
+    current: [f32; 3],      // L1, L2, L3
+    power_factor: [f32; 3], // per-phase
     frequency: f32,
-    energy_active: f32,      // kWh (monotonically increasing)
+    energy_active: f32, // kWh (monotonically increasing)
     thd_voltage: [f32; 3],
     thd_current: [f32; 3],
-    load_imbalance: f32,     // 0.0–1.0 fraction of max imbalance
+    load_imbalance: f32, // 0.0–1.0 fraction of max imbalance
 }
 
 impl MeterData {
@@ -87,52 +87,70 @@ impl MeterData {
         // Phase voltages L-N (0..5)
         for v in &self.voltage {
             let r = f32_to_regs_be(*v);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // Phase currents (6..11)
         for c in &self.current {
             let r = f32_to_regs_be(*c);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // Per-phase active power (12..17)
         for p in 0..3 {
             let pw = self.voltage[p] * self.current[p] * self.power_factor[p];
             let r = f32_to_regs_be(pw);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // Overall power factor (18..19)
         {
             let total_p: f32 = (0..3)
                 .map(|p| self.voltage[p] * self.current[p] * self.power_factor[p])
                 .sum();
-            let total_s: f32 = (0..3)
-                .map(|p| self.voltage[p] * self.current[p])
-                .sum();
-            let avg_pf = if total_s > 0.0 { total_p / total_s } else { 0.0 };
+            let total_s: f32 = (0..3).map(|p| self.voltage[p] * self.current[p]).sum();
+            let avg_pf = if total_s > 0.0 {
+                total_p / total_s
+            } else {
+                0.0
+            };
             let r = f32_to_regs_be(avg_pf);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // Frequency (20..21)
         {
             let r = f32_to_regs_be(self.frequency);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // Energy active kWh (22..23)
         {
             let r = f32_to_regs_be(self.energy_active);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // THD voltage average (24..25)
         {
             let avg: f32 = self.thd_voltage.iter().sum::<f32>() / 3.0;
             let r = f32_to_regs_be(avg);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
         // THD current average (26..27)
         {
             let avg: f32 = self.thd_current.iter().sum::<f32>() / 3.0;
             let r = f32_to_regs_be(avg);
-            regs[i] = r[0]; regs[i + 1] = r[1]; i += 2;
+            regs[i] = r[0];
+            regs[i + 1] = r[1];
+            i += 2;
         }
 
         let _ = i;
@@ -158,8 +176,8 @@ impl MeterData {
 
         // Power factor: slow drift per phase
         for i in 0..3 {
-            self.power_factor[i] = (self.power_factor[i] + rng.random_range(-0.005..0.005))
-                .clamp(0.80, 0.99);
+            self.power_factor[i] =
+                (self.power_factor[i] + rng.random_range(-0.005..0.005)).clamp(0.80, 0.99);
         }
 
         // Frequency: tight around 50Hz
@@ -167,8 +185,10 @@ impl MeterData {
 
         // THD: slight variations
         for i in 0..3 {
-            self.thd_voltage[i] = (self.thd_voltage[i] + rng.random_range(-0.2..0.2)).clamp(0.5, 5.0);
-            self.thd_current[i] = (self.thd_current[i] + rng.random_range(-0.3..0.3)).clamp(1.0, 8.0);
+            self.thd_voltage[i] =
+                (self.thd_voltage[i] + rng.random_range(-0.2..0.2)).clamp(0.5, 5.0);
+            self.thd_current[i] =
+                (self.thd_current[i] + rng.random_range(-0.3..0.3)).clamp(1.0, 8.0);
         }
 
         // Energy accumulation
@@ -309,8 +329,12 @@ async fn main() -> Result<()> {
                 d.tick();
                 tracing::debug!(
                     "V=[{:.1},{:.1},{:.1}] I=[{:.1},{:.1},{:.1}] PF={:.3} F={:.2}Hz E={:.1}kWh",
-                    d.voltage[0], d.voltage[1], d.voltage[2],
-                    d.current[0], d.current[1], d.current[2],
+                    d.voltage[0],
+                    d.voltage[1],
+                    d.voltage[2],
+                    d.current[0],
+                    d.current[1],
+                    d.current[2],
                     d.power_factor.iter().sum::<f32>() / 3.0,
                     d.frequency,
                     d.energy_active,

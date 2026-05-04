@@ -1,12 +1,12 @@
 use anyhow::Context;
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
-use crate::models::{ModbusRegisterInput, ScanRegisterRequest, Endianness};
+use crate::models::{Endianness, ModbusRegisterInput, ScanRegisterRequest};
 
 #[derive(Debug, Deserialize)]
 pub struct ScanNetworkRequest {
@@ -98,14 +98,30 @@ pub async fn create_modbus_device(
         })
         .unwrap_or_default();
 
-    state.storage.create_modbus_device(
-        &id, &name, &ip, port, unit_id, interval_ms, &endianness, &registers,
-    ).await?;
+    state
+        .storage
+        .create_modbus_device(
+            &id,
+            &name,
+            &ip,
+            port,
+            unit_id,
+            interval_ms,
+            &endianness,
+            &registers,
+        )
+        .await?;
 
     // Sync to asset inventory
     crate::asset::sync::on_device_created(
-        &state.storage.asset(), "modbus", &id, &name, Some(&ip), "plc",
-    ).await;
+        &state.storage.asset(),
+        "modbus",
+        &id,
+        &name,
+        Some(&ip),
+        "plc",
+    )
+    .await;
 
     // Start poller
     let config = state.storage.get_all_device_configs().await?;
@@ -120,7 +136,10 @@ pub async fn create_modbus_device(
         details: Some(format!("ip={}:{}", ip, port)),
     });
 
-    Ok((axum::http::StatusCode::CREATED, Json(json!({"ok": true, "id": id}))))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(json!({"ok": true, "id": id})),
+    ))
 }
 
 pub async fn update_modbus_device(
@@ -143,7 +162,10 @@ pub async fn update_modbus_device(
             })
             .unwrap_or_default();
 
-        state.storage.replace_modbus_registers(&id, &registers).await?;
+        state
+            .storage
+            .replace_modbus_registers(&id, &registers)
+            .await?;
     }
 
     // Restart poller with updated config
@@ -198,7 +220,10 @@ pub async fn replace_registers(
         })
         .unwrap_or_default();
 
-    state.storage.replace_modbus_registers(&id, &registers).await?;
+    state
+        .storage
+        .replace_modbus_registers(&id, &registers)
+        .await?;
 
     // Restart poller with updated registers
     let configs = state.storage.get_all_device_configs().await?;
@@ -238,9 +263,16 @@ pub async fn scan_modbus_registers(
         _ => Endianness::Big,
     };
     let results = crate::modbus::scan_registers(
-        &body.ip, body.port, body.unit_id,
-        body.start_addr, body.end_addr, &endianness, &body.register_area, body.scan_delay_ms,
-    ).await?;
+        &body.ip,
+        body.port,
+        body.unit_id,
+        body.start_addr,
+        body.end_addr,
+        &endianness,
+        &body.register_area,
+        body.scan_delay_ms,
+    )
+    .await?;
     Ok(Json(results))
 }
 

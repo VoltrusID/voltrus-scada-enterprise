@@ -1,6 +1,6 @@
+use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
-use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use serde_json::json;
 

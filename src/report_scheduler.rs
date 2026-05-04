@@ -8,22 +8,14 @@ use crate::storage::Storage;
 /// Checks the reports table every hour. For each enabled report where
 /// enough time has elapsed since `last_generated`, it generates the
 /// HTML report, attempts PDF conversion, and sends via email.
-pub fn start_report_scheduler(
-    storage: Storage,
-    cache: DeviceCache,
-    email_notifier: EmailNotifier,
-) {
+pub fn start_report_scheduler(storage: Storage, cache: DeviceCache, email_notifier: EmailNotifier) {
     tokio::spawn(async move {
         run_scheduler_loop(storage, cache, email_notifier).await;
     });
     tracing::info!("Report scheduler started (check interval: 1 hour)");
 }
 
-async fn run_scheduler_loop(
-    storage: Storage,
-    cache: DeviceCache,
-    email_notifier: EmailNotifier,
-) {
+async fn run_scheduler_loop(storage: Storage, cache: DeviceCache, email_notifier: EmailNotifier) {
     let mut ticker = tokio::time::interval(std::time::Duration::from_secs(3600));
 
     loop {
@@ -104,7 +96,11 @@ async fn generate_and_send(
                     report.name,
                     e
                 );
-                (html.into_bytes(), "text/html".to_string(), "html".to_string())
+                (
+                    html.into_bytes(),
+                    "text/html".to_string(),
+                    "html".to_string(),
+                )
             }
         };
 
@@ -178,7 +174,9 @@ async fn send_report_email(
         threshold: 0.0,
         message: format!(
             "{} ({}) report generated successfully ({} bytes). Access the report via the Voltrus Lite dashboard.",
-            report_name, schedule_label, _attachment.len()
+            report_name,
+            schedule_label,
+            _attachment.len()
         ),
         unit: "bytes".to_string(),
         triggered_at: format_now(),

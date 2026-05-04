@@ -5,8 +5,15 @@ impl Storage {
     // ── BACnet device CRUD ──
 
     pub async fn create_bacnet_device(
-        &self, name: &str, ip: &str, port: u16, device_instance: u32,
-        interval_ms: u64, cov_enabled: bool, cov_lifetime: u32, enabled: bool,
+        &self,
+        name: &str,
+        ip: &str,
+        port: u16,
+        device_instance: u32,
+        interval_ms: u64,
+        cov_enabled: bool,
+        cov_lifetime: u32,
+        enabled: bool,
     ) -> anyhow::Result<i64> {
         let conn = self.conn.clone();
         let now = crate::timeutil::now_secs();
@@ -49,9 +56,16 @@ impl Storage {
     }
 
     pub async fn update_bacnet_device(
-        &self, id: i64, name: Option<&str>, ip: Option<&str>, port: Option<u16>,
-        device_instance: Option<u32>, interval_ms: Option<u64>,
-        cov_enabled: Option<bool>, cov_lifetime: Option<u32>, enabled: Option<bool>,
+        &self,
+        id: i64,
+        name: Option<&str>,
+        ip: Option<&str>,
+        port: Option<u16>,
+        device_instance: Option<u32>,
+        interval_ms: Option<u64>,
+        cov_enabled: Option<bool>,
+        cov_lifetime: Option<u32>,
+        enabled: Option<bool>,
     ) -> anyhow::Result<bool> {
         let conn = self.conn.clone();
         let name = name.map(String::from);
@@ -95,7 +109,10 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn get_bacnet_device(&self, id: i64) -> anyhow::Result<Option<crate::models::BacnetDevice>> {
+    pub async fn get_bacnet_device(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<crate::models::BacnetDevice>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -129,17 +146,31 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM bacnet_objects WHERE device_id = ?1", rusqlite::params![id])?;
-            let rows = conn.execute("DELETE FROM bacnet_devices WHERE id = ?1", rusqlite::params![id])?;
+            conn.execute(
+                "DELETE FROM bacnet_objects WHERE device_id = ?1",
+                rusqlite::params![id],
+            )?;
+            let rows = conn.execute(
+                "DELETE FROM bacnet_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )?;
             Ok(rows > 0)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── BACnet object CRUD ──
 
     pub async fn create_bacnet_object(
-        &self, device_id: i64, _device_name: &str, object_type: &str,
-        object_instance: u32, property: &str, name: &str, display_name: &str,
+        &self,
+        device_id: i64,
+        _device_name: &str,
+        object_type: &str,
+        object_instance: u32,
+        property: &str,
+        name: &str,
+        display_name: &str,
         cov_increment: f64,
     ) -> anyhow::Result<i64> {
         let conn = self.conn.clone();
@@ -159,7 +190,10 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn list_bacnet_objects(&self, device_id: i64) -> anyhow::Result<Vec<crate::models::BacnetObject>> {
+    pub async fn list_bacnet_objects(
+        &self,
+        device_id: i64,
+    ) -> anyhow::Result<Vec<crate::models::BacnetObject>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -187,8 +221,13 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let rows = conn.execute("DELETE FROM bacnet_objects WHERE id = ?1", rusqlite::params![id])?;
+            let rows = conn.execute(
+                "DELETE FROM bacnet_objects WHERE id = ?1",
+                rusqlite::params![id],
+            )?;
             Ok(rows > 0)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 }

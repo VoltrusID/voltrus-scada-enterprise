@@ -103,11 +103,12 @@ impl ReadbackTracker {
 
     /// Whether this tracker is in a terminal state.
     pub fn is_terminal(&self) -> bool {
-        matches!(self.state,
-            ReadbackState::Verified |
-            ReadbackState::Timeout |
-            ReadbackState::Mismatch |
-            ReadbackState::Rejected
+        matches!(
+            self.state,
+            ReadbackState::Verified
+                | ReadbackState::Timeout
+                | ReadbackState::Mismatch
+                | ReadbackState::Rejected
         )
     }
 
@@ -153,10 +154,13 @@ mod tests {
 
     #[test]
     fn test_timeout() {
-        let mut tracker = ReadbackTracker::new(1.0, &ReadbackConfig {
-            timeout_ms: 1,
-            ..test_config()
-        });
+        let mut tracker = ReadbackTracker::new(
+            1.0,
+            &ReadbackConfig {
+                timeout_ms: 1,
+                ..test_config()
+            },
+        );
         tracker.mark_sent();
         std::thread::sleep(std::time::Duration::from_millis(5));
         assert!(tracker.is_timed_out());

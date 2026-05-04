@@ -1,6 +1,6 @@
+pub mod ldap;
 pub mod oidc;
 pub mod saml;
-pub mod ldap;
 
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +19,7 @@ pub enum AuthProvider {
 }
 
 /// Combined authentication configuration for all providers.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct AuthConfig {
     #[serde(default)]
     pub oidc: OidcConfig,
@@ -27,16 +27,6 @@ pub struct AuthConfig {
     pub saml: SamlConfig,
     #[serde(default)]
     pub ldap: LdapConfig,
-}
-
-impl Default for AuthConfig {
-    fn default() -> Self {
-        Self {
-            oidc: OidcConfig::default(),
-            saml: SamlConfig::default(),
-            ldap: LdapConfig::default(),
-        }
-    }
 }
 
 impl AuthConfig {

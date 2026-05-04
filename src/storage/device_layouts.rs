@@ -1,7 +1,7 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{ScreenLayoutRow, TwinLayout, TwinConnection, CanvasLayoutItem};
+use crate::models::{CanvasLayoutItem, ScreenLayoutRow, TwinConnection, TwinLayout};
 
 impl Storage {
     // ── Screen Layouts ──
@@ -12,7 +12,9 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT screen_id, breakpoint, layout FROM screen_layouts WHERE screen_id = ?1")
+                .prepare(
+                    "SELECT screen_id, breakpoint, layout FROM screen_layouts WHERE screen_id = ?1",
+                )
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map(rusqlite::params![screen_id], |row| {
@@ -30,11 +32,7 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn save_layouts(
-        &self,
-        screen_id: &str,
-        layouts: &serde_json::Value,
-    ) -> Result<()> {
+    pub async fn save_layouts(&self, screen_id: &str, layouts: &serde_json::Value) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         let layouts = layouts.clone();
@@ -133,7 +131,9 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT screen_id, from_id, to_id FROM twin_connections WHERE screen_id = ?1")
+                .prepare(
+                    "SELECT screen_id, from_id, to_id FROM twin_connections WHERE screen_id = ?1",
+                )
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map(rusqlite::params![screen_id], |row| {
@@ -151,7 +151,11 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn save_twin_connections(&self, screen_id: &str, connections: &[TwinConnection]) -> Result<()> {
+    pub async fn save_twin_connections(
+        &self,
+        screen_id: &str,
+        connections: &[TwinConnection],
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         let connections = connections.to_vec();
@@ -206,7 +210,11 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn save_canvas_layouts(&self, screen_id: &str, layouts: &[CanvasLayoutItem]) -> Result<()> {
+    pub async fn save_canvas_layouts(
+        &self,
+        screen_id: &str,
+        layouts: &[CanvasLayoutItem],
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         let layouts = layouts.to_vec();

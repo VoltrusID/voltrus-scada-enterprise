@@ -88,13 +88,17 @@ pub struct CreateNotificationSettingRequest {
     pub enabled: bool,
 }
 
-pub fn default_interval_ms() -> u64 { 1000 }
+pub fn default_interval_ms() -> u64 {
+    1000
+}
 
 pub fn default_true() -> bool {
     true
 }
 
-fn default_retention_hours() -> u32 { 72 }
+fn default_retention_hours() -> u32 {
+    72
+}
 
 // ── RTSP Video / Camera types ──
 
@@ -178,4 +182,3 @@ pub struct PushSubscribeRequest {
     pub p256dh: String,
     pub auth_key: String,
 }
-

@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -68,19 +68,19 @@ pub async fn create_device(
 
     let id = state
         .storage
-        .create_enip_device(
-            &req.name,
-            &req.url,
-            req.slot,
-            req.interval_ms,
-            req.enabled,
-        )
+        .create_enip_device(&req.name, &req.url, req.slot, req.interval_ms, req.enabled)
         .await?;
 
     // Sync to asset inventory
     crate::asset::sync::on_device_created(
-        &state.storage.asset(), "enip", &id.to_string(), &req.name, None, "plc",
-    ).await;
+        &state.storage.asset(),
+        "enip",
+        &id.to_string(),
+        &req.name,
+        None,
+        "plc",
+    )
+    .await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_enip_device".to_string(),
@@ -308,13 +308,15 @@ pub async fn browse_device(
 
     // Connect and browse
     let mut client = EthernetIpClient::new(&device.url);
-    client.connect().await.map_err(|e| {
-        AppError(anyhow::anyhow!("EtherNet/IP connection failed: {}", e))
-    })?;
+    client
+        .connect()
+        .await
+        .map_err(|e| AppError(anyhow::anyhow!("EtherNet/IP connection failed: {}", e)))?;
 
-    let tags = client.browse_tags().await.map_err(|e| {
-        AppError(anyhow::anyhow!("EtherNet/IP browse failed: {}", e))
-    })?;
+    let tags = client
+        .browse_tags()
+        .await
+        .map_err(|e| AppError(anyhow::anyhow!("EtherNet/IP browse failed: {}", e)))?;
 
     client.disconnect().await.ok();
 

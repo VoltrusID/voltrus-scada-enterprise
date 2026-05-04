@@ -25,7 +25,8 @@ pub async fn browse_objects(
         .context("Invalid BACnet address")?;
 
     tokio::task::spawn_blocking(move || {
-        let client = BacnetClient::new().map_err(|e| anyhow::anyhow!("BACnet client failed: {e}"))?;
+        let client =
+            BacnetClient::new().map_err(|e| anyhow::anyhow!("BACnet client failed: {e}"))?;
 
         let obj_ids = client
             .read_object_list(addr, device_instance)

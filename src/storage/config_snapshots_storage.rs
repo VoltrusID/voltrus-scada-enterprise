@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 use super::Storage;
 use anyhow::{Context, Result};
 
@@ -151,14 +152,20 @@ impl Storage {
             };
 
             let snapshot: serde_json::Map<String, serde_json::Value> =
-                serde_json::from_str(&snapshot_data)
-                    .context("Parse snapshot JSON failed")?;
+                serde_json::from_str(&snapshot_data).context("Parse snapshot JSON failed")?;
 
             let versioned_tables = [
-                "devices", "data_sources", "flows", "alarms", "screens", "recipes",
+                "devices",
+                "data_sources",
+                "flows",
+                "alarms",
+                "screens",
+                "recipes",
             ];
 
-            let tx = conn.unchecked_transaction().context("Begin rollback tx failed")?;
+            let tx = conn
+                .unchecked_transaction()
+                .context("Begin rollback tx failed")?;
 
             for table in &versioned_tables {
                 if let Some(table_data) = snapshot.get(*table) {
@@ -168,9 +175,7 @@ impl Storage {
                     };
 
                     // Delete all existing rows
-                    let _ = tx
-                        .execute(&format!("DELETE FROM {}", table), [])
-                        .ok(); // table may not exist
+                    let _ = tx.execute(&format!("DELETE FROM {}", table), []).ok(); // table may not exist
 
                     if arr.is_empty() {
                         continue;
@@ -202,7 +207,10 @@ impl Storage {
                                     params.iter().map(|p| p.as_ref()).collect();
 
                                 tx.execute(&insert_sql, param_refs.as_slice())
-                                    .context(format!("Insert rollback row into {} failed", table))?;
+                                    .context(format!(
+                                        "Insert rollback row into {} failed",
+                                        table
+                                    ))?;
                             }
                         }
                     }
@@ -267,4 +275,3 @@ fn json_to_rusqlite_value(val: &serde_json::Value) -> Box<dyn rusqlite::types::T
         _ => Box::new(val.to_string()),
     }
 }
-

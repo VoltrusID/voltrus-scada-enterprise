@@ -60,11 +60,26 @@ fn test_report_filename_weekly() {
 #[test]
 fn test_build_ascii_chart() {
     let points = vec![
-        crate::models::DataPoint { timestamp: 1, value: 10.0 },
-        crate::models::DataPoint { timestamp: 2, value: 20.0 },
-        crate::models::DataPoint { timestamp: 3, value: 15.0 },
-        crate::models::DataPoint { timestamp: 4, value: 30.0 },
-        crate::models::DataPoint { timestamp: 5, value: 25.0 },
+        crate::models::DataPoint {
+            timestamp: 1,
+            value: 10.0,
+        },
+        crate::models::DataPoint {
+            timestamp: 2,
+            value: 20.0,
+        },
+        crate::models::DataPoint {
+            timestamp: 3,
+            value: 15.0,
+        },
+        crate::models::DataPoint {
+            timestamp: 4,
+            value: 30.0,
+        },
+        crate::models::DataPoint {
+            timestamp: 5,
+            value: 25.0,
+        },
     ];
     let chart = build_ascii_chart(&points);
     assert!(!chart.is_empty());
@@ -80,7 +95,10 @@ fn test_build_ascii_chart_empty() {
 
 #[test]
 fn test_build_ascii_chart_single_point() {
-    let chart = build_ascii_chart(&[crate::models::DataPoint { timestamp: 1, value: 42.0 }]);
+    let chart = build_ascii_chart(&[crate::models::DataPoint {
+        timestamp: 1,
+        value: 42.0,
+    }]);
     assert!(chart.is_empty());
 }
 

@@ -97,9 +97,15 @@ impl Default for MqttBrokerConfig {
     }
 }
 
-fn default_mqtt_port() -> u16 { 1883 }
-fn default_mqtt_max_connections() -> u32 { 100 }
-fn default_mqtt_auth_mode() -> String { "none".to_string() }
+fn default_mqtt_port() -> u16 {
+    1883
+}
+fn default_mqtt_max_connections() -> u32 {
+    100
+}
+fn default_mqtt_auth_mode() -> String {
+    "none".to_string()
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RetentionConfig {
@@ -124,9 +130,15 @@ impl Default for RetentionConfig {
     }
 }
 
-fn default_retention_enabled() -> bool { true }
-fn default_run_interval() -> u64 { 21600 }
-fn default_archive_dir() -> String { "./archive".to_string() }
+fn default_retention_enabled() -> bool {
+    true
+}
+fn default_run_interval() -> u64 {
+    21600
+}
+fn default_archive_dir() -> String {
+    "./archive".to_string()
+}
 
 fn default_tiers() -> Vec<RetentionTier> {
     vec![
@@ -301,7 +313,7 @@ impl Default for HaConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TlsConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -309,12 +321,6 @@ pub struct TlsConfig {
     pub cert_path: String,
     #[serde(default)]
     pub key_path: String,
-}
-
-impl Default for TlsConfig {
-    fn default() -> Self {
-        Self { enabled: false, cert_path: String::new(), key_path: String::new() }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -375,15 +381,39 @@ impl Default for ReadbackConfig {
     }
 }
 
-fn default_ha_role() -> String { "auto".to_string() }
-fn default_node_id() -> String { "voltrus-1".to_string() }
-fn default_ha_bind_address() -> String { "0.0.0.0:8443".to_string() }
-fn default_heartbeat_ms() -> u64 { 1000 }
-fn default_failover_missed() -> u32 { 3 }
-fn default_check_interval() -> u64 { 10 }
-fn default_restart_failures() -> u32 { 3 }
-fn default_cooldown() -> u64 { 30 }
-fn default_max_restarts() -> u32 { 5 }
-fn default_readback_timeout() -> u64 { 5000 }
-fn default_readback_retries() -> u32 { 2 }
-fn default_readback_interval() -> u64 { 500 }
+fn default_ha_role() -> String {
+    "auto".to_string()
+}
+fn default_node_id() -> String {
+    "voltrus-1".to_string()
+}
+fn default_ha_bind_address() -> String {
+    "0.0.0.0:8443".to_string()
+}
+fn default_heartbeat_ms() -> u64 {
+    1000
+}
+fn default_failover_missed() -> u32 {
+    3
+}
+fn default_check_interval() -> u64 {
+    10
+}
+fn default_restart_failures() -> u32 {
+    3
+}
+fn default_cooldown() -> u64 {
+    30
+}
+fn default_max_restarts() -> u32 {
+    5
+}
+fn default_readback_timeout() -> u64 {
+    5000
+}
+fn default_readback_retries() -> u32 {
+    2
+}
+fn default_readback_interval() -> u64 {
+    500
+}

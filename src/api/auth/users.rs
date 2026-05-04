@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 use super::*;
@@ -17,16 +17,36 @@ pub async fn create_user_handler(
     Json(body): Json<CreateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if body.username.is_empty() || body.password.is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "username and password are required"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "username and password are required"})),
+        )
+            .into_response());
     }
     if body.role != "admin" && body.role != "user" {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role must be 'admin' or 'user'"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "role must be 'admin' or 'user'"})),
+        )
+            .into_response());
     }
-    if state.storage.get_user_by_username(&body.username).await?.is_some() {
-        return Ok((StatusCode::CONFLICT, Json(json!({"error": "username already exists"}))).into_response());
+    if state
+        .storage
+        .get_user_by_username(&body.username)
+        .await?
+        .is_some()
+    {
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(json!({"error": "username already exists"})),
+        )
+            .into_response());
     }
     let password_hash = hash_password(&body.password);
-    let id = state.storage.create_user(&body.username, &password_hash, "", &body.role).await?;
+    let id = state
+        .storage
+        .create_user(&body.username, &password_hash, "", &body.role)
+        .await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_user".to_string(),
@@ -44,19 +64,30 @@ pub async fn update_user_handler(
     Path(id): Path<i64>,
     Json(body): Json<UpdateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.storage.get_user_by_id(id).await?
+    let user = state
+        .storage
+        .get_user_by_id(id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let mut details = Vec::new();
     if let Some(role) = body.role {
         if role != "admin" && role != "user" {
-            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role must be 'admin' or 'user'"}))).into_response());
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "role must be 'admin' or 'user'"})),
+            )
+                .into_response());
         }
         state.storage.update_user_role(id, &role).await?;
         details.push(format!("role={}", role));
     }
     if let Some(password) = body.password {
         if password.is_empty() {
-            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "password cannot be empty"}))).into_response());
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "password cannot be empty"})),
+            )
+                .into_response());
         }
         let hash = hash_password(&password);
         state.storage.update_user_password(id, &hash).await?;
@@ -78,10 +109,17 @@ pub async fn delete_user_handler(
     Extension(auth): Extension<super::super::AuthUser>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = state.storage.get_user_by_id(id).await?
+    let user = state
+        .storage
+        .get_user_by_id(id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     if user.username == auth.username {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "cannot delete yourself"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "cannot delete yourself"})),
+        )
+            .into_response());
     }
     state.storage.delete_user(id).await?;
 

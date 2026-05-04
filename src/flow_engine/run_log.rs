@@ -8,7 +8,10 @@ pub async fn log_run(
     error: Option<String>,
     output: Option<serde_json::Value>,
 ) {
-    if let Err(e) = storage.insert_flow_run(flow_id, duration_ms, success, error, output).await {
+    if let Err(e) = storage
+        .insert_flow_run(flow_id, duration_ms, success, error, output)
+        .await
+    {
         tracing::warn!("Failed to log flow run: {}", e);
     }
 }

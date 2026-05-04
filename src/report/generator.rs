@@ -32,7 +32,10 @@ pub async fn generate_report_html(
     // Build device sections
     let mut device_sections = Vec::new();
     for device_id in &device_ids {
-        let metrics = storage.get_telemetry_metrics(device_id).await.unwrap_or_default();
+        let metrics = storage
+            .get_telemetry_metrics(device_id)
+            .await
+            .unwrap_or_default();
         if metrics.is_empty() {
             continue;
         }
@@ -91,14 +94,8 @@ pub async fn generate_report_html(
     }
 
     // Fetch recent alarms
-    let alarms = storage
-        .list_alarms(None, 50)
-        .await
-        .unwrap_or_default();
-    let filtered_alarms: Vec<_> = alarms
-        .iter()
-        .filter(|a| a.triggered_at >= from)
-        .collect();
+    let alarms = storage.list_alarms(None, 50).await.unwrap_or_default();
+    let filtered_alarms: Vec<_> = alarms.iter().filter(|a| a.triggered_at >= from).collect();
 
     let mut alarm_rows = String::new();
     for alarm in &filtered_alarms {
@@ -273,7 +270,8 @@ pub async fn generate_report_html(
         device_count = device_ids.len(),
         alarm_count = filtered_alarms.len(),
         device_content = if device_sections.is_empty() {
-            r#"<p class="no-data">No telemetry data available for the reporting period.</p>"#.to_string()
+            r#"<p class="no-data">No telemetry data available for the reporting period.</p>"#
+                .to_string()
         } else {
             device_sections.join("\n")
         },

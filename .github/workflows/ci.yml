@@ -42,9 +42,7 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Clippy
-        run: cargo clippy -- -W clippy::all
-        # TODO: Gradually fix 190 clippy warnings then switch to -D warnings
-        # Track: collapsible_if (75), too_many_arguments (18), derive (6), etc.
+        run: cargo clippy -- -D warnings
 
       - name: Run tests
         run: cargo test --verbose
@@ -59,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: voltrus-linux-amd64
-          path: voltrus/target/release/voltrus-lite-rust-service
+          path: voltrus/target/release/voltrus
 
   # ── React Frontend ────────────────────────────────────────
   frontend-build:

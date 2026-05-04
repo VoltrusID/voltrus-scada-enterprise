@@ -1,6 +1,6 @@
+use axum::extract::Request;
 use axum::http::header;
 use axum::middleware::Next;
-use axum::extract::Request;
 use axum::response::Response;
 
 /// Middleware that strips the Accept-Ranges header from responses.
@@ -30,10 +30,7 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
     let headers = response.headers_mut();
 
     // Prevent clickjacking
-    headers.insert(
-        "X-Frame-Options",
-        header::HeaderValue::from_static("DENY"),
-    );
+    headers.insert("X-Frame-Options", header::HeaderValue::from_static("DENY"));
 
     // Prevent MIME type sniffing
     headers.insert(
@@ -94,14 +91,8 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
             "Cache-Control",
             header::HeaderValue::from_static("no-store, private, max-age=0, must-revalidate"),
         );
-        headers.insert(
-            "Pragma",
-            header::HeaderValue::from_static("no-cache"),
-        );
-        headers.insert(
-            "Expires",
-            header::HeaderValue::from_static("0"),
-        );
+        headers.insert("Pragma", header::HeaderValue::from_static("no-cache"));
+        headers.insert("Expires", header::HeaderValue::from_static("0"));
     }
 
     response

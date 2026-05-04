@@ -5,7 +5,10 @@ async fn test_downtime_event_crud() {
     let storage = Storage::new_in_memory().unwrap();
 
     // Create open event
-    let id = storage.create_downtime_event("dev1", "faulted").await.unwrap();
+    let id = storage
+        .create_downtime_event("dev1", "faulted")
+        .await
+        .unwrap();
     assert!(id > 0);
 
     // Verify open event
@@ -17,14 +20,20 @@ async fn test_downtime_event_crud() {
     assert!(open.ended_at.is_none());
 
     // Close event
-    storage.close_downtime_event(id, Some("Machine repaired")).await.unwrap();
+    storage
+        .close_downtime_event(id, Some("Machine repaired"))
+        .await
+        .unwrap();
 
     // Verify closed
     let open_after = storage.get_open_downtime_event("dev1").await.unwrap();
     assert!(open_after.is_none());
 
     // List events
-    let events = storage.list_downtime_events(Some("dev1"), None, None).await.unwrap();
+    let events = storage
+        .list_downtime_events(Some("dev1"), None, None)
+        .await
+        .unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].reason.as_deref(), Some("Machine repaired"));
     assert!(events[0].duration_secs.is_some());
@@ -37,7 +46,10 @@ async fn test_oee_metrics_calculation() {
 
     // Create a downtime event that represents 1 hour of downtime
     let id = storage.create_downtime_event("dev1", "idle").await.unwrap();
-    storage.close_downtime_event(id, Some("Break")).await.unwrap();
+    storage
+        .close_downtime_event(id, Some("Break"))
+        .await
+        .unwrap();
 
     // Calculate OEE for a 8-hour window
     let now = crate::timeutil::now_secs();

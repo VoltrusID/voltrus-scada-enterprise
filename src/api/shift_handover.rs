@@ -4,8 +4,8 @@ use axum::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState, AuthUser};
+use crate::models::*;
 
 // ── Query params ──
 
@@ -23,11 +23,16 @@ fn current_shift_period() -> (String, String) {
     use time::OffsetDateTime;
     let now = OffsetDateTime::now_utc();
     let hour = now.hour();
-    let date = format!("{:04}-{:02}-{:02}", now.year(), now.month() as u8, now.day());
+    let date = format!(
+        "{:04}-{:02}-{:02}",
+        now.year(),
+        now.month() as u8,
+        now.day()
+    );
 
-    let period = if hour >= 6 && hour < 14 {
+    let period = if (6..14).contains(&hour) {
         "morning"
-    } else if hour >= 14 && hour < 22 {
+    } else if (14..22).contains(&hour) {
         "afternoon"
     } else {
         "night"
@@ -41,7 +46,10 @@ fn shift_time_range(shift_date: &str, shift_period: &str) -> (Option<i64>, Optio
     use time::OffsetDateTime;
 
     // Parse shift_date (YYYY-MM-DD) into a rough unix range
-    let parts: Vec<u32> = shift_date.split('-').filter_map(|p| p.parse().ok()).collect();
+    let parts: Vec<u32> = shift_date
+        .split('-')
+        .filter_map(|p| p.parse().ok())
+        .collect();
     if parts.len() != 3 {
         return (None, None);
     }
@@ -52,7 +60,7 @@ fn shift_time_range(shift_date: &str, shift_period: &str) -> (Option<i64>, Optio
     let day = parts[2] as u8;
 
     let (month, day) = match (month, day) {
-        (Some(m), d) if d >= 1 && d <= 31 => (m, d),
+        (Some(m), d) if (1..=31).contains(&d) => (m, d),
         _ => return (None, None),
     };
 
@@ -70,7 +78,11 @@ fn shift_time_range(shift_date: &str, shift_period: &str) -> (Option<i64>, Optio
     };
 
     let start_time = date.with_hms(start_hour, 0, 0).ok();
-    let end_date = if next_day { date.next_day().unwrap_or(date) } else { date };
+    let end_date = if next_day {
+        date.next_day().unwrap_or(date)
+    } else {
+        date
+    };
     let end_time = end_date.with_hms(end_hour, 0, 0).ok();
 
     let from_ts = start_time.map(|t| {
@@ -101,10 +113,7 @@ pub async fn create_shift_handover(
     let author_id = author.id;
 
     // Create the shift handover log
-    let handover_id = state
-        .storage
-        .create_shift_handover(&req, author_id)
-        .await?;
+    let handover_id = state.storage.create_shift_handover(&req, author_id).await?;
 
     // Parse @mentions from all three text fields and create notifications
     let fields: Vec<&str> = vec![
@@ -147,10 +156,7 @@ pub async fn list_shift_handovers(
 ) -> Result<impl IntoResponse, AppError> {
     let handovers = state
         .storage
-        .list_shift_handovers(
-            params.shift_date.as_deref(),
-            params.shift_period.as_deref(),
-        )
+        .list_shift_handovers(params.shift_date.as_deref(), params.shift_period.as_deref())
         .await?;
 
     Ok(Json(json!({
@@ -192,10 +198,7 @@ pub async fn auto_shift_report(
         .collect();
 
     // Fetch annotations for this shift period
-    let annotations = state
-        .storage
-        .list_annotations(None, from_ts, to_ts)
-        .await?;
+    let annotations = state.storage.list_annotations(None, from_ts, to_ts).await?;
 
     // Fetch existing handover logs for this shift
     let handovers = state
@@ -286,5 +289,4 @@ mod tests {
         assert!(from.is_none());
         assert!(to.is_none());
     }
-
 }

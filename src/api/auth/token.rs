@@ -11,7 +11,7 @@ pub(crate) fn generate_refresh_token() -> String {
 }
 
 pub(crate) fn hash_refresh_token(token: &str) -> String {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())
@@ -19,13 +19,12 @@ pub(crate) fn hash_refresh_token(token: &str) -> String {
 
 pub fn create_token(username: &str, role: &str, secret: &str) -> String {
     let exp = crate::timeutil::now_millis() as u64 + ACCESS_TOKEN_EXPIRY_MS;
-    let payload =
-        serde_json::to_string(&TokenClaims {
-            username: username.to_string(),
-            exp,
-            role: role.to_string(),
-        })
-        .unwrap();
+    let payload = serde_json::to_string(&TokenClaims {
+        username: username.to_string(),
+        exp,
+        role: role.to_string(),
+    })
+    .unwrap();
     let sig = hmac_sign(&payload, secret);
     format!(
         "{}.{}",

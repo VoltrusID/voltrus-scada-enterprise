@@ -49,11 +49,7 @@ pub fn parse_cidr(cidr: &str) -> Result<Vec<IpAddr>> {
     }
 
     let host_bits = 32 - mask;
-    let network_mask = if mask == 0 {
-        0
-    } else {
-        !0u32 << host_bits
-    };
+    let network_mask = if mask == 0 { 0 } else { !0u32 << host_bits };
     let network = ip_u32 & network_mask;
     let broadcast = network | !network_mask;
     let host_count = broadcast - network - 1;
@@ -62,7 +58,8 @@ pub fn parse_cidr(cidr: &str) -> Result<Vec<IpAddr>> {
     if host_count > 254 {
         anyhow::bail!(
             "Subnet /{} has {} hosts — maximum supported is /24 (254 hosts). Use a smaller subnet range.",
-            mask, host_count
+            mask,
+            host_count
         );
     }
 
@@ -80,11 +77,7 @@ pub fn parse_cidr(cidr: &str) -> Result<Vec<IpAddr>> {
 
 /// Scan a subnet for Modbus TCP devices.
 /// Returns a list of responsive devices with their register values.
-pub async fn scan_network(
-    cidr: &str,
-    port: u16,
-    timeout_ms: u64,
-) -> Result<Vec<DiscoveredDevice>> {
+pub async fn scan_network(cidr: &str, port: u16, timeout_ms: u64) -> Result<Vec<DiscoveredDevice>> {
     let addresses = parse_cidr(cidr)?;
 
     let concurrency_limit = 50;
@@ -124,7 +117,11 @@ pub async fn scan_network(
 
 /// Probe a single IP:port for Modbus TCP responsiveness.
 /// Tries common unit IDs and reads holding registers at addresses 0-9.
-async fn probe_device(ip: &str, port: u16, timeout: std::time::Duration) -> Option<DiscoveredDevice> {
+async fn probe_device(
+    ip: &str,
+    port: u16,
+    timeout: std::time::Duration,
+) -> Option<DiscoveredDevice> {
     let addr = format!("{}:{}", ip, port);
     let socket_addr: std::net::SocketAddr = addr.parse().ok()?;
 
@@ -150,11 +147,8 @@ async fn try_read_registers(
     unit_id: u8,
     timeout: std::time::Duration,
 ) -> Option<Vec<DiscoveredRegister>> {
-    let connect_result = tokio::time::timeout(
-        timeout,
-        tcp::connect_slave(socket_addr, Slave(unit_id)),
-    )
-    .await;
+    let connect_result =
+        tokio::time::timeout(timeout, tcp::connect_slave(socket_addr, Slave(unit_id))).await;
 
     let mut ctx = match connect_result {
         Ok(Ok(ctx)) => ctx,
@@ -162,17 +156,13 @@ async fn try_read_registers(
     };
 
     // Try reading first 10 holding registers (addresses 0-9)
-    let read_result = tokio::time::timeout(
-        timeout,
-        ctx.read_holding_registers(0, 10),
-    )
-    .await;
+    let read_result = tokio::time::timeout(timeout, ctx.read_holding_registers(0, 10)).await;
 
     match read_result {
         Ok(Ok(result)) => match result {
             Ok(regs) => {
                 let mut discovered = Vec::new();
-                let words: Vec<u16> = regs.iter().copied().collect();
+                let words: Vec<u16> = regs.to_vec();
                 for (i, &word) in words.iter().enumerate() {
                     discovered.push(DiscoveredRegister {
                         address: i as u16,
@@ -220,7 +210,12 @@ mod tests {
         // /16 has 65534 hosts — should be rejected
         let result = parse_cidr("10.0.0.0/16");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("maximum supported"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("maximum supported")
+        );
     }
 
     #[test]
@@ -256,13 +251,11 @@ mod tests {
             ip: "192.168.1.10".to_string(),
             port: 502,
             unit_id: 1,
-            responsive_registers: vec![
-                DiscoveredRegister {
-                    address: 0,
-                    value: 220.0,
-                    raw: vec![220],
-                },
-            ],
+            responsive_registers: vec![DiscoveredRegister {
+                address: 0,
+                value: 220.0,
+                raw: vec![220],
+            }],
         };
         let json = serde_json::to_string(&device).unwrap();
         assert!(json.contains("192.168.1.10"));

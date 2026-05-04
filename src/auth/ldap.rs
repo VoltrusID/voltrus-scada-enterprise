@@ -69,14 +69,17 @@ pub async fn ldap_authenticate(
     let addr = format!("{}:{}", server, port);
 
     // Connect via TCP
-    let stream = tokio::net::TcpStream::connect(&addr).await
+    let stream = tokio::net::TcpStream::connect(&addr)
+        .await
         .map_err(|e| format!("LDAP connection failed: {}", e))?;
 
     if use_tls {
         // For LDAPS/TLS, we would need a TLS connector.
         // Since we cannot add new crate dependencies, we log a warning
         // and proceed without TLS for now.
-        tracing::warn!("LDAP TLS requested but native-tls not available; connection may be insecure");
+        tracing::warn!(
+            "LDAP TLS requested but native-tls not available; connection may be insecure"
+        );
     }
 
     // Build LDAP BindRequest
@@ -108,12 +111,16 @@ pub async fn ldap_authenticate(
     let mut stream = stream;
 
     // LDAP messages are preceded by BER length encoding
-    stream.write_all(&ldap_message).await
+    stream
+        .write_all(&ldap_message)
+        .await
         .map_err(|e| format!("LDAP write failed: {}", e))?;
 
     // Read response
     let mut buf = vec![0u8; 4096];
-    let n = stream.read(&mut buf).await
+    let n = stream
+        .read(&mut buf)
+        .await
         .map_err(|e| format!("LDAP read failed: {}", e))?;
 
     if n == 0 {
@@ -159,7 +166,10 @@ fn parse_bind_response(data: &[u8]) -> Result<BindResponseResult, String> {
 
     // Skip message ID (INTEGER)
     if data[pos] != LdapTag::Integer as u8 {
-        return Err(format!("Expected INTEGER tag for messageID, got {:02X}", data[pos]));
+        return Err(format!(
+            "Expected INTEGER tag for messageID, got {:02X}",
+            data[pos]
+        ));
     }
     pos += 1;
     let (int_len, consumed) = read_ber_length(&data[pos..]);
@@ -170,7 +180,10 @@ fn parse_bind_response(data: &[u8]) -> Result<BindResponseResult, String> {
         return Err("LDAP response truncated before BindResponse".to_string());
     }
     if data[pos] != LdapTag::BindResponse as u8 {
-        return Err(format!("Expected BindResponse tag 0x61, got {:02X}", data[pos]));
+        return Err(format!(
+            "Expected BindResponse tag 0x61, got {:02X}",
+            data[pos]
+        ));
     }
     pos += 1;
     let (_resp_len, consumed) = read_ber_length(&data[pos..]);
@@ -337,7 +350,10 @@ mod tests {
     #[test]
     fn test_encode_context_octet_string() {
         let encoded = encode_context_octet_string(0, b"secret");
-        assert_eq!(encoded, vec![0x80, 0x06, b's', b'e', b'c', b'r', b'e', b't']);
+        assert_eq!(
+            encoded,
+            vec![0x80, 0x06, b's', b'e', b'c', b'r', b'e', b't']
+        );
     }
 
     #[test]

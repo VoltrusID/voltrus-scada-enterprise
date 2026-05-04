@@ -1,11 +1,11 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::{AppError, AuthUser, AppState};
+use super::{AppError, AppState, AuthUser};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyRequest {
@@ -35,7 +35,12 @@ pub async fn create_api_key(
 
     let (id, plain_key) = state
         .storage
-        .create_api_key(&body.name, &auth.username, body.expires_at, &body.permissions)
+        .create_api_key(
+            &body.name,
+            &auth.username,
+            body.expires_at,
+            &body.permissions,
+        )
         .await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
@@ -56,9 +61,7 @@ pub async fn create_api_key(
     .into_response())
 }
 
-pub async fn list_api_keys(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn list_api_keys(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let keys = state.storage.list_api_keys().await?;
     Ok(Json(json!({ "keys": keys })))
 }

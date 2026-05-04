@@ -2,7 +2,6 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-
 use crate::models::WriteResult;
 
 use bacnet_rs::network::Npdu;
@@ -26,7 +25,9 @@ pub async fn write_property(
     let property = property.to_string();
 
     let result = tokio::task::spawn_blocking(move || {
-        let addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+        let addr: SocketAddr = addr
+            .parse()
+            .map_err(|e: std::net::AddrParseError| e.to_string())?;
         let ot = object_type_from_str(&object_type)
             .ok_or_else(|| format!("Unknown object type: {}", object_type))?;
         let pid = property_id_from_str(&property);
@@ -38,18 +39,16 @@ pub async fn write_property(
         property_value.extend_from_slice(&(value as f32).to_be_bytes());
 
         let pid_u32: u32 = pid.into();
-        let write_req = WritePropertyRequest::new(
-            obj_id,
-            pid_u32,
-            property_value,
-        );
+        let write_req = WritePropertyRequest::new(obj_id, pid_u32, property_value);
 
         let mut service_data = Vec::new();
-        write_req.encode(&mut service_data).map_err(|e| e.to_string())?;
+        write_req
+            .encode(&mut service_data)
+            .map_err(|e| e.to_string())?;
 
         // Send via raw socket
-        let socket = std::net::UdpSocket::bind("0.0.0.0:0")
-            .map_err(|e| format!("Socket bind: {e}"))?;
+        let socket =
+            std::net::UdpSocket::bind("0.0.0.0:0").map_err(|e| format!("Socket bind: {e}"))?;
 
         use bacnet_rs::app::{Apdu, MaxApduSize, MaxSegments};
         let apdu = Apdu::ConfirmedRequest {

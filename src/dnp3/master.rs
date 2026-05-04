@@ -89,7 +89,10 @@ impl Dnp3MasterSession {
         self.read_response_objects().await
     }
 
-    pub async fn event_scan(&mut self, class: u8) -> Result<HashMap<(u8, u8, u16), Dnp3PointValue>> {
+    pub async fn event_scan(
+        &mut self,
+        class: u8,
+    ) -> Result<HashMap<(u8, u8, u16), Dnp3PointValue>> {
         let seq = self.seq.next();
         let asdu = build_event_scan_request(seq, class);
         self.send_asdu(&asdu).await?;
@@ -172,7 +175,7 @@ impl Dnp3MasterSession {
         }
 
         let data_len = header[2] as usize;
-        let total_frame_size = 3 + data_len + (2 * ((data_len + 15) / 16));
+        let total_frame_size = 3 + data_len + (2 * data_len.div_ceil(16));
         let mut buf = vec![0u8; total_frame_size];
         buf[0..3].copy_from_slice(&header[0..3]);
         self.stream

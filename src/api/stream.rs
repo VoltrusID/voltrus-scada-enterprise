@@ -15,7 +15,9 @@ use crate::api::AppState;
     tag = "Stream",
     security(("api_key" = []), ("cookie_auth" = []))
 )]
-pub async fn stream(State(state): State<AppState>) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+pub async fn stream(
+    State(state): State<AppState>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let stream = state
         .cache
         .subscribe_sse()

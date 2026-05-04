@@ -23,7 +23,8 @@ async fn main() {
     tracing_subscriber::fmt::init();
     tracing::info!(
         "DNP3 outstation simulator listening on {}, address={}",
-        addr, outstation_addr
+        addr,
+        outstation_addr
     );
 
     loop {

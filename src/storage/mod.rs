@@ -1,16 +1,16 @@
+mod ai_copilot;
 mod alarm_crud;
 mod alarm_management;
-mod ai_copilot;
 mod api_keys;
 mod bacnet;
 mod camera;
+mod config_snapshots_storage;
 mod cq_commands;
 mod cq_policies;
-mod config_snapshots_storage;
 mod device_crud;
 mod device_layouts;
-mod downsampling;
 mod dnp3;
+mod downsampling;
 mod enip_storage;
 mod flows;
 mod hub;
@@ -23,8 +23,8 @@ mod recipes_storage;
 mod reports;
 mod retention;
 mod s7_storage;
-mod scripts_storage;
 mod schema;
+mod scripts_storage;
 mod security_events;
 mod security_extras;
 mod settings_audit;
@@ -57,19 +57,31 @@ impl Storage {
         Self::new_with_key(path, None)
     }
 
+    /// Lock the mutex, recovering from poison if a previous holder panicked.
+    /// In SCADA, crashing and restarting is better than silently losing data,
+    /// so we recover the lock and log a warning rather than propagating the panic.
+    fn lock_conn(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().unwrap_or_else(|e| {
+            tracing::error!(
+                "Storage mutex poisoned — another thread panicked: {e}. Recovering lock."
+            );
+            e.into_inner()
+        })
+    }
+
     /// Simple health check — verify the connection is usable.
     pub fn conn_health(&self) -> bool {
-        self.conn.lock().unwrap()
-            .execute_batch("SELECT 1")
-            .is_ok()
+        self.lock_conn().execute_batch("SELECT 1").is_ok()
     }
 
     pub fn new_with_key(path: &str, encryption_key: Option<&str>) -> Result<Self> {
-        let conn = Connection::open(path)
-            .with_context(|| format!("Failed to open database: {path}"))?;
+        let conn =
+            Connection::open(path).with_context(|| format!("Failed to open database: {path}"))?;
 
         if let Some(key) = encryption_key {
-            if let Err(e) = conn.execute_batch(&format!("PRAGMA key = '{}';", key.replace("'", "''"))) {
+            if let Err(e) =
+                conn.execute_batch(&format!("PRAGMA key = '{}';", key.replace("'", "''")))
+            {
                 tracing::warn!(
                     "Failed to set database encryption key (SQLCipher not available?): {}. Continuing without encryption.",
                     e
@@ -128,7 +140,7 @@ impl Storage {
         let records = records.to_vec();
 
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().unwrap_or_else(|e| { tracing::error!("Storage mutex poisoned: {e}"); e.into_inner() });
             let tx = conn.unchecked_transaction().context("Begin tx failed")?;
             for (device_id, timestamp, metric, value) in &records {
                 tx.execute(
@@ -155,7 +167,10 @@ impl Storage {
         let metric = metric.to_string();
 
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().unwrap_or_else(|e| {
+                tracing::error!("Storage mutex poisoned: {e}");
+                e.into_inner()
+            });
             let mut stmt = conn
                 .prepare(
                     "SELECT timestamp, value FROM telemetry
@@ -167,15 +182,12 @@ impl Storage {
                 .context("Prepare failed")?;
 
             let rows = stmt
-                .query_map(
-                    rusqlite::params![device_id, metric, from, to],
-                    |row| {
-                        Ok(DataPoint {
-                            timestamp: row.get(0)?,
-                            value: row.get(1)?,
-                        })
-                    },
-                )
+                .query_map(rusqlite::params![device_id, metric, from, to], |row| {
+                    Ok(DataPoint {
+                        timestamp: row.get(0)?,
+                        value: row.get(1)?,
+                    })
+                })
                 .context("Query failed")?;
 
             rows.collect::<Result<Vec<_>, _>>()
@@ -195,7 +207,10 @@ impl Storage {
         let device_id = device_id.to_string();
 
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().unwrap();
+            let conn = conn.lock().unwrap_or_else(|e| {
+                tracing::error!("Storage mutex poisoned: {e}");
+                e.into_inner()
+            });
             let mut stmt = conn
                 .prepare(
                     "SELECT timestamp, metric, value FROM telemetry
@@ -207,20 +222,19 @@ impl Storage {
                 .context("Prepare failed")?;
 
             let rows = stmt
-                .query_map(
-                    rusqlite::params![device_id, from, to],
-                    |row| {
-                        Ok((
-                            row.get::<_, i64>(0)?,
-                            row.get::<_, String>(1)?,
-                            row.get::<_, f64>(2)?,
-                        ))
-                    },
-                )
+                .query_map(rusqlite::params![device_id, from, to], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, f64>(2)?,
+                    ))
+                })
                 .context("Query failed")?;
 
-            let mut grouped: std::collections::BTreeMap<i64, std::collections::HashMap<String, f64>> =
-                std::collections::BTreeMap::new();
+            let mut grouped: std::collections::BTreeMap<
+                i64,
+                std::collections::HashMap<String, f64>,
+            > = std::collections::BTreeMap::new();
             for row in rows {
                 let (ts, metric, value) = row.context("Row mapping failed")?;
                 grouped.entry(ts).or_default().insert(metric, value);

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OidcConfig {
@@ -32,8 +32,12 @@ impl Default for OidcConfig {
     }
 }
 
-fn default_role_claim() -> String { "realm_access.roles".to_string() }
-fn default_admin_role() -> String { "voltrus-admin".to_string() }
+fn default_role_claim() -> String {
+    "realm_access.roles".to_string()
+}
+fn default_admin_role() -> String {
+    "voltrus-admin".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcClaims {
@@ -81,17 +85,16 @@ impl JwksManager {
                     key.get("kty").and_then(|v| v.as_str()),
                     key.get("n").and_then(|v| v.as_str()),
                     key.get("e").and_then(|v| v.as_str()),
-                ) {
-                    if kty == "RSA" {
-                        match jsonwebtoken::DecodingKey::from_rsa_components(n, e) {
-                            Ok(decoding_key) => {
-                                *self.keys.write().await = Some(decoding_key);
-                                tracing::info!("OIDC JWKS key refreshed successfully");
-                                return Ok(());
-                            }
-                            Err(err) => {
-                                tracing::warn!("Failed to create decoding key from JWKS: {}", err);
-                            }
+                ) && kty == "RSA"
+                {
+                    match jsonwebtoken::DecodingKey::from_rsa_components(n, e) {
+                        Ok(decoding_key) => {
+                            *self.keys.write().await = Some(decoding_key);
+                            tracing::info!("OIDC JWKS key refreshed successfully");
+                            return Ok(());
+                        }
+                        Err(err) => {
+                            tracing::warn!("Failed to create decoding key from JWKS: {}", err);
                         }
                     }
                 }
@@ -130,18 +133,17 @@ impl JwksManager {
 }
 
 pub fn extract_role(claims: &OidcClaims, config: &OidcConfig) -> String {
-    if config.role_claim.starts_with("realm_access.") {
-        if let Some(ref ra) = claims.realm_access {
-            if ra.roles.contains(&config.admin_role) {
-                return "admin".to_string();
-            }
-        }
+    if config.role_claim.starts_with("realm_access.")
+        && let Some(ref ra) = claims.realm_access
+        && ra.roles.contains(&config.admin_role)
+    {
+        return "admin".to_string();
     }
 
-    if let Some(ref groups) = claims.groups {
-        if groups.contains(&config.admin_role) {
-            return "admin".to_string();
-        }
+    if let Some(ref groups) = claims.groups
+        && groups.contains(&config.admin_role)
+    {
+        return "admin".to_string();
     }
 
     "user".to_string()
@@ -165,7 +167,8 @@ pub fn extract_role_with_mapping(
     group_mappings: &[GroupRoleMapping],
 ) -> String {
     // Collect all groups the user belongs to
-    let user_groups: Vec<&str> = claims.groups
+    let user_groups: Vec<&str> = claims
+        .groups
         .as_ref()
         .map(|g| g.iter().map(|s| s.as_str()).collect())
         .unwrap_or_default();

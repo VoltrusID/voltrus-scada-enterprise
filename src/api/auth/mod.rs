@@ -1,17 +1,17 @@
 mod crypto;
-mod token;
 mod handlers;
-mod users;
 mod sso;
+mod token;
+mod users;
 
 #[cfg(test)]
 mod tests;
 
 pub use crypto::*;
-pub use token::*;
 pub use handlers::*;
-pub use users::*;
 pub use sso::*;
+pub use token::*;
+pub use users::*;
 
 use crate::models::*;
 

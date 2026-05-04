@@ -8,11 +8,13 @@ pub struct FlowState {
 
 impl FlowState {
     pub fn new() -> Self {
-        Self { rolling_windows: DashMap::new() }
+        Self {
+            rolling_windows: DashMap::new(),
+        }
     }
 
     pub fn push_value(&self, key: &str, value: f64, window_size: usize) {
-        let mut entry = self.rolling_windows.entry(key.to_string()).or_insert_with(VecDeque::new);
+        let mut entry = self.rolling_windows.entry(key.to_string()).or_default();
         entry.push_back(value);
         while entry.len() > window_size {
             entry.pop_front();

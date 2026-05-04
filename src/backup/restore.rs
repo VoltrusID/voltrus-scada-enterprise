@@ -18,7 +18,11 @@ pub fn run_restore(opts: RestoreOptions) -> Result<()> {
         .context("Failed to read archive entries")?
         .filter_map(|e| e.ok())
         .map(|entry| {
-            let path = entry.path().unwrap_or_default().to_string_lossy().to_string();
+            let path = entry
+                .path()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             let size = entry.size();
             (path, size)
         })
@@ -84,7 +88,9 @@ pub fn run_restore(opts: RestoreOptions) -> Result<()> {
         println!("  Config:   {}", opts.config_path);
         println!();
         print!("Continue? [y/N] ");
-        std::io::stdout().flush().context("Failed to flush stdout")?;
+        std::io::stdout()
+            .flush()
+            .context("Failed to flush stdout")?;
 
         let mut input = String::new();
         std::io::stdin()
@@ -100,10 +106,7 @@ pub fn run_restore(opts: RestoreOptions) -> Result<()> {
     // 7. Create pre-restore backup of current state.
     if Path::new(&opts.db_path).exists() {
         println!("Creating pre-restore backup...");
-        let pre_restore_path = format!(
-            "voltrus-pre-restore-{}.tar.gz",
-            chrono_now_timestamp()
-        );
+        let pre_restore_path = format!("voltrus-pre-restore-{}.tar.gz", chrono_now_timestamp());
         let pre_restore_opts = BackupOptions {
             config_path: opts.config_path.clone(),
             db_path: opts.db_path.clone(),
@@ -155,8 +158,8 @@ pub fn run_restore(opts: RestoreOptions) -> Result<()> {
 
     // 9. Verify database integrity.
     println!("Verifying database integrity...");
-    let conn = Connection::open(&extracted_db)
-        .with_context(|| "Failed to open extracted database")?;
+    let conn =
+        Connection::open(&extracted_db).with_context(|| "Failed to open extracted database")?;
     let result: String = conn
         .query_row("PRAGMA integrity_check", [], |row| row.get(0))
         .context("Failed to run integrity check")?;
@@ -185,8 +188,7 @@ pub fn run_restore(opts: RestoreOptions) -> Result<()> {
     // 11. Replace the database file.
     println!("Replacing database: {}", opts.db_path);
     if let Some(parent) = Path::new(&opts.db_path).parent() {
-        fs::create_dir_all(parent)
-            .context("Failed to create database directory")?;
+        fs::create_dir_all(parent).context("Failed to create database directory")?;
     }
     // Extract to a temp path adjacent to target (same filesystem for atomic rename)
     let temp_target = format!("{}.restoring", opts.db_path);
@@ -206,8 +208,7 @@ pub fn run_restore(opts: RestoreOptions) -> Result<()> {
         if !config_content.trim().is_empty() {
             println!("Restoring config: {}", opts.config_path);
             if let Some(parent) = Path::new(&opts.config_path).parent() {
-                fs::create_dir_all(parent)
-                    .context("Failed to create config directory")?;
+                fs::create_dir_all(parent).context("Failed to create config directory")?;
             }
             fs::copy(&extracted_config, &opts.config_path)
                 .with_context(|| format!("Failed to copy config to {}", opts.config_path))?;

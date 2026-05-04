@@ -56,8 +56,8 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut sql = String::from("SELECT id, device_id, state, started_at, ended_at, duration_secs, reason FROM downtime_events WHERE 1=1");
-            if device_id.is_some() {
-                sql.push_str(&format!(" AND device_id = '{}'", device_id.as_ref().unwrap().replace('\'', "''")));
+            if let Some(ref did) = device_id {
+                sql.push_str(&format!(" AND device_id = '{}'", did.replace('\'', "''")));
             }
             if let Some(from) = from {
                 sql.push_str(&format!(" AND started_at >= {}", from));
@@ -119,13 +119,10 @@ impl Storage {
     /// Availability = total_running_secs / total_planned_secs
     /// Performance and Quality default to 1.0 (to be enriched by user configuration).
     /// OEE = Availability * Performance * Quality
-    pub async fn calculate_oee(
-        &self,
-        device_id: &str,
-        from: i64,
-        to: i64,
-    ) -> Result<OeeMetrics> {
-        let events = self.list_downtime_events(Some(device_id), Some(from), Some(to)).await?;
+    pub async fn calculate_oee(&self, device_id: &str, from: i64, to: i64) -> Result<OeeMetrics> {
+        let events = self
+            .list_downtime_events(Some(device_id), Some(from), Some(to))
+            .await?;
 
         let total_planned_secs = if to > from { to - from } else { 0 };
 
@@ -227,7 +224,9 @@ impl Storage {
             conn.execute("DELETE FROM shifts WHERE id = ?1", rusqlite::params![id])
                 .context("Delete shift failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Query distinct device IDs from telemetry table.
@@ -235,16 +234,20 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare("SELECT DISTINCT device_id FROM telemetry ORDER BY device_id")
+            let mut stmt = conn
+                .prepare("SELECT DISTINCT device_id FROM telemetry ORDER BY device_id")
                 .context("Prepare get_telemetry_device_ids failed")?;
-            let rows = stmt.query_map([], |row| row.get::<_, String>(0))
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))
                 .context("Query get_telemetry_device_ids failed")?;
             let mut ids = Vec::new();
             for row in rows {
                 ids.push(row.context("Row parse get_telemetry_device_ids failed")?);
             }
             Ok(ids)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Query distinct metrics for a device from telemetry table.
@@ -253,17 +256,22 @@ impl Storage {
         let device_id = device_id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT DISTINCT metric FROM telemetry WHERE device_id = ?1 ORDER BY metric"
-            ).context("Prepare get_telemetry_metrics failed")?;
-            let rows = stmt.query_map(rusqlite::params![device_id], |row| row.get::<_, String>(0))
+            let mut stmt = conn
+                .prepare(
+                    "SELECT DISTINCT metric FROM telemetry WHERE device_id = ?1 ORDER BY metric",
+                )
+                .context("Prepare get_telemetry_metrics failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![device_id], |row| row.get::<_, String>(0))
                 .context("Query get_telemetry_metrics failed")?;
             let mut metrics = Vec::new();
             for row in rows {
                 metrics.push(row.context("Row parse get_telemetry_metrics failed")?);
             }
             Ok(metrics)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Query telemetry history for a device with optional metric filter.
@@ -281,32 +289,48 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let mut points: Vec<DataPoint> = Vec::new();
             if let Some(ref m) = metric {
-                let mut stmt = conn.prepare(
-                    "SELECT timestamp, value FROM telemetry
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT timestamp, value FROM telemetry
                      WHERE device_id = ?1 AND metric = ?2 AND timestamp >= ?3 AND timestamp <= ?4
-                     ORDER BY timestamp LIMIT 5000"
-                ).context("Prepare query_history_multi failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, m, from, to], |row| {
-                    Ok(DataPoint { timestamp: row.get(0)?, value: row.get(1)? })
-                }).context("Query query_history_multi failed")?;
+                     ORDER BY timestamp LIMIT 5000",
+                    )
+                    .context("Prepare query_history_multi failed")?;
+                let rows = stmt
+                    .query_map(rusqlite::params![device_id, m, from, to], |row| {
+                        Ok(DataPoint {
+                            timestamp: row.get(0)?,
+                            value: row.get(1)?,
+                        })
+                    })
+                    .context("Query query_history_multi failed")?;
                 for row in rows {
                     points.push(row.context("Row parse query_history_multi failed")?);
                 }
             } else {
-                let mut stmt = conn.prepare(
-                    "SELECT timestamp, value FROM telemetry
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT timestamp, value FROM telemetry
                      WHERE device_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
-                     ORDER BY timestamp LIMIT 5000"
-                ).context("Prepare query_history_multi failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, from, to], |row| {
-                    Ok(DataPoint { timestamp: row.get(0)?, value: row.get(1)? })
-                }).context("Query query_history_multi failed")?;
+                     ORDER BY timestamp LIMIT 5000",
+                    )
+                    .context("Prepare query_history_multi failed")?;
+                let rows = stmt
+                    .query_map(rusqlite::params![device_id, from, to], |row| {
+                        Ok(DataPoint {
+                            timestamp: row.get(0)?,
+                            value: row.get(1)?,
+                        })
+                    })
+                    .context("Query query_history_multi failed")?;
                 for row in rows {
                     points.push(row.context("Row parse query_history_multi failed")?);
                 }
             }
             Ok(points)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── Analytics aggregation methods ──
@@ -325,8 +349,9 @@ impl Storage {
         let metric = metric.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT
+            let mut stmt = conn
+                .prepare(
+                    "SELECT
                     (timestamp / ?5) * ?5 as bucket,
                     MIN(value),
                     MAX(value),
@@ -338,40 +363,45 @@ impl Storage {
                  WHERE device_id = ?1 AND metric = ?2
                  AND timestamp >= ?3 AND timestamp <= ?4
                  GROUP BY bucket
-                 ORDER BY bucket"
-            ).context("Prepare aggregate_raw failed")?;
+                 ORDER BY bucket",
+                )
+                .context("Prepare aggregate_raw failed")?;
 
-            let rows = stmt.query_map(
-                rusqlite::params![device_id, metric, from, to, interval_secs],
-                |row| {
-                    let count: i64 = row.get(4)?;
-                    let avg: f64 = row.get(3)?;
-                    let _sum_sq_diff = 0.0;
-                    // stddev approximation: we need a subquery, but for simplicity
-                    // we'll compute it from the result. Here we just return 0.0
-                    // and the API layer can compute it if needed.
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        crate::analytics::AggregatedMetric {
-                            metric: metric.clone(),
-                            min: row.get(1)?,
-                            max: row.get(2)?,
-                            avg,
-                            stddev: 0.0,
-                            count: count as u64,
-                            first_ts: row.get(5)?,
-                            last_ts: row.get(6)?,
-                        },
-                    ))
-                },
-            ).context("Query aggregate_raw failed")?;
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![device_id, metric, from, to, interval_secs],
+                    |row| {
+                        let count: i64 = row.get(4)?;
+                        let avg: f64 = row.get(3)?;
+                        let _sum_sq_diff = 0.0;
+                        // stddev approximation: we need a subquery, but for simplicity
+                        // we'll compute it from the result. Here we just return 0.0
+                        // and the API layer can compute it if needed.
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            crate::analytics::AggregatedMetric {
+                                metric: metric.clone(),
+                                min: row.get(1)?,
+                                max: row.get(2)?,
+                                avg,
+                                stddev: 0.0,
+                                count: count as u64,
+                                first_ts: row.get(5)?,
+                                last_ts: row.get(6)?,
+                            },
+                        ))
+                    },
+                )
+                .context("Query aggregate_raw failed")?;
 
             let mut results = Vec::new();
             for row in rows {
                 results.push(row.context("Row parse aggregate_raw failed")?);
             }
             Ok(results)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Aggregate hourly telemetry data into time buckets.
@@ -388,8 +418,9 @@ impl Storage {
         let metric = metric.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT
+            let mut stmt = conn
+                .prepare(
+                    "SELECT
                     (bucket_start / ?5) * ?5 as bucket,
                     MIN(min_value),
                     MAX(max_value),
@@ -401,34 +432,39 @@ impl Storage {
                  WHERE device_id = ?1 AND metric = ?2
                  AND bucket_start >= ?3 AND bucket_start <= ?4
                  GROUP BY bucket
-                 ORDER BY bucket"
-            ).context("Prepare aggregate_hourly failed")?;
+                 ORDER BY bucket",
+                )
+                .context("Prepare aggregate_hourly failed")?;
 
-            let rows = stmt.query_map(
-                rusqlite::params![device_id, metric, from, to, interval_secs],
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        crate::analytics::AggregatedMetric {
-                            metric: metric.clone(),
-                            min: row.get(1)?,
-                            max: row.get(2)?,
-                            avg: row.get(3)?,
-                            stddev: 0.0,
-                            count: row.get::<_, i64>(4)? as u64,
-                            first_ts: row.get(5)?,
-                            last_ts: row.get(6)?,
-                        },
-                    ))
-                },
-            ).context("Query aggregate_hourly failed")?;
+            let rows = stmt
+                .query_map(
+                    rusqlite::params![device_id, metric, from, to, interval_secs],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            crate::analytics::AggregatedMetric {
+                                metric: metric.clone(),
+                                min: row.get(1)?,
+                                max: row.get(2)?,
+                                avg: row.get(3)?,
+                                stddev: 0.0,
+                                count: row.get::<_, i64>(4)? as u64,
+                                first_ts: row.get(5)?,
+                                last_ts: row.get(6)?,
+                            },
+                        ))
+                    },
+                )
+                .context("Query aggregate_hourly failed")?;
 
             let mut results = Vec::new();
             for row in rows {
                 results.push(row.context("Row parse aggregate_hourly failed")?);
             }
             Ok(results)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Aggregate a single time period into one AggregatedMetric.
@@ -444,8 +480,9 @@ impl Storage {
         let metric = metric.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT
+            let mut stmt = conn
+                .prepare(
+                    "SELECT
                     MIN(value),
                     MAX(value),
                     AVG(value),
@@ -454,37 +491,41 @@ impl Storage {
                     MAX(timestamp)
                  FROM telemetry
                  WHERE device_id = ?1 AND metric = ?2
-                 AND timestamp >= ?3 AND timestamp <= ?4"
-            ).context("Prepare aggregate_single_period failed")?;
+                 AND timestamp >= ?3 AND timestamp <= ?4",
+                )
+                .context("Prepare aggregate_single_period failed")?;
 
-            let row = stmt.query_row(
-                rusqlite::params![device_id, metric, from, to],
-                |row| {
-                    Ok(crate::analytics::AggregatedMetric {
-                        metric: metric.clone(),
-                        min: row.get(0)?,
-                        max: row.get(1)?,
-                        avg: row.get(2)?,
-                        stddev: 0.0,
-                        count: row.get::<_, i64>(3)? as u64,
-                        first_ts: row.get(4)?,
-                        last_ts: row.get(5)?,
-                    })
-                },
-            );
+            let row = stmt.query_row(rusqlite::params![device_id, metric, from, to], |row| {
+                Ok(crate::analytics::AggregatedMetric {
+                    metric: metric.clone(),
+                    min: row.get(0)?,
+                    max: row.get(1)?,
+                    avg: row.get(2)?,
+                    stddev: 0.0,
+                    count: row.get::<_, i64>(3)? as u64,
+                    first_ts: row.get(4)?,
+                    last_ts: row.get(5)?,
+                })
+            });
 
             match row {
                 Ok(m) => Ok(m),
                 Err(rusqlite::Error::QueryReturnedNoRows) => {
                     Ok(crate::analytics::AggregatedMetric {
                         metric,
-                        min: 0.0, max: 0.0, avg: 0.0, stddev: 0.0, count: 0,
-                        first_ts: from, last_ts: to,
+                        min: 0.0,
+                        max: 0.0,
+                        avg: 0.0,
+                        stddev: 0.0,
+                        count: 0,
+                        first_ts: from,
+                        last_ts: to,
                     })
                 }
                 Err(e) => Err(e).context("Query aggregate_single_period failed"),
             }
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
-
 }

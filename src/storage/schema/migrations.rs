@@ -4,16 +4,22 @@ use rusqlite::Connection;
 /// Each migration is idempotent (uses `IF NOT EXISTS` / ignores errors on `ALTER TABLE`).
 pub(super) fn run_migrations(conn: &Connection) {
     // Migration: add chart_type column
-    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'sparkline'");
+    let _ = conn.execute_batch(
+        "ALTER TABLE data_sources ADD COLUMN chart_type TEXT NOT NULL DEFAULT 'sparkline'",
+    );
 
     // Migration: add equipment_name column to twin_layouts
-    let _ = conn.execute_batch("ALTER TABLE twin_layouts ADD COLUMN equipment_name TEXT NOT NULL DEFAULT ''");
+    let _ = conn.execute_batch(
+        "ALTER TABLE twin_layouts ADD COLUMN equipment_name TEXT NOT NULL DEFAULT ''",
+    );
 
     // Migration: rename legacy tables from sensor -> data_source
     let _ = conn.execute_batch("ALTER TABLE sensors RENAME TO data_sources");
     let _ = conn.execute_batch("ALTER TABLE screen_sensors RENAME TO screen_data_sources");
-    let _ = conn.execute_batch("ALTER TABLE screen_data_sources RENAME COLUMN sensor_id TO data_source_id");
-    let _ = conn.execute_batch("ALTER TABLE user_shortcuts RENAME COLUMN sensor_id TO data_source_id");
+    let _ = conn
+        .execute_batch("ALTER TABLE screen_data_sources RENAME COLUMN sensor_id TO data_source_id");
+    let _ =
+        conn.execute_batch("ALTER TABLE user_shortcuts RENAME COLUMN sensor_id TO data_source_id");
 
     // Migration: add role column to users
     let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
@@ -23,15 +29,21 @@ pub(super) fn run_migrations(conn: &Connection) {
     let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN cooldown_until INTEGER");
 
     // Migration: add register_area column to modbus_registers
-    let _ = conn.execute_batch("ALTER TABLE modbus_registers ADD COLUMN register_area TEXT NOT NULL DEFAULT 'holding'");
+    let _ = conn.execute_batch(
+        "ALTER TABLE modbus_registers ADD COLUMN register_area TEXT NOT NULL DEFAULT 'holding'",
+    );
 
     // Migration: add must_change_password column to users
-    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch(
+        "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0",
+    );
     // Force existing admin users to change password (they likely have the default "admin" password)
-    let _ = conn.execute_batch("UPDATE users SET must_change_password = 1 WHERE username = 'admin'");
+    let _ =
+        conn.execute_batch("UPDATE users SET must_change_password = 1 WHERE username = 'admin'");
 
     // Migration: add account lockout columns to users
-    let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0");
+    let _ = conn
+        .execute_batch("ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0");
     let _ = conn.execute_batch("ALTER TABLE users ADD COLUMN locked_until INTEGER");
 
     // Migration: add refresh_tokens table
@@ -45,7 +57,7 @@ pub(super) fn run_migrations(conn: &Connection) {
             revoked_at INTEGER
         );
         CREATE INDEX IF NOT EXISTS idx_refresh_tokens_username ON refresh_tokens(username);
-        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);"
+        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);",
     );
 
     // Migration: add license_activation table
@@ -68,12 +80,8 @@ pub(super) fn run_migrations(conn: &Connection) {
     );
 
     // Migration: add tier and device_limit columns to existing databases
-    let _ = conn.execute_batch(
-        "ALTER TABLE license_activation ADD COLUMN tier TEXT;",
-    );
-    let _ = conn.execute_batch(
-        "ALTER TABLE license_activation ADD COLUMN device_limit INTEGER;",
-    );
+    let _ = conn.execute_batch("ALTER TABLE license_activation ADD COLUMN tier TEXT;");
+    let _ = conn.execute_batch("ALTER TABLE license_activation ADD COLUMN device_limit INTEGER;");
 
     // Migration: add recipes table
     let _ = conn.execute_batch(
@@ -88,7 +96,7 @@ pub(super) fn run_migrations(conn: &Connection) {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_recipes_device ON recipes(device_id);"
+        CREATE INDEX IF NOT EXISTS idx_recipes_device ON recipes(device_id);",
     );
 
     // Migration: add role_id column to users (roles table is created in main schema above)
@@ -119,17 +127,20 @@ pub(super) fn run_migrations(conn: &Connection) {
             rate_limit_threshold INTEGER NOT NULL DEFAULT 100,
             rate_limit_window_secs INTEGER NOT NULL DEFAULT 60
         );
-        INSERT OR IGNORE INTO security_thresholds (id) VALUES (1);"
+        INSERT OR IGNORE INTO security_thresholds (id) VALUES (1);",
     );
 
     // Migration: v0.23.0 -- Alarm Management Overhaul
-    let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN priority TEXT NOT NULL DEFAULT 'warning'");
+    let _ = conn
+        .execute_batch("ALTER TABLE alarms ADD COLUMN priority TEXT NOT NULL DEFAULT 'warning'");
     let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN shelved_until INTEGER");
     let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN shelved_by TEXT");
     let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN shelved_reason TEXT");
     let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN deadband REAL NOT NULL DEFAULT 0");
-    let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN state TEXT NOT NULL DEFAULT 'active'");
-    let _ = conn.execute_batch("ALTER TABLE alarms ADD COLUMN source_name TEXT NOT NULL DEFAULT ''");
+    let _ =
+        conn.execute_batch("ALTER TABLE alarms ADD COLUMN state TEXT NOT NULL DEFAULT 'active'");
+    let _ =
+        conn.execute_batch("ALTER TABLE alarms ADD COLUMN source_name TEXT NOT NULL DEFAULT ''");
 
     let _ = conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS alarm_audit_log (
@@ -143,7 +154,7 @@ pub(super) fn run_migrations(conn: &Connection) {
         CREATE INDEX IF NOT EXISTS idx_alarm_audit_alarm_time
             ON alarm_audit_log(alarm_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_alarm_audit_action_time
-            ON alarm_audit_log(action, created_at);"
+            ON alarm_audit_log(action, created_at);",
     );
 
     // Migration: v0.24.0 -- Command & Control tables
@@ -210,7 +221,7 @@ pub(super) fn run_migrations(conn: &Connection) {
             created_at INTEGER NOT NULL,
             UNIQUE(device_id, name)
         );
-        CREATE INDEX IF NOT EXISTS idx_dnp3_points_device ON dnp3_points(device_id);"
+        CREATE INDEX IF NOT EXISTS idx_dnp3_points_device ON dnp3_points(device_id);",
     );
 
     // Migration: v0.31.0 -- BACnet/IP device and object tables
@@ -239,19 +250,23 @@ pub(super) fn run_migrations(conn: &Connection) {
             created_at INTEGER NOT NULL,
             UNIQUE(device_id, object_type, object_instance)
         );
-        CREATE INDEX IF NOT EXISTS idx_bacnet_objects_device ON bacnet_objects(device_id);"
+        CREATE INDEX IF NOT EXISTS idx_bacnet_objects_device ON bacnet_objects(device_id);",
     );
 
     // Migration: v0.24.0 -- Write policy columns on data_sources
-    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN writable INTEGER NOT NULL DEFAULT 0");
+    let _ = conn
+        .execute_batch("ALTER TABLE data_sources ADD COLUMN writable INTEGER NOT NULL DEFAULT 0");
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_min REAL");
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_max REAL");
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_max_rate INTEGER");
-    let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_requires_reason INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch(
+        "ALTER TABLE data_sources ADD COLUMN write_requires_reason INTEGER NOT NULL DEFAULT 0",
+    );
     let _ = conn.execute_batch("ALTER TABLE data_sources ADD COLUMN write_deadband REAL");
 
     // Migration: v0.26.0 -- Simulation columns on devices
-    let _ = conn.execute_batch("ALTER TABLE devices ADD COLUMN simulation_mode INTEGER NOT NULL DEFAULT 0");
+    let _ = conn
+        .execute_batch("ALTER TABLE devices ADD COLUMN simulation_mode INTEGER NOT NULL DEFAULT 0");
     let _ = conn.execute_batch("ALTER TABLE devices ADD COLUMN sim_profile_id INTEGER");
     let _ = conn.execute_batch("ALTER TABLE devices ADD COLUMN sim_config TEXT");
     // Migration: v0.26.0 -- Simulation column on data_sources
@@ -272,7 +287,7 @@ pub(super) fn run_migrations(conn: &Connection) {
             validation_error TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
-        );"
+        );",
     );
 
     // Migration: v0.32.0 -- Audit log search indexes

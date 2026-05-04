@@ -1,7 +1,6 @@
 use anyhow::Result;
 use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-    message::header::ContentType,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::header::ContentType,
     transport::smtp::authentication::Credentials,
 };
 
@@ -57,8 +56,8 @@ pub async fn send_sms_alarm(
     carrier: &str,
     message: &str,
 ) -> Result<()> {
-    let gateway = carrier_gateway(carrier)
-        .ok_or_else(|| anyhow::anyhow!("Unknown carrier: {}", carrier))?;
+    let gateway =
+        carrier_gateway(carrier).ok_or_else(|| anyhow::anyhow!("Unknown carrier: {}", carrier))?;
 
     let to_address = format!("{}@{}", phone_number, gateway);
 
@@ -101,9 +100,7 @@ pub async fn send_sms_alarm(
 }
 
 /// Build an SMTP transport from the given config.
-fn build_smtp_transport(
-    config: &SmtpConfig,
-) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
+fn build_smtp_transport(config: &SmtpConfig) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
     let mailer = match config.encryption {
         crate::models::SmtpEncryption::StartTls => {
             let addr = format!("{}:{}", config.host, config.port);

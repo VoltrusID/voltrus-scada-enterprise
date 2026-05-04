@@ -11,10 +11,15 @@ struct Backoff {
 
 impl Backoff {
     fn new() -> Self {
-        Self { attempt: 0, max_delay_ms: 60_000 }
+        Self {
+            attempt: 0,
+            max_delay_ms: 60_000,
+        }
     }
 
-    fn reset(&mut self) { self.attempt = 0; }
+    fn reset(&mut self) {
+        self.attempt = 0;
+    }
 
     fn next(&mut self) -> u64 {
         let attempt = self.attempt.min(30);
@@ -95,7 +100,11 @@ async fn connect_and_stream(
             // Update last_seen every 60 seconds
             if last_seen_update.elapsed() >= std::time::Duration::from_secs(60) {
                 if let Err(e) = storage.update_hub_site_last_seen(site.id).await {
-                    tracing::warn!("Failed to update last_seen for hub site '{}': {}", site.name, e);
+                    tracing::warn!(
+                        "Failed to update last_seen for hub site '{}': {}",
+                        site.name,
+                        e
+                    );
                 }
                 last_seen_update = std::time::Instant::now();
             }
@@ -119,7 +128,10 @@ async fn process_sse_data(data: &str, site_name: &str, cache: &DeviceCache) {
             for sensor in sensors {
                 let key = sensor.get("key").and_then(|v| v.as_str()).unwrap_or("");
                 let value = sensor.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let source_type = sensor.get("source_type").and_then(|v| v.as_str()).unwrap_or("");
+                let source_type = sensor
+                    .get("source_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 // Skip expression-based data sources (computed locally)
                 if source_type == "expression" {
@@ -166,12 +178,12 @@ async fn process_sse_data(data: &str, site_name: &str, cache: &DeviceCache) {
 /// Extract device_id from a sensor object in the SSE payload.
 fn extract_device_id(sensor: &serde_json::Value, key: &str) -> String {
     // Try source_config.device_id first (JSON object)
-    if let Some(source_config) = sensor.get("source_config") {
-        if let Some(device_id) = source_config.get("device_id").and_then(|v| v.as_str()) {
-            if !device_id.is_empty() && device_id != "default" {
-                return device_id.to_string();
-            }
-        }
+    if let Some(source_config) = sensor.get("source_config")
+        && let Some(device_id) = source_config.get("device_id").and_then(|v| v.as_str())
+        && !device_id.is_empty()
+        && device_id != "default"
+    {
+        return device_id.to_string();
     }
 
     // Fall back to key prefix (format: "device_id:metric")

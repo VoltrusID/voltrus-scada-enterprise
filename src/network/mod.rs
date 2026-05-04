@@ -3,8 +3,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use axum::{extract::State, Json};
 use crate::models::NetworkConfig;
+use axum::{Json, extract::State};
 
 #[derive(Clone)]
 pub struct NetworkManager {
@@ -20,10 +20,8 @@ pub struct InterfaceInfo {
 
 impl NetworkManager {
     pub fn new(configs: Vec<NetworkConfig>) -> Self {
-        let map: HashMap<String, NetworkConfig> = configs
-            .into_iter()
-            .map(|c| (c.id.clone(), c))
-            .collect();
+        let map: HashMap<String, NetworkConfig> =
+            configs.into_iter().map(|c| (c.id.clone(), c)).collect();
         Self {
             networks: Arc::new(RwLock::new(map)),
         }
@@ -31,9 +29,9 @@ impl NetworkManager {
 
     pub async fn get_bind_address(&self, network_id: &str) -> Option<SocketAddr> {
         let networks = self.networks.read().await;
-        networks.get(network_id).and_then(|n| {
-            format!("{}:0", n.bind_address).parse().ok()
-        })
+        networks
+            .get(network_id)
+            .and_then(|n| format!("{}:0", n.bind_address).parse().ok())
     }
 
     pub async fn list_configured(&self) -> Vec<NetworkConfig> {

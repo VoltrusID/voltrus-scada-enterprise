@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 #[derive(Debug)]
@@ -63,8 +63,12 @@ impl From<reqwest::Error> for AiError {
             Self::Timeout
         } else if err.is_status() {
             match err.status() {
-                Some(StatusCode::TOO_MANY_REQUESTS) => Self::RateLimited { retry_after_secs: None },
-                Some(StatusCode::UNAUTHORIZED) => Self::InvalidApiKey("Authentication failed".into()),
+                Some(StatusCode::TOO_MANY_REQUESTS) => Self::RateLimited {
+                    retry_after_secs: None,
+                },
+                Some(StatusCode::UNAUTHORIZED) => {
+                    Self::InvalidApiKey("Authentication failed".into())
+                }
                 Some(s) => Self::ProviderError(format!("HTTP {s}: {err}")),
                 None => Self::ProviderError(err.to_string()),
             }

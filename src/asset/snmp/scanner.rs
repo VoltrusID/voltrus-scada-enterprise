@@ -1,14 +1,14 @@
 use std::net::Ipv4Addr;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use tokio::sync::Semaphore;
 use tokio::task;
 use tracing::{info, warn};
 
-use crate::asset::models::SnmpScanResult;
 use super::client::snmp_query_host;
+use crate::asset::models::SnmpScanResult;
 
 // ── Scan State ──────────────────────────────────────────────────────────────
 
@@ -251,9 +251,8 @@ mod tests {
 
     #[test]
     fn test_parse_sys_descr_siemens() {
-        let (vendor, model, firmware) = parse_sys_descr(
-            "SIMATIC S7-1500, Firmware V2.8.1, Serial: XYZ",
-        );
+        let (vendor, model, firmware) =
+            parse_sys_descr("SIMATIC S7-1500, Firmware V2.8.1, Serial: XYZ");
         assert_eq!(vendor.as_deref(), Some("Siemens"));
         assert!(model.is_some());
         assert!(firmware.is_some());
@@ -275,8 +274,7 @@ mod tests {
 
     #[test]
     fn test_parse_sys_descr_cisco() {
-        let (vendor, _model, _firmware) =
-            parse_sys_descr("Cisco IOS Software, Version 15.2(4)M7");
+        let (vendor, _model, _firmware) = parse_sys_descr("Cisco IOS Software, Version 15.2(4)M7");
         assert_eq!(vendor.as_deref(), Some("Cisco"));
     }
 

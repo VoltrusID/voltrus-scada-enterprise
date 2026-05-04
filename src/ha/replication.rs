@@ -14,11 +14,7 @@ pub const FRAME_SYNC_SNAPSHOT: u8 = 0x11;
 pub const FRAME_SYNC_ACK: u8 = 0x12;
 
 /// Write a replication frame to a TCP stream.
-pub async fn write_frame(
-    stream: &mut TcpStream,
-    frame_type: u8,
-    payload: &[u8],
-) -> io::Result<()> {
+pub async fn write_frame(stream: &mut TcpStream, frame_type: u8, payload: &[u8]) -> io::Result<()> {
     let len = payload.len() as u32;
     stream.write_u32(len).await?;
     stream.write_u8(frame_type).await?;
@@ -27,9 +23,7 @@ pub async fn write_frame(
 }
 
 /// Read a replication frame from a TCP stream.
-pub async fn read_frame(
-    stream: &mut TcpStream,
-) -> io::Result<(u8, Vec<u8>)> {
+pub async fn read_frame(stream: &mut TcpStream) -> io::Result<(u8, Vec<u8>)> {
     let len = stream.read_u32().await?;
     let frame_type = stream.read_u8().await?;
     let mut payload = vec![0u8; len as usize];
@@ -57,10 +51,7 @@ use crate::models::HaConfig;
 
 /// Runs the replication server on the primary. Accepts one standby connection
 /// and streams heartbeats + WAL frames.
-pub async fn run_replication_server(
-    config: &HaConfig,
-    ha_state: HaState,
-) -> anyhow::Result<()> {
+pub async fn run_replication_server(config: &HaConfig, ha_state: HaState) -> anyhow::Result<()> {
     let listener = TcpListener::bind(&config.bind_address).await?;
     tracing::info!("HA replication server listening on {}", config.bind_address);
 
@@ -89,10 +80,7 @@ pub async fn run_replication_server(
 
 /// Runs the replication client on the standby. Connects to primary,
 /// receives heartbeats + WAL frames, monitors for failover.
-pub async fn run_replication_client(
-    config: &HaConfig,
-    ha_state: HaState,
-) -> anyhow::Result<()> {
+pub async fn run_replication_client(config: &HaConfig, ha_state: HaState) -> anyhow::Result<()> {
     let failover_threshold = config.failover_after_missed;
     let hb_interval_ms = config.heartbeat_interval_ms;
 

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use super::message::Message;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -14,9 +14,7 @@ pub enum TriggerConfig {
         on_change_only: Option<bool>,
     },
     #[serde(rename = "timer")]
-    Timer {
-        interval_ms: u64,
-    },
+    Timer { interval_ms: u64 },
     #[serde(rename = "mqtt")]
     Mqtt {
         topic: String,
@@ -28,12 +26,16 @@ pub enum TriggerConfig {
 impl TriggerConfig {
     pub fn matches(&self, msg: &Message) -> bool {
         match self {
-            TriggerConfig::Modbus { device_id, metric, .. } => {
+            TriggerConfig::Modbus {
+                device_id, metric, ..
+            } => {
                 if msg.metadata.get("source") != Some(&"modbus".to_string()) {
                     return false;
                 }
                 if device_id != "*" {
-                    let payload_device_id = msg.payload.get("device_id")
+                    let payload_device_id = msg
+                        .payload
+                        .get("device_id")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
                     if payload_device_id != device_id {

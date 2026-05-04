@@ -6,11 +6,16 @@ pub(crate) fn parse_time_param(value: &str) -> Result<i64, String> {
         return Ok(ts);
     }
     // Try ISO 8601 via the `time` crate
-    if let Ok(dt) = time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339) {
+    if let Ok(dt) =
+        time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+    {
         return Ok(dt.unix_timestamp());
     }
     // Try a more lenient ISO format (without timezone)
-    if let Ok(dt) = time::PrimitiveDateTime::parse(value, &time::format_description::well_known::Iso8601::DEFAULT) {
+    if let Ok(dt) = time::PrimitiveDateTime::parse(
+        value,
+        &time::format_description::well_known::Iso8601::DEFAULT,
+    ) {
         // Assume UTC if no timezone specified
         let utc = dt.assume_utc();
         return Ok(utc.unix_timestamp());

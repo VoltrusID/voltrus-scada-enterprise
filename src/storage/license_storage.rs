@@ -2,7 +2,9 @@ use super::Storage;
 use anyhow::{Context, Result};
 
 impl Storage {
-    pub async fn get_license_activation(&self) -> Result<Option<crate::models::LicenseActivationRow>> {
+    pub async fn get_license_activation(
+        &self,
+    ) -> Result<Option<crate::models::LicenseActivationRow>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -29,7 +31,10 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn store_license_activation(&self, row: &crate::models::LicenseActivationRow) -> Result<()> {
+    pub async fn store_license_activation(
+        &self,
+        row: &crate::models::LicenseActivationRow,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let row = row.clone();
         tokio::task::spawn_blocking(move || {
@@ -64,6 +69,8 @@ impl Storage {
             conn.execute("DELETE FROM license_activation", [])
                 .context("Clear license activation failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 }

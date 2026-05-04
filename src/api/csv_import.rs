@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use axum::extract::{Multipart, Query, State, Extension};
+use axum::Json;
+use axum::extract::{Extension, Multipart, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -20,7 +20,7 @@ fn auto_detect_columns(headers: &[String]) -> HashMap<String, usize> {
     let mut mapping = HashMap::new();
 
     for (idx, header) in headers.iter().enumerate() {
-        let h = header.trim().to_lowercase().replace('_', " ").replace('-', " ");
+        let h = header.trim().to_lowercase().replace(['_', '-'], " ");
 
         match h.as_str() {
             "name" | "tag" | "tag name" | "sensor" | "sensor name" | "key" | "data source"
@@ -44,13 +44,14 @@ fn auto_detect_columns(headers: &[String]) -> HashMap<String, usize> {
 }
 
 fn parse_timestamp(s: &str) -> Result<i64, String> {
-    if let Ok(dt) = time::OffsetDateTime::parse(s, &time::format_description::well_known::Iso8601::DEFAULT) {
+    if let Ok(dt) =
+        time::OffsetDateTime::parse(s, &time::format_description::well_known::Iso8601::DEFAULT)
+    {
         return Ok(dt.unix_timestamp());
     }
-    if let Ok(dt) = time::OffsetDateTime::parse(
-        s,
-        &time::format_description::well_known::Iso8601::DATE,
-    ) {
+    if let Ok(dt) =
+        time::OffsetDateTime::parse(s, &time::format_description::well_known::Iso8601::DATE)
+    {
         return Ok(dt.unix_timestamp());
     }
     if let Ok(ts) = s.parse::<i64>() {
@@ -76,7 +77,8 @@ pub async fn import_csv(
         return Ok((
             StatusCode::BAD_REQUEST,
             Json(json!({"error": "mode must be 'merge' or 'replace'"})),
-        ).into_response());
+        )
+            .into_response());
     }
 
     let mut file_bytes: Option<Vec<u8>> = None;
@@ -97,7 +99,8 @@ pub async fn import_csv(
         return Ok((
             StatusCode::BAD_REQUEST,
             Json(json!({"error": "Only CSV files are supported"})),
-        ).into_response());
+        )
+            .into_response());
     }
 
     let content = String::from_utf8_lossy(&bytes);
@@ -112,11 +115,7 @@ pub async fn import_csv(
         .flexible(true)
         .from_reader(content.as_bytes());
 
-    let headers: Vec<String> = reader
-        .headers()?
-        .iter()
-        .map(|h| h.to_string())
-        .collect();
+    let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
 
     let column_mapping = auto_detect_columns(&headers);
 
@@ -251,17 +250,25 @@ pub async fn import_csv(
         resource: format!("import:{}", original_name),
         details: Some(format!(
             "total={}, imported={}, skipped={}, errors={}, dry_run={}",
-            total_rows, imported, skipped, errors.len(), dry_run
+            total_rows,
+            imported,
+            skipped,
+            errors.len(),
+            dry_run
         )),
     });
 
-    Ok((StatusCode::OK, Json(json!({
-        "total_rows": total_rows,
-        "imported": imported,
-        "skipped": skipped,
-        "errors": errors,
-        "dry_run": dry_run,
-        "mode": mode,
-        "column_mapping": column_mapping,
-    }))).into_response())
+    Ok((
+        StatusCode::OK,
+        Json(json!({
+            "total_rows": total_rows,
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "dry_run": dry_run,
+            "mode": mode,
+            "column_mapping": column_mapping,
+        })),
+    )
+        .into_response())
 }

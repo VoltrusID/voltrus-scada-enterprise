@@ -78,15 +78,14 @@ impl HealthMonitor {
     /// Get overall health status.
     pub async fn get_health(&self) -> (HealthStatus, HashMap<String, SubsystemHealth>) {
         let results = self.results.read().await;
-        let overall = if results.is_empty() {
-            HealthStatus::Healthy
-        } else if results.values().all(|r| r.status == HealthStatus::Healthy) {
-            HealthStatus::Healthy
-        } else if results.values().any(|r| r.status == HealthStatus::Critical) {
-            HealthStatus::Critical
-        } else {
-            HealthStatus::Degraded
-        };
+        let overall =
+            if results.is_empty() || results.values().all(|r| r.status == HealthStatus::Healthy) {
+                HealthStatus::Healthy
+            } else if results.values().any(|r| r.status == HealthStatus::Critical) {
+                HealthStatus::Critical
+            } else {
+                HealthStatus::Degraded
+            };
         (overall, results.clone())
     }
 

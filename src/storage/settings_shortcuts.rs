@@ -1,7 +1,7 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{UserShortcut, NavShortcut};
+use crate::models::{NavShortcut, UserShortcut};
 
 impl Storage {
     // ── Shortcuts ──
@@ -87,7 +87,9 @@ impl Storage {
             )
             .context("Ensure user_nav_shortcuts table failed")?;
             let mut stmt = conn
-                .prepare("SELECT user_id, target, shortcut FROM user_nav_shortcuts WHERE user_id = ?1")
+                .prepare(
+                    "SELECT user_id, target, shortcut FROM user_nav_shortcuts WHERE user_id = ?1",
+                )
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map(rusqlite::params![user_id], |row| {

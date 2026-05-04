@@ -30,15 +30,41 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Token>, String> {
 
     while i < chars.len() {
         match chars[i] {
-            ' ' | '\t' => { i += 1; }
-            '+' => { tokens.push(Token::Plus); i += 1; }
-            '-' => { tokens.push(Token::Minus); i += 1; }
-            '*' => { tokens.push(Token::Star); i += 1; }
-            '/' => { tokens.push(Token::Slash); i += 1; }
-            '(' => { tokens.push(Token::LParen); i += 1; }
-            ')' => { tokens.push(Token::RParen); i += 1; }
-            ',' => { tokens.push(Token::Comma); i += 1; }
-            '.' => { tokens.push(Token::Dot); i += 1; }
+            ' ' | '\t' => {
+                i += 1;
+            }
+            '+' => {
+                tokens.push(Token::Plus);
+                i += 1;
+            }
+            '-' => {
+                tokens.push(Token::Minus);
+                i += 1;
+            }
+            '*' => {
+                tokens.push(Token::Star);
+                i += 1;
+            }
+            '/' => {
+                tokens.push(Token::Slash);
+                i += 1;
+            }
+            '(' => {
+                tokens.push(Token::LParen);
+                i += 1;
+            }
+            ')' => {
+                tokens.push(Token::RParen);
+                i += 1;
+            }
+            ',' => {
+                tokens.push(Token::Comma);
+                i += 1;
+            }
+            '.' => {
+                tokens.push(Token::Dot);
+                i += 1;
+            }
             '>' => {
                 if i + 1 < chars.len() && chars[i + 1] == '=' {
                     tokens.push(Token::Gte);
@@ -96,7 +122,9 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Token>, String> {
             }
             '{' => {
                 let start = i + 1;
-                let end = chars[i..].iter().position(|&c| c == '}')
+                let end = chars[i..]
+                    .iter()
+                    .position(|&c| c == '}')
                     .ok_or_else(|| format!("Unclosed '{{' at position {i}"))?;
                 let name: String = chars[start..i + end].iter().collect();
                 if name.is_empty() {
@@ -111,7 +139,8 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                     i += 1;
                 }
                 let num_str: String = chars[start..i].iter().collect();
-                let num: f64 = num_str.parse()
+                let num: f64 = num_str
+                    .parse()
                     .map_err(|_| format!("Invalid number '{num_str}'"))?;
                 tokens.push(Token::Number(num));
             }
@@ -123,7 +152,12 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                 let name: String = chars[start..i].iter().collect();
                 tokens.push(Token::Ident(name));
             }
-            _ => return Err(format!("Unexpected character '{}' at position {i}", chars[i])),
+            _ => {
+                return Err(format!(
+                    "Unexpected character '{}' at position {i}",
+                    chars[i]
+                ));
+            }
         }
     }
 

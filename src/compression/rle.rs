@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 // src/compression/rle.rs — RLE (Run-Length Encoding) for digital/binary tags
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// RLE-encode boolean values into (value, count) pairs.
 pub fn rle_encode(values: &[bool]) -> Vec<(bool, u32)> {
@@ -48,7 +48,7 @@ pub fn rle_serialize(runs: &[(bool, u32)]) -> Vec<u8> {
 
 /// Deserialize RLE runs from binary.
 pub fn rle_deserialize(data: &[u8]) -> Result<Vec<(bool, u32)>> {
-    if data.len() % 5 != 0 {
+    if !data.len().is_multiple_of(5) {
         bail!("Invalid RLE data length: {}", data.len());
     }
     let mut runs = Vec::with_capacity(data.len() / 5);

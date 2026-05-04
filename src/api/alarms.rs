@@ -1,10 +1,10 @@
+use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState, AuthUser};
+use crate::models::*;
 
 /// GET /api/alarms/active/count
 pub async fn active_alarm_count(
@@ -50,15 +50,15 @@ pub async fn list_alarms(
     // Apply additional in-memory filters (priority, state, shelved)
     if params.priority.is_some() || params.state.is_some() || params.shelved.is_some() {
         alarms.retain(|a| {
-            if let Some(ref p) = params.priority {
-                if &a.priority != p {
-                    return false;
-                }
+            if let Some(ref p) = params.priority
+                && &a.priority != p
+            {
+                return false;
             }
-            if let Some(ref s) = params.state {
-                if &a.state != s {
-                    return false;
-                }
+            if let Some(ref s) = params.state
+                && &a.state != s
+            {
+                return false;
             }
             if let Some(shelved) = params.shelved {
                 let is_shelved = a.shelved_until.is_some();
@@ -90,7 +90,10 @@ pub async fn acknowledge_alarm(
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
     let cooldown = get_cooldown_secs(&state.storage).await;
-    state.storage.acknowledge_alarm(id, &user.username, cooldown).await?;
+    state
+        .storage
+        .acknowledge_alarm(id, &user.username, cooldown)
+        .await?;
     Ok(Json(json!({"ok": true})))
 }
 
@@ -100,7 +103,10 @@ pub async fn acknowledge_all(
     Extension(user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
     let cooldown = get_cooldown_secs(&state.storage).await;
-    state.storage.acknowledge_all(&user.username, cooldown).await?;
+    state
+        .storage
+        .acknowledge_all(&user.username, cooldown)
+        .await?;
     Ok(Json(json!({"ok": true})))
 }
 

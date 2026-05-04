@@ -114,24 +114,39 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             if let Some(name) = &name {
-                conn.execute("UPDATE cameras SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
-                    .context("Update camera name failed")?;
+                conn.execute(
+                    "UPDATE cameras SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update camera name failed")?;
             }
             if let Some(url) = &url {
-                conn.execute("UPDATE cameras SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
-                    .context("Update camera url failed")?;
+                conn.execute(
+                    "UPDATE cameras SET url = ?1 WHERE id = ?2",
+                    rusqlite::params![url, id],
+                )
+                .context("Update camera url failed")?;
             }
             if let Some(enabled) = enabled {
-                conn.execute("UPDATE cameras SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
-                    .context("Update camera enabled failed")?;
+                conn.execute(
+                    "UPDATE cameras SET enabled = ?1 WHERE id = ?2",
+                    rusqlite::params![enabled as i64, id],
+                )
+                .context("Update camera enabled failed")?;
             }
             if let Some(snapshot_on_alarm) = snapshot_on_alarm {
-                conn.execute("UPDATE cameras SET snapshot_on_alarm = ?1 WHERE id = ?2", rusqlite::params![snapshot_on_alarm as i64, id])
-                    .context("Update camera snapshot_on_alarm failed")?;
+                conn.execute(
+                    "UPDATE cameras SET snapshot_on_alarm = ?1 WHERE id = ?2",
+                    rusqlite::params![snapshot_on_alarm as i64, id],
+                )
+                .context("Update camera snapshot_on_alarm failed")?;
             }
             if let Some(retention_hours) = retention_hours {
-                conn.execute("UPDATE cameras SET retention_hours = ?1 WHERE id = ?2", rusqlite::params![retention_hours, id])
-                    .context("Update camera retention_hours failed")?;
+                conn.execute(
+                    "UPDATE cameras SET retention_hours = ?1 WHERE id = ?2",
+                    rusqlite::params![retention_hours, id],
+                )
+                .context("Update camera retention_hours failed")?;
             }
             Ok(())
         })
@@ -148,9 +163,9 @@ impl Storage {
                 .prepare("SELECT file_path FROM camera_snapshots WHERE camera_id = ?1")
                 .ok();
             if let Some(ref mut s) = stmt {
-                let rows = s.query_map(rusqlite::params![id], |row| {
-                    row.get::<_, String>(0)
-                }).ok();
+                let rows = s
+                    .query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
+                    .ok();
                 if let Some(rows) = rows {
                     for row in rows.flatten() {
                         let _ = std::fs::remove_file(&row);
@@ -281,16 +296,23 @@ impl Storage {
             if let Some(path) = &file_path {
                 let _ = std::fs::remove_file(path);
             }
-            conn.execute("DELETE FROM camera_snapshots WHERE id = ?1", rusqlite::params![snapshot_id])
-                .context("Delete camera snapshot failed")
-                .map(|_| ())
+            conn.execute(
+                "DELETE FROM camera_snapshots WHERE id = ?1",
+                rusqlite::params![snapshot_id],
+            )
+            .context("Delete camera snapshot failed")
+            .map(|_| ())
         })
         .await
         .context("Task join failed")?
     }
 
     /// Delete snapshots older than the camera's retention period.
-    pub async fn cleanup_expired_snapshots(&self, camera_id: i64, retention_hours: u32) -> Result<u64> {
+    pub async fn cleanup_expired_snapshots(
+        &self,
+        camera_id: i64,
+        retention_hours: u32,
+    ) -> Result<u64> {
         let cutoff = crate::timeutil::now_secs() - (retention_hours as i64 * 3600);
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {

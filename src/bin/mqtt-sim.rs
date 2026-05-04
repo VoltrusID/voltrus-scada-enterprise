@@ -66,8 +66,7 @@ impl MeterData {
                 (self.power_factor[i] + rng.random_range(-0.005..0.005)).clamp(0.80, 0.99);
         }
 
-        self.frequency =
-            (self.frequency + rng.random_range(-0.005..0.005)).clamp(49.9, 50.1);
+        self.frequency = (self.frequency + rng.random_range(-0.005..0.005)).clamp(49.9, 50.1);
 
         for i in 0..3 {
             self.thd_voltage[i] =
@@ -235,10 +234,7 @@ struct BrokerState {
 // Client handler
 // ---------------------------------------------------------------------------
 
-async fn handle_client(
-    mut stream: TcpStream,
-    state: Arc<BrokerState>,
-) -> Result<()> {
+async fn handle_client(mut stream: TcpStream, state: Arc<BrokerState>) -> Result<()> {
     let peer = stream.peer_addr()?;
     tracing::info!("Client connected: {peer}");
 
@@ -278,7 +274,10 @@ async fn handle_client(
                             }
                             // Protocol level = 4
                             if payload[6] != 4 {
-                                tracing::warn!("Unsupported protocol level {} from {peer}", payload[6]);
+                                tracing::warn!(
+                                    "Unsupported protocol level {} from {peer}",
+                                    payload[6]
+                                );
                                 return Ok(());
                             }
                             // Skip connect flags (1 byte) + keep alive (2 bytes) = 3
@@ -356,10 +355,7 @@ async fn handle_client(
                         }
 
                         _ => {
-                            tracing::warn!(
-                                "Unknown packet type 0x{:02X} from {peer}",
-                                packet_type
-                            );
+                            tracing::warn!("Unknown packet type 0x{:02X} from {peer}", packet_type);
                         }
                     }
 
@@ -449,10 +445,7 @@ async fn handle_client(
 // Background publisher – ticks meter data every second
 // ---------------------------------------------------------------------------
 
-async fn background_publisher(
-    data: Arc<Mutex<MeterData>>,
-    tx: broadcast::Sender<PublishMsg>,
-) {
+async fn background_publisher(data: Arc<Mutex<MeterData>>, tx: broadcast::Sender<PublishMsg>) {
     let mut interval = tokio::time::interval(Duration::from_secs(1));
 
     loop {

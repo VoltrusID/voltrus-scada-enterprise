@@ -1,51 +1,53 @@
 #![allow(dead_code)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
 
+mod ai_copilot;
+mod analytics;
 mod api;
+mod asset;
 mod auth;
 mod backup;
 mod bacnet;
 mod cache;
 mod cli;
+mod command_queue;
+mod compliance;
+mod compression;
 mod config;
 mod config_export;
+mod deadband;
 mod discovery;
+mod dnp3;
 mod ethernet_ip;
 mod expression;
 mod flow_engine;
-mod modbus;
-mod dnp3;
-mod models;
-mod oee;
-mod poller_manager;
-mod retention;
-mod s7;
-mod security;
-mod storage;
-mod timeutil;
-mod license;
-mod notification;
-mod opcua;
+mod ha;
 mod hub;
+mod import_nodered;
+mod license;
+mod modbus;
+mod models;
+mod mqtt_broker;
+mod network;
+mod notification;
+mod oee;
+mod opcua;
+mod poller_manager;
+mod recipe;
 mod report;
 mod report_scheduler;
-mod analytics;
-mod asset;
-mod compliance;
-mod command_queue;
-mod recipe;
+mod retention;
+mod s7;
+mod script_engine;
+mod security;
+mod sim_engine;
+mod storage;
+mod timeutil;
 mod video;
 mod widget_sdk;
-mod sim_engine;
-mod script_engine;
 mod ws_manager;
 mod ws_types;
-mod ai_copilot;
-mod compression;
-mod deadband;
-mod import_nodered;
-mod mqtt_broker;
-mod ha;
-mod network;
 
 use api::AppState;
 use cache::DeviceCache;
@@ -71,10 +73,10 @@ fn run_watchdog() {
         loop {
             interval.tick().await;
 
-            let healthy = match reqwest::get("http://localhost:8080/api/v1/health").await {
-                Ok(resp) if resp.status().is_success() => true,
-                _ => false,
-            };
+            let healthy = matches!(
+                reqwest::get("http://localhost:8080/api/v1/health").await,
+                Ok(resp) if resp.status().is_success()
+            );
 
             if healthy {
                 failures = 0;
@@ -85,12 +87,16 @@ fn run_watchdog() {
             tracing::warn!("Health check failed ({}/{})", failures, max_failures);
 
             if failures >= max_failures && restarts < max_restarts {
-                tracing::warn!("Restarting Voltrus main process (attempt {}/{})", restarts + 1, max_restarts);
+                tracing::warn!(
+                    "Restarting Voltrus main process (attempt {}/{})",
+                    restarts + 1,
+                    max_restarts
+                );
 
                 #[cfg(unix)]
                 {
                     let _ = std::process::Command::new("pkill")
-                        .args(["-f", "voltrus-lite-rust-service"])
+                        .args(["-f", "voltrus"])
                         .output();
                 }
 
@@ -117,8 +123,7 @@ fn run_watchdog() {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-                .add_directive("info".parse()?),
+            tracing_subscriber::EnvFilter::from_default_env().add_directive("info".parse()?),
         )
         .init();
 
@@ -145,28 +150,30 @@ async fn main() -> anyhow::Result<()> {
     let cache = DeviceCache::new();
     let ws_manager = Arc::new(crate::ws_manager::WsManager::new());
     let cache = cache.with_ws_manager(ws_manager.clone());
-    let storage = Storage::new_with_key(
-        &app_config.db_path,
-        app_config.db_encryption_key.as_deref(),
-    )?;
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())?;
     let cache = cache.with_storage(storage.clone());
     let license_status = license::resolve_license_status(&storage).await;
     let license_tier = license_status.tier();
     let feature_flags = license_status.feature_flags();
 
     if !license_status.is_valid() {
-        tracing::warn!("License status: {:?} — skipping Modbus polling", license_status);
+        tracing::warn!(
+            "License status: {:?} — skipping Modbus polling",
+            license_status
+        );
     }
 
-    let flow_engine = crate::flow_engine::engine::FlowEngine::new(
-        storage.clone(),
-        cache.clone(),
-    );
+    let flow_engine = crate::flow_engine::engine::FlowEngine::new(storage.clone(), cache.clone());
     if let Ok(flows) = storage.list_flows().await {
         for flow in flows {
             if flow.enabled {
-                match (serde_json::from_str::<crate::flow_engine::trigger::TriggerConfig>(&flow.trigger_config),
-                       serde_json::from_str::<Vec<crate::flow_engine::node::NodeConfig>>(&flow.nodes)) {
+                match (
+                    serde_json::from_str::<crate::flow_engine::trigger::TriggerConfig>(
+                        &flow.trigger_config,
+                    ),
+                    serde_json::from_str::<Vec<crate::flow_engine::node::NodeConfig>>(&flow.nodes),
+                ) {
                     (Ok(trigger), Ok(nodes)) => {
                         let engine_flow = crate::flow_engine::engine::Flow {
                             id: flow.id,
@@ -193,26 +200,33 @@ async fn main() -> anyhow::Result<()> {
     if !storage.is_yaml_migrated().await? && !app_config.devices.is_empty() {
         storage.import_yaml_devices(&app_config.devices).await?;
         storage.mark_yaml_migrated().await?;
-        tracing::info!("Migrated {} devices from YAML to database", app_config.devices.len());
+        tracing::info!(
+            "Migrated {} devices from YAML to database",
+            app_config.devices.len()
+        );
     }
 
     // Load device configs from DB and start pollers (only with valid license)
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), network::NetworkManager::new(app_config.networks.clone()));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        network::NetworkManager::new(app_config.networks.clone()),
+    );
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
         let device_limit = license_tier.max_devices();
         let mut started_count: u32 = 0;
         for config in &device_configs {
-            if let Some(limit) = device_limit {
-                if started_count >= limit {
-                    tracing::warn!(
-                        "Device '{}' skipped — {} tier limit of {} devices reached. Upgrade at https://voltrus.id",
-                        config.id,
-                        serde_json::to_string(&license_tier).unwrap_or_else(|_| "unknown".to_string()),
-                        limit
-                    );
-                    continue;
-                }
+            if let Some(limit) = device_limit
+                && started_count >= limit
+            {
+                tracing::warn!(
+                    "Device '{}' skipped — {} tier limit of {} devices reached. Upgrade at https://voltrus.id",
+                    config.id,
+                    serde_json::to_string(&license_tier).unwrap_or_else(|_| "unknown".to_string()),
+                    limit
+                );
+                continue;
             }
             poller_manager.start(config.clone()).await;
             tracing::info!("Started poller for device {}", config.id);
@@ -239,12 +253,12 @@ async fn main() -> anyhow::Result<()> {
                     tracing::warn!("Failed to load OPC-UA device configs: {}", e);
                 }
             }
-        } else if let Ok(configs) = storage.get_all_opcua_device_configs().await {
-            if !configs.is_empty() {
-                tracing::warn!(
-                    "OPC-UA devices configured but Professional tier required. Upgrade at https://voltrus.id"
-                );
-            }
+        } else if let Ok(configs) = storage.get_all_opcua_device_configs().await
+            && !configs.is_empty()
+        {
+            tracing::warn!(
+                "OPC-UA devices configured but Professional tier required. Upgrade at https://voltrus.id"
+            );
         }
     }
 
@@ -255,8 +269,13 @@ async fn main() -> anyhow::Result<()> {
             match storage.get_enabled_hub_sites().await {
                 Ok(sites) => {
                     for site in &sites {
-                        hm.start_site(site.clone(), cache.clone(), storage.clone()).await;
-                        tracing::info!("Started hub connector for site '{}' (id={})", site.name, site.id);
+                        hm.start_site(site.clone(), cache.clone(), storage.clone())
+                            .await;
+                        tracing::info!(
+                            "Started hub connector for site '{}' (id={})",
+                            site.name,
+                            site.id
+                        );
                     }
                     if !sites.is_empty() {
                         tracing::info!("Started {} hub site connector(s)", sites.len());
@@ -276,7 +295,10 @@ async fn main() -> anyhow::Result<()> {
     let email_notifier = match &app_config.smtp {
         Some(smtp_cfg) => match notification::email::EmailNotifier::new(smtp_cfg) {
             Ok(notifier) => {
-                tracing::info!("Email notifier initialized (from: {})", smtp_cfg.from_address);
+                tracing::info!(
+                    "Email notifier initialized (from: {})",
+                    smtp_cfg.from_address
+                );
                 Some(notifier)
             }
             Err(e) => {
@@ -297,7 +319,9 @@ async fn main() -> anyhow::Result<()> {
             );
             tracing::info!("PDF report scheduler started");
         } else {
-            tracing::info!("PDF reporting enabled but SMTP not configured — report scheduler not started");
+            tracing::info!(
+                "PDF reporting enabled but SMTP not configured — report scheduler not started"
+            );
         }
     }
 
@@ -352,10 +376,7 @@ async fn main() -> anyhow::Result<()> {
                     let mut value_map = std::collections::HashMap::new();
                     for snap in &snapshots {
                         for (metric, value) in &snap.metrics {
-                            value_map.insert(
-                                format!("{}:{}", snap.device_id, metric),
-                                *value,
-                            );
+                            value_map.insert(format!("{}:{}", snap.device_id, metric), *value);
                         }
                     }
 
@@ -364,7 +385,10 @@ async fn main() -> anyhow::Result<()> {
                             // Find device metrics
                             let metrics: std::collections::HashMap<String, f64> = snapshots
                                 .iter()
-                                .filter(|s| s.device_id == source.device_id && s.status == DeviceStatus::Online)
+                                .filter(|s| {
+                                    s.device_id == source.device_id
+                                        && s.status == DeviceStatus::Online
+                                })
                                 .flat_map(|s| s.metrics.clone())
                                 .collect();
 
@@ -373,8 +397,12 @@ async fn main() -> anyhow::Result<()> {
                             }
 
                             // Check for expression in source_config
-                            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&source.source_config) {
-                                if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
+                            if let Ok(cfg) =
+                                serde_json::from_str::<serde_json::Value>(&source.source_config)
+                            {
+                                if let Some(expr_str) =
+                                    cfg.get("expression").and_then(|v| v.as_str())
+                                {
                                     match expression::evaluate(expr_str, &metrics) {
                                         Ok(val) => val,
                                         Err(_) => continue,
@@ -394,7 +422,9 @@ async fn main() -> anyhow::Result<()> {
                         };
 
                         // Parse alarm deadband from source configuration
-                        let deadband: f64 = if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&source.source_config) {
+                        let deadband: f64 = if let Ok(cfg) =
+                            serde_json::from_str::<serde_json::Value>(&source.source_config)
+                        {
                             cfg.get("deadband").and_then(|v| v.as_f64()).unwrap_or(0.0)
                         } else {
                             0.0
@@ -402,14 +432,30 @@ async fn main() -> anyhow::Result<()> {
 
                         if source.crit_val > 0.0 && value >= source.crit_val {
                             // Non-repeating: check for any unresolved alarm (not just un-acked)
-                            let has_unresolved = storage.has_unresolved_alarm(&source.key, "critical").await.unwrap_or(false);
-                            let in_cooldown = storage.is_in_cooldown(&source.key, "critical").await.unwrap_or(false);
+                            let has_unresolved = storage
+                                .has_unresolved_alarm(&source.key, "critical")
+                                .await
+                                .unwrap_or(false);
+                            let in_cooldown = storage
+                                .is_in_cooldown(&source.key, "critical")
+                                .await
+                                .unwrap_or(false);
                             if !has_unresolved && !in_cooldown {
                                 let msg = format!(
                                     "{} reached {}{} (critical: {}{})",
                                     source.name, value, source.unit, source.crit_val, source.unit
                                 );
-                                match storage.create_alarm(&source.key, "critical", value, source.crit_val, &msg, deadband).await {
+                                match storage
+                                    .create_alarm(
+                                        &source.key,
+                                        "critical",
+                                        value,
+                                        source.crit_val,
+                                        &msg,
+                                        deadband,
+                                    )
+                                    .await
+                                {
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
@@ -460,14 +506,30 @@ async fn main() -> anyhow::Result<()> {
                             }
                         } else if source.warn_val > 0.0 && value >= source.warn_val {
                             // Non-repeating: check for any unresolved alarm (not just un-acked)
-                            let has_unresolved = storage.has_unresolved_alarm(&source.key, "warning").await.unwrap_or(false);
-                            let in_cooldown = storage.is_in_cooldown(&source.key, "warning").await.unwrap_or(false);
+                            let has_unresolved = storage
+                                .has_unresolved_alarm(&source.key, "warning")
+                                .await
+                                .unwrap_or(false);
+                            let in_cooldown = storage
+                                .is_in_cooldown(&source.key, "warning")
+                                .await
+                                .unwrap_or(false);
                             if !has_unresolved && !in_cooldown {
                                 let msg = format!(
                                     "{} reached {}{} (warning: {}{})",
                                     source.name, value, source.unit, source.warn_val, source.unit
                                 );
-                                match storage.create_alarm(&source.key, "warning", value, source.warn_val, &msg, deadband).await {
+                                match storage
+                                    .create_alarm(
+                                        &source.key,
+                                        "warning",
+                                        value,
+                                        source.warn_val,
+                                        &msg,
+                                        deadband,
+                                    )
+                                    .await
+                                {
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
@@ -520,7 +582,9 @@ async fn main() -> anyhow::Result<()> {
                             // Value below thresholds — resolve active alarms with deadband hysteresis.
                             // Only resolves alarms where value < threshold - deadband.
                             // Since deadband defaults to 0, existing behavior is unchanged.
-                            let _ = storage.resolve_active_alarms(&source.key, Some(value)).await;
+                            let _ = storage
+                                .resolve_active_alarms(&source.key, Some(value))
+                                .await;
                         }
                     }
                 }
@@ -573,7 +637,10 @@ async fn main() -> anyhow::Result<()> {
 
     let auth_secret = match &app_config.auth_secret {
         Some(secret) => {
-            anyhow::ensure!(secret.len() >= 16, "auth_secret must be at least 16 characters");
+            anyhow::ensure!(
+                secret.len() >= 16,
+                "auth_secret must be at least 16 characters"
+            );
             secret.clone()
         }
         None => {
@@ -595,8 +662,8 @@ async fn main() -> anyhow::Result<()> {
         issuer: app_config.oidc_issuer.clone(),
         audience: app_config.oidc_audience.clone(),
         jwks_url: app_config.oidc_jwks_url.clone(),
-        role_claim: app_config.oidc_role_claim.clone().into(),
-        admin_role: app_config.oidc_admin_role.clone().into(),
+        role_claim: app_config.oidc_role_claim.clone(),
+        admin_role: app_config.oidc_admin_role.clone(),
     };
 
     let jwks_manager = auth::oidc::JwksManager::new(&oidc_config.jwks_url);
@@ -614,12 +681,15 @@ async fn main() -> anyhow::Result<()> {
         let storage = storage.clone();
         tokio::spawn(async move {
             while let Some(event) = audit_rx.recv().await {
-                if let Err(e) = storage.log_audit_event(
-                    &event.action,
-                    &event.username,
-                    &event.resource,
-                    event.details.as_deref(),
-                ).await {
+                if let Err(e) = storage
+                    .log_audit_event(
+                        &event.action,
+                        &event.username,
+                        &event.resource,
+                        event.details.as_deref(),
+                    )
+                    .await
+                {
                     tracing::warn!("Failed to write audit log: {}", e);
                 }
             }
@@ -638,9 +708,13 @@ async fn main() -> anyhow::Result<()> {
                     *cfg = Some(mqtt_cfg.clone());
                 }
 
-                match crate::mqtt_broker::start_broker(broker_state.clone(), mqtt_cfg.clone()).await {
+                match crate::mqtt_broker::start_broker(broker_state.clone(), mqtt_cfg.clone()).await
+                {
                     Ok(()) => {
-                        tracing::info!("Embedded MQTT broker auto-started on port {}", mqtt_cfg.port);
+                        tracing::info!(
+                            "Embedded MQTT broker auto-started on port {}",
+                            mqtt_cfg.port
+                        );
                     }
                     Err(e) => {
                         tracing::warn!("Failed to auto-start MQTT broker: {}", e);
@@ -655,28 +729,37 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Initialize health monitor and HA state
-    let health_monitor = Arc::new(ha::watchdog::HealthMonitor::new(app_config.watchdog.clone()));
+    let health_monitor = Arc::new(ha::watchdog::HealthMonitor::new(
+        app_config.watchdog.clone(),
+    ));
     {
         let storage_check = {
             let storage = storage.clone();
-            move || {
-                match storage.conn_health() {
-                    true => Ok("ok".to_string()),
-                    false => Err("connection unhealthy".to_string()),
-                }
+            move || match storage.conn_health() {
+                true => Ok("ok".to_string()),
+                false => Err("connection unhealthy".to_string()),
             }
         };
-        health_monitor.register("storage", Box::new(storage_check)).await;
+        health_monitor
+            .register("storage", Box::new(storage_check))
+            .await;
     }
     if app_config.watchdog.enabled {
         health_monitor.start();
-        tracing::info!("Health monitor started (interval: {}s)", app_config.watchdog.health_check_interval_secs);
+        tracing::info!(
+            "Health monitor started (interval: {}s)",
+            app_config.watchdog.health_check_interval_secs
+        );
     }
 
     let ha_state = if app_config.ha.enabled {
         let state = ha::HaState::new(&app_config.ha);
         ha::start_ha(&app_config.ha, state.clone());
-        tracing::info!("HA enabled, node_id={}, role={}", app_config.ha.node_id, app_config.ha.role);
+        tracing::info!(
+            "HA enabled, node_id={}, role={}",
+            app_config.ha.node_id,
+            app_config.ha.role
+        );
         state
     } else {
         ha::HaState::disabled()
@@ -710,7 +793,9 @@ async fn main() -> anyhow::Result<()> {
         network_manager: network::NetworkManager::new(app_config.networks.clone()),
         health_monitor,
         ha_state,
-        widget_registry: widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
 
     api::stream::spawn_sse_composer(cache.clone(), storage.clone());

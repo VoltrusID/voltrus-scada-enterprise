@@ -22,7 +22,9 @@ async fn test_get_naming_convention_returns_ok() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["template"], "isa-5.1");
     assert!(json["templates"].is_array());

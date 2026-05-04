@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -26,10 +26,15 @@ pub async fn list_templates(
     Query(query): Query<ListTemplatesQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!("AI Copilot requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "AI Copilot requires Starter tier or above"
+        )));
     }
 
-    let templates = state.storage.list_equipment_templates(query.industry.as_deref()).await?;
+    let templates = state
+        .storage
+        .list_equipment_templates(query.industry.as_deref())
+        .await?;
     Ok(Json(templates))
 }
 
@@ -46,12 +51,15 @@ pub async fn generate_from_template(
     Json(body): Json<models::TemplateInstantiateRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!("AI Copilot requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "AI Copilot requires Starter tier or above"
+        )));
     }
 
     // Look up template by ID via list + filter (no dedicated get method)
     let templates = state.storage.list_equipment_templates(None).await?;
-    let template = templates.into_iter()
+    let template = templates
+        .into_iter()
         .find(|t| t.id == body.template_id)
         .ok_or_else(|| AppError(anyhow::anyhow!("Template not found")))?;
 
@@ -68,17 +76,23 @@ pub async fn generate_from_template(
         "flows": template.flow_template,
     });
 
-    let proposal_id = state.storage.create_ai_proposal(
-        "equipment_template",
-        &format!("Equipment template: {}", template.name),
-        &json!({"template_id": template.id, "prefix": prefix}).to_string(),
-        &config.to_string(),
-        body.device_id.as_deref(),
-        "template",
-        0,
-    ).await?;
+    let proposal_id = state
+        .storage
+        .create_ai_proposal(
+            "equipment_template",
+            &format!("Equipment template: {}", template.name),
+            &json!({"template_id": template.id, "prefix": prefix}).to_string(),
+            &config.to_string(),
+            body.device_id.as_deref(),
+            "template",
+            0,
+        )
+        .await?;
 
-    let proposal = state.storage.get_ai_proposal(proposal_id).await?
+    let proposal = state
+        .storage
+        .get_ai_proposal(proposal_id)
+        .await?
         .ok_or_else(|| AppError(anyhow::anyhow!("Failed to create proposal")))?;
 
     Ok(Json(proposal))

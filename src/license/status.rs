@@ -1,5 +1,5 @@
-use super::*;
 use super::tier::LicenseTier;
+use super::*;
 
 // ── License Status ──
 
@@ -46,16 +46,17 @@ pub enum LicenseStatus {
 
 impl LicenseStatus {
     pub fn is_valid(&self) -> bool {
-        matches!(self, LicenseStatus::Valid { .. } | LicenseStatus::Trial { .. })
+        matches!(
+            self,
+            LicenseStatus::Valid { .. } | LicenseStatus::Trial { .. }
+        )
     }
 
     /// Extracts the LicenseTier from Valid or Trial status.
     /// Defaults to Trial for all other statuses.
     pub fn tier(&self) -> LicenseTier {
         match self {
-            LicenseStatus::Valid { tier, .. } => {
-                LicenseTier::from_tier_str(tier.as_deref())
-            }
+            LicenseStatus::Valid { tier, .. } => LicenseTier::from_tier_str(tier.as_deref()),
             LicenseStatus::Trial { tier, .. } => tier.clone(),
             _ => LicenseTier::Trial,
         }

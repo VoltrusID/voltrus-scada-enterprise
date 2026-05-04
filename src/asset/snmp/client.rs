@@ -24,11 +24,7 @@ pub const OID_SYS_UP_TIME: &[u32] = &[1, 3, 6, 1, 2, 1, 1, 3, 0];
 ///
 /// This function performs blocking I/O (the `snmp` crate is synchronous) and
 /// is designed to be called from a `tokio::task::spawn_blocking` context.
-pub fn snmp_query_host(
-    ip: Ipv4Addr,
-    community: &str,
-    timeout_ms: u32,
-) -> Option<SnmpScanResult> {
+pub fn snmp_query_host(ip: Ipv4Addr, community: &str, timeout_ms: u32) -> Option<SnmpScanResult> {
     let addr = format!("{}:161", ip);
     let timeout = Duration::from_millis(timeout_ms as u64);
 
@@ -43,15 +39,10 @@ pub fn snmp_query_host(
 
     // Query sysDescr
     let sys_descr = match sess.get(OID_SYS_DESCR) {
-        Ok(mut resp) => resp
-            .varbinds
-            .next()
-            .and_then(|(_oid, val)| match val {
-                Value::OctetString(bytes) => {
-                    Some(String::from_utf8_lossy(bytes).into_owned())
-                }
-                _ => None,
-            }),
+        Ok(mut resp) => resp.varbinds.next().and_then(|(_oid, val)| match val {
+            Value::OctetString(bytes) => Some(String::from_utf8_lossy(bytes).into_owned()),
+            _ => None,
+        }),
         Err(e) => {
             debug!(%ip, error = ?e, "SNMP get sysDescr failed");
             return None;
@@ -59,33 +50,21 @@ pub fn snmp_query_host(
     };
 
     // Query sysName
-    let sys_name = sess
-        .get(OID_SYS_NAME)
-        .ok()
-        .and_then(|mut resp| {
-            resp.varbinds
-                .next()
-                .and_then(|(_oid, val)| match val {
-                    Value::OctetString(bytes) => {
-                        Some(String::from_utf8_lossy(bytes).into_owned())
-                    }
-                    _ => None,
-                })
-        });
+    let sys_name = sess.get(OID_SYS_NAME).ok().and_then(|mut resp| {
+        resp.varbinds.next().and_then(|(_oid, val)| match val {
+            Value::OctetString(bytes) => Some(String::from_utf8_lossy(bytes).into_owned()),
+            _ => None,
+        })
+    });
 
     // Query sysUpTime (Timeticks value in hundredths of a second)
-    let sys_uptime = sess
-        .get(OID_SYS_UP_TIME)
-        .ok()
-        .and_then(|mut resp| {
-            resp.varbinds
-                .next()
-                .and_then(|(_oid, val)| match val {
-                    Value::Timeticks(ticks) => Some(format_timeticks(ticks)),
-                    Value::Integer(n) => Some(format_timeticks(n as u32)),
-                    _ => None,
-                })
-        });
+    let sys_uptime = sess.get(OID_SYS_UP_TIME).ok().and_then(|mut resp| {
+        resp.varbinds.next().and_then(|(_oid, val)| match val {
+            Value::Timeticks(ticks) => Some(format_timeticks(ticks)),
+            Value::Integer(n) => Some(format_timeticks(n as u32)),
+            _ => None,
+        })
+    });
 
     let sys_descr_str = sys_descr.unwrap_or_default();
     let (vendor, model, firmware) = parse_sys_descr(&sys_descr_str);
@@ -222,10 +201,7 @@ fn parse_rockwell(descr: &str) -> (Option<String>, Option<String>, Option<String
 fn parse_schneider(descr: &str) -> (Option<String>, Option<String>, Option<String>) {
     let vendor = Some("Schneider Electric".to_string());
 
-    let model = extract_word_after(
-        descr,
-        &["Modicon ", "Quantum", "Premium", "M340", "M580"],
-    );
+    let model = extract_word_after(descr, &["Modicon ", "Quantum", "Premium", "M340", "M580"]);
     let firmware = extract_version(descr);
 
     (vendor, model, firmware)
@@ -243,10 +219,10 @@ fn parse_cisco(descr: &str) -> (Option<String>, Option<String>, Option<String>) 
 fn parse_generic(descr: &str) -> (Option<String>, Option<String>, Option<String>) {
     // Try to find a vendor-like word (capitalised, early in the string)
     let vendor = descr
-        .split(|c: char| c == ',' || c == '\n' || c == ';')
+        .split([',', '\n', ';'])
         .next()
         .and_then(|s| s.split_whitespace().next())
-        .filter(|w| w.len() > 1 && w.chars().next().map_or(false, |c| c.is_uppercase()))
+        .filter(|w| w.len() > 1 && w.chars().next().is_some_and(|c| c.is_uppercase()))
         .map(|w| w.trim_end_matches(',').to_string());
 
     let firmware = extract_version(descr);

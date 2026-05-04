@@ -72,13 +72,28 @@ fn test_backup_creates_archive() {
 fn test_backup_fails_when_db_missing() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let opts = BackupOptions {
-        config_path: tmp_dir.path().join("config.yaml").to_str().unwrap().to_string(),
-        db_path: tmp_dir.path().join("nonexistent.db").to_str().unwrap().to_string(),
+        config_path: tmp_dir
+            .path()
+            .join("config.yaml")
+            .to_str()
+            .unwrap()
+            .to_string(),
+        db_path: tmp_dir
+            .path()
+            .join("nonexistent.db")
+            .to_str()
+            .unwrap()
+            .to_string(),
         output_path: None,
     };
     let result = run_backup(opts);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Database file not found"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Database file not found")
+    );
 }
 
 #[test]
@@ -92,7 +107,12 @@ fn test_backup_without_config_file() {
 
     let output_path = tmp_dir.path().join("backup.tar.gz");
     let opts = BackupOptions {
-        config_path: tmp_dir.path().join("nope.yaml").to_str().unwrap().to_string(),
+        config_path: tmp_dir
+            .path()
+            .join("nope.yaml")
+            .to_str()
+            .unwrap()
+            .to_string(),
         db_path: db_path.to_str().unwrap().to_string(),
         output_path: Some(output_path.to_str().unwrap().to_string()),
     };
@@ -179,7 +199,12 @@ fn test_restore_fails_on_invalid_archive() {
 
     let restore_opts = RestoreOptions {
         archive_path: fake_archive.to_str().unwrap().to_string(),
-        config_path: tmp_dir.path().join("config.yaml").to_str().unwrap().to_string(),
+        config_path: tmp_dir
+            .path()
+            .join("config.yaml")
+            .to_str()
+            .unwrap()
+            .to_string(),
         db_path: tmp_dir.path().join("data.db").to_str().unwrap().to_string(),
         force: true,
     };
@@ -228,7 +253,12 @@ fn test_restore_missing_data_db_fails() {
 
     let restore_opts = RestoreOptions {
         archive_path: archive_path.to_str().unwrap().to_string(),
-        config_path: tmp_dir.path().join("config.yaml").to_str().unwrap().to_string(),
+        config_path: tmp_dir
+            .path()
+            .join("config.yaml")
+            .to_str()
+            .unwrap()
+            .to_string(),
         db_path: tmp_dir.path().join("data.db").to_str().unwrap().to_string(),
         force: true,
     };
@@ -284,7 +314,8 @@ fn test_restore_creates_pre_restore_backup() {
     let existing_db = tmp_dir.path().join("data.db");
     let existing_config = tmp_dir.path().join("config.yaml");
     let conn = Connection::open(&existing_db).unwrap();
-    conn.execute("CREATE TABLE existing (val TEXT)", []).unwrap();
+    conn.execute("CREATE TABLE existing (val TEXT)", [])
+        .unwrap();
     conn.execute("INSERT INTO existing (val) VALUES ('old_data')", [])
         .unwrap();
     drop(conn);
@@ -297,9 +328,11 @@ fn test_restore_creates_pre_restore_backup() {
     let source_db = backup_dir.path().join("data.db");
     let source_config = backup_dir.path().join("config.yaml");
     let conn2 = Connection::open(&source_db).unwrap();
-    conn2.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, val TEXT)", [])
+    conn2
+        .execute("CREATE TABLE test (id INTEGER PRIMARY KEY, val TEXT)", [])
         .unwrap();
-    conn2.execute("INSERT INTO test (val) VALUES ('new_data')", [])
+    conn2
+        .execute("INSERT INTO test (val) VALUES ('new_data')", [])
         .unwrap();
     drop(conn2);
     let mut f2 = File::create(&source_config).unwrap();
