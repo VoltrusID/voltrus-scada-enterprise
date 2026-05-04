@@ -265,6 +265,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/oee/shifts", get(oee::list_shifts))
         .route("/api/v1/analytics/aggregate", get(analytics::get_aggregate))
         .route("/api/v1/analytics/compare", get(analytics::get_compare))
+        .route("/api/v1/settings/ui-theme", get(settings::get_ui_theme).put(settings::update_ui_theme))
+        .route("/api/v1/settings/ui-lang", get(settings::get_ui_lang).put(settings::update_ui_lang))
         .route(
             "/api/v1/modbus-devices/{id}",
             get(modbus_devices::get_modbus_device),

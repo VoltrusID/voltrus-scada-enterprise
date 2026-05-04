@@ -5,6 +5,7 @@ mod flows;
 mod api_keys;
 mod license_tier;
 mod analytics;
+mod ui_preferences;
 
 pub use helpers::*;
 
