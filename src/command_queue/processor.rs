@@ -26,7 +26,8 @@ impl CommandQueue {
 
     /// Main loop: process the queue every 500 ms.
     pub async fn run(&self) {
-        let mut interval = tokio::time::interval(std::time::Duration::from_millis(POLL_INTERVAL_MS));
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_millis(POLL_INTERVAL_MS));
         loop {
             interval.tick().await;
             if let Err(e) = self.process_queue().await {
@@ -57,12 +58,11 @@ impl CommandQueue {
             }
 
             // -- Scheduled check --
-            if cmd.policy == "scheduled" {
-                if let Some(scheduled_at) = cmd.scheduled_at {
-                    if scheduled_at > now {
-                        continue; // Not yet time
-                    }
-                }
+            if cmd.policy == "scheduled"
+                && let Some(scheduled_at) = cmd.scheduled_at
+                && scheduled_at > now
+            {
+                continue; // Not yet time
             }
 
             // -- Concurrency check: only one command per device in-flight --

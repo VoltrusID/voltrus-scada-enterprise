@@ -98,27 +98,44 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             if let Some(name) = name {
-                conn.execute("UPDATE reports SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
-                    .context("Update report name failed")?;
+                conn.execute(
+                    "UPDATE reports SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update report name failed")?;
             }
             if let Some(schedule) = schedule {
-                conn.execute("UPDATE reports SET schedule = ?1 WHERE id = ?2", rusqlite::params![schedule, id])
-                    .context("Update report schedule failed")?;
+                conn.execute(
+                    "UPDATE reports SET schedule = ?1 WHERE id = ?2",
+                    rusqlite::params![schedule, id],
+                )
+                .context("Update report schedule failed")?;
             }
             if let Some(device_ids) = device_ids {
-                conn.execute("UPDATE reports SET device_ids = ?1 WHERE id = ?2", rusqlite::params![device_ids, id])
-                    .context("Update report device_ids failed")?;
+                conn.execute(
+                    "UPDATE reports SET device_ids = ?1 WHERE id = ?2",
+                    rusqlite::params![device_ids, id],
+                )
+                .context("Update report device_ids failed")?;
             }
             if let Some(email_recipients) = email_recipients {
-                conn.execute("UPDATE reports SET email_recipients = ?1 WHERE id = ?2", rusqlite::params![email_recipients, id])
-                    .context("Update report email_recipients failed")?;
+                conn.execute(
+                    "UPDATE reports SET email_recipients = ?1 WHERE id = ?2",
+                    rusqlite::params![email_recipients, id],
+                )
+                .context("Update report email_recipients failed")?;
             }
             if let Some(enabled) = enabled {
-                conn.execute("UPDATE reports SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
-                    .context("Update report enabled failed")?;
+                conn.execute(
+                    "UPDATE reports SET enabled = ?1 WHERE id = ?2",
+                    rusqlite::params![enabled as i64, id],
+                )
+                .context("Update report enabled failed")?;
             }
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_report(&self, id: i64) -> Result<()> {
@@ -128,7 +145,9 @@ impl Storage {
             conn.execute("DELETE FROM reports WHERE id = ?1", rusqlite::params![id])
                 .context("Delete report failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn update_report_last_generated(&self, id: i64, ts: i64) -> Result<()> {
@@ -138,9 +157,11 @@ impl Storage {
             conn.execute(
                 "UPDATE reports SET last_generated = ?1 WHERE id = ?2",
                 rusqlite::params![ts, id],
-            ).context("Update report last_generated failed")?;
+            )
+            .context("Update report last_generated failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
-
 }

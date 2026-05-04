@@ -1,12 +1,11 @@
 use axum::extract::State;
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 
 use crate::api::{AppError, AppState};
 
 /// NIS2 compliance CSV export headers.
-const NIS2_HEADERS: &str =
-    "name,type,vendor,model,serial_number,firmware,latest_firmware,firmware_status,last_maintenance,risk_score,criticality,location,ip_address";
+const NIS2_HEADERS: &str = "name,type,vendor,model,serial_number,firmware,latest_firmware,firmware_status,last_maintenance,risk_score,criticality,location,ip_address";
 
 // ── NIS2 Export ──
 
@@ -19,9 +18,7 @@ const NIS2_HEADERS: &str =
     tag = "Assets",
     security(("api_key" = []), ("cookie_auth" = []))
 )]
-pub async fn nis2_export(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn nis2_export(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let assets = state
         .storage
         .asset()
@@ -33,9 +30,7 @@ pub async fn nis2_export(
 
     for asset in &assets {
         // Look up latest firmware from catalog
-        let latest_firmware = if let (Some(vendor), Some(model)) =
-            (&asset.vendor, &asset.model)
-        {
+        let latest_firmware = if let (Some(vendor), Some(model)) = (&asset.vendor, &asset.model) {
             state
                 .storage
                 .asset()

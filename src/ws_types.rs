@@ -3,9 +3,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
-    Auth { token: String },
-    Subscribe { tag_ids: Vec<String> },
-    Unsubscribe { tag_ids: Vec<String> },
+    Auth {
+        token: String,
+    },
+    Subscribe {
+        tag_ids: Vec<String>,
+    },
+    Unsubscribe {
+        tag_ids: Vec<String>,
+    },
     TagWrite {
         tag_id: String,
         value: f64,
@@ -104,10 +110,16 @@ mod tests {
     #[test]
     fn test_all_client_message_types() {
         let messages = vec![
-            ClientMessage::Auth { token: "test-jwt".to_string() },
+            ClientMessage::Auth {
+                token: "test-jwt".to_string(),
+            },
             ClientMessage::Subscribe { tag_ids: vec![] },
             ClientMessage::Unsubscribe { tag_ids: vec![] },
-            ClientMessage::TagWrite { tag_id: "t1".to_string(), value: 42.0, command_id: None },
+            ClientMessage::TagWrite {
+                tag_id: "t1".to_string(),
+                value: 42.0,
+                command_id: None,
+            },
             ClientMessage::Ping,
         ];
         for msg in &messages {
@@ -119,12 +131,39 @@ mod tests {
     #[test]
     fn test_all_server_message_types() {
         let messages = vec![
-            ServerMessage::AuthOk { user: "admin".to_string(), permissions: vec![] },
-            ServerMessage::AuthError { message: "bad token".to_string() },
-            ServerMessage::TagUpdate { tag_id: "t".to_string(), value: 1.0, quality: "good".to_string(), ts: 0, simulated: false },
-            ServerMessage::CommandAck { command_id: "c1".to_string(), status: "acked".to_string(), device_response: None, latency_ms: Some(50) },
-            ServerMessage::DeviceStatus { device_id: "d1".to_string(), online: true, latency_ms: Some(10) },
-            ServerMessage::Alarm { alarm_id: 1, tag_id: "t".to_string(), severity: "warning".to_string(), message: "high".to_string(), value: 99.0, ts: 0 },
+            ServerMessage::AuthOk {
+                user: "admin".to_string(),
+                permissions: vec![],
+            },
+            ServerMessage::AuthError {
+                message: "bad token".to_string(),
+            },
+            ServerMessage::TagUpdate {
+                tag_id: "t".to_string(),
+                value: 1.0,
+                quality: "good".to_string(),
+                ts: 0,
+                simulated: false,
+            },
+            ServerMessage::CommandAck {
+                command_id: "c1".to_string(),
+                status: "acked".to_string(),
+                device_response: None,
+                latency_ms: Some(50),
+            },
+            ServerMessage::DeviceStatus {
+                device_id: "d1".to_string(),
+                online: true,
+                latency_ms: Some(10),
+            },
+            ServerMessage::Alarm {
+                alarm_id: 1,
+                tag_id: "t".to_string(),
+                severity: "warning".to_string(),
+                message: "high".to_string(),
+                value: 99.0,
+                ts: 0,
+            },
             ServerMessage::Pong,
         ];
         for msg in &messages {
@@ -144,6 +183,9 @@ mod tests {
         };
         let msgpack_bytes = rmp_serde::to_vec(&msg).unwrap();
         let json_bytes = serde_json::to_vec(&msg).unwrap();
-        assert!(msgpack_bytes.len() < json_bytes.len(), "MessagePack should be smaller than JSON");
+        assert!(
+            msgpack_bytes.len() < json_bytes.len(),
+            "MessagePack should be smaller than JSON"
+        );
     }
 }

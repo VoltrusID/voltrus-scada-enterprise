@@ -1,3 +1,4 @@
+#![allow(clippy::vec_init_then_push)]
 use anyhow::Result;
 
 use super::types::*;
@@ -105,7 +106,7 @@ pub fn build_symbolic_path(tag_name: &str) -> Vec<u8> {
         path.extend_from_slice(bytes);
 
         // Pad to even length
-        if len % 2 != 0 {
+        if !len.is_multiple_of(2) {
             path.push(0x00);
         }
     } else {
@@ -125,7 +126,10 @@ pub fn build_symbolic_path(tag_name: &str) -> Vec<u8> {
 /// Encode a CipValue to (type_code, data bytes).
 pub fn encode_cip_value(value: &CipValue) -> (u8, Vec<u8>) {
     match value {
-        CipValue::Bool(b) => (CIP_TYPE_BOOL, vec![if *b { 0xFF } else { 0x00 }, 0x00, 0x00, 0x00]),
+        CipValue::Bool(b) => (
+            CIP_TYPE_BOOL,
+            vec![if *b { 0xFF } else { 0x00 }, 0x00, 0x00, 0x00],
+        ),
         CipValue::Sint(v) => (CIP_TYPE_SINT, vec![*v as u8, 0x00, 0x00, 0x00]),
         CipValue::Int(v) => (CIP_TYPE_INT, v.to_le_bytes().to_vec()),
         CipValue::Dint(v) => (CIP_TYPE_DINT, v.to_le_bytes().to_vec()),
@@ -183,7 +187,7 @@ pub fn parse_read_tag_response(data: &[u8]) -> Result<CipValue> {
     let type_low = type_code as u8;
 
     // For partial reads, skip to data after the type field
-    let data_start = if status == CIP_STATUS_PARTIAL { 6 } else { 6 };
+    let data_start = 6;
     let value_data = &data[data_start..];
 
     decode_cip_value(type_low, value_data)
@@ -318,7 +322,7 @@ pub fn parse_symbol_instance(data: &[u8]) -> Option<CipTag> {
     // Type word: upper byte has element count flags, lower byte has type code
     let type_word = u16::from_le_bytes(data[type_offset..type_offset + 2].try_into().ok()?);
     let type_code = (type_word & 0xFF) as u8;
-    let element_count = ((type_word >> 8) & 0xFF) as u16;
+    let element_count = (type_word >> 8) & 0xFF;
 
     let data_type = CipDataType::from_code(type_code)?;
 

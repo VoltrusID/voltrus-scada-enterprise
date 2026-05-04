@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use super::{parse_rtsp_url, RtspResponse, SdpInfo};
+use super::{RtspResponse, SdpInfo, parse_rtsp_url};
 
 // ── RTSP Client ──
 
@@ -19,8 +19,7 @@ pub struct RtspClient {
 
 impl RtspClient {
     pub fn new(url: &str) -> Self {
-        let (host, port, path, credentials) =
-            parse_rtsp_url(url).unwrap_or_default();
+        let (host, port, path, credentials) = parse_rtsp_url(url).unwrap_or_default();
         RtspClient {
             stream: None,
             url: url.to_string(),
@@ -64,10 +63,7 @@ impl RtspClient {
     /// Build a complete RTSP request string.
     pub fn build_request(&mut self, method: &str, extra_headers: &str) -> String {
         let cseq = self.next_cseq();
-        let mut req = format!(
-            "{} {} RTSP/1.0\r\nCSeq: {}\r\n",
-            method, self.url, cseq
-        );
+        let mut req = format!("{} {} RTSP/1.0\r\nCSeq: {}\r\n", method, self.url, cseq);
         req.push_str(&self.auth_header());
         if let Some(ref sid) = self.session_id {
             req.push_str(&format!("Session: {}\r\n", sid));
@@ -154,11 +150,7 @@ impl RtspClient {
         stream.flush().await?;
         let resp = self.read_response().await?;
         if resp.status_code != 200 {
-            anyhow::bail!(
-                "DESCRIBE failed: {} {}",
-                resp.status_code,
-                resp.status_text
-            );
+            anyhow::bail!("DESCRIBE failed: {} {}", resp.status_code, resp.status_text);
         }
         SdpInfo::parse(&resp.body)
     }
@@ -183,11 +175,7 @@ impl RtspClient {
         stream.flush().await?;
         let resp = self.read_response().await?;
         if resp.status_code != 200 {
-            anyhow::bail!(
-                "SETUP failed: {} {}",
-                resp.status_code,
-                resp.status_text
-            );
+            anyhow::bail!("SETUP failed: {} {}", resp.status_code, resp.status_text);
         }
         let session_id = resp
             .header("Session")

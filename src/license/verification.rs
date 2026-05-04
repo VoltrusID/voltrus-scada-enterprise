@@ -1,6 +1,6 @@
-use super::*;
 use super::status::LicenseStatus;
 use super::tier::LicenseTier;
+use super::*;
 
 // ── License Verification (existing CLI flow) ──
 
@@ -15,17 +15,20 @@ pub async fn verify_license(storage: &Storage) -> LicenseStatus {
         Err(e) => {
             tracing::error!("Failed to read license activation: {}", e);
             return LicenseStatus::Corrupted {
-                message: "License data is corrupted. Please reactivate your installation.".to_string(),
+                message: "License data is corrupted. Please reactivate your installation."
+                    .to_string(),
             };
         }
     };
 
-    let activation = match activation::verify_activation_signature(&activation_row.activation_blob) {
+    let activation = match activation::verify_activation_signature(&activation_row.activation_blob)
+    {
         Ok(a) => a,
         Err(e) => {
             tracing::error!("License signature verification failed: {}", e);
             return LicenseStatus::InvalidSignature {
-                message: "Invalid activation file. Please reactivate your installation.".to_string(),
+                message: "Invalid activation file. Please reactivate your installation."
+                    .to_string(),
             };
         }
     };
@@ -56,8 +59,10 @@ pub async fn verify_license(storage: &Storage) -> LicenseStatus {
         Some(ref expires_at_str) => {
             let days = time::OffsetDateTime::parse(
                 expires_at_str,
-                &time::format_description::well_known::Rfc3339
-            ).ok().map(|exp| {
+                &time::format_description::well_known::Rfc3339,
+            )
+            .ok()
+            .map(|exp| {
                 let now = time::OffsetDateTime::now_utc();
                 let duration = exp - now;
                 duration.whole_days().max(0)
@@ -96,7 +101,8 @@ pub async fn resolve_license_status(storage: &Storage) -> LicenseStatus {
         Err(e) => {
             tracing::error!("Failed to read license activation: {}", e);
             return LicenseStatus::Corrupted {
-                message: "License data is corrupted. Please reactivate your installation.".to_string(),
+                message: "License data is corrupted. Please reactivate your installation."
+                    .to_string(),
             };
         }
     }
@@ -162,5 +168,7 @@ async fn get_trial_start(storage: &Storage) -> anyhow::Result<Option<i64>> {
 
 /// Persists the trial start timestamp to the settings KV store.
 async fn set_trial_start(storage: &Storage, ts: i64) -> anyhow::Result<()> {
-    storage.upsert_setting(TRIAL_START_KEY, &ts.to_string()).await
+    storage
+        .upsert_setting(TRIAL_START_KEY, &ts.to_string())
+        .await
 }

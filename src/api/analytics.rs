@@ -1,12 +1,14 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 
 use crate::analytics::{self, custom};
 use crate::api::{AppError, AppState};
-use crate::models::{CreateCustomMetricRequest, CustomMetric, CustomMetricValue, UpdateCustomMetricRequest};
+use crate::models::{
+    CreateCustomMetricRequest, CustomMetric, CustomMetricValue, UpdateCustomMetricRequest,
+};
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct AggregateQuery {
@@ -18,7 +20,9 @@ pub struct AggregateQuery {
     pub interval: i64,
 }
 
-fn default_interval() -> i64 { 3600 }
+fn default_interval() -> i64 {
+    3600
+}
 
 #[utoipa::path(
     get,
@@ -109,7 +113,9 @@ pub struct SpcQuery {
     pub chart_type: Option<String>,
 }
 
-fn default_subgroup() -> usize { 5 }
+fn default_subgroup() -> usize {
+    5
+}
 
 #[utoipa::path(
     get,
@@ -127,10 +133,13 @@ pub async fn get_spc(
     Query(q): Query<SpcQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
-    let rows = state.storage
+    let rows = state
+        .storage
         .get_metric_values_for_range(&q.device_id, &q.metric, q.from, q.to)
         .await?;
 
@@ -144,8 +153,9 @@ pub async fn get_spc(
     let chart_type = q.chart_type.as_deref().unwrap_or("xbar_r");
     let result = match chart_type {
         "cusum" => {
-            let result = analytics::spc::spc_calculations::cusum(&values, 0.0, 0.5, 4.0, &timestamps)
-                .map_err(|e| AppError(anyhow::anyhow!(e)))?;
+            let result =
+                analytics::spc::spc_calculations::cusum(&values, 0.0, 0.5, 4.0, &timestamps)
+                    .map_err(|e| AppError(anyhow::anyhow!(e)))?;
             serde_json::to_value(result).unwrap_or_default()
         }
         "ewma" => {
@@ -154,8 +164,9 @@ pub async fn get_spc(
             serde_json::to_value(result).unwrap_or_default()
         }
         _ => {
-            let (xbar, r) = analytics::spc::spc_calculations::xbar_r(&values, q.subgroup_size, &timestamps)
-                .map_err(|e| AppError(anyhow::anyhow!(e)))?;
+            let (xbar, r) =
+                analytics::spc::spc_calculations::xbar_r(&values, q.subgroup_size, &timestamps)
+                    .map_err(|e| AppError(anyhow::anyhow!(e)))?;
             serde_json::json!({"xbar": xbar, "r": r})
         }
     };
@@ -175,7 +186,9 @@ pub struct HistogramQuery {
     pub usl: Option<f64>,
 }
 
-fn default_bins() -> u32 { 20 }
+fn default_bins() -> u32 {
+    20
+}
 
 #[utoipa::path(
     get,
@@ -193,10 +206,13 @@ pub async fn get_histogram(
     Query(q): Query<HistogramQuery>,
 ) -> Result<Json<crate::models::HistogramResult>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
-    let rows = state.storage
+    let rows = state
+        .storage
         .get_metric_values_for_range(&q.device_id, &q.metric, q.from, q.to)
         .await?;
 
@@ -232,10 +248,13 @@ pub async fn get_run_chart(
     Query(q): Query<RunChartQuery>,
 ) -> Result<Json<crate::models::RunChartResult>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
-    let rows = state.storage
+    let rows = state
+        .storage
         .get_metric_values_for_range(&q.device_id, &q.metric, q.from, q.to)
         .await?;
 
@@ -261,7 +280,9 @@ pub async fn list_custom_metrics(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<CustomMetric>>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
     let metrics = state.storage.list_custom_metrics().await?;
@@ -283,25 +304,27 @@ pub async fn create_custom_metric(
     Json(body): Json<CreateCustomMetricRequest>,
 ) -> Result<Json<CustomMetric>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
     let tag_refs = custom::extract_tag_refs(&body.formula);
     let tag_refs_json = serde_json::to_string(&tag_refs).unwrap_or_else(|_| "[]".to_string());
 
-    let validation_error = match custom::validate_formula(&body.formula) {
-        Ok(()) => None,
-        Err(e) => Some(e),
-    };
+    let validation_error = custom::validate_formula(&body.formula).err();
 
-    let metric = state.storage.create_custom_metric(
-        &body.name,
-        &body.description,
-        &body.formula,
-        body.unit.as_deref(),
-        &tag_refs_json,
-        validation_error.as_deref(),
-    ).await?;
+    let metric = state
+        .storage
+        .create_custom_metric(
+            &body.name,
+            &body.description,
+            &body.formula,
+            body.unit.as_deref(),
+            &tag_refs_json,
+            validation_error.as_deref(),
+        )
+        .await?;
 
     Ok(Json(metric))
 }
@@ -322,31 +345,33 @@ pub async fn update_custom_metric(
     Json(body): Json<UpdateCustomMetricRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
     // If formula changed, revalidate
     let (tag_refs, validation_error) = if let Some(ref formula) = body.formula {
         let refs = custom::extract_tag_refs(formula);
         let refs_json = serde_json::to_string(&refs).unwrap_or_else(|_| "[]".to_string());
-        let err = match custom::validate_formula(formula) {
-            Ok(()) => None,
-            Err(e) => Some(e),
-        };
+        let err = custom::validate_formula(formula).err();
         (Some(refs_json), err)
     } else {
         (None, None)
     };
 
-    state.storage.update_custom_metric(
-        id,
-        body.name.as_deref(),
-        body.description.as_deref(),
-        body.formula.as_deref(),
-        body.unit.as_ref().map(|o| o.as_deref()),
-        tag_refs.as_deref(),
-        Some(validation_error.as_ref().map(|o| o.as_str())),
-    ).await?;
+    state
+        .storage
+        .update_custom_metric(
+            id,
+            body.name.as_deref(),
+            body.description.as_deref(),
+            body.formula.as_deref(),
+            body.unit.as_ref().map(|o| o.as_deref()),
+            tag_refs.as_deref(),
+            Some(validation_error.as_deref()),
+        )
+        .await?;
 
     Ok(Json(serde_json::json!({"ok": true})))
 }
@@ -365,7 +390,9 @@ pub async fn delete_custom_metric(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
     state.storage.delete_custom_metric(id).await?;
@@ -385,7 +412,9 @@ pub async fn evaluate_all_custom_metrics(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<CustomMetricValue>>, AppError> {
     if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!("Analytics requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "Analytics requires Starter tier or above"
+        )));
     }
 
     let results = custom::evaluate_all_metrics(&state.storage, &state.cache).await?;

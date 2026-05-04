@@ -1,15 +1,15 @@
 mod devices;
-mod objects;
 mod discover;
+mod objects;
 
 pub use devices::*;
-pub use objects::*;
 pub use discover::*;
+pub use objects::*;
 
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 

@@ -1,13 +1,10 @@
 use anyhow::{Context, Result};
 
-
 // ── RTSP URL Parsing ──
 
 /// Parse an RTSP URL into (host, port, path, optional_credentials).
 /// Returns `((host, port, path), Option<(username, password)>)`.
-pub fn parse_rtsp_url(
-    url: &str,
-) -> Result<(String, u16, String, Option<(String, String)>)> {
+pub fn parse_rtsp_url(url: &str) -> Result<(String, u16, String, Option<(String, String)>)> {
     if !url.starts_with("rtsp://") {
         anyhow::bail!("URL must start with rtsp://");
     }
@@ -40,8 +37,8 @@ pub fn parse_rtsp_url(
             .context("Invalid IPv6 address in RTSP URL")?;
         let host = host_port[..=close].to_string();
         let rest = &host_port[close + 1..];
-        let port = if rest.starts_with(':') {
-            rest[1..].parse::<u16>().unwrap_or(554)
+        let port = if let Some(s) = rest.strip_prefix(':') {
+            s.parse::<u16>().unwrap_or(554)
         } else {
             554
         };
@@ -86,9 +83,7 @@ impl RtspResponse {
     /// Parse an RTSP response from raw text.
     pub fn parse(raw: &str) -> Result<Self> {
         let mut lines = raw.lines();
-        let status_line = lines
-            .next()
-            .context("Empty RTSP response")?;
+        let status_line = lines.next().context("Empty RTSP response")?;
 
         let mut parts = status_line.splitn(3, ' ');
         let _version = parts.next().context("Missing RTSP version")?;
@@ -159,9 +154,8 @@ impl SdpInfo {
                 if parts.len() >= 2 {
                     bandwidth = parts[1].trim().parse().ok();
                 }
-            } else if line.starts_with("a=rtpmap:") {
+            } else if let Some(rest) = line.strip_prefix("a=rtpmap:") {
                 // e.g. a=rtpmap:96 JPEG/90000
-                let rest = &line["a=rtpmap:".len()..];
                 if let Some(space_pos) = rest.find(' ') {
                     codec = rest[space_pos + 1..]
                         .split('/')

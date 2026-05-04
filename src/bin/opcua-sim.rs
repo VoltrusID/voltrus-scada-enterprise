@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use opcua::server::diagnostics::NamespaceMetadata;
-use opcua::server::node_manager::memory::{simple_node_manager, SimpleNodeManager};
-use opcua::server::address_space::Variable;
-use opcua::server::ServerBuilder;
-use opcua::types::{BuildInfo, DataValue, DateTime, MessageSecurityMode, NodeId};
 use opcua::crypto::SecurityPolicy;
 use opcua::server::ANONYMOUS_USER_TOKEN_ID;
+use opcua::server::ServerBuilder;
+use opcua::server::address_space::Variable;
+use opcua::server::diagnostics::NamespaceMetadata;
+use opcua::server::node_manager::memory::{SimpleNodeManager, simple_node_manager};
+use opcua::types::{BuildInfo, DataValue, DateTime, MessageSecurityMode, NodeId};
 use rand::Rng;
 
 // --- Data Store ---
@@ -59,8 +59,8 @@ impl MeterData {
 
         // Power factor: slow drift per phase
         for i in 0..3 {
-            self.power_factor[i] = (self.power_factor[i] + rng.random_range(-0.005..0.005))
-                .clamp(0.80, 0.99);
+            self.power_factor[i] =
+                (self.power_factor[i] + rng.random_range(-0.005..0.005)).clamp(0.80, 0.99);
         }
 
         // Frequency: tight around 50Hz
@@ -103,10 +103,7 @@ fn parse_args() -> (u16, u64) {
                 i += 2;
             }
             "--delay" => {
-                delay_ms = args
-                    .get(i + 1)
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0);
+                delay_ms = args.get(i + 1).and_then(|v| v.parse().ok()).unwrap_or(0);
                 i += 2;
             }
             _ => {
@@ -285,7 +282,8 @@ async fn main() -> Result<()> {
             // Update 3-phase voltage nodes
             for (i, name) in voltage_names.iter().enumerate() {
                 let node_id = NodeId::new(ns, *name);
-                if let Err(e) = nm.set_value(&subs, &node_id, None, DataValue::new_now(data.voltage[i]))
+                if let Err(e) =
+                    nm.set_value(&subs, &node_id, None, DataValue::new_now(data.voltage[i]))
                 {
                     tracing::warn!("Failed to update {name}: {e:?}");
                 }
@@ -294,7 +292,8 @@ async fn main() -> Result<()> {
             // Update 3-phase current nodes
             for (i, name) in current_names.iter().enumerate() {
                 let node_id = NodeId::new(ns, *name);
-                if let Err(e) = nm.set_value(&subs, &node_id, None, DataValue::new_now(data.current[i]))
+                if let Err(e) =
+                    nm.set_value(&subs, &node_id, None, DataValue::new_now(data.current[i]))
                 {
                     tracing::warn!("Failed to update {name}: {e:?}");
                 }
@@ -304,8 +303,7 @@ async fn main() -> Result<()> {
             {
                 let avg_pf: f64 = data.power_factor.iter().sum::<f64>() / 3.0;
                 let node_id = NodeId::new(ns, "PowerFactor");
-                if let Err(e) = nm.set_value(&subs, &node_id, None, DataValue::new_now(avg_pf))
-                {
+                if let Err(e) = nm.set_value(&subs, &node_id, None, DataValue::new_now(avg_pf)) {
                     tracing::warn!("Failed to update PowerFactor: {e:?}");
                 }
             }
@@ -366,9 +364,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    tracing::info!(
-        "OPC-UA 3-phase energy meter simulator listening on 0.0.0.0:{port}"
-    );
+    tracing::info!("OPC-UA 3-phase energy meter simulator listening on 0.0.0.0:{port}");
     tracing::info!("Endpoint: {endpoint_path}");
     if delay_ms > 0 {
         tracing::info!("PLC delay simulation: {delay_ms}ms between updates");
@@ -382,7 +378,10 @@ async fn main() -> Result<()> {
         handle_c.cancel();
     });
 
-    server.run().await.map_err(|e| anyhow::anyhow!("Server error: {e}"))?;
+    server
+        .run()
+        .await
+        .map_err(|e| anyhow::anyhow!("Server error: {e}"))?;
 
     Ok(())
 }

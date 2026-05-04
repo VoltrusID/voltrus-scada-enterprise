@@ -23,7 +23,7 @@ impl Storage {
         permissions: &str,
     ) -> Result<(i64, String)> {
         use rand::Rng;
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         // Generate 32 random bytes, hex-encoded = 64-char key
         let key_bytes: [u8; 32] = rand::rng().random();
@@ -57,7 +57,7 @@ impl Storage {
 
     /// Validate an API key by hashing it and looking it up. Returns (id, permissions) if valid.
     pub async fn validate_api_key(&self, key: &str) -> Result<Option<(i64, String)>> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
         hasher.update(key.as_bytes());
@@ -68,23 +68,25 @@ impl Storage {
 
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT id, permissions, expires_at FROM api_keys WHERE key_hash = ?1"
-            ).context("Prepare failed")?;
-            let result = stmt.query_row(rusqlite::params![key_hash], |row| {
-                let id: i64 = row.get(0)?;
-                let permissions: String = row.get(1)?;
-                let expires_at: Option<i64> = row.get(2)?;
-                Ok((id, permissions, expires_at))
-            }).ok();
+            let mut stmt = conn
+                .prepare("SELECT id, permissions, expires_at FROM api_keys WHERE key_hash = ?1")
+                .context("Prepare failed")?;
+            let result = stmt
+                .query_row(rusqlite::params![key_hash], |row| {
+                    let id: i64 = row.get(0)?;
+                    let permissions: String = row.get(1)?;
+                    let expires_at: Option<i64> = row.get(2)?;
+                    Ok((id, permissions, expires_at))
+                })
+                .ok();
 
             match result {
                 Some((id, permissions, expires_at)) => {
                     // Check expiry
-                    if let Some(exp) = expires_at {
-                        if exp < now {
-                            return Ok(None);
-                        }
+                    if let Some(exp) = expires_at
+                        && exp < now
+                    {
+                        return Ok(None);
                     }
                     // Update last_used_at
                     let _ = conn.execute(
@@ -95,7 +97,9 @@ impl Storage {
                 }
                 None => Ok(None),
             }
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// List all API keys (never includes the full key hash).
@@ -128,11 +132,12 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let affected = conn.execute(
-                "DELETE FROM api_keys WHERE id = ?1",
-                rusqlite::params![id],
-            ).context("Delete api_key failed")?;
+            let affected = conn
+                .execute("DELETE FROM api_keys WHERE id = ?1", rusqlite::params![id])
+                .context("Delete api_key failed")?;
             Ok(affected > 0)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 }

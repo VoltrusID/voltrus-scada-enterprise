@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 // src/compression/gorilla.rs — Gorilla encoding (Facebook Gorilla paper)
 
-use anyhow::{bail, Context, Result};
-use super::bitio::{BitWriter, BitReader};
+use super::bitio::{BitReader, BitWriter};
+use anyhow::{Context, Result, bail};
 
 #[derive(Debug, Clone)]
 pub struct GorillaBlock {
@@ -133,28 +133,19 @@ pub fn gorilla_decode(block: &GorillaBlock) -> Result<(Vec<i64>, Vec<f64>)> {
     let mut prev_tz: u8 = 0;
 
     for _ in 1..count {
-        let xor_nonzero = reader
-            .read_bit()
-            .context("truncated value control bit")?;
+        let xor_nonzero = reader.read_bit().context("truncated value control bit")?;
         if !xor_nonzero {
             // xor == 0, same value as previous
             values.push(f64::from_bits(prev_bits));
         } else {
-            let reuse_window = reader
-                .read_bit()
-                .context("truncated value window bit")?;
+            let reuse_window = reader.read_bit().context("truncated value window bit")?;
 
             let xor;
             if reuse_window {
                 // New window
-                let lz = reader
-                    .read_bits(6)
-                    .context("truncated leading zeros")? as u8;
-                let meaningful_count = reader
-                    .read_bits(6)
-                    .context("truncated meaningful count")?
-                    as u8
-                    + 1;
+                let lz = reader.read_bits(6).context("truncated leading zeros")? as u8;
+                let meaningful_count =
+                    reader.read_bits(6).context("truncated meaningful count")? as u8 + 1;
                 let meaningful_bits = reader
                     .read_bits(meaningful_count)
                     .context("truncated meaningful value bits")?;

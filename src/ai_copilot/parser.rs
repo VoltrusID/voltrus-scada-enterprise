@@ -10,10 +10,10 @@ pub fn extract_json(response: &str) -> Result<String, super::error::AiError> {
     }
 
     // Try extracting from markdown code block
-    if let Some(json) = extract_from_code_block(trimmed) {
-        if let Ok(v) = serde_json::from_str::<Value>(&json) {
-            return Ok(serde_json::to_string(&v).unwrap());
-        }
+    if let Some(json) = extract_from_code_block(trimmed)
+        && let Ok(v) = serde_json::from_str::<Value>(&json)
+    {
+        return Ok(serde_json::to_string(&v).unwrap());
     }
 
     // Try finding JSON array or object in the response
@@ -33,7 +33,11 @@ fn extract_from_code_block(text: &str) -> Option<String> {
         if let Some(start_idx) = text.find(pattern) {
             let content_start = start_idx + pattern.len();
             if let Some(end_idx) = text[content_start..].find("```") {
-                return Some(text[content_start..content_start + end_idx].trim().to_string());
+                return Some(
+                    text[content_start..content_start + end_idx]
+                        .trim()
+                        .to_string(),
+                );
             }
         }
     }
@@ -42,7 +46,7 @@ fn extract_from_code_block(text: &str) -> Option<String> {
 
 fn find_json_structure(text: &str) -> Option<String> {
     // Find first [ or { and match to closing bracket
-    let start = text.find(|c: char| c == '[' || c == '{')?;
+    let start = text.find(['[', '{'])?;
     let open = text.chars().nth(start)?;
     let close = if open == '[' { ']' } else { '}' };
 
@@ -112,7 +116,11 @@ pub fn parse_alarm_thresholds(json: &str) -> Result<Vec<serde_json::Value>, supe
     })?;
 
     for threshold in &v {
-        if threshold.get("source_key").and_then(|n| n.as_str()).is_none() {
+        if threshold
+            .get("source_key")
+            .and_then(|n| n.as_str())
+            .is_none()
+        {
             return Err(super::error::AiError::MalformedResponse(
                 "Threshold missing 'source_key' field".into(),
             ));

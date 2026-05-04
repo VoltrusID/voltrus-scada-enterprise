@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::parser::{NodeCategory, ParseResult};
 
@@ -110,12 +110,19 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
         match node.node_type.as_str() {
             // ── Modbus nodes ──
             "modbus-read" | "modbus-flex-getter" => {
-                let device_id = node.server.clone().unwrap_or_else(|| format!("nr_modbus_{}", &node.id[..node.id.len().min(8)]));
-                let ip = node.properties.get("host")
+                let device_id = node
+                    .server
+                    .clone()
+                    .unwrap_or_else(|| format!("nr_modbus_{}", &node.id[..node.id.len().min(8)]));
+                let ip = node
+                    .properties
+                    .get("host")
                     .and_then(|v| v.as_str())
                     .unwrap_or("192.168.1.1")
                     .to_string();
-                let port = node.properties.get("port")
+                let port = node
+                    .properties
+                    .get("port")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(502) as u16;
                 let unit_id = node.unitid.unwrap_or(1);
@@ -134,11 +141,13 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
                 };
 
                 let tag_name = name.clone();
-                let quantity = node.quantity.as_deref()
+                let _quantity = node
+                    .quantity
+                    .as_deref()
                     .and_then(|q| q.parse::<u16>().ok())
                     .unwrap_or(2);
 
-                let scale = if quantity > 1 { 1.0 } else { 1.0 };
+                let scale = 1.0;
 
                 let tag = ConvertedTag {
                     name: tag_name,
@@ -148,25 +157,35 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
                     scale,
                 };
 
-                let entry = device_map.entry(device_id.clone()).or_insert_with(|| ConvertedModbusDevice {
-                    device_id: device_id.clone(),
-                    name: format!("NR Modbus {}", device_id),
-                    ip: ip.clone(),
-                    port,
-                    unit_id,
-                    interval_ms: 1000,
-                    tags: Vec::new(),
-                });
+                let entry =
+                    device_map
+                        .entry(device_id.clone())
+                        .or_insert_with(|| ConvertedModbusDevice {
+                            device_id: device_id.clone(),
+                            name: format!("NR Modbus {}", device_id),
+                            ip: ip.clone(),
+                            port,
+                            unit_id,
+                            interval_ms: 1000,
+                            tags: Vec::new(),
+                        });
                 entry.tags.push(tag);
             }
 
             "modbus-write" | "modbus-flex-write" => {
-                let device_id = node.server.clone().unwrap_or_else(|| format!("nr_modbus_w_{}", &node.id[..node.id.len().min(8)]));
-                let ip = node.properties.get("host")
+                let device_id = node
+                    .server
+                    .clone()
+                    .unwrap_or_else(|| format!("nr_modbus_w_{}", &node.id[..node.id.len().min(8)]));
+                let ip = node
+                    .properties
+                    .get("host")
                     .and_then(|v| v.as_str())
                     .unwrap_or("192.168.1.1")
                     .to_string();
-                let port = node.properties.get("port")
+                let port = node
+                    .properties
+                    .get("port")
                     .and_then(|v| v.as_u64())
                     .unwrap_or(502) as u16;
                 let unit_id = node.unitid.unwrap_or(1);
@@ -182,15 +201,18 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
                     scale: 1.0,
                 };
 
-                let entry = device_map.entry(device_id.clone()).or_insert_with(|| ConvertedModbusDevice {
-                    device_id: device_id.clone(),
-                    name: format!("NR Modbus {}", device_id),
-                    ip: ip.clone(),
-                    port,
-                    unit_id,
-                    interval_ms: 1000,
-                    tags: Vec::new(),
-                });
+                let entry =
+                    device_map
+                        .entry(device_id.clone())
+                        .or_insert_with(|| ConvertedModbusDevice {
+                            device_id: device_id.clone(),
+                            name: format!("NR Modbus {}", device_id),
+                            ip: ip.clone(),
+                            port,
+                            unit_id,
+                            interval_ms: 1000,
+                            tags: Vec::new(),
+                        });
                 entry.tags.push(tag);
             }
 
@@ -207,7 +229,10 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
 
             "mqtt out" => {
                 mqtt_sources.push(ConvertedMqttSource {
-                    topic: node.topic.clone().unwrap_or_else(|| "voltrus/out".to_string()),
+                    topic: node
+                        .topic
+                        .clone()
+                        .unwrap_or_else(|| "voltrus/out".to_string()),
                     qos: node.qos.unwrap_or(0),
                     name,
                     direction: "out".to_string(),
@@ -382,7 +407,9 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
                     node_id: node.id.clone(),
                     node_type: node.node_type.clone(),
                     name: Some(name),
-                    reason: "OPC-UA nodes should be configured via the Voltrus OPC-UA device manager".to_string(),
+                    reason:
+                        "OPC-UA nodes should be configured via the Voltrus OPC-UA device manager"
+                            .to_string(),
                 });
             }
 
@@ -396,7 +423,8 @@ pub fn convert(parse_result: &ParseResult) -> ConversionResult {
                     node_id: node.id.clone(),
                     node_type: node.node_type.clone(),
                     name: Some(name),
-                    reason: "S7 nodes should be configured via the Voltrus S7 device manager".to_string(),
+                    reason: "S7 nodes should be configured via the Voltrus S7 device manager"
+                        .to_string(),
                 });
             }
 
@@ -510,7 +538,10 @@ mod tests {
         let result = convert(&parsed);
 
         assert_eq!(result.function_nodes.len(), 1);
-        assert_eq!(result.function_nodes[0].source_code.as_deref(), Some("return {payload: msg.payload * 2};"));
+        assert_eq!(
+            result.function_nodes[0].source_code.as_deref(),
+            Some("return {payload: msg.payload * 2};")
+        );
     }
 
     #[test]

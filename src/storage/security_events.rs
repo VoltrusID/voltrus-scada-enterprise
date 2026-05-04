@@ -170,26 +170,32 @@ impl Storage {
 
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT failed_login_threshold, failed_login_window_secs, \
+            let mut stmt = conn
+                .prepare(
+                    "SELECT failed_login_threshold, failed_login_window_secs, \
                         suspicious_401_threshold, suspicious_401_window_secs, \
                         rate_limit_threshold, rate_limit_window_secs \
-                 FROM security_thresholds WHERE id = 1"
-            ).context("Prepare thresholds query failed")?;
+                 FROM security_thresholds WHERE id = 1",
+                )
+                .context("Prepare thresholds query failed")?;
 
-            let thresholds = stmt.query_row([], |row| {
-                Ok(crate::models::SecurityThresholds {
-                    failed_login_threshold: row.get(0)?,
-                    failed_login_window_secs: row.get(1)?,
-                    suspicious_401_threshold: row.get(2)?,
-                    suspicious_401_window_secs: row.get(3)?,
-                    rate_limit_threshold: row.get(4)?,
-                    rate_limit_window_secs: row.get(5)?,
+            let thresholds = stmt
+                .query_row([], |row| {
+                    Ok(crate::models::SecurityThresholds {
+                        failed_login_threshold: row.get(0)?,
+                        failed_login_window_secs: row.get(1)?,
+                        suspicious_401_threshold: row.get(2)?,
+                        suspicious_401_window_secs: row.get(3)?,
+                        rate_limit_threshold: row.get(4)?,
+                        rate_limit_window_secs: row.get(5)?,
+                    })
                 })
-            }).context("Query thresholds failed")?;
+                .context("Query thresholds failed")?;
 
             Ok(thresholds)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Update security thresholds configuration.
@@ -209,12 +215,18 @@ impl Storage {
                  rate_limit_threshold = ?5, rate_limit_window_secs = ?6 \
                  WHERE id = 1",
                 rusqlite::params![
-                    t.failed_login_threshold, t.failed_login_window_secs,
-                    t.suspicious_401_threshold, t.suspicious_401_window_secs,
-                    t.rate_limit_threshold, t.rate_limit_window_secs,
+                    t.failed_login_threshold,
+                    t.failed_login_window_secs,
+                    t.suspicious_401_threshold,
+                    t.suspicious_401_window_secs,
+                    t.rate_limit_threshold,
+                    t.rate_limit_window_secs,
                 ],
-            ).context("Update thresholds failed")?;
+            )
+            .context("Update thresholds failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 }

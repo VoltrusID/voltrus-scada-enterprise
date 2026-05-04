@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -9,6 +9,9 @@ pub struct Message {
 
 impl Message {
     pub fn new(payload: Value) -> Self {
-        Self { payload, metadata: HashMap::new() }
+        Self {
+            payload,
+            metadata: HashMap::new(),
+        }
     }
 }

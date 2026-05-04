@@ -79,8 +79,6 @@ impl StreamProxy {
     }
 
     pub fn get_stream_url(&self, camera_id: i64) -> Option<String> {
-        self.cameras
-            .get(&camera_id)
-            .map(|state| state.url.clone())
+        self.cameras.get(&camera_id).map(|state| state.url.clone())
     }
 }

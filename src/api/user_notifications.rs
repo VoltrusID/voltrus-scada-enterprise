@@ -63,9 +63,7 @@ pub async fn mark_read(
         .list_user_notifications(user_id, false)
         .await?;
 
-    let owned = user_notifications
-        .iter()
-        .any(|n| n.id == id);
+    let owned = user_notifications.iter().any(|n| n.id == id);
 
     if !owned {
         return Ok((
@@ -99,9 +97,7 @@ pub async fn dismiss_notification(
         .list_user_notifications(user_id, false)
         .await?;
 
-    let owned = user_notifications
-        .iter()
-        .any(|n| n.id == id);
+    let owned = user_notifications.iter().any(|n| n.id == id);
 
     if !owned {
         return Ok((

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::ptr_arg)]
 // src/dnp3/datalink.rs
 
 use anyhow::Result;

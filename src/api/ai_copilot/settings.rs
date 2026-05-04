@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -17,21 +17,24 @@ use crate::models;
     tag = "AI Copilot",
     security(("api_key" = []), ("cookie_auth" = []))
 )]
-pub async fn get_ai_settings(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn get_ai_settings(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!("AI Copilot requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "AI Copilot requires Starter tier or above"
+        )));
     }
 
-    let provider = state.storage.get_ai_setting("provider").await?
+    let provider = state
+        .storage
+        .get_ai_setting("provider")
+        .await?
         .unwrap_or_else(|| "byok_openai".into());
     let api_key = state.storage.get_ai_setting("api_key").await?;
     let default_model = state.storage.get_ai_setting("default_model").await?;
 
     let api_key_preview = match &api_key {
         Some(key) if key.len() > 8 => {
-            let last4 = &key[key.len()-4..];
+            let last4 = &key[key.len() - 4..];
             format!("****{}", last4)
         }
         Some(_) => "****".into(),
@@ -66,20 +69,24 @@ pub async fn update_ai_settings(
     Json(body): Json<UpdateAiSettingsBody>,
 ) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!("AI Copilot requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "AI Copilot requires Starter tier or above"
+        )));
     }
 
     if let Some(provider) = &body.provider {
         if AiProviderType::from_str(provider).is_none() {
-            return Err(AppError(anyhow::anyhow!("Invalid provider. Use: byok_openai, byok_anthropic, voltrus_ai")));
+            return Err(AppError(anyhow::anyhow!(
+                "Invalid provider. Use: byok_openai, byok_anthropic, voltrus_ai"
+            )));
         }
         state.storage.set_ai_setting("provider", provider).await?;
     }
 
-    if let Some(api_key) = &body.api_key {
-        if !api_key.is_empty() {
-            state.storage.set_ai_setting("api_key", api_key).await?;
-        }
+    if let Some(api_key) = &body.api_key
+        && !api_key.is_empty()
+    {
+        state.storage.set_ai_setting("api_key", api_key).await?;
     }
 
     if let Some(model) = &body.default_model {
@@ -107,7 +114,9 @@ pub async fn test_ai_settings(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!("AI Copilot requires Starter tier or above")));
+        return Err(AppError(anyhow::anyhow!(
+            "AI Copilot requires Starter tier or above"
+        )));
     }
 
     let settings = super::helpers::load_ai_settings(&state).await?;

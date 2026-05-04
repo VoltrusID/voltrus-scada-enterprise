@@ -4,7 +4,10 @@ use super::*;
 async fn test_api_key_create_and_validate() {
     let storage = Storage::new_in_memory().unwrap();
 
-    let (id, plain_key) = storage.create_api_key("test-key", "admin", None, "[]").await.unwrap();
+    let (id, plain_key) = storage
+        .create_api_key("test-key", "admin", None, "[]")
+        .await
+        .unwrap();
     assert!(id > 0);
     assert_eq!(plain_key.len(), 64); // 32 bytes hex-encoded
 
@@ -24,8 +27,14 @@ async fn test_api_key_create_and_validate() {
 async fn test_api_key_list_and_revoke() {
     let storage = Storage::new_in_memory().unwrap();
 
-    let (id1, _) = storage.create_api_key("key-one", "admin", None, "[]").await.unwrap();
-    let (id2, _) = storage.create_api_key("key-two", "admin", None, "[\"data:read\"]").await.unwrap();
+    let (id1, _) = storage
+        .create_api_key("key-one", "admin", None, "[]")
+        .await
+        .unwrap();
+    let (id2, _) = storage
+        .create_api_key("key-two", "admin", None, "[\"data:read\"]")
+        .await
+        .unwrap();
 
     let keys = storage.list_api_keys().await.unwrap();
     assert_eq!(keys.len(), 2);
@@ -66,7 +75,10 @@ async fn test_api_key_expiry() {
 async fn test_api_key_last_used_at_updated() {
     let storage = Storage::new_in_memory().unwrap();
 
-    let (id, plain_key) = storage.create_api_key("usage-key", "admin", None, "[]").await.unwrap();
+    let (id, plain_key) = storage
+        .create_api_key("usage-key", "admin", None, "[]")
+        .await
+        .unwrap();
 
     // Initially last_used_at should be None
     let keys = storage.list_api_keys().await.unwrap();

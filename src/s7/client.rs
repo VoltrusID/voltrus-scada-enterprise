@@ -1,4 +1,8 @@
 #![allow(dead_code)]
+#![allow(clippy::vec_init_then_push)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::ptr_arg)]
+#![allow(clippy::cloned_ref_to_slice_refs)]
 use anyhow::{Context, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -45,7 +49,10 @@ impl S7Client {
 
         // Verify it's a CC
         if cc.len() < 6 || cc[1] != COTP_CC {
-            anyhow::bail!("Expected COTP Connection Confirm, got: {:02X?}", &cc[..cc.len().min(6)]);
+            anyhow::bail!(
+                "Expected COTP Connection Confirm, got: {:02X?}",
+                &cc[..cc.len().min(6)]
+            );
         }
 
         // Send S7 Setup Communication
@@ -58,7 +65,10 @@ impl S7Client {
 
         tracing::info!(
             "Connected to S7 PLC at {} (rack={}, slot={}), PDU size={}",
-            self.url, self.rack, self.slot, self.pdu_size
+            self.url,
+            self.rack,
+            self.slot,
+            self.pdu_size
         );
 
         Ok(())
@@ -67,7 +77,10 @@ impl S7Client {
     /// Read a single tag from the PLC.
     pub async fn read_tag(&mut self, tag: &S7Tag) -> Result<S7Value> {
         let values = self.read_tags(&[tag.clone()]).await?;
-        values.into_iter().next().context("No value returned for tag")
+        values
+            .into_iter()
+            .next()
+            .context("No value returned for tag")
     }
 
     /// Read multiple tags in one S7 request.
@@ -126,28 +139,35 @@ impl S7Client {
         if let Some(rest) = addr.strip_prefix("DB") {
             let parts: Vec<&str> = rest.split('.').collect();
             if parts.len() >= 2 {
-                let db_number: u16 = parts[0].parse()
+                let db_number: u16 = parts[0]
+                    .parse()
                     .with_context(|| format!("Invalid DB number in '{}'", addr))?;
 
                 let type_and_offset = parts[1];
-                if type_and_offset.starts_with("DBX") || type_and_offset.starts_with("DBB") ||
-                   type_and_offset.starts_with("DBW") || type_and_offset.starts_with("DBD") {
-
-                    let (data_type, offset_str) = if type_and_offset.starts_with("DBX") {
-                        (S7DataType::Bool, &type_and_offset[3..])
+                if type_and_offset.starts_with("DBX")
+                    || type_and_offset.starts_with("DBB")
+                    || type_and_offset.starts_with("DBW")
+                    || type_and_offset.starts_with("DBD")
+                {
+                    let (_, rest) = type_and_offset.split_at(3);
+                    let data_type = if type_and_offset.starts_with("DBX") {
+                        S7DataType::Bool
                     } else if type_and_offset.starts_with("DBB") {
-                        (S7DataType::Byte, &type_and_offset[3..])
+                        S7DataType::Byte
                     } else if type_and_offset.starts_with("DBW") {
-                        (S7DataType::Word, &type_and_offset[3..])
+                        S7DataType::Word
                     } else {
-                        (S7DataType::DWord, &type_and_offset[3..])
+                        S7DataType::DWord
                     };
+                    let offset_str = rest;
 
-                    let offset: u16 = offset_str.parse()
+                    let offset: u16 = offset_str
+                        .parse()
                         .with_context(|| format!("Invalid offset in '{}'", addr))?;
 
                     let bit_offset = if parts.len() >= 3 && data_type == S7DataType::Bool {
-                        parts[2].parse()
+                        parts[2]
+                            .parse()
                             .with_context(|| format!("Invalid bit offset in '{}'", addr))?
                     } else {
                         0
@@ -166,23 +186,28 @@ impl S7Client {
         }
 
         // I, Q, M addresses
-        let (area, rest) = if addr.starts_with('I') {
-            (S7Area::Input, &addr[1..])
-        } else if addr.starts_with('Q') {
-            (S7Area::Output, &addr[1..])
-        } else if addr.starts_with('M') {
-            (S7Area::Marker, &addr[1..])
+        let (area, rest): (S7Area, &str) = if let Some(r) = addr.strip_prefix('I') {
+            (S7Area::Input, r)
+        } else if let Some(r) = addr.strip_prefix('Q') {
+            (S7Area::Output, r)
+        } else if let Some(r) = addr.strip_prefix('M') {
+            (S7Area::Marker, r)
         } else {
-            anyhow::bail!("Unsupported tag address format: '{}'. Use DB<n>.DBx<m>, Ix, Qx, or Mx format.", addr);
+            anyhow::bail!(
+                "Unsupported tag address format: '{}'. Use DB<n>.DBx<m>, Ix, Qx, or Mx format.",
+                addr
+            );
         };
 
         // Check if it's a bit address (e.g., "I0.0", "Q0.1", "M10.3")
         if rest.contains('.') {
             let parts: Vec<&str> = rest.split('.').collect();
             if parts.len() == 2 {
-                let offset: u16 = parts[0].parse()
+                let offset: u16 = parts[0]
+                    .parse()
                     .with_context(|| format!("Invalid offset in '{}'", addr))?;
-                let bit_offset: u8 = parts[1].parse()
+                let bit_offset: u8 = parts[1]
+                    .parse()
                     .with_context(|| format!("Invalid bit offset in '{}'", addr))?;
                 return Ok(S7Tag {
                     area,
@@ -196,18 +221,19 @@ impl S7Client {
         }
 
         // Byte/Word/DWord addresses (e.g., "IB0", "IW100", "ID100", "MB10", "MW100", "QW200")
-        let (data_type, offset_str) = if rest.starts_with('B') {
-            (S7DataType::Byte, &rest[1..])
-        } else if rest.starts_with('W') {
-            (S7DataType::Word, &rest[1..])
-        } else if rest.starts_with('D') {
-            (S7DataType::DWord, &rest[1..])
+        let (data_type, offset_str): (S7DataType, &str) = if let Some(s) = rest.strip_prefix('B') {
+            (S7DataType::Byte, s)
+        } else if let Some(s) = rest.strip_prefix('W') {
+            (S7DataType::Word, s)
+        } else if let Some(s) = rest.strip_prefix('D') {
+            (S7DataType::DWord, s)
         } else {
             // Default to byte if just a number (e.g., "I0" -> IB0)
             (S7DataType::Byte, rest)
         };
 
-        let offset: u16 = offset_str.parse()
+        let offset: u16 = offset_str
+            .parse()
             .with_context(|| format!("Invalid offset in '{}'", addr))?;
 
         Ok(S7Tag {
@@ -273,7 +299,9 @@ impl S7Client {
 
         // Read TPKT header (4 bytes)
         let mut tpkt_header = [0u8; 4];
-        stream.read_exact(&mut tpkt_header).await
+        stream
+            .read_exact(&mut tpkt_header)
+            .await
             .context("Failed to read TPKT header")?;
 
         if tpkt_header[0] != TPKT_VERSION {
@@ -286,7 +314,9 @@ impl S7Client {
         }
 
         let mut payload = vec![0u8; packet_len - 4];
-        stream.read_exact(&mut payload).await
+        stream
+            .read_exact(&mut payload)
+            .await
             .context("Failed to read COTP payload")?;
 
         Ok(payload)
@@ -317,7 +347,10 @@ impl S7Client {
 
     fn parse_setup_comm_response(&mut self, data: &[u8]) -> Result<()> {
         if data.len() < 17 {
-            anyhow::bail!("S7 Setup Communication response too short: {} bytes", data.len());
+            anyhow::bail!(
+                "S7 Setup Communication response too short: {} bytes",
+                data.len()
+            );
         }
 
         if data[0] != S7_PROTOCOL_ID {
@@ -367,7 +400,11 @@ impl S7Client {
             item.push(0x0A); // length of following address specification
             item.push(0x10); // syntax ID: S7 any
             item.push(transport_size);
-            let num_elements = if tag.data_type == S7DataType::Bool { 1u16 } else { tag.length };
+            let num_elements = if tag.data_type == S7DataType::Bool {
+                1u16
+            } else {
+                tag.length
+            };
             item.extend_from_slice(&num_elements.to_be_bytes());
             item.push(tag.db_number.to_be_bytes()[0]);
             item.push(tag.db_number.to_be_bytes()[1]);
@@ -387,10 +424,7 @@ impl S7Client {
         let mut data = Vec::new();
         data.push(0x00); // return code
         data.push(0xFF); // transport size: byte/word/dword
-        let mut data_values = Vec::new();
-        for _ in 0..total_data_size {
-            data_values.push(0x00);
-        }
+        let data_values = vec![0x00u8; total_data_size as usize];
         data.extend_from_slice(&total_data_size.to_be_bytes());
         data.extend_from_slice(&data_values);
 
@@ -489,9 +523,7 @@ impl S7Client {
                     S7Value::Bool((data[0] & (1 << tag.bit_offset)) != 0)
                 }
             }
-            S7DataType::Byte => {
-                S7Value::Byte(data.first().copied().unwrap_or(0))
-            }
+            S7DataType::Byte => S7Value::Byte(data.first().copied().unwrap_or(0)),
             S7DataType::Word => {
                 if data.len() >= 2 {
                     S7Value::Word(u16::from_be_bytes([data[0], data[1]]))
@@ -547,7 +579,11 @@ impl S7Client {
         item.push(0x0A); // length
         item.push(0x10); // syntax ID
         item.push(transport_size);
-        let num_elements = if tag.data_type == S7DataType::Bool { 1u16 } else { tag.length };
+        let num_elements = if tag.data_type == S7DataType::Bool {
+            1u16
+        } else {
+            tag.length
+        };
         item.extend_from_slice(&num_elements.to_be_bytes());
         item.push(tag.db_number.to_be_bytes()[0]);
         item.push(tag.db_number.to_be_bytes()[1]);
@@ -620,7 +656,9 @@ impl S7Client {
 
     async fn send_raw(&mut self, data: &[u8]) -> Result<()> {
         let stream = self.stream.as_mut().context("Not connected")?;
-        stream.write_all(data).await
+        stream
+            .write_all(data)
+            .await
             .context("Failed to send data to S7 PLC")?;
         Ok(())
     }
@@ -649,7 +687,9 @@ impl S7Client {
 
         // Read TPKT header
         let mut tpkt_header = [0u8; 4];
-        stream.read_exact(&mut tpkt_header).await
+        stream
+            .read_exact(&mut tpkt_header)
+            .await
             .context("Failed to read S7 TPKT header")?;
 
         if tpkt_header[0] != TPKT_VERSION {
@@ -662,7 +702,9 @@ impl S7Client {
         }
 
         let mut payload = vec![0u8; packet_len - 4];
-        stream.read_exact(&mut payload).await
+        stream
+            .read_exact(&mut payload)
+            .await
             .context("Failed to read S7 COTP/S7 payload")?;
 
         // Skip COTP DT header (3 bytes: length, type=0xF0, EOT=0x80)

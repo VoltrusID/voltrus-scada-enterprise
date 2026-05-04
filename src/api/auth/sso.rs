@@ -1,8 +1,8 @@
-use base64::Engine;
+use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use axum::Json;
+use base64::Engine;
 use serde_json::json;
 
 use super::*;
@@ -58,7 +58,11 @@ pub async fn list_auth_providers(
     // OIDC provider info
     let oidc_enabled = state.oidc_config.enabled;
     let empty_issuer = String::new();
-    let issuer = if oidc_enabled { &state.oidc_config.issuer } else { &empty_issuer };
+    let issuer = if oidc_enabled {
+        &state.oidc_config.issuer
+    } else {
+        &empty_issuer
+    };
     providers.push(json!({
         "provider": "oidc",
         "enabled": oidc_enabled,
@@ -67,8 +71,7 @@ pub async fn list_auth_providers(
     }));
 
     // SAML provider info (Enterprise only)
-    let saml_enabled = state.license_tier.sso_saml()
-        && state.oidc_config.enabled; // reuse oidc_config check as proxy
+    let saml_enabled = state.license_tier.sso_saml() && state.oidc_config.enabled; // reuse oidc_config check as proxy
     providers.push(json!({
         "provider": "saml",
         "enabled": saml_enabled,
@@ -76,8 +79,7 @@ pub async fn list_auth_providers(
     }));
 
     // LDAP provider info (Enterprise only)
-    let ldap_enabled = state.license_tier.sso_saml()
-        && state.oidc_config.enabled; // same proxy
+    let ldap_enabled = state.license_tier.sso_saml() && state.oidc_config.enabled; // same proxy
     providers.push(json!({
         "provider": "ldap",
         "enabled": ldap_enabled,
@@ -88,9 +90,7 @@ pub async fn list_auth_providers(
 }
 
 /// POST /api/v1/auth/saml/metadata -- returns SP metadata XML.
-pub async fn saml_metadata(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn saml_metadata(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.sso_saml() {
         return Ok((
             StatusCode::FORBIDDEN,
@@ -152,14 +152,17 @@ pub async fn saml_acs(
         .get_or_create_user_by_external_id("saml", &assertion.name_id, "user")
         .await?;
 
-    let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
-        event_type: "login_success".into(),
-        severity: "info".into(),
-        source_ip: source_ip.clone(),
-        user_agent: user_agent.clone(),
-        username: Some(user.username.clone()),
-        details: Some("SAML login successful".into()),
-    }).await;
+    let _ = state
+        .storage
+        .insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_success".into(),
+            severity: "info".into(),
+            source_ip: source_ip.clone(),
+            user_agent: user_agent.clone(),
+            username: Some(user.username.clone()),
+            details: Some("SAML login successful".into()),
+        })
+        .await;
 
     // Create a local session token
     let secret = &state.auth_secret;
@@ -227,14 +230,17 @@ pub async fn ldap_login(
 
     if !result.success {
         tracing::warn!("LDAP login failed for user: {}", body.username);
-        let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
-            event_type: "login_failed".into(),
-            severity: "warning".into(),
-            source_ip: source_ip.clone(),
-            user_agent: user_agent.clone(),
-            username: Some(body.username.clone()),
-            details: Some("Invalid LDAP credentials".into()),
-        }).await;
+        let _ = state
+            .storage
+            .insert_security_event(&crate::models::CreateSecurityEvent {
+                event_type: "login_failed".into(),
+                severity: "warning".into(),
+                source_ip: source_ip.clone(),
+                user_agent: user_agent.clone(),
+                username: Some(body.username.clone()),
+                details: Some("Invalid LDAP credentials".into()),
+            })
+            .await;
         return Ok((
             StatusCode::UNAUTHORIZED,
             Json(json!({"error": "Invalid LDAP credentials"})),
@@ -254,14 +260,17 @@ pub async fn ldap_login(
 
     tracing::info!("LDAP login successful: user={}", body.username);
 
-    let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
-        event_type: "login_success".into(),
-        severity: "info".into(),
-        source_ip: source_ip.clone(),
-        user_agent: user_agent.clone(),
-        username: Some(body.username.clone()),
-        details: Some("LDAP login successful".into()),
-    }).await;
+    let _ = state
+        .storage
+        .insert_security_event(&crate::models::CreateSecurityEvent {
+            event_type: "login_success".into(),
+            severity: "info".into(),
+            source_ip: source_ip.clone(),
+            user_agent: user_agent.clone(),
+            username: Some(body.username.clone()),
+            details: Some("LDAP login successful".into()),
+        })
+        .await;
 
     Ok(Json(json!({
         "ok": true,

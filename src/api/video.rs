@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -284,7 +284,10 @@ pub async fn trigger_snapshot(
         action: "capture_snapshot".to_string(),
         username: user.username.clone(),
         resource: format!("camera:{}", id),
-        details: Some(format!("snapshot_id={}, file_size={}", snapshot_id, snapshot.file_size)),
+        details: Some(format!(
+            "snapshot_id={}, file_size={}",
+            snapshot_id, snapshot.file_size
+        )),
     });
 
     Ok(Json(json!({

@@ -1,7 +1,7 @@
-pub mod watchdog;
+pub mod ha_api;
 pub mod readback;
 pub mod replication;
-pub mod ha_api;
+pub mod watchdog;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -117,7 +117,8 @@ pub fn start_ha(config: &HaConfig, ha_state: HaState) {
             let server_cfg = config.clone();
             let server_state = ha_state.clone();
             tokio::spawn(async move {
-                if let Err(e) = replication::run_replication_server(&server_cfg, server_state).await {
+                if let Err(e) = replication::run_replication_server(&server_cfg, server_state).await
+                {
                     tracing::error!("Replication server error: {}", e);
                 }
             });
@@ -126,7 +127,8 @@ pub fn start_ha(config: &HaConfig, ha_state: HaState) {
             let client_state = ha_state.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-                if let Err(e) = replication::run_replication_client(&client_cfg, client_state).await {
+                if let Err(e) = replication::run_replication_client(&client_cfg, client_state).await
+                {
                     tracing::error!("Replication client error: {}", e);
                 }
             });

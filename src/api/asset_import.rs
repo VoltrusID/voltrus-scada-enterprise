@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Instant;
 
+use axum::Json;
 use axum::extract::{Extension, Multipart, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use rand::Rng;
 use serde_json::json;
 
@@ -32,7 +32,7 @@ fn get_store() -> std::sync::MutexGuard<'static, Option<HashMap<String, PreviewE
 
 /// Case-insensitive header-to-field mapping for CSV/XLSX columns.
 fn auto_map_header(header: &str) -> Option<&'static str> {
-    let h = header.trim().to_lowercase().replace('_', " ").replace('-', " ");
+    let h = header.trim().to_lowercase().replace(['_', '-'], " ");
     match h.as_str() {
         "name" | "asset name" => Some("name"),
         "type" | "asset type" => Some("asset_type"),
@@ -187,23 +187,18 @@ fn parse_csv(bytes: &[u8]) -> Result<Vec<HashMap<String, String>>, AppError> {
         .flexible(true)
         .from_reader(content.as_bytes());
 
-    let headers: Vec<String> = reader
-        .headers()?
-        .iter()
-        .map(|h| h.to_string())
-        .collect();
+    let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
 
     let mut rows = Vec::new();
     for record in reader.records() {
         let record = record?;
         let mut row = HashMap::new();
         for (i, val) in record.iter().enumerate() {
-            if let Some(header) = headers.get(i) {
-                if let Some(field) = auto_map_header(header) {
-                    if !val.trim().is_empty() {
-                        row.insert(field.to_string(), val.trim().to_string());
-                    }
-                }
+            if let Some(header) = headers.get(i)
+                && let Some(field) = auto_map_header(header)
+                && !val.trim().is_empty()
+            {
+                row.insert(field.to_string(), val.trim().to_string());
             }
         }
         rows.push(row);
@@ -241,12 +236,12 @@ fn parse_xlsx(bytes: &[u8]) -> Result<Vec<HashMap<String, String>>, AppError> {
 
         let mut mapped_row = HashMap::new();
         for (col_idx, cell) in row.iter().enumerate() {
-            if let Some(Some(header)) = headers.get(col_idx) {
-                if let Some(field) = auto_map_header(header) {
-                    let val = cell.as_string().unwrap_or_default();
-                    if !val.trim().is_empty() {
-                        mapped_row.insert(field.to_string(), val.trim().to_string());
-                    }
+            if let Some(Some(header)) = headers.get(col_idx)
+                && let Some(field) = auto_map_header(header)
+            {
+                let val = cell.as_string().unwrap_or_default();
+                if !val.trim().is_empty() {
+                    mapped_row.insert(field.to_string(), val.trim().to_string());
                 }
             }
         }
@@ -306,11 +301,8 @@ pub async fn confirm_import(
                     Ok(asset) => {
                         // Recompute risk score
                         let asset_storage = state.storage.asset();
-                        let _ = crate::asset::risk::recompute_and_update(
-                            &asset_storage,
-                            &asset.id,
-                        )
-                        .await;
+                        let _ = crate::asset::risk::recompute_and_update(&asset_storage, &asset.id)
+                            .await;
                         created += 1;
                     }
                     Err(e) => {

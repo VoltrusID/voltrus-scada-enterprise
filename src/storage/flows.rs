@@ -148,7 +148,14 @@ impl Storage {
             conn.execute(
                 "INSERT INTO flow_runs (flow_id, started_at, duration_ms, success, error, output)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![flow_id, now, duration_ms as i64, success as i64, error, output],
+                rusqlite::params![
+                    flow_id,
+                    now,
+                    duration_ms as i64,
+                    success as i64,
+                    error,
+                    output
+                ],
             )
             .context("Insert flow run failed")?;
             Ok(())
@@ -290,7 +297,10 @@ impl Storage {
     }
 
     /// Get push subscriptions for a specific user.
-    pub async fn get_push_subscriptions_by_user(&self, user: &str) -> Result<Vec<crate::models::PushSubscription>> {
+    pub async fn get_push_subscriptions_by_user(
+        &self,
+        user: &str,
+    ) -> Result<Vec<crate::models::PushSubscription>> {
         let conn = self.conn.clone();
         let user = user.to_string();
         tokio::task::spawn_blocking(move || {

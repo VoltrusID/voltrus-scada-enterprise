@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use rand::Rng;
-use tracing;
 
 use crate::models::{Command, Recipe};
 use crate::storage::Storage;
@@ -18,9 +17,8 @@ fn random_command_suffix() -> String {
 /// Load a recipe's values to the target PLC/device by creating real commands
 /// in the command queue. Returns a list of created command IDs.
 pub async fn load_recipe_to_plc(recipe: &Recipe, storage: &Storage) -> Result<Vec<String>> {
-    let values: std::collections::HashMap<String, f64> =
-        serde_json::from_str(&recipe.values)
-            .with_context(|| format!("Failed to parse recipe {} values JSON", recipe.id))?;
+    let values: std::collections::HashMap<String, f64> = serde_json::from_str(&recipe.values)
+        .with_context(|| format!("Failed to parse recipe {} values JSON", recipe.id))?;
 
     tracing::info!(
         "Loading recipe '{}' (v{}) to device '{}': {} registers",
@@ -133,18 +131,21 @@ pub async fn load_recipe_to_plc(recipe: &Recipe, storage: &Storage) -> Result<Ve
     );
 
     // Log the recipe load event for audit trail
-    if let Err(e) = storage.log_audit_event(
-        "recipe_load",
-        "system",
-        &format!("recipe:{}:device:{}", recipe.id, recipe.device_id),
-        Some(&format!(
-            "Loaded recipe '{}' v{} to device '{}': {} commands queued",
-            recipe.name,
-            recipe.version,
-            recipe.device_id,
-            command_ids.len(),
-        )),
-    ).await {
+    if let Err(e) = storage
+        .log_audit_event(
+            "recipe_load",
+            "system",
+            &format!("recipe:{}:device:{}", recipe.id, recipe.device_id),
+            Some(&format!(
+                "Loaded recipe '{}' v{} to device '{}': {} commands queued",
+                recipe.name,
+                recipe.version,
+                recipe.device_id,
+                command_ids.len(),
+            )),
+        )
+        .await
+    {
         tracing::warn!("Failed to log recipe load audit event: {}", e);
     }
 
@@ -156,8 +157,7 @@ mod tests {
     #[test]
     fn test_parse_recipe_values() {
         let json = r#"{"temp": 25.0, "pressure": 1.5}"#;
-        let values: std::collections::HashMap<String, f64> =
-            serde_json::from_str(json).unwrap();
+        let values: std::collections::HashMap<String, f64> = serde_json::from_str(json).unwrap();
         assert_eq!(values.len(), 2);
         assert!((values["temp"] - 25.0).abs() < 0.001);
         assert!((values["pressure"] - 1.5).abs() < 0.001);

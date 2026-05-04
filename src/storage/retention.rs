@@ -23,19 +23,26 @@ impl Storage {
                 .unwrap_or(0);
 
             let warm_rows: i64 = conn
-                .query_row("SELECT COUNT(*) FROM telemetry_hourly", [], |row| row.get(0))
+                .query_row("SELECT COUNT(*) FROM telemetry_hourly", [], |row| {
+                    row.get(0)
+                })
                 .unwrap_or(0);
 
             let cold_rows: i64 = conn
                 .query_row("SELECT COUNT(*) FROM telemetry_daily", [], |row| row.get(0))
                 .unwrap_or(0);
 
-            let db_size_bytes = std::fs::metadata(&db_path)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let db_size_bytes = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
 
-            Ok(CompressionStats { hot_rows, warm_rows, cold_rows, db_size_bytes })
-        }).await.context("Task join failed")?
+            Ok(CompressionStats {
+                hot_rows,
+                warm_rows,
+                cold_rows,
+                db_size_bytes,
+            })
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn compress_hot_to_warm(&self, cutoff_ts: i64) -> anyhow::Result<usize> {
@@ -76,7 +83,7 @@ impl Storage {
                         "DELETE FROM telemetry WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
                         rusqlite::params![device_id, metric, cutoff_ts],
                     )?;
-                    compressed += deleted as usize;
+                    compressed += deleted;
                 }
             }
 
@@ -122,7 +129,7 @@ impl Storage {
                         "DELETE FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
                         rusqlite::params![device_id, metric, cutoff_ts],
                     )?;
-                    compressed += deleted as usize;
+                    compressed += deleted;
                 }
             }
 
@@ -227,8 +234,13 @@ impl Storage {
             }
             if let Some(ref v) = unit {
                 match v {
-                    Some(val) => { set_clauses.push("unit = ?".to_string()); params.push(Box::new(val.clone())); }
-                    None => { set_clauses.push("unit = NULL".to_string()); }
+                    Some(val) => {
+                        set_clauses.push("unit = ?".to_string());
+                        params.push(Box::new(val.clone()));
+                    }
+                    None => {
+                        set_clauses.push("unit = NULL".to_string());
+                    }
                 }
             }
             if let Some(ref v) = tag_refs {
@@ -237,8 +249,13 @@ impl Storage {
             }
             if let Some(ref v) = validation_error {
                 match v {
-                    Some(val) => { set_clauses.push("validation_error = ?".to_string()); params.push(Box::new(val.clone())); }
-                    None => { set_clauses.push("validation_error = NULL".to_string()); }
+                    Some(val) => {
+                        set_clauses.push("validation_error = ?".to_string());
+                        params.push(Box::new(val.clone()));
+                    }
+                    None => {
+                        set_clauses.push("validation_error = NULL".to_string());
+                    }
                 }
             }
 
@@ -249,25 +266,36 @@ impl Storage {
             set_clauses.push("updated_at = ?".to_string());
             params.push(Box::new(now));
 
-            let sql = format!("UPDATE custom_metrics SET {} WHERE id = ?", set_clauses.join(", "));
+            let sql = format!(
+                "UPDATE custom_metrics SET {} WHERE id = ?",
+                set_clauses.join(", ")
+            );
             params.push(Box::new(id));
 
             conn.execute(
                 &sql,
                 rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
-            ).context("Update failed")?;
+            )
+            .context("Update failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_custom_metric(&self, id: i64) -> anyhow::Result<()> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM custom_metrics WHERE id = ?1", rusqlite::params![id])
-                .context("Delete failed")?;
+            conn.execute(
+                "DELETE FROM custom_metrics WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn get_metric_values_for_range(

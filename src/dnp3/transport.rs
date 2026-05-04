@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(clippy::ptr_arg)]
 /// DNP3 transport header (1 byte: FIR | FIN | SEQUENCE).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransportHeader {

@@ -1,8 +1,8 @@
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 
+use super::{AppError, AppState};
 use crate::models::*;
-use super::{AppState, AppError};
 
 #[utoipa::path(
     get,
@@ -44,7 +44,7 @@ pub async fn get_health(State(state): State<AppState>) -> Json<HealthResponse> {
 }
 
 pub async fn compute_system_info(state: &AppState) -> Result<SystemResponse, AppError> {
-    use sysinfo::{Disks, ProcessesToUpdate, ProcessRefreshKind, System};
+    use sysinfo::{Disks, ProcessRefreshKind, ProcessesToUpdate, System};
 
     let mut sys = System::new_all();
     sys.refresh_all();
@@ -77,7 +77,11 @@ pub async fn compute_system_info(state: &AppState) -> Result<SystemResponse, App
         let total = d.total_space() as f64 / (1024.0 * 1024.0 * 1024.0);
         let available = d.available_space() as f64 / (1024.0 * 1024.0 * 1024.0);
         let used = total - available;
-        let pct = if total > 0.0 { (used / total) * 100.0 } else { 0.0 };
+        let pct = if total > 0.0 {
+            (used / total) * 100.0
+        } else {
+            0.0
+        };
         (total, used, pct)
     } else {
         (0.0, 0.0, 0.0)

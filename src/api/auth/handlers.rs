@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use axum::Json;
 use axum_extra::extract::CookieJar;
 use serde_json::json;
 
@@ -58,33 +58,67 @@ pub async fn login(
             let now_secs = crate::timeutil::now_secs();
             if let Some(locked_until) = user.locked_until {
                 if locked_until > now_secs {
-                    let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
-                        event_type: "login_locked".into(),
-                        severity: "warning".into(),
-                        source_ip: source_ip.clone(),
-                        user_agent: user_agent.clone(),
-                        username: Some(body.username.clone()),
-                        details: Some("Attempted login on locked account".into()),
-                    }).await;
-                    (StatusCode::FORBIDDEN, json!({"error": "Account locked. Please try again later."}), jar)
+                    let _ = state
+                        .storage
+                        .insert_security_event(&crate::models::CreateSecurityEvent {
+                            event_type: "login_locked".into(),
+                            severity: "warning".into(),
+                            source_ip: source_ip.clone(),
+                            user_agent: user_agent.clone(),
+                            username: Some(body.username.clone()),
+                            details: Some("Attempted login on locked account".into()),
+                        })
+                        .await;
+                    (
+                        StatusCode::FORBIDDEN,
+                        json!({"error": "Account locked. Please try again later."}),
+                        jar,
+                    )
                 } else {
-                    check_password_and_login(state, body, user, jar, &rate_key_user, now_secs, source_ip.clone(), user_agent.clone()).await
+                    check_password_and_login(
+                        state,
+                        body,
+                        user,
+                        jar,
+                        &rate_key_user,
+                        now_secs,
+                        source_ip.clone(),
+                        user_agent.clone(),
+                    )
+                    .await
                 }
             } else {
-                check_password_and_login(state, body, user, jar, &rate_key_user, now_secs, source_ip.clone(), user_agent.clone()).await
+                check_password_and_login(
+                    state,
+                    body,
+                    user,
+                    jar,
+                    &rate_key_user,
+                    now_secs,
+                    source_ip.clone(),
+                    user_agent.clone(),
+                )
+                .await
             }
         }
         None => {
             state.login_rate_limiter.record_attempt(&rate_key_user);
-            let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
-                event_type: "login_failed".into(),
-                severity: "warning".into(),
-                source_ip: source_ip.clone(),
-                user_agent: user_agent.clone(),
-                username: Some(body.username.clone()),
-                details: Some("Unknown username".into()),
-            }).await;
-            (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar)
+            let _ = state
+                .storage
+                .insert_security_event(&crate::models::CreateSecurityEvent {
+                    event_type: "login_failed".into(),
+                    severity: "warning".into(),
+                    source_ip: source_ip.clone(),
+                    user_agent: user_agent.clone(),
+                    username: Some(body.username.clone()),
+                    details: Some("Unknown username".into()),
+                })
+                .await;
+            (
+                StatusCode::UNAUTHORIZED,
+                json!({"error": "Invalid credentials"}),
+                jar,
+            )
         }
     };
 
@@ -109,30 +143,49 @@ async fn check_password_and_login(
 ) -> (StatusCode, serde_json::Value, CookieJar) {
     if !verify_password(&body.password, &user.password_hash) {
         state.login_rate_limiter.record_attempt(rate_key_user);
-        let _ = state.storage.increment_failed_attempts(&body.username).await;
+        let _ = state
+            .storage
+            .increment_failed_attempts(&body.username)
+            .await;
 
         // Lock account after 10 failed attempts
         if user.failed_attempts + 1 >= 10 {
             let lock_until = now_secs + 900; // 15 minutes
             let _ = state.storage.lock_account(&body.username, lock_until).await;
-            tracing::warn!("Account locked for user {} due to too many failed attempts", body.username);
+            tracing::warn!(
+                "Account locked for user {} due to too many failed attempts",
+                body.username
+            );
         }
 
-        let _ = state.storage.insert_security_event(&crate::models::CreateSecurityEvent {
-            event_type: "login_failed".into(),
-            severity: "warning".into(),
-            source_ip: source_ip.clone(),
-            user_agent: user_agent.clone(),
-            username: Some(body.username.clone()),
-            details: Some(format!("Invalid password (attempt {})", user.failed_attempts + 1)),
-        }).await;
+        let _ = state
+            .storage
+            .insert_security_event(&crate::models::CreateSecurityEvent {
+                event_type: "login_failed".into(),
+                severity: "warning".into(),
+                source_ip: source_ip.clone(),
+                user_agent: user_agent.clone(),
+                username: Some(body.username.clone()),
+                details: Some(format!(
+                    "Invalid password (attempt {})",
+                    user.failed_attempts + 1
+                )),
+            })
+            .await;
 
-        return (StatusCode::UNAUTHORIZED, json!({"error": "Invalid credentials"}), jar);
+        return (
+            StatusCode::UNAUTHORIZED,
+            json!({"error": "Invalid credentials"}),
+            jar,
+        );
     }
 
     // Successful login — reset failed attempts and revoke old refresh tokens
     let _ = state.storage.reset_failed_attempts(&body.username).await;
-    let _ = state.storage.revoke_all_user_refresh_tokens(&body.username).await;
+    let _ = state
+        .storage
+        .revoke_all_user_refresh_tokens(&body.username)
+        .await;
     state.login_rate_limiter.cleanup();
 
     let secret = &state.auth_secret;
@@ -142,29 +195,33 @@ async fn check_password_and_login(
     let refresh_token_raw = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&refresh_token_raw);
     let refresh_expires = crate::timeutil::now_secs() + REFRESH_TOKEN_EXPIRY_SECS;
-    let _ = state.storage.create_refresh_token(&body.username, &refresh_hash, refresh_expires, crate::timeutil::now_secs()).await;
+    let _ = state
+        .storage
+        .create_refresh_token(
+            &body.username,
+            &refresh_hash,
+            refresh_expires,
+            crate::timeutil::now_secs(),
+        )
+        .await;
 
-    let access_cookie = axum_extra::extract::cookie::Cookie::build((
-        "voltrus_token",
-        access_token.clone(),
-    ))
-    .http_only(true)
-    .secure(state.cookie_secure)
-    .same_site(axum_extra::extract::cookie::SameSite::Strict)
-    .max_age(time::Duration::seconds(900)) // 15 minutes
-    .path("/")
-    .build();
+    let access_cookie =
+        axum_extra::extract::cookie::Cookie::build(("voltrus_token", access_token.clone()))
+            .http_only(true)
+            .secure(state.cookie_secure)
+            .same_site(axum_extra::extract::cookie::SameSite::Strict)
+            .max_age(time::Duration::seconds(900)) // 15 minutes
+            .path("/")
+            .build();
 
-    let refresh_cookie = axum_extra::extract::cookie::Cookie::build((
-        "voltrus_refresh",
-        refresh_token_raw,
-    ))
-    .http_only(true)
-    .secure(state.cookie_secure)
-    .same_site(axum_extra::extract::cookie::SameSite::Strict)
-    .max_age(time::Duration::seconds(REFRESH_TOKEN_EXPIRY_SECS))
-    .path("/")
-    .build();
+    let refresh_cookie =
+        axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", refresh_token_raw))
+            .http_only(true)
+            .secure(state.cookie_secure)
+            .same_site(axum_extra::extract::cookie::SameSite::Strict)
+            .max_age(time::Duration::seconds(REFRESH_TOKEN_EXPIRY_SECS))
+            .path("/")
+            .build();
 
     let jar = jar.add(access_cookie).add(refresh_cookie);
     (
@@ -194,37 +251,44 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoR
         .max_age(time::Duration::seconds(0))
         .path("/")
         .build();
-    (jar.add(access_cookie).add(refresh_cookie), Json(json!({"ok": true})))
+    (
+        jar.add(access_cookie).add(refresh_cookie),
+        Json(json!({"ok": true})),
+    )
 }
 
 pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
-    let token = jar
-        .get("voltrus_token")
-        .map(|c| c.value())
-        .unwrap_or("");
+    let token = jar.get("voltrus_token").map(|c| c.value()).unwrap_or("");
     if token.is_empty() {
         return Json(json!({"authenticated": false}));
     }
     match verify_token(token, &state.auth_secret) {
-        Some(claims) => Json(json!({"authenticated": true, "username": claims.username, "role": claims.role})),
+        Some(claims) => {
+            Json(json!({"authenticated": true, "username": claims.username, "role": claims.role}))
+        }
         None => Json(json!({"authenticated": false})),
     }
 }
 
 pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
-    let token = jar
-        .get("voltrus_token")
-        .map(|c| c.value())
-        .unwrap_or("");
+    let token = jar.get("voltrus_token").map(|c| c.value()).unwrap_or("");
     if token.is_empty() {
-        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "unauthorized"})),
+        )
+            .into_response();
     }
     match verify_token(token, &state.auth_secret) {
         Some(_claims) => {
             let csrf = crate::security::generate_csrf_token();
             Json(json!({"csrf_token": csrf})).into_response()
         }
-        None => (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))).into_response(),
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "unauthorized"})),
+        )
+            .into_response(),
     }
 }
 
@@ -242,7 +306,11 @@ pub async fn refresh_token(
     }
 
     let refresh_hash = hash_refresh_token(refresh_token);
-    match state.storage.get_refresh_token_by_hash(&refresh_hash).await? {
+    match state
+        .storage
+        .get_refresh_token_by_hash(&refresh_hash)
+        .await?
+    {
         Some(rt) if rt.revoked_at.is_none() && rt.expires_at > crate::timeutil::now_secs() => {
             // Revoke old token (rotation)
             let _ = state.storage.revoke_refresh_token(&rt.token_hash).await;
@@ -261,24 +329,31 @@ pub async fn refresh_token(
             let refresh_expires = crate::timeutil::now_secs() + REFRESH_TOKEN_EXPIRY_SECS;
             let _ = state
                 .storage
-                .create_refresh_token(&user.username, &new_refresh_hash, refresh_expires, crate::timeutil::now_secs())
+                .create_refresh_token(
+                    &user.username,
+                    &new_refresh_hash,
+                    refresh_expires,
+                    crate::timeutil::now_secs(),
+                )
                 .await;
 
-            let access_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_token", new_access))
-                .http_only(true)
-                .secure(state.cookie_secure)
-                .same_site(axum_extra::extract::cookie::SameSite::Strict)
-                .max_age(time::Duration::seconds(900))
-                .path("/")
-                .build();
+            let access_cookie =
+                axum_extra::extract::cookie::Cookie::build(("voltrus_token", new_access))
+                    .http_only(true)
+                    .secure(state.cookie_secure)
+                    .same_site(axum_extra::extract::cookie::SameSite::Strict)
+                    .max_age(time::Duration::seconds(900))
+                    .path("/")
+                    .build();
 
-            let refresh_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", new_refresh_raw))
-                .http_only(true)
-                .secure(state.cookie_secure)
-                .same_site(axum_extra::extract::cookie::SameSite::Strict)
-                .max_age(time::Duration::seconds(REFRESH_TOKEN_EXPIRY_SECS))
-                .path("/")
-                .build();
+            let refresh_cookie =
+                axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", new_refresh_raw))
+                    .http_only(true)
+                    .secure(state.cookie_secure)
+                    .same_site(axum_extra::extract::cookie::SameSite::Strict)
+                    .max_age(time::Duration::seconds(REFRESH_TOKEN_EXPIRY_SECS))
+                    .path("/")
+                    .build();
 
             let jar = jar.add(access_cookie).add(refresh_cookie);
             Ok((jar, Json(json!({"ok": true}))).into_response())
@@ -289,14 +364,18 @@ pub async fn refresh_token(
                 .max_age(time::Duration::seconds(0))
                 .path("/")
                 .build();
-            let refresh_cookie = axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", ""))
-                .max_age(time::Duration::seconds(0))
-                .path("/")
-                .build();
+            let refresh_cookie =
+                axum_extra::extract::cookie::Cookie::build(("voltrus_refresh", ""))
+                    .max_age(time::Duration::seconds(0))
+                    .path("/")
+                    .build();
             let jar = jar.add(access_cookie).add(refresh_cookie);
             Ok((
                 jar,
-                (StatusCode::UNAUTHORIZED, Json(json!({"error": "unauthorized"}))),
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({"error": "unauthorized"})),
+                ),
             )
                 .into_response())
         }
@@ -314,9 +393,16 @@ pub async fn change_password(
     Json(body): Json<ChangePasswordRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if body.new_password.len() < 8 {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "Password must be at least 8 characters"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Password must be at least 8 characters"})),
+        )
+            .into_response());
     }
-    let user = state.storage.get_user_by_username(&auth.username).await?
+    let user = state
+        .storage
+        .get_user_by_username(&auth.username)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let hash = hash_password(&body.new_password);
     state.storage.update_user_password(user.id, &hash).await?;

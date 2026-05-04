@@ -45,8 +45,12 @@ impl Storage {
             conn.execute(
                 "DELETE FROM telemetry WHERE timestamp < ?1",
                 rusqlite::params![cutoff],
-            ).context("Delete raw telemetry failed").map(|n| n as u64)
-        }).await.context("Task join failed")?
+            )
+            .context("Delete raw telemetry failed")
+            .map(|n| n as u64)
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_hourly_older_than(&self, cutoff: i64) -> Result<u64> {
@@ -56,8 +60,12 @@ impl Storage {
             conn.execute(
                 "DELETE FROM telemetry_hourly WHERE bucket_start < ?1",
                 rusqlite::params![cutoff],
-            ).context("Delete hourly telemetry failed").map(|n| n as u64)
-        }).await.context("Task join failed")?
+            )
+            .context("Delete hourly telemetry failed")
+            .map(|n| n as u64)
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_daily_older_than(&self, cutoff: i64) -> Result<u64> {
@@ -67,23 +75,37 @@ impl Storage {
             conn.execute(
                 "DELETE FROM telemetry_daily WHERE bucket_start < ?1",
                 rusqlite::params![cutoff],
-            ).context("Delete daily telemetry failed").map(|n| n as u64)
-        }).await.context("Task join failed")?
+            )
+            .context("Delete daily telemetry failed")
+            .map(|n| n as u64)
+        })
+        .await
+        .context("Task join failed")?
     }
 
-    pub async fn query_raw_for_archive(&self, cutoff: i64) -> Result<Vec<(String, String, i64, f64)>> {
+    pub async fn query_raw_for_archive(
+        &self,
+        cutoff: i64,
+    ) -> Result<Vec<(String, String, i64, f64)>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare(
-                "SELECT device_id, metric, timestamp, value FROM telemetry
-                 WHERE timestamp < ?1 ORDER BY timestamp"
-            ).context("Prepare archive query failed")?;
-            let rows = stmt.query_map(rusqlite::params![cutoff], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).context("Query archive rows failed")?;
-            rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
-        }).await.context("Task join failed")?
+            let mut stmt = conn
+                .prepare(
+                    "SELECT device_id, metric, timestamp, value FROM telemetry
+                 WHERE timestamp < ?1 ORDER BY timestamp",
+                )
+                .context("Prepare archive query failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![cutoff], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .context("Query archive rows failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Query telemetry across all retention tiers, transparently merging raw/hourly/daily data.
@@ -111,22 +133,32 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
 
-            let mut grouped: std::collections::BTreeMap<i64, std::collections::HashMap<String, f64>> =
-                std::collections::BTreeMap::new();
+            let mut grouped: std::collections::BTreeMap<
+                i64,
+                std::collections::HashMap<String, f64>,
+            > = std::collections::BTreeMap::new();
 
             // Daily data: (-∞, hourly_cutoff)
             // Always useful at any resolution
             let daily_from = from;
             let daily_to = to.min(hourly_cutoff);
             if daily_from < daily_to {
-                let mut stmt = conn.prepare(
-                    "SELECT bucket_start, metric, avg_value FROM telemetry_daily
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT bucket_start, metric, avg_value FROM telemetry_daily
                      WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
-                     ORDER BY bucket_start LIMIT 10000"
-                ).context("Prepare daily failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, daily_from, daily_to], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
-                }).context("Query daily failed")?;
+                     ORDER BY bucket_start LIMIT 10000",
+                    )
+                    .context("Prepare daily failed")?;
+                let rows = stmt
+                    .query_map(rusqlite::params![device_id, daily_from, daily_to], |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, f64>(2)?,
+                        ))
+                    })
+                    .context("Query daily failed")?;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
@@ -138,14 +170,25 @@ impl Storage {
             let hourly_from = from.max(hourly_cutoff);
             let hourly_to = to.min(raw_cutoff);
             if min_interval_secs <= 3600 && hourly_from < hourly_to {
-                let mut stmt = conn.prepare(
-                    "SELECT bucket_start, metric, avg_value FROM telemetry_hourly
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT bucket_start, metric, avg_value FROM telemetry_hourly
                      WHERE device_id = ?1 AND bucket_start >= ?2 AND bucket_start <= ?3
-                     ORDER BY bucket_start LIMIT 10000"
-                ).context("Prepare hourly failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, hourly_from, hourly_to], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
-                }).context("Query hourly failed")?;
+                     ORDER BY bucket_start LIMIT 10000",
+                    )
+                    .context("Prepare hourly failed")?;
+                let rows = stmt
+                    .query_map(
+                        rusqlite::params![device_id, hourly_from, hourly_to],
+                        |row| {
+                            Ok((
+                                row.get::<_, i64>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, f64>(2)?,
+                            ))
+                        },
+                    )
+                    .context("Query hourly failed")?;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
@@ -157,14 +200,22 @@ impl Storage {
             let raw_from = from.max(raw_cutoff);
             let raw_to = to;
             if min_interval_secs <= 300 && raw_from < raw_to {
-                let mut stmt = conn.prepare(
-                    "SELECT timestamp, metric, value FROM telemetry
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT timestamp, metric, value FROM telemetry
                      WHERE device_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3
-                     ORDER BY timestamp LIMIT 10000"
-                ).context("Prepare raw failed")?;
-                let rows = stmt.query_map(rusqlite::params![device_id, raw_from, raw_to], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, f64>(2)?))
-                }).context("Query raw failed")?;
+                     ORDER BY timestamp LIMIT 10000",
+                    )
+                    .context("Prepare raw failed")?;
+                let rows = stmt
+                    .query_map(rusqlite::params![device_id, raw_from, raw_to], |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, f64>(2)?,
+                        ))
+                    })
+                    .context("Query raw failed")?;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
@@ -172,7 +223,9 @@ impl Storage {
             }
 
             Ok(grouped.into_iter().collect())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Count total rows matching the export query filters (for pagination meta).
@@ -194,14 +247,20 @@ impl Storage {
                 sql.push_str(" AND device_id = ?1");
             }
             if metric.is_some() {
-                sql.push_str(&format!(" AND metric = ?{}", if device_id.is_some() { 2 } else { 1 }));
+                sql.push_str(&format!(
+                    " AND metric = ?{}",
+                    if device_id.is_some() { 2 } else { 1 }
+                ));
             }
             if from.is_some() {
                 let idx = device_id.is_some() as usize + metric.is_some() as usize + 1;
                 sql.push_str(&format!(" AND timestamp >= ?{idx}"));
             }
             if to.is_some() {
-                let idx = device_id.is_some() as usize + metric.is_some() as usize + from.is_some() as usize + 1;
+                let idx = device_id.is_some() as usize
+                    + metric.is_some() as usize
+                    + from.is_some() as usize
+                    + 1;
                 sql.push_str(&format!(" AND timestamp <= ?{idx}"));
             }
 
@@ -221,11 +280,15 @@ impl Storage {
                 params.push(Box::new(t));
             }
 
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-            let count: i64 = stmt.query_row(param_refs.as_slice(), |row| row.get(0))
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            let count: i64 = stmt
+                .query_row(param_refs.as_slice(), |row| row.get(0))
                 .context("Count query failed")?;
             Ok(count)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Query telemetry rows for the export API with optional aggregation.
@@ -263,7 +326,11 @@ impl Storage {
                     (_, "sum") => "ROUND(avg_value * sample_count, 4)",
                     (_, _) => "avg_value",
                 };
-                let tbl = if int == "1d" { "telemetry_daily" } else { "telemetry_hourly" };
+                let tbl = if int == "1d" {
+                    "telemetry_daily"
+                } else {
+                    "telemetry_hourly"
+                };
                 (tbl, "bucket_start", val)
             }
             _ => ("telemetry", "timestamp", "value"),
@@ -271,7 +338,8 @@ impl Storage {
 
         // Determine total count for meta — query the correct table
         let total = if aggregation.is_some() {
-            self.count_telemetry_table(table, ts_col, device_id, metric, from, to).await?
+            self.count_telemetry_table(table, ts_col, device_id, metric, from, to)
+                .await?
         } else {
             self.count_telemetry(device_id, metric, from, to).await?
         };
@@ -332,19 +400,26 @@ impl Storage {
             params.push(Box::new(offset as i64));
 
             let mut stmt = conn.prepare(&sql).context("Prepare export query failed")?;
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-            let rows = stmt.query_map(param_refs.as_slice(), |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, f64>(3)?,
-                ))
-            }).context("Query export failed")?;
-            let rows = rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            let rows = stmt
+                .query_map(param_refs.as_slice(), |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, f64>(3)?,
+                    ))
+                })
+                .context("Query export failed")?;
+            let rows = rows
+                .collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")?;
 
             Ok((rows, total))
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     /// Count rows in an arbitrary telemetry table (raw or aggregated) for pagination meta.
@@ -403,13 +478,14 @@ impl Storage {
                 params.push(Box::new(t));
             }
 
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-            let count: i64 = stmt.query_row(param_refs.as_slice(), |row| row.get(0))
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
+            let count: i64 = stmt
+                .query_row(param_refs.as_slice(), |row| row.get(0))
                 .context("Count query failed")?;
             Ok(count)
         })
         .await
         .context("Task join failed")?
     }
-
 }

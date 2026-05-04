@@ -72,7 +72,12 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn update_role(&self, id: i64, name: Option<&str>, permissions: Option<&str>) -> Result<()> {
+    pub async fn update_role(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        permissions: Option<&str>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let name = name.map(|s| s.to_string());
         let permissions = permissions.map(|s| s.to_string());
@@ -152,9 +157,24 @@ impl Storage {
     pub async fn seed_default_roles(&self) -> Result<()> {
         let existing = self.list_roles().await?;
         if existing.is_empty() {
-            let _ = self.create_role("Admin", &serde_json::to_string(crate::models::ALL_PERMISSIONS).unwrap()).await;
-            let _ = self.create_role("Operator", &serde_json::to_string(crate::models::OPERATOR_PERMISSIONS).unwrap()).await;
-            let _ = self.create_role("Viewer", &serde_json::to_string(crate::models::VIEWER_PERMISSIONS).unwrap()).await;
+            let _ = self
+                .create_role(
+                    "Admin",
+                    &serde_json::to_string(crate::models::ALL_PERMISSIONS).unwrap(),
+                )
+                .await;
+            let _ = self
+                .create_role(
+                    "Operator",
+                    &serde_json::to_string(crate::models::OPERATOR_PERMISSIONS).unwrap(),
+                )
+                .await;
+            let _ = self
+                .create_role(
+                    "Viewer",
+                    &serde_json::to_string(crate::models::VIEWER_PERMISSIONS).unwrap(),
+                )
+                .await;
         }
         Ok(())
     }

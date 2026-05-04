@@ -1,8 +1,8 @@
 use axum::{
-    extract::{Multipart, Path, State},
-    http::{header, StatusCode},
-    response::IntoResponse,
     Json,
+    extract::{Multipart, Path, State},
+    http::{StatusCode, header},
+    response::IntoResponse,
 };
 use serde_json::json;
 
@@ -21,7 +21,11 @@ pub async fn get_widget(
 ) -> impl IntoResponse {
     match state.widget_registry.get(&id).await {
         Some(info) => Json(info).into_response(),
-        None => (StatusCode::NOT_FOUND, Json(json!({"error": "Widget not found"}))).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "Widget not found"})),
+        )
+            .into_response(),
     }
 }
 
@@ -35,27 +39,32 @@ pub async fn get_widget_asset(
     }
 
     match state.widget_registry.asset_path(&id, &filename) {
-        Some(path) => {
-            match tokio::fs::read(&path).await {
-                Ok(data) => {
-                    let content_type = match path.extension().and_then(|e| e.to_str()) {
-                        Some("js") => "application/javascript",
-                        Some("css") => "text/css",
-                        Some("json") => "application/json",
-                        _ => "application/octet-stream",
-                    };
-                    (
-                        StatusCode::OK,
-                        [
-                            (header::CONTENT_TYPE, header::HeaderValue::from_static(content_type)),
-                            (header::CACHE_CONTROL, header::HeaderValue::from_static("public, max-age=3600")),
-                        ],
-                        data,
-                    ).into_response()
-                }
-                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read asset").into_response(),
+        Some(path) => match tokio::fs::read(&path).await {
+            Ok(data) => {
+                let content_type = match path.extension().and_then(|e| e.to_str()) {
+                    Some("js") => "application/javascript",
+                    Some("css") => "text/css",
+                    Some("json") => "application/json",
+                    _ => "application/octet-stream",
+                };
+                (
+                    StatusCode::OK,
+                    [
+                        (
+                            header::CONTENT_TYPE,
+                            header::HeaderValue::from_static(content_type),
+                        ),
+                        (
+                            header::CACHE_CONTROL,
+                            header::HeaderValue::from_static("public, max-age=3600"),
+                        ),
+                    ],
+                    data,
+                )
+                    .into_response()
             }
-        }
+            Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read asset").into_response(),
+        },
         None => (StatusCode::NOT_FOUND, "Asset not found").into_response(),
     }
 }
@@ -76,12 +85,20 @@ pub async fn install_widget(
     }
 
     if zip_data.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({"error": "No file provided"}))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "No file provided"})),
+        )
+            .into_response();
     }
 
     match state.widget_registry.install(&id, &zip_data).await {
         Ok(()) => (StatusCode::OK, Json(json!({"status": "installed"}))).into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }
 
@@ -92,6 +109,10 @@ pub async fn delete_widget(
 ) -> impl IntoResponse {
     match state.widget_registry.uninstall(&id).await {
         Ok(()) => (StatusCode::OK, Json(json!({"status": "deleted"}))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": e.to_string()})),
+        )
+            .into_response(),
     }
 }

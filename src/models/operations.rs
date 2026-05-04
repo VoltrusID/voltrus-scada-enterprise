@@ -329,7 +329,8 @@ pub fn parse_mentions(text: &str) -> Vec<String> {
     while i < len {
         if bytes[i] == b'@' {
             // Skip if preceded by a word character (prevents matching email addresses)
-            let prev_is_word = i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
+            let prev_is_word =
+                i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
             if !prev_is_word {
                 let start = i + 1;
                 let mut end = start;
@@ -403,8 +404,12 @@ pub struct CreateScriptRequest {
     pub memory_limit_bytes: Option<i64>,
 }
 
-fn default_cpu_limit() -> Option<i64> { Some(1000) }
-fn default_memory_limit() -> Option<i64> { Some(1048576) }
+fn default_cpu_limit() -> Option<i64> {
+    Some(1000)
+}
+fn default_memory_limit() -> Option<i64> {
+    Some(1048576)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateScriptRequest {

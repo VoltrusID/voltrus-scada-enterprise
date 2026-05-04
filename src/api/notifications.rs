@@ -1,11 +1,11 @@
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState};
+use crate::models::*;
 
 /// GET /api/v1/notifications/settings
 pub async fn list_notification_settings(
@@ -21,7 +21,11 @@ pub async fn create_notification_setting(
     Json(req): Json<CreateNotificationSettingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Validate channel_type
-    if req.channel_type != "email" && req.channel_type != "webhook" && req.channel_type != "push" && req.channel_type != "sms" {
+    if req.channel_type != "email"
+        && req.channel_type != "webhook"
+        && req.channel_type != "push"
+        && req.channel_type != "sms"
+    {
         return Err(AppError(anyhow::anyhow!(
             "channel_type must be 'email', 'webhook', 'push', or 'sms'"
         )));
@@ -31,10 +35,14 @@ pub async fn create_notification_setting(
     let tier = &state.license_tier;
     match req.channel_type.as_str() {
         "email" | "webhook" | "push" if !tier.email_notifications() => {
-            return Err(AppError(anyhow::anyhow!("Email/webhook/push notifications require Starter tier or above")));
+            return Err(AppError(anyhow::anyhow!(
+                "Email/webhook/push notifications require Starter tier or above"
+            )));
         }
         "sms" if !tier.sms_notifications() => {
-            return Err(AppError(anyhow::anyhow!("SMS notifications require Professional tier or above")));
+            return Err(AppError(anyhow::anyhow!(
+                "SMS notifications require Professional tier or above"
+            )));
         }
         _ => {}
     }
@@ -57,10 +65,14 @@ pub async fn create_notification_setting(
             let phone = target["phone"].as_str().unwrap_or("");
             let carrier = target["carrier"].as_str().unwrap_or("");
             if phone.is_empty() {
-                return Err(AppError(anyhow::anyhow!("each SMS target must have a 'phone' field")));
+                return Err(AppError(anyhow::anyhow!(
+                    "each SMS target must have a 'phone' field"
+                )));
             }
             if carrier.is_empty() {
-                return Err(AppError(anyhow::anyhow!("each SMS target must have a 'carrier' field")));
+                return Err(AppError(anyhow::anyhow!(
+                    "each SMS target must have a 'carrier' field"
+                )));
             }
             if crate::notification::sms::carrier_gateway(carrier).is_none() {
                 return Err(AppError(anyhow::anyhow!(
@@ -130,12 +142,15 @@ pub async fn update_notification_setting(
     Json(req): Json<UpdateNotificationSettingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Validate channel_type if provided
-    if let Some(ref ct) = req.channel_type {
-        if ct != "email" && ct != "webhook" && ct != "push" && ct != "sms" {
-            return Err(AppError(anyhow::anyhow!(
-                "channel_type must be 'email', 'webhook', 'push', or 'sms'"
-            )));
-        }
+    if let Some(ref ct) = req.channel_type
+        && ct != "email"
+        && ct != "webhook"
+        && ct != "push"
+        && ct != "sms"
+    {
+        return Err(AppError(anyhow::anyhow!(
+            "channel_type must be 'email', 'webhook', 'push', or 'sms'"
+        )));
     }
 
     // Validate config if provided
@@ -149,9 +164,7 @@ pub async fn update_notification_setting(
             }
         };
         if targets.is_empty() {
-            return Err(AppError(anyhow::anyhow!(
-                "config array must not be empty"
-            )));
+            return Err(AppError(anyhow::anyhow!("config array must not be empty")));
         }
     }
 
@@ -195,10 +208,14 @@ pub async fn test_notification(
     let tier = &state.license_tier;
     match req.channel_type.as_str() {
         "email" | "webhook" if !tier.email_notifications() => {
-            return Err(AppError(anyhow::anyhow!("Email/webhook notifications require Starter tier or above")));
+            return Err(AppError(anyhow::anyhow!(
+                "Email/webhook notifications require Starter tier or above"
+            )));
         }
         "sms" if !tier.sms_notifications() => {
-            return Err(AppError(anyhow::anyhow!("SMS notifications require Professional tier or above")));
+            return Err(AppError(anyhow::anyhow!(
+                "SMS notifications require Professional tier or above"
+            )));
         }
         _ => {}
     }
@@ -240,7 +257,8 @@ pub async fn test_notification(
                     for to in &targets {
                         match notifier.send_alarm_email(to, &alarm_data).await {
                             Ok(_) => results.push(json!({"to": to, "status": "sent"})),
-                            Err(e) => results.push(json!({"to": to, "status": "error", "error": e.to_string()})),
+                            Err(e) => results
+                                .push(json!({"to": to, "status": "error", "error": e.to_string()})),
                         }
                     }
                     Ok(Json(json!({
@@ -283,7 +301,9 @@ pub async fn test_notification(
             for url in &targets {
                 match crate::notification::webhook::send_webhook_alarm(url, &payload).await {
                     Ok(_) => results.push(json!({"url": url, "status": "sent"})),
-                    Err(e) => results.push(json!({"url": url, "status": "error", "error": e.to_string()})),
+                    Err(e) => {
+                        results.push(json!({"url": url, "status": "error", "error": e.to_string()}))
+                    }
                 }
             }
 

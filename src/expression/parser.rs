@@ -1,10 +1,23 @@
+#![allow(clippy::while_let_loop)]
+
 use super::token::Token;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum BinOp { Add, Sub, Mul, Div }
+pub(crate) enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum CompareOp { Gt, Lt, Gte, Lte, Eq }
+pub(crate) enum CompareOp {
+    Gt,
+    Lt,
+    Gte,
+    Lte,
+    Eq,
+}
 
 #[derive(Debug, Clone)]
 pub(crate) enum Expr {
@@ -13,19 +26,34 @@ pub(crate) enum Expr {
     StringLit(String),
     JsonPath(Vec<String>),
     Func(String, Vec<Expr>),
-    BinOp { op: BinOp, left: Box<Expr>, right: Box<Expr> },
+    BinOp {
+        op: BinOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
     UnaryMinus(Box<Expr>),
-    Compare { op: CompareOp, left: Box<Expr>, right: Box<Expr> },
+    Compare {
+        op: CompareOp,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
     LogicalAnd(Box<Expr>, Box<Expr>),
     LogicalOr(Box<Expr>, Box<Expr>),
 }
 
-pub(crate) struct Parser { tokens: Vec<Token>, pos: usize }
+pub(crate) struct Parser {
+    tokens: Vec<Token>,
+    pos: usize,
+}
 
 impl Parser {
-    pub(crate) fn new(tokens: Vec<Token>) -> Self { Self { tokens, pos: 0 } }
+    pub(crate) fn new(tokens: Vec<Token>) -> Self {
+        Self { tokens, pos: 0 }
+    }
 
-    fn peek(&self) -> Option<&Token> { self.tokens.get(self.pos) }
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.pos)
+    }
 
     fn advance(&mut self) -> Option<Token> {
         let tok = self.tokens.get(self.pos).cloned();
@@ -78,7 +106,8 @@ impl Parser {
         let mut left = self.parse_expr()?;
         loop {
             match self.peek() {
-                Some(Token::Gt) | Some(Token::Lt) | Some(Token::Gte) | Some(Token::Lte) | Some(Token::Eq) => {
+                Some(Token::Gt) | Some(Token::Lt) | Some(Token::Gte) | Some(Token::Lte)
+                | Some(Token::Eq) => {
                     let op = match self.advance().unwrap() {
                         Token::Gt => CompareOp::Gt,
                         Token::Lt => CompareOp::Lt,
@@ -88,7 +117,11 @@ impl Parser {
                         _ => unreachable!(),
                     };
                     let right = self.parse_expr()?;
-                    left = Expr::Compare { op, left: Box::new(left), right: Box::new(right) };
+                    left = Expr::Compare {
+                        op,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    };
                 }
                 _ => break,
             }
@@ -108,7 +141,11 @@ impl Parser {
                         _ => unreachable!(),
                     };
                     let right = self.parse_term()?;
-                    left = Expr::BinOp { op, left: Box::new(left), right: Box::new(right) };
+                    left = Expr::BinOp {
+                        op,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    };
                 }
                 _ => break,
             }
@@ -128,7 +165,11 @@ impl Parser {
                         _ => unreachable!(),
                     };
                     let right = self.parse_unary()?;
-                    left = Expr::BinOp { op, left: Box::new(left), right: Box::new(right) };
+                    left = Expr::BinOp {
+                        op,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                    };
                 }
                 _ => break,
             }
@@ -149,9 +190,18 @@ impl Parser {
     // atom -> Number | Register | StringLit | Ident ('.' Ident)* | Ident '(' args ')' | '(' or ')'
     fn parse_atom(&mut self) -> Result<Expr, String> {
         match self.peek().cloned() {
-            Some(Token::Number(n)) => { self.advance(); Ok(Expr::Number(n)) }
-            Some(Token::Register(name)) => { self.advance(); Ok(Expr::Register(name)) }
-            Some(Token::StringLit(s)) => { self.advance(); Ok(Expr::StringLit(s)) }
+            Some(Token::Number(n)) => {
+                self.advance();
+                Ok(Expr::Number(n))
+            }
+            Some(Token::Register(name)) => {
+                self.advance();
+                Ok(Expr::Register(name))
+            }
+            Some(Token::StringLit(s)) => {
+                self.advance();
+                Ok(Expr::StringLit(s))
+            }
             Some(Token::Func(name)) => {
                 self.advance();
                 self.expect_lparen(&name)?;
@@ -169,7 +219,12 @@ impl Parser {
                             Some(Token::Ident(part)) | Some(Token::Func(part)) => {
                                 path.push(part);
                             }
-                            _ => return Err(format!("Expected identifier after '.' in JSON path at position {}", self.pos)),
+                            _ => {
+                                return Err(format!(
+                                    "Expected identifier after '.' in JSON path at position {}",
+                                    self.pos
+                                ));
+                            }
                         }
                     }
                     Ok(Expr::JsonPath(path))

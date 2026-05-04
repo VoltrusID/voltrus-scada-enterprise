@@ -4,7 +4,10 @@ use anyhow::{Context, Result};
 impl Storage {
     // ── Notification Settings ──
 
-    pub async fn get_notification_settings_by_source(&self, source_key: &str) -> Result<Vec<crate::models::NotificationSetting>> {
+    pub async fn get_notification_settings_by_source(
+        &self,
+        source_key: &str,
+    ) -> Result<Vec<crate::models::NotificationSetting>> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();
         tokio::task::spawn_blocking(move || {
@@ -34,7 +37,9 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn get_all_notification_settings(&self) -> Result<Vec<crate::models::NotificationSetting>> {
+    pub async fn get_all_notification_settings(
+        &self,
+    ) -> Result<Vec<crate::models::NotificationSetting>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -147,5 +152,4 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
-
 }

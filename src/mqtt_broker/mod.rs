@@ -1,8 +1,8 @@
-pub mod config;
 pub mod auth;
+pub mod config;
 
 use std::sync::Arc;
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{RwLock, watch};
 
 use crate::models::MqttBrokerConfig;
 
@@ -58,10 +58,7 @@ impl Default for MqttBrokerState {
 }
 
 /// Start the embedded MQTT broker as a background task.
-pub async fn start_broker(
-    state: MqttBrokerState,
-    config: MqttBrokerConfig,
-) -> Result<(), String> {
+pub async fn start_broker(state: MqttBrokerState, config: MqttBrokerConfig) -> Result<(), String> {
     if state.current_status().await == BrokerStatus::Running {
         return Err("Broker is already running".to_string());
     }

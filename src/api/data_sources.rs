@@ -1,13 +1,13 @@
+use axum::Json;
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
-use super::{AppError, AppState};
 use super::naming_convention::validate_tag_name;
+use super::{AppError, AppState};
+use crate::models::*;
 
 /// GET /api/data-sources?screen=X — list data sources, optionally filtered by screen
 #[utoipa::path(
@@ -49,14 +49,20 @@ pub async fn create_data_source(
     let crit_val = body["crit_val"].as_f64().unwrap_or(0.0);
     let base_val = body["base_val"].as_f64().unwrap_or(50.0);
     let decimals = body["decimals"].as_i64().unwrap_or(1);
-    let source_type = body["source_type"].as_str().unwrap_or("random_walk").to_string();
+    let source_type = body["source_type"]
+        .as_str()
+        .unwrap_or("random_walk")
+        .to_string();
     let source_config = body
         .get("source_config")
         .map(|v| v.to_string())
         .unwrap_or_else(|| "{}".to_string());
     let device_id = body["device_id"].as_str().unwrap_or("default").to_string();
     let equipment_id = body["equipment_id"].as_str();
-    let chart_type = body["chart_type"].as_str().unwrap_or("sparkline").to_string();
+    let chart_type = body["chart_type"]
+        .as_str()
+        .unwrap_or("sparkline")
+        .to_string();
 
     // Validate name against naming convention
     if let Err(msg) = validate_tag_name(&state, &name).await {
@@ -88,10 +94,7 @@ pub async fn create_data_source(
         )
         .await?;
 
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({"id": id})),
-    ).into_response())
+    Ok((StatusCode::CREATED, Json(json!({"id": id}))).into_response())
 }
 
 /// PUT /api/data-sources/{id} — update data source fields dynamically
@@ -108,10 +111,10 @@ pub async fn update_data_source(
     Path(id): Path<i64>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Response<Body>, AppError> {
-    if let Some(name) = body.get("name").and_then(|v| v.as_str()) {
-        if let Err(msg) = validate_tag_name(&state, name).await {
-            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response());
-        }
+    if let Some(name) = body.get("name").and_then(|v| v.as_str())
+        && let Err(msg) = validate_tag_name(&state, name).await
+    {
+        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response());
     }
     state.storage.update_data_source(id, &body).await?;
     Ok(Json(json!({"ok": true})).into_response())
@@ -150,7 +153,10 @@ pub async fn reorder_data_sources(
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("order array is required"))?
         .iter()
-        .map(|v| v.as_i64().ok_or_else(|| anyhow::anyhow!("order must contain integer IDs")))
+        .map(|v| {
+            v.as_i64()
+                .ok_or_else(|| anyhow::anyhow!("order must contain integer IDs"))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     state.storage.reorder_data_sources(&order).await?;

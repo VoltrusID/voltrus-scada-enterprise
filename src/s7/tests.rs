@@ -179,7 +179,9 @@ fn test_s7_write_request_construction() {
         data_type: S7DataType::Word,
         length: 1,
     };
-    let packet = client.build_write_var_request(&tag, &S7Value::Word(1234)).unwrap();
+    let packet = client
+        .build_write_var_request(&tag, &S7Value::Word(1234))
+        .unwrap();
 
     assert_eq!(packet[0], 0x32); // protocol ID
     assert_eq!(packet[1], S7_MSG_TYPE_JOB);
@@ -267,8 +269,12 @@ fn test_s7_data_type_from_str() {
 fn test_decode_value_word_be() {
     let data = [0x00, 0xFF]; // 255 big-endian
     let tag = S7Tag {
-        area: S7Area::DB, db_number: 1, offset: 0, bit_offset: 0,
-        data_type: S7DataType::Word, length: 1,
+        area: S7Area::DB,
+        db_number: 1,
+        offset: 0,
+        bit_offset: 0,
+        data_type: S7DataType::Word,
+        length: 1,
     };
     let val = S7Client::decode_value(&data, &tag);
     assert_eq!(val, S7Value::Word(255));
@@ -278,8 +284,12 @@ fn test_decode_value_word_be() {
 fn test_decode_value_real() {
     let data = f32::to_be_bytes(25.5);
     let tag = S7Tag {
-        area: S7Area::DB, db_number: 1, offset: 0, bit_offset: 0,
-        data_type: S7DataType::Real, length: 1,
+        area: S7Area::DB,
+        db_number: 1,
+        offset: 0,
+        bit_offset: 0,
+        data_type: S7DataType::Real,
+        length: 1,
     };
     let val = S7Client::decode_value(&data, &tag);
     match val {
@@ -291,8 +301,12 @@ fn test_decode_value_real() {
 #[test]
 fn test_encode_value_word() {
     let tag = S7Tag {
-        area: S7Area::DB, db_number: 1, offset: 0, bit_offset: 0,
-        data_type: S7DataType::Word, length: 1,
+        area: S7Area::DB,
+        db_number: 1,
+        offset: 0,
+        bit_offset: 0,
+        data_type: S7DataType::Word,
+        length: 1,
     };
     let bytes = S7Client::encode_value(&S7Value::Word(0x1234), &tag);
     assert_eq!(bytes, vec![0x12, 0x34]);
@@ -301,8 +315,12 @@ fn test_encode_value_word() {
 #[test]
 fn test_encode_value_bool_bit_offset() {
     let tag = S7Tag {
-        area: S7Area::DB, db_number: 1, offset: 0, bit_offset: 3,
-        data_type: S7DataType::Bool, length: 1,
+        area: S7Area::DB,
+        db_number: 1,
+        offset: 0,
+        bit_offset: 3,
+        data_type: S7DataType::Bool,
+        length: 1,
     };
     let bytes = S7Client::encode_value(&S7Value::Bool(true), &tag);
     assert_eq!(bytes, vec![0x08]); // 1 << 3

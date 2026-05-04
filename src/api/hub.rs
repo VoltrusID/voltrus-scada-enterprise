@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode as HttpStatus,
     response::IntoResponse,
-    Json,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -118,7 +118,11 @@ pub async fn create_site(
 
     let enabled = body.enabled.unwrap_or(true);
 
-    match state.storage.create_hub_site(&body.name, url, &body.api_key, enabled).await {
+    match state
+        .storage
+        .create_hub_site(&body.name, url, &body.api_key, enabled)
+        .await
+    {
         Ok(id) => {
             let site = HubSite {
                 id,
@@ -161,14 +165,14 @@ pub async fn update_site(
     }
 
     // Validate name if provided
-    if let Some(ref name) = body.name {
-        if name.trim().is_empty() {
-            return (
-                HttpStatus::BAD_REQUEST,
-                Json(json!({"error": "name must not be empty"})),
-            )
-                .into_response();
-        }
+    if let Some(ref name) = body.name
+        && name.trim().is_empty()
+    {
+        return (
+            HttpStatus::BAD_REQUEST,
+            Json(json!({"error": "name must not be empty"})),
+        )
+            .into_response();
     }
 
     match state
@@ -191,10 +195,7 @@ pub async fn update_site(
     }
 }
 
-pub async fn delete_site(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> impl IntoResponse {
+pub async fn delete_site(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
     if let Some((status, err)) = multi_site_required(&state) {
         return (status, err).into_response();
     }

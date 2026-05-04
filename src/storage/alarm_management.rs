@@ -1,7 +1,7 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{AlarmAuditEntry, AlarmSummary, AlarmAnalyticsEntry};
+use crate::models::{AlarmAnalyticsEntry, AlarmAuditEntry, AlarmSummary};
 
 impl Storage {
     // ── Alarm lifecycle: resolve, acknowledge, shelf ──
@@ -11,7 +11,11 @@ impl Storage {
     /// Pass `None` for current_value to resolve unconditionally (no deadband check).
     /// Resolves regardless of acknowledgment status — once the value is back to
     /// normal, the alarm should clear so a new one can fire later.
-    pub async fn resolve_active_alarms(&self, source_key: &str, current_value: Option<f64>) -> Result<()> {
+    pub async fn resolve_active_alarms(
+        &self,
+        source_key: &str,
+        current_value: Option<f64>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();
         tokio::task::spawn_blocking(move || {
@@ -81,7 +85,12 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn acknowledge_alarm(&self, id: i64, username: &str, cooldown_secs: i64) -> Result<()> {
+    pub async fn acknowledge_alarm(
+        &self,
+        id: i64,
+        username: &str,
+        cooldown_secs: i64,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let username = username.to_string();
         tokio::task::spawn_blocking(move || {
@@ -292,17 +301,17 @@ impl Storage {
                 "SELECT id, alarm_id, action, performed_by, details, created_at FROM alarm_audit_log WHERE 1=1",
             );
             let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-            if alarm_id.is_some() {
+            if let Some(aid) = alarm_id {
                 sql.push_str(" AND alarm_id = ?");
-                params.push(Box::new(alarm_id.unwrap()));
+                params.push(Box::new(aid));
             }
-            if from.is_some() {
+            if let Some(f) = from {
                 sql.push_str(" AND created_at >= ?");
-                params.push(Box::new(from.unwrap()));
+                params.push(Box::new(f));
             }
-            if to.is_some() {
+            if let Some(t) = to {
                 sql.push_str(" AND created_at <= ?");
-                params.push(Box::new(to.unwrap()));
+                params.push(Box::new(t));
             }
             sql.push_str(" ORDER BY created_at DESC LIMIT ?");
             params.push(Box::new(limit));
@@ -416,13 +425,13 @@ impl Storage {
                  FROM alarms WHERE 1=1",
             );
             let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-            if from.is_some() {
+            if let Some(f) = from {
                 sql.push_str(" AND triggered_at >= ?");
-                params.push(Box::new(from.unwrap()));
+                params.push(Box::new(f));
             }
-            if to.is_some() {
+            if let Some(t) = to {
                 sql.push_str(" AND triggered_at <= ?");
-                params.push(Box::new(to.unwrap()));
+                params.push(Box::new(t));
             }
             sql.push_str(" GROUP BY source_key, source_name ORDER BY trigger_count DESC");
 

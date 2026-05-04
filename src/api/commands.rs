@@ -1,12 +1,12 @@
+use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use rand::Rng;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState, AuthUser};
+use crate::models::*;
 
 // ── Write Tag ──
 
@@ -43,69 +43,69 @@ pub async fn write_tag(
     }
 
     // 4. Parse numeric value from body.value
-    let value_f64 = body.value.as_f64().ok_or_else(|| {
-        anyhow::anyhow!("Invalid numeric value")
-    })?;
+    let value_f64 = body
+        .value
+        .as_f64()
+        .ok_or_else(|| anyhow::anyhow!("Invalid numeric value"))?;
 
     // 5. Check value within write_min / write_max range
-    if let Some(min) = policy.write_min {
-        if value_f64 < min {
-            return Ok((
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": format!("Value {} is below minimum {}", value_f64, min)})),
-            )
-                .into_response());
-        }
+    if let Some(min) = policy.write_min
+        && value_f64 < min
+    {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": format!("Value {} is below minimum {}", value_f64, min)})),
+        )
+            .into_response());
     }
-    if let Some(max) = policy.write_max {
-        if value_f64 > max {
-            return Ok((
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": format!("Value {} is above maximum {}", value_f64, max)})),
-            )
-                .into_response());
-        }
+    if let Some(max) = policy.write_max
+        && value_f64 > max
+    {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": format!("Value {} is above maximum {}", value_f64, max)})),
+        )
+            .into_response());
     }
 
     // 6. Check deadband against current cached value
-    if let Some(deadband) = policy.write_deadband {
-        if deadband > 0.0 {
-            let key = state.storage.get_data_source_key(tag_id).await?;
-            if let Some(key) = key {
-                if let Some(current) = state.cache.get_metric_value(&key).await {
-                    if (value_f64 - current).abs() <= deadband {
-                        return Ok((
-                            StatusCode::BAD_REQUEST,
-                            Json(json!({
-                                "error": format!(
-                                    "Value {} is within deadband {} of current value {}",
-                                    value_f64, deadband, current
-                                )
-                            })),
-                        )
-                            .into_response());
-                    }
-                }
-            }
+    if let Some(deadband) = policy.write_deadband
+        && deadband > 0.0
+    {
+        let key = state.storage.get_data_source_key(tag_id).await?;
+        if let Some(key) = key
+            && let Some(current) = state.cache.get_metric_value(&key).await
+            && (value_f64 - current).abs() <= deadband
+        {
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": format!(
+                        "Value {} is within deadband {} of current value {}",
+                        value_f64, deadband, current
+                    )
+                })),
+            )
+                .into_response());
         }
     }
 
     // 7. Check rate limit
-    if let Some(max_rate) = policy.write_max_rate {
-        if max_rate > 0 {
-            let recent = state.storage.count_recent_writes(tag_id, 60).await?;
-            if recent >= max_rate {
-                return Ok((
-                    StatusCode::TOO_MANY_REQUESTS,
-                    Json(json!({
-                        "error": format!(
-                            "Rate limit exceeded: {} writes in the last 60s (max {})",
-                            recent, max_rate
-                        )
-                    })),
-                )
-                    .into_response());
-            }
+    if let Some(max_rate) = policy.write_max_rate
+        && max_rate > 0
+    {
+        let recent = state.storage.count_recent_writes(tag_id, 60).await?;
+        if recent >= max_rate {
+            return Ok((
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(json!({
+                    "error": format!(
+                        "Rate limit exceeded: {} writes in the last 60s (max {})",
+                        recent, max_rate
+                    )
+                })),
+            )
+                .into_response());
         }
     }
 
@@ -203,8 +203,7 @@ pub async fn cancel_command(
         .ok_or_else(|| anyhow::anyhow!("Command not found"))?;
 
     // Only cancel if status is pending or queued
-    if cmd.status != CommandStatus::Pending.as_str()
-        && cmd.status != CommandStatus::Queued.as_str()
+    if cmd.status != CommandStatus::Pending.as_str() && cmd.status != CommandStatus::Queued.as_str()
     {
         return Ok((
             StatusCode::BAD_REQUEST,

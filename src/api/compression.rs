@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    Json,
-};
+use axum::{Json, extract::State, response::IntoResponse};
 use serde::Serialize;
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]

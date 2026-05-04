@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use crate::models::{S7Device, S7TagRow};
 
 impl Storage {
-
     pub async fn create_s7_device(
         &self,
         name: &str,
@@ -113,28 +112,46 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             if let Some(name) = &name {
-                conn.execute("UPDATE s7_devices SET name = ?1 WHERE id = ?2", rusqlite::params![name, id])
-                    .context("Update s7 device name failed")?;
+                conn.execute(
+                    "UPDATE s7_devices SET name = ?1 WHERE id = ?2",
+                    rusqlite::params![name, id],
+                )
+                .context("Update s7 device name failed")?;
             }
             if let Some(url) = &url {
-                conn.execute("UPDATE s7_devices SET url = ?1 WHERE id = ?2", rusqlite::params![url, id])
-                    .context("Update s7 device url failed")?;
+                conn.execute(
+                    "UPDATE s7_devices SET url = ?1 WHERE id = ?2",
+                    rusqlite::params![url, id],
+                )
+                .context("Update s7 device url failed")?;
             }
             if let Some(rack) = rack {
-                conn.execute("UPDATE s7_devices SET rack = ?1 WHERE id = ?2", rusqlite::params![rack, id])
-                    .context("Update s7 device rack failed")?;
+                conn.execute(
+                    "UPDATE s7_devices SET rack = ?1 WHERE id = ?2",
+                    rusqlite::params![rack, id],
+                )
+                .context("Update s7 device rack failed")?;
             }
             if let Some(slot) = slot {
-                conn.execute("UPDATE s7_devices SET slot = ?1 WHERE id = ?2", rusqlite::params![slot, id])
-                    .context("Update s7 device slot failed")?;
+                conn.execute(
+                    "UPDATE s7_devices SET slot = ?1 WHERE id = ?2",
+                    rusqlite::params![slot, id],
+                )
+                .context("Update s7 device slot failed")?;
             }
             if let Some(interval_ms) = interval_ms {
-                conn.execute("UPDATE s7_devices SET interval_ms = ?1 WHERE id = ?2", rusqlite::params![interval_ms, id])
-                    .context("Update s7 device interval_ms failed")?;
+                conn.execute(
+                    "UPDATE s7_devices SET interval_ms = ?1 WHERE id = ?2",
+                    rusqlite::params![interval_ms, id],
+                )
+                .context("Update s7 device interval_ms failed")?;
             }
             if let Some(enabled) = enabled {
-                conn.execute("UPDATE s7_devices SET enabled = ?1 WHERE id = ?2", rusqlite::params![enabled as i64, id])
-                    .context("Update s7 device enabled failed")?;
+                conn.execute(
+                    "UPDATE s7_devices SET enabled = ?1 WHERE id = ?2",
+                    rusqlite::params![enabled as i64, id],
+                )
+                .context("Update s7 device enabled failed")?;
             }
             Ok(())
         })
@@ -164,19 +181,20 @@ impl Storage {
                     .query_map(rusqlite::params![id], |row| row.get::<_, String>(0))
                     .context("Query s7 tags failed")?;
 
-                for tag_row in tag_rows {
-                    if let Ok(tag_name) = tag_row {
-                        let source_key = format!("s7_{}:{}", device_name, tag_name);
-                        let _ = conn.execute(
-                            "DELETE FROM data_sources WHERE key = ?1",
-                            rusqlite::params![source_key],
-                        );
-                    }
+                for tag_name in tag_rows.flatten() {
+                    let source_key = format!("s7_{}:{}", device_name, tag_name);
+                    let _ = conn.execute(
+                        "DELETE FROM data_sources WHERE key = ?1",
+                        rusqlite::params![source_key],
+                    );
                 }
             }
 
-            conn.execute("DELETE FROM s7_devices WHERE id = ?1", rusqlite::params![id])
-                .context("Delete s7 device failed")
+            conn.execute(
+                "DELETE FROM s7_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete s7 device failed")
         })
         .await
         .context("Task join failed")?
@@ -269,18 +287,16 @@ impl Storage {
                 "SELECT name, device_id FROM s7_tags WHERE id = ?1",
                 rusqlite::params![id],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            ) && let Ok(device_name) = conn.query_row(
+                "SELECT name FROM s7_devices WHERE id = ?1",
+                rusqlite::params![device_id],
+                |row| row.get::<_, String>(0),
             ) {
-                if let Ok(device_name) = conn.query_row(
-                    "SELECT name FROM s7_devices WHERE id = ?1",
-                    rusqlite::params![device_id],
-                    |row| row.get::<_, String>(0),
-                ) {
-                    let source_key = format!("s7_{}:{}", device_name, tag_name);
-                    let _ = conn.execute(
-                        "DELETE FROM data_sources WHERE key = ?1",
-                        rusqlite::params![source_key],
-                    );
-                }
+                let source_key = format!("s7_{}:{}", device_name, tag_name);
+                let _ = conn.execute(
+                    "DELETE FROM data_sources WHERE key = ?1",
+                    rusqlite::params![source_key],
+                );
             }
 
             conn.execute("DELETE FROM s7_tags WHERE id = ?1", rusqlite::params![id])
@@ -295,7 +311,9 @@ impl Storage {
         let devices = self.list_s7_devices().await?;
         let mut configs = Vec::new();
         for device in &devices {
-            if !device.enabled { continue; }
+            if !device.enabled {
+                continue;
+            }
             let tags = self.list_s7_tags(device.id).await?;
             let device_key = format!("s7_{}", device.id);
             let mut s7_tags = Vec::new();
@@ -305,7 +323,9 @@ impl Storage {
                     Err(e) => {
                         tracing::warn!(
                             "Failed to parse S7 tag '{}' for device '{}': {}",
-                            tag_row.tag_address, device.name, e
+                            tag_row.tag_address,
+                            device.name,
+                            e
                         );
                     }
                 }
@@ -321,6 +341,4 @@ impl Storage {
         }
         Ok(configs)
     }
-
-
 }

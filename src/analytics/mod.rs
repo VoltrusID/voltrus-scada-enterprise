@@ -1,7 +1,7 @@
-pub mod spc;
+pub mod custom;
 pub mod histogram;
 pub mod runchart;
-pub mod custom;
+pub mod spc;
 
 use anyhow::Result;
 use serde::Serialize;
@@ -39,15 +39,23 @@ pub async fn aggregate_metrics(
     interval_secs: i64,
 ) -> Result<Vec<(i64, AggregatedMetric)>> {
     // Clamp interval to reasonable range
-    let interval = if interval_secs < 60 { 60 } else { interval_secs };
+    let interval = if interval_secs < 60 {
+        60
+    } else {
+        interval_secs
+    };
 
     // Use raw telemetry for short ranges, hourly for longer ranges
     let use_hourly = (to - from) > 86400 * 7 && interval >= 3600;
 
     let results = if use_hourly {
-        storage.aggregate_hourly(device_id, metric, from, to, interval).await?
+        storage
+            .aggregate_hourly(device_id, metric, from, to, interval)
+            .await?
     } else {
-        storage.aggregate_raw(device_id, metric, from, to, interval).await?
+        storage
+            .aggregate_raw(device_id, metric, from, to, interval)
+            .await?
     };
 
     Ok(results)
@@ -91,13 +99,23 @@ mod tests {
     fn test_change_percent_calculation() {
         let current = AggregatedMetric {
             metric: "temp".into(),
-            min: 0.0, max: 0.0, avg: 110.0, stddev: 0.0, count: 1,
-            first_ts: 0, last_ts: 0,
+            min: 0.0,
+            max: 0.0,
+            avg: 110.0,
+            stddev: 0.0,
+            count: 1,
+            first_ts: 0,
+            last_ts: 0,
         };
         let previous = AggregatedMetric {
             metric: "temp".into(),
-            min: 0.0, max: 0.0, avg: 100.0, stddev: 0.0, count: 1,
-            first_ts: 0, last_ts: 0,
+            min: 0.0,
+            max: 0.0,
+            avg: 100.0,
+            stddev: 0.0,
+            count: 1,
+            first_ts: 0,
+            last_ts: 0,
         };
         let change = ((current.avg - previous.avg) / previous.avg) * 100.0;
         assert!((change - 10.0).abs() < 0.001);

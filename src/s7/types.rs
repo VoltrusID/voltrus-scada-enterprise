@@ -158,7 +158,13 @@ pub enum S7Value {
 impl S7Value {
     pub fn to_f64(&self) -> f64 {
         match self {
-            S7Value::Bool(v) => if *v { 1.0 } else { 0.0 },
+            S7Value::Bool(v) => {
+                if *v {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             S7Value::Byte(v) => *v as f64,
             S7Value::Word(v) => *v as f64,
             S7Value::DWord(v) => *v as f64,

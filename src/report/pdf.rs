@@ -21,7 +21,9 @@ pub fn generate_report_pdf(html: &str) -> Result<Vec<u8>> {
         stdin.write_all(html.as_bytes())?;
     }
 
-    let output = child.wait_with_output().context("wkhtmltopdf process failed")?;
+    let output = child
+        .wait_with_output()
+        .context("wkhtmltopdf process failed")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

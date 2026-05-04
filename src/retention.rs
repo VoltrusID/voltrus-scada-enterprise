@@ -3,8 +3,8 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 
 use crate::models::RetentionConfig;
 use crate::storage::Storage;
@@ -22,7 +22,8 @@ pub async fn run_retention_task(storage: Storage, config: RetentionConfig) {
         config.archive_dir,
     );
 
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(config.run_interval_secs));
+    let mut interval =
+        tokio::time::interval(std::time::Duration::from_secs(config.run_interval_secs));
 
     loop {
         interval.tick().await;
@@ -75,14 +76,15 @@ async fn archive_raw(storage: &Storage, cutoff: i64, archive_dir: &str) -> Resul
     for (device_id, metric, ts, value) in &rows {
         let date = time::OffsetDateTime::from_unix_timestamp(*ts)
             .ok()
-            .and_then(|dt| dt.format(&time::macros::format_description!("[year]-[month]-[day]")).ok())
+            .and_then(|dt| {
+                dt.format(&time::macros::format_description!("[year]-[month]-[day]"))
+                    .ok()
+            })
             .unwrap_or_else(|| "unknown".to_string());
-        by_date.entry(date).or_default().push((
-            device_id.clone(),
-            metric.clone(),
-            *ts,
-            *value,
-        ));
+        by_date
+            .entry(date)
+            .or_default()
+            .push((device_id.clone(), metric.clone(), *ts, *value));
     }
 
     std::fs::create_dir_all(archive_dir)
@@ -109,5 +111,9 @@ fn get_tier_keep(tiers: &[crate::models::RetentionTier], name: &str) -> Option<u
 }
 
 fn get_tier_archive(tiers: &[crate::models::RetentionTier], name: &str) -> bool {
-    tiers.iter().find(|t| t.name == name).map(|t| t.archive).unwrap_or(false)
+    tiers
+        .iter()
+        .find(|t| t.name == name)
+        .map(|t| t.archive)
+        .unwrap_or(false)
 }

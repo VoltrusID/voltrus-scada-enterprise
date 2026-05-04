@@ -1,11 +1,21 @@
 #![allow(dead_code)]
 use serde::{Deserialize, Serialize};
 
-fn default_dnp3_port() -> u16 { 20000 }
-fn default_master_address() -> u16 { 1 }
-fn default_outstation_address() -> u16 { 10 }
-fn default_integrity_interval() -> u64 { 300 }
-fn default_float64() -> String { "float64".to_string() }
+fn default_dnp3_port() -> u16 {
+    20000
+}
+fn default_master_address() -> u16 {
+    1
+}
+fn default_outstation_address() -> u16 {
+    10
+}
+fn default_integrity_interval() -> u64 {
+    300
+}
+fn default_float64() -> String {
+    "float64".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dnp3Device {

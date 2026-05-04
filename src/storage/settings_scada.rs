@@ -1,7 +1,7 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{ScadaEquipment, ScadaConnection};
+use crate::models::{ScadaConnection, ScadaEquipment};
 
 impl Storage {
     // ── SCADA 2D Equipment ──
@@ -37,7 +37,11 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn save_scada_equipment(&self, screen_id: &str, items: &[ScadaEquipment]) -> Result<()> {
+    pub async fn save_scada_equipment(
+        &self,
+        screen_id: &str,
+        items: &[ScadaEquipment],
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         let items = items.to_vec();
@@ -93,7 +97,11 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn save_scada_connections(&self, screen_id: &str, connections: &[ScadaConnection]) -> Result<()> {
+    pub async fn save_scada_connections(
+        &self,
+        screen_id: &str,
+        connections: &[ScadaConnection],
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
         let connections = connections.to_vec();

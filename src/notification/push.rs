@@ -1,8 +1,8 @@
 use anyhow::Result;
 use serde::Serialize;
 use web_push::{
-    ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignatureBuilder,
-    WebPushClient, WebPushMessageBuilder, WebPushError,
+    ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
+    WebPushError, WebPushMessageBuilder,
 };
 
 use crate::models::PushConfig;
@@ -83,16 +83,14 @@ impl PushNotifier {
         let subscription = SubscriptionInfo::new(endpoint, p256dh, auth_key);
 
         // Build VAPID signature
-        let mut sig_builder = match VapidSignatureBuilder::from_base64(
-            &self.vapid_private_key,
-            &subscription,
-        ) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::error!("VAPID signature build failed: {}", e);
-                return PushSendResult::Other(format!("VAPID signature error: {}", e));
-            }
-        };
+        let mut sig_builder =
+            match VapidSignatureBuilder::from_base64(&self.vapid_private_key, &subscription) {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::error!("VAPID signature build failed: {}", e);
+                    return PushSendResult::Other(format!("VAPID signature error: {}", e));
+                }
+            };
 
         // Set the VAPID subject claim (required by push services)
         sig_builder.add_claim("sub", self.vapid_subject.as_str());
@@ -146,23 +144,15 @@ impl PushNotifier {
                 PushSendResult::Sent
             }
             Err(WebPushError::EndpointNotValid(_)) | Err(WebPushError::EndpointNotFound(_)) => {
-                tracing::warn!(
-                    "Push subscription endpoint no longer valid: {}",
-                    endpoint
-                );
+                tracing::warn!("Push subscription endpoint no longer valid: {}", endpoint);
                 PushSendResult::SubscriptionGone
             }
             Err(WebPushError::ServerError { .. }) => {
-                tracing::warn!(
-                    "Push service server error for endpoint: {}",
-                    endpoint
-                );
+                tracing::warn!("Push service server error for endpoint: {}", endpoint);
                 PushSendResult::ServerError
             }
             Err(WebPushError::Unauthorized(_)) => {
-                tracing::error!(
-                    "Push notification unauthorized — check VAPID keys and subject"
-                );
+                tracing::error!("Push notification unauthorized — check VAPID keys and subject");
                 PushSendResult::Other("Unauthorized: check VAPID configuration".to_string())
             }
             Err(e) => {
@@ -204,7 +194,10 @@ mod tests {
         );
 
         assert_eq!(payload.title, "[CRITICAL] PLTS 1 Voltage");
-        assert_eq!(payload.body, "PLTS 1 Voltage reached 250.5V (critical: 240.0V)");
+        assert_eq!(
+            payload.body,
+            "PLTS 1 Voltage reached 250.5V (critical: 240.0V)"
+        );
         assert_eq!(payload.severity, "critical");
         assert_eq!(payload.source_key, "plts_1:voltage");
     }

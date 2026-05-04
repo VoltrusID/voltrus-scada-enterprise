@@ -11,12 +11,33 @@ async fn test_insert_and_query() {
     ];
     storage.insert_batch(&records).await.unwrap();
 
-    let points = storage.query_history("dev1", "voltage", 0, 2000).await.unwrap();
+    let points = storage
+        .query_history("dev1", "voltage", 0, 2000)
+        .await
+        .unwrap();
 
     assert_eq!(points.len(), 3);
-    assert_eq!(points[0], DataPoint { timestamp: 1000, value: 220.5 });
-    assert_eq!(points[1], DataPoint { timestamp: 1060, value: 221.0 });
-    assert_eq!(points[2], DataPoint { timestamp: 1120, value: 219.8 });
+    assert_eq!(
+        points[0],
+        DataPoint {
+            timestamp: 1000,
+            value: 220.5
+        }
+    );
+    assert_eq!(
+        points[1],
+        DataPoint {
+            timestamp: 1060,
+            value: 221.0
+        }
+    );
+    assert_eq!(
+        points[2],
+        DataPoint {
+            timestamp: 1120,
+            value: 219.8
+        }
+    );
 }
 
 #[tokio::test]
@@ -30,7 +51,10 @@ async fn test_query_filters_by_device_and_metric() {
     ];
     storage.insert_batch(&records).await.unwrap();
 
-    let points = storage.query_history("dev1", "voltage", 0, 2000).await.unwrap();
+    let points = storage
+        .query_history("dev1", "voltage", 0, 2000)
+        .await
+        .unwrap();
     assert_eq!(points.len(), 1);
     assert_eq!(points[0].value, 220.0);
 }
@@ -46,7 +70,10 @@ async fn test_query_time_range() {
     ];
     storage.insert_batch(&records).await.unwrap();
 
-    let points = storage.query_history("dev1", "voltage", 1500, 2500).await.unwrap();
+    let points = storage
+        .query_history("dev1", "voltage", 1500, 2500)
+        .await
+        .unwrap();
     assert_eq!(points.len(), 1);
     assert_eq!(points[0].value, 221.0);
 }
@@ -61,6 +88,9 @@ async fn test_empty_batch() {
 #[tokio::test]
 async fn test_no_results() {
     let storage = Storage::new_in_memory().unwrap();
-    let points = storage.query_history("ghost", "voltage", 0, 9999).await.unwrap();
+    let points = storage
+        .query_history("ghost", "voltage", 0, 9999)
+        .await
+        .unwrap();
     assert!(points.is_empty());
 }

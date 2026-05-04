@@ -78,17 +78,17 @@ impl DeviceCache {
         };
 
         // Log device connect on transition to online
-        if was_offline {
-            if let Some(ref storage) = self.storage {
-                let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
+        if was_offline && let Some(ref storage) = self.storage {
+            let _ = storage
+                .insert_security_event(&crate::models::CreateSecurityEvent {
                     event_type: "device_connected".into(),
                     severity: "info".into(),
                     source_ip: None,
                     user_agent: None,
                     username: None,
                     details: Some(format!("Device {} connected", device_id)),
-                }).await;
-            }
+                })
+                .await;
         }
 
         let _ = self.snapshot_tx.send(snapshot);
@@ -117,25 +117,30 @@ impl DeviceCache {
         // Log device connect/disconnect transitions
         if let Some(ref storage) = self.storage {
             match (&old_status, &status) {
-                (Some(DeviceStatus::Offline), DeviceStatus::Online) | (None, DeviceStatus::Online) => {
-                    let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
-                        event_type: "device_connected".into(),
-                        severity: "info".into(),
-                        source_ip: None,
-                        user_agent: None,
-                        username: None,
-                        details: Some(format!("Device {} connected", device_id)),
-                    }).await;
+                (Some(DeviceStatus::Offline), DeviceStatus::Online)
+                | (None, DeviceStatus::Online) => {
+                    let _ = storage
+                        .insert_security_event(&crate::models::CreateSecurityEvent {
+                            event_type: "device_connected".into(),
+                            severity: "info".into(),
+                            source_ip: None,
+                            user_agent: None,
+                            username: None,
+                            details: Some(format!("Device {} connected", device_id)),
+                        })
+                        .await;
                 }
                 (Some(DeviceStatus::Online), DeviceStatus::Offline) => {
-                    let _ = storage.insert_security_event(&crate::models::CreateSecurityEvent {
-                        event_type: "device_disconnected".into(),
-                        severity: "warning".into(),
-                        source_ip: None,
-                        user_agent: None,
-                        username: None,
-                        details: Some(format!("Device {} disconnected", device_id)),
-                    }).await;
+                    let _ = storage
+                        .insert_security_event(&crate::models::CreateSecurityEvent {
+                            event_type: "device_disconnected".into(),
+                            severity: "warning".into(),
+                            source_ip: None,
+                            user_agent: None,
+                            username: None,
+                            details: Some(format!("Device {} disconnected", device_id)),
+                        })
+                        .await;
                 }
                 _ => {}
             }
@@ -174,7 +179,7 @@ impl DeviceCache {
         let devices = self.devices.read().await;
         devices
             .get(device_id)
-            .map_or(false, |s| s.status == DeviceStatus::Online)
+            .is_some_and(|s| s.status == DeviceStatus::Online)
     }
 
     pub async fn get_metric_value(&self, key: &str) -> Option<f64> {
@@ -229,10 +234,7 @@ mod tests {
     async fn test_update_and_get_all() {
         let cache = DeviceCache::new();
 
-        let metrics = HashMap::from([
-            ("voltage".to_string(), 220.5),
-            ("current".to_string(), 5.2),
-        ]);
+        let metrics = HashMap::from([("voltage".to_string(), 220.5), ("current".to_string(), 5.2)]);
 
         cache.update("plts_1", metrics, false).await;
 
@@ -318,14 +320,12 @@ mod tests {
         cache.publish_sse_payload(r#"{"test":true}"#.to_string());
 
         use tokio_stream::StreamExt;
-        let msg: String = tokio::time::timeout(
-            std::time::Duration::from_millis(100),
-            stream.next(),
-        )
-        .await
-        .expect("should receive broadcast")
-        .expect("should be Some")
-        .expect("broadcast should not error");
+        let msg: String =
+            tokio::time::timeout(std::time::Duration::from_millis(100), stream.next())
+                .await
+                .expect("should receive broadcast")
+                .expect("should be Some")
+                .expect("broadcast should not error");
 
         assert_eq!(msg, r#"{"test":true}"#);
     }
@@ -338,13 +338,10 @@ mod tests {
         let metrics = HashMap::from([("voltage".into(), 220.0)]);
         cache.update("dev1", metrics, false).await;
 
-        tokio::time::timeout(
-            std::time::Duration::from_millis(50),
-            rx.changed(),
-        )
-        .await
-        .expect("trigger should fire on update")
-        .expect("should succeed");
+        tokio::time::timeout(std::time::Duration::from_millis(50), rx.changed())
+            .await
+            .expect("trigger should fire on update")
+            .expect("should succeed");
     }
 
     #[tokio::test]

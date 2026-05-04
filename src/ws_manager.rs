@@ -103,10 +103,10 @@ impl WsManager {
         let mut stale = Vec::new();
         for mut entry in self.connections.iter_mut() {
             let conn = entry.value_mut();
-            if conn.subscribe_all || conn.subscribed_tags.contains(tag_id) {
-                if conn.tx.send(msg.clone()).is_err() {
-                    stale.push(entry.key().clone());
-                }
+            if (conn.subscribe_all || conn.subscribed_tags.contains(tag_id))
+                && conn.tx.send(msg.clone()).is_err()
+            {
+                stale.push(entry.key().clone());
             }
         }
         for id in stale {
@@ -159,10 +159,7 @@ impl WsManager {
 /// Spawn a background task that listens to the SSE broadcast channel from the
 /// cache, parses each JSON payload, and routes tag updates to the appropriate
 /// WebSocket connections via `WsManager`.
-pub fn spawn_ws_broadcaster(
-    cache: crate::cache::DeviceCache,
-    manager: Arc<WsManager>,
-) {
+pub fn spawn_ws_broadcaster(cache: crate::cache::DeviceCache, manager: Arc<WsManager>) {
     tokio::spawn(async move {
         let mut stream = cache.subscribe_sse();
         use tokio_stream::StreamExt;
@@ -184,10 +181,7 @@ pub fn spawn_ws_broadcaster(
                         Some(k) => k.to_string(),
                         None => continue,
                     };
-                    let value = sensor
-                        .get("value")
-                        .and_then(|v| v.as_f64())
-                        .unwrap_or(0.0);
+                    let value = sensor.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
                     let status = sensor
                         .get("status")
                         .and_then(|s| s.as_str())
@@ -250,11 +244,7 @@ mod tests {
     #[tokio::test]
     async fn test_subscribe_unsubscribe() {
         let mgr = WsManager::new();
-        let _rx = mgr.connect(
-            "c1".to_string(),
-            "user1".to_string(),
-            vec![],
-        );
+        let _rx = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
 
         mgr.subscribe("c1", &["tag_a".to_string(), "tag_b".to_string()]);
 
@@ -279,11 +269,7 @@ mod tests {
     #[tokio::test]
     async fn test_subscribe_all() {
         let mgr = WsManager::new();
-        let mut rx = mgr.connect(
-            "c1".to_string(),
-            "user1".to_string(),
-            vec![],
-        );
+        let mut rx = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
 
         // Without subscribe_all, a broadcast for an unknown tag should not arrive.
         mgr.broadcast_tag_update(
@@ -312,7 +298,9 @@ mod tests {
             },
         );
         match rx.try_recv() {
-            Ok(ServerMessage::TagUpdate { value, .. }) => assert!((value - 2.0).abs() < f64::EPSILON),
+            Ok(ServerMessage::TagUpdate { value, .. }) => {
+                assert!((value - 2.0).abs() < f64::EPSILON)
+            }
             other => panic!("expected TagUpdate with value 2.0, got {:?}", other),
         }
     }
@@ -337,11 +325,7 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_alarm() {
         let mgr = WsManager::new();
-        let mut rx = mgr.connect(
-            "c1".to_string(),
-            "user1".to_string(),
-            vec![],
-        );
+        let mut rx = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
 
         mgr.broadcast_alarm(ServerMessage::Alarm {
             alarm_id: 42,
@@ -361,11 +345,7 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_command_ack() {
         let mgr = WsManager::new();
-        let mut rx = mgr.connect(
-            "c1".to_string(),
-            "user1".to_string(),
-            vec![],
-        );
+        let mut rx = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
 
         mgr.broadcast_command_ack(ServerMessage::CommandAck {
             command_id: "cmd-001".to_string(),
@@ -375,7 +355,11 @@ mod tests {
         });
 
         match rx.try_recv() {
-            Ok(ServerMessage::CommandAck { command_id, latency_ms, .. }) => {
+            Ok(ServerMessage::CommandAck {
+                command_id,
+                latency_ms,
+                ..
+            }) => {
                 assert_eq!(command_id, "cmd-001");
                 assert_eq!(latency_ms, Some(12));
             }
@@ -386,11 +370,7 @@ mod tests {
     #[tokio::test]
     async fn test_broadcast_device_status() {
         let mgr = WsManager::new();
-        let mut rx = mgr.connect(
-            "c1".to_string(),
-            "user1".to_string(),
-            vec![],
-        );
+        let mut rx = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
 
         mgr.broadcast_device_status(ServerMessage::DeviceStatus {
             device_id: "plc-01".to_string(),
@@ -399,7 +379,9 @@ mod tests {
         });
 
         match rx.try_recv() {
-            Ok(ServerMessage::DeviceStatus { device_id, online, .. }) => {
+            Ok(ServerMessage::DeviceStatus {
+                device_id, online, ..
+            }) => {
                 assert_eq!(device_id, "plc-01");
                 assert!(online);
             }
@@ -410,16 +392,8 @@ mod tests {
     #[tokio::test]
     async fn test_disconnect_removes_connection() {
         let mgr = WsManager::new();
-        let _rx = mgr.connect(
-            "c1".to_string(),
-            "user1".to_string(),
-            vec![],
-        );
-        let _rx2 = mgr.connect(
-            "c2".to_string(),
-            "user2".to_string(),
-            vec![],
-        );
+        let _rx = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
+        let _rx2 = mgr.connect("c2".to_string(), "user2".to_string(), vec![]);
         assert_eq!(mgr.connection_count(), 2);
 
         mgr.disconnect("c1");

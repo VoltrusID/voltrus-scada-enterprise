@@ -1,7 +1,6 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-
 impl Storage {
     // ── Sim Profile CRUD methods ──
 
@@ -30,7 +29,10 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn get_sim_profile(&self, id: i64) -> anyhow::Result<Option<crate::models::SimProfile>> {
+    pub async fn get_sim_profile(
+        &self,
+        id: i64,
+    ) -> anyhow::Result<Option<crate::models::SimProfile>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -126,7 +128,10 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let affected = conn
-                .execute("DELETE FROM sim_profiles WHERE id = ?1", rusqlite::params![id])
+                .execute(
+                    "DELETE FROM sim_profiles WHERE id = ?1",
+                    rusqlite::params![id],
+                )
                 .context("Delete sim_profile failed")?;
             Ok(affected > 0)
         })
@@ -346,9 +351,7 @@ impl Storage {
             params.push(Box::new(id));
 
             // Build parameter placeholders
-            let placeholders: Vec<String> = (1..=params.len())
-                .map(|i| format!("?{}", i))
-                .collect();
+            let placeholders: Vec<String> = (1..=params.len()).map(|i| format!("?{}", i)).collect();
             let placeholders_str = placeholders.join(", ");
 
             let _sql = format!(
@@ -492,5 +495,4 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
-
 }

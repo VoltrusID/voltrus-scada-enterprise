@@ -262,7 +262,16 @@ impl Storage {
             .await?;
         Ok(entries
             .into_iter()
-            .map(|e| (e.id, e.action, e.username, e.resource, e.details, e.created_at))
+            .map(|e| {
+                (
+                    e.id,
+                    e.action,
+                    e.username,
+                    e.resource,
+                    e.details,
+                    e.created_at,
+                )
+            })
             .collect())
     }
 }

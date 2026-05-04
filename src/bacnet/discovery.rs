@@ -6,14 +6,12 @@ use anyhow::{Context, Result};
 
 use crate::models::BacnetDiscoveredDevice;
 
-use bacnet_rs::datalink::{bip::BacnetIpDataLink, DataLink, DataLinkAddress};
+use bacnet_rs::datalink::{DataLink, DataLinkAddress, bip::BacnetIpDataLink};
 use bacnet_rs::network::Npdu;
 use bacnet_rs::service::{IAmRequest, UnconfirmedServiceChoice, WhoIsRequest};
 use bacnet_rs::vendor::get_vendor_name;
 
-pub async fn discover_devices(
-    timeout_secs: u64,
-) -> Result<Vec<BacnetDiscoveredDevice>> {
+pub async fn discover_devices(timeout_secs: u64) -> Result<Vec<BacnetDiscoveredDevice>> {
     tokio::task::spawn_blocking(move || {
         let mut datalink =
             BacnetIpDataLink::new("0.0.0.0:0").context("BACnet datalink create failed")?;

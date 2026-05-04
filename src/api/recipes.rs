@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
 };
 use serde::Deserialize;
 
@@ -23,10 +23,7 @@ pub async fn list_recipes(
         )));
     }
 
-    let recipes = state
-        .storage
-        .list_recipes(q.device_id.as_deref())
-        .await?;
+    let recipes = state.storage.list_recipes(q.device_id.as_deref()).await?;
     Ok(Json(recipes))
 }
 

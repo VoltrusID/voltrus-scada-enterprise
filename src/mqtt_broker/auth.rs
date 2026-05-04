@@ -13,7 +13,10 @@ pub fn validate_credentials(
     let username = username.ok_or_else(|| "Username required when auth is enabled".to_string())?;
     let password = password.ok_or_else(|| "Password required when auth is enabled".to_string())?;
 
-    let user = auth_config.users.iter().find(|u| u.username == username)
+    let user = auth_config
+        .users
+        .iter()
+        .find(|u| u.username == username)
         .ok_or_else(|| format!("Unknown MQTT user: {}", username))?;
 
     if user.password != password {

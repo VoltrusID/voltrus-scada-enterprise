@@ -43,7 +43,10 @@ mod tests {
 
     #[test]
     fn test_sanitize_brand_strips_html() {
-        assert_eq!(sanitize_brand_input("Hello <script>alert(1)</script>"), "Hello alert(1)");
+        assert_eq!(
+            sanitize_brand_input("Hello <script>alert(1)</script>"),
+            "Hello alert(1)"
+        );
         assert_eq!(sanitize_brand_input("  Normal Title  "), "Normal Title");
     }
 

@@ -28,7 +28,10 @@ impl CommandStatus {
     }
 
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Acked | Self::Failed | Self::Expired | Self::Cancelled)
+        matches!(
+            self,
+            Self::Acked | Self::Failed | Self::Expired | Self::Cancelled
+        )
     }
 
     pub fn from_str(s: &str) -> Option<Self> {
@@ -84,7 +87,7 @@ pub struct CommandAuditEntry {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct WritePolicy {
     pub writable: bool,
     pub write_min: Option<f64>,
@@ -92,19 +95,6 @@ pub struct WritePolicy {
     pub write_max_rate: Option<i64>,
     pub write_requires_reason: bool,
     pub write_deadband: Option<f64>,
-}
-
-impl Default for WritePolicy {
-    fn default() -> Self {
-        Self {
-            writable: false,
-            write_min: None,
-            write_max: None,
-            write_max_rate: None,
-            write_requires_reason: false,
-            write_deadband: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -138,7 +128,8 @@ pub(crate) mod option_option {
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<T: serde::Serialize, S: Serializer>(
-        val: &Option<Option<T>>, s: S,
+        val: &Option<Option<T>>,
+        s: S,
     ) -> Result<S::Ok, S::Error> {
         match val {
             None => s.serialize_none(),

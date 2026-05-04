@@ -7,9 +7,13 @@ use crate::models::{ControlLimits, SpcPoint, SpcResult};
 
 // ── SPC constants (subgroup_size 2..=10, indexed by size - 2) ──
 
-pub(crate) const A2: [f64; 9] = [1.880, 1.023, 0.729, 0.577, 0.483, 0.419, 0.373, 0.337, 0.308];
+pub(crate) const A2: [f64; 9] = [
+    1.880, 1.023, 0.729, 0.577, 0.483, 0.419, 0.373, 0.337, 0.308,
+];
 pub(crate) const D3: [f64; 9] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.076, 0.136, 0.184, 0.223];
-pub(crate) const D4: [f64; 9] = [3.267, 2.575, 2.282, 2.115, 2.004, 1.924, 1.864, 1.816, 1.777];
+pub(crate) const D4: [f64; 9] = [
+    3.267, 2.575, 2.282, 2.115, 2.004, 1.924, 1.864, 1.816, 1.777,
+];
 
 /// X-bar & R chart calculation.
 ///
@@ -23,7 +27,7 @@ pub fn xbar_r(
     subgroup_size: usize,
     timestamps: &[i64],
 ) -> Result<(SpcResult, SpcResult), String> {
-    if subgroup_size < 2 || subgroup_size > 10 {
+    if !(2..=10).contains(&subgroup_size) {
         return Err(format!(
             "subgroup_size must be between 2 and 10, got {}",
             subgroup_size
@@ -227,11 +231,7 @@ pub fn ewma(
 
     // Estimate process sigma from data
     let mean = values.iter().sum::<f64>() / n as f64;
-    let variance = values
-        .iter()
-        .map(|&v| (v - mean).powi(2))
-        .sum::<f64>()
-        / n as f64;
+    let variance = values.iter().map(|&v| (v - mean).powi(2)).sum::<f64>() / n as f64;
     let sigma = variance.sqrt();
     if sigma < f64::EPSILON {
         return Err("sigma is zero — data has no variation".to_string());
@@ -252,8 +252,7 @@ pub fn ewma(
 
         // Exact EWMA variance at point i
         let ewma_var = sigma
-            * (lambda / (2.0 - lambda) * (1.0 - (1.0 - lambda).powi(2 * ((i + 1) as i32))))
-                .sqrt();
+            * (lambda / (2.0 - lambda) * (1.0 - (1.0 - lambda).powi(2 * ((i + 1) as i32)))).sqrt();
 
         let point_ucl = target + l * ewma_var;
         let point_lcl = target - l * ewma_var;

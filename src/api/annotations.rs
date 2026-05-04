@@ -4,8 +4,8 @@ use axum::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState, AuthUser};
+use crate::models::*;
 
 // ── Query params ──
 
@@ -161,5 +161,4 @@ mod tests {
         let mentions = parse_mentions("email@test.com @alice");
         assert_eq!(mentions, vec!["alice"]);
     }
-
 }

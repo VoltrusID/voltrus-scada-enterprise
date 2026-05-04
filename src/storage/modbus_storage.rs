@@ -1,17 +1,20 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{ModbusDevice, ModbusRegister, ModbusRegisterInput, DeviceConfig};
+use crate::models::{DeviceConfig, ModbusDevice, ModbusRegister, ModbusRegisterInput};
 
 impl Storage {
     pub async fn is_yaml_migrated(&self) -> Result<bool> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = 'modbus_yaml_migrated'")?;
+            let mut stmt =
+                conn.prepare("SELECT value FROM settings WHERE key = 'modbus_yaml_migrated'")?;
             let result = stmt.query_row([], |row| row.get::<_, String>(0)).ok();
             Ok(result.as_deref() == Some("true"))
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn mark_yaml_migrated(&self) -> Result<()> {
@@ -68,13 +71,13 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let count: i64 = conn.query_row(
-                "SELECT COUNT(*) FROM modbus_devices",
-                [],
-                |row| row.get(0),
-            ).context("Count query failed")?;
+            let count: i64 = conn
+                .query_row("SELECT COUNT(*) FROM modbus_devices", [], |row| row.get(0))
+                .context("Count query failed")?;
             Ok(count as u32)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn list_modbus_devices(&self) -> Result<Vec<ModbusDevice>> {
@@ -144,9 +147,18 @@ impl Storage {
         let name = name.to_string();
         let ip = ip.to_string();
         let endianness = endianness.to_string();
-        let registers: Vec<(String, u16, String, String, f64)> = registers.iter().map(|r| {
-            (r.name.clone(), r.address, r.register_type.clone(), r.register_area.clone(), r.scale)
-        }).collect();
+        let registers: Vec<(String, u16, String, String, f64)> = registers
+            .iter()
+            .map(|r| {
+                (
+                    r.name.clone(),
+                    r.address,
+                    r.register_type.clone(),
+                    r.register_area.clone(),
+                    r.scale,
+                )
+            })
+            .collect();
         let now = crate::timeutil::now_secs();
 
         tokio::task::spawn_blocking(move || {
@@ -192,24 +204,51 @@ impl Storage {
             let mut sets = Vec::new();
             let mut p: Vec<rusqlite::types::Value> = Vec::new();
 
-            if let Some(v) = name { sets.push("name = ?"); p.push(rusqlite::types::Value::from(v.to_string())); }
-            if let Some(v) = ip { sets.push("ip = ?"); p.push(rusqlite::types::Value::from(v.to_string())); }
-            if let Some(v) = endianness { sets.push("endianness = ?"); p.push(rusqlite::types::Value::from(v.to_string())); }
-            if let Some(v) = port { sets.push("port = ?"); p.push(rusqlite::types::Value::from(v as i64)); }
-            if let Some(v) = unit_id { sets.push("unit_id = ?"); p.push(rusqlite::types::Value::from(v as i64)); }
-            if let Some(v) = interval_ms { sets.push("interval_ms = ?"); p.push(rusqlite::types::Value::from(v as i64)); }
-            if let Some(v) = enabled { sets.push("enabled = ?"); p.push(rusqlite::types::Value::from(v as i64)); }
+            if let Some(v) = name {
+                sets.push("name = ?");
+                p.push(rusqlite::types::Value::from(v.to_string()));
+            }
+            if let Some(v) = ip {
+                sets.push("ip = ?");
+                p.push(rusqlite::types::Value::from(v.to_string()));
+            }
+            if let Some(v) = endianness {
+                sets.push("endianness = ?");
+                p.push(rusqlite::types::Value::from(v.to_string()));
+            }
+            if let Some(v) = port {
+                sets.push("port = ?");
+                p.push(rusqlite::types::Value::from(v as i64));
+            }
+            if let Some(v) = unit_id {
+                sets.push("unit_id = ?");
+                p.push(rusqlite::types::Value::from(v as i64));
+            }
+            if let Some(v) = interval_ms {
+                sets.push("interval_ms = ?");
+                p.push(rusqlite::types::Value::from(v as i64));
+            }
+            if let Some(v) = enabled {
+                sets.push("enabled = ?");
+                p.push(rusqlite::types::Value::from(v as i64));
+            }
 
-            if sets.is_empty() { return Ok(()); }
+            if sets.is_empty() {
+                return Ok(());
+            }
             sets.push("updated_at = ?");
             p.push(rusqlite::types::Value::from(now));
             p.push(rusqlite::types::Value::from(id));
 
             let sql = format!("UPDATE modbus_devices SET {} WHERE id = ?", sets.join(", "));
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> = p.iter().map(|v| v as &dyn rusqlite::types::ToSql).collect();
-            conn.execute(&sql, param_refs.as_slice()).context("Update modbus device failed")?;
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                p.iter().map(|v| v as &dyn rusqlite::types::ToSql).collect();
+            conn.execute(&sql, param_refs.as_slice())
+                .context("Update modbus device failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_modbus_device(&self, id: &str) -> Result<()> {
@@ -217,10 +256,15 @@ impl Storage {
         let id = id.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM modbus_devices WHERE id = ?1", rusqlite::params![id])
-                .context("Delete modbus device failed")?;
+            conn.execute(
+                "DELETE FROM modbus_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete modbus device failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn list_modbus_registers(&self, device_id: &str) -> Result<Vec<ModbusRegister>> {
@@ -247,12 +291,25 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn replace_modbus_registers(&self, device_id: &str, registers: &[ModbusRegisterInput]) -> Result<()> {
+    pub async fn replace_modbus_registers(
+        &self,
+        device_id: &str,
+        registers: &[ModbusRegisterInput],
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let device_id = device_id.to_string();
-        let registers: Vec<(String, u16, String, String, f64)> = registers.iter().map(|r| {
-            (r.name.clone(), r.address, r.register_type.clone(), r.register_area.clone(), r.scale)
-        }).collect();
+        let registers: Vec<(String, u16, String, String, f64)> = registers
+            .iter()
+            .map(|r| {
+                (
+                    r.name.clone(),
+                    r.address,
+                    r.register_type.clone(),
+                    r.register_area.clone(),
+                    r.scale,
+                )
+            })
+            .collect();
 
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -273,11 +330,12 @@ impl Storage {
         let devices = self.list_modbus_devices().await?;
         let mut configs = Vec::new();
         for device in &devices {
-            if !device.enabled { continue; }
+            if !device.enabled {
+                continue;
+            }
             let registers = self.list_modbus_registers(&device.id).await?;
             configs.push(device.to_device_config(&registers));
         }
         Ok(configs)
     }
-
 }

@@ -99,8 +99,14 @@ pub async fn create_device(
 
     // Sync to asset inventory
     crate::asset::sync::on_device_created(
-        &state.storage.asset(), "bacnet", &id.to_string(), &req.name, Some(&req.ip), "controller",
-    ).await;
+        &state.storage.asset(),
+        "bacnet",
+        &id.to_string(),
+        &req.name,
+        Some(&req.ip),
+        "controller",
+    )
+    .await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_bacnet_device".to_string(),

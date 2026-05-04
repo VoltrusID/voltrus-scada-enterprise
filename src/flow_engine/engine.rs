@@ -1,9 +1,11 @@
-use crate::flow_engine::{message::Message, node::NodeConfig, trigger::TriggerConfig, state::FlowState, run_log};
-use crate::storage::Storage;
 use crate::cache::DeviceCache;
-use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use crate::flow_engine::{
+    message::Message, node::NodeConfig, run_log, state::FlowState, trigger::TriggerConfig,
+};
+use crate::storage::Storage;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{RwLock, broadcast};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Flow {
@@ -22,10 +24,7 @@ pub struct FlowEngine {
 }
 
 impl FlowEngine {
-    pub fn new(
-        storage: Storage,
-        cache: DeviceCache,
-    ) -> Self {
+    pub fn new(storage: Storage, cache: DeviceCache) -> Self {
         Self {
             flows: Arc::new(RwLock::new(HashMap::new())),
             state: Arc::new(FlowState::new()),
@@ -53,11 +52,15 @@ impl FlowEngine {
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     let flows_guard = flows.read().await;
                     for flow in flows_guard.values() {
-                        if !flow.enabled { continue; }
+                        if !flow.enabled {
+                            continue;
+                        }
                         if let TriggerConfig::Timer { interval_ms } = &flow.trigger {
                             let now = std::time::Instant::now();
                             let should_run = match last_run.get(&flow.id) {
-                                Some(last) => now.duration_since(*last).as_millis() as u64 >= *interval_ms,
+                                Some(last) => {
+                                    now.duration_since(*last).as_millis() as u64 >= *interval_ms
+                                }
                                 None => true,
                             };
                             if should_run {
@@ -66,7 +69,9 @@ impl FlowEngine {
                                 let state = state.clone();
                                 let storage = storage.clone();
                                 let cache = cache.clone();
-                                let msg = Message::new(serde_json::json!({"timestamp": crate::timeutil::now_secs()}));
+                                let msg = Message::new(
+                                    serde_json::json!({"timestamp": crate::timeutil::now_secs()}),
+                                );
                                 tokio::spawn(async move {
                                     run_flow(&flow, msg, state.as_ref(), &storage, &cache).await;
                                 });
@@ -85,7 +90,9 @@ impl FlowEngine {
                         let msg = device_snapshot_to_message(snapshot);
                         let flows_guard = flows.read().await;
                         for flow in flows_guard.values() {
-                            if !flow.enabled { continue; }
+                            if !flow.enabled {
+                                continue;
+                            }
                             if flow.trigger.matches(&msg) {
                                 let flow = flow.clone();
                                 let state = state.clone();
@@ -154,7 +161,13 @@ fn device_snapshot_to_message(snapshot: crate::models::DeviceSnapshot) -> Messag
     msg
 }
 
-async fn run_flow(flow: &Flow, mut msg: Message, state: &FlowState, storage: &Storage, cache: &DeviceCache) {
+async fn run_flow(
+    flow: &Flow,
+    mut msg: Message,
+    state: &FlowState,
+    storage: &Storage,
+    cache: &DeviceCache,
+) {
     let start = std::time::Instant::now();
     for node in &flow.nodes {
         let ctx = crate::flow_engine::node::NodeContext {
@@ -169,16 +182,40 @@ async fn run_flow(flow: &Flow, mut msg: Message, state: &FlowState, storage: &St
                 msg = new_msg;
             }
             Ok(crate::flow_engine::node::NodeResult::FilterReject) => {
-                run_log::log_run(storage, &flow.id, start.elapsed().as_millis() as u64, true, None, None).await;
+                run_log::log_run(
+                    storage,
+                    &flow.id,
+                    start.elapsed().as_millis() as u64,
+                    true,
+                    None,
+                    None,
+                )
+                .await;
                 return;
             }
             Err(e) => {
-                run_log::log_run(storage, &flow.id, start.elapsed().as_millis() as u64, false, Some(e), None).await;
+                run_log::log_run(
+                    storage,
+                    &flow.id,
+                    start.elapsed().as_millis() as u64,
+                    false,
+                    Some(e),
+                    None,
+                )
+                .await;
                 return;
             }
         }
     }
-    run_log::log_run(storage, &flow.id, start.elapsed().as_millis() as u64, true, None, Some(msg.payload)).await;
+    run_log::log_run(
+        storage,
+        &flow.id,
+        start.elapsed().as_millis() as u64,
+        true,
+        None,
+        Some(msg.payload),
+    )
+    .await;
 }
 
 fn node_id(node: &NodeConfig) -> String {

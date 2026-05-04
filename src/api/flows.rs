@@ -1,22 +1,47 @@
-use axum::{extract::{Extension, Path, State}, Json, http::StatusCode};
-use serde_json::json;
-use crate::api::{AppState, AppError, AuthUser};
+use crate::api::{AppError, AppState, AuthUser};
 use crate::models::Flow;
+use axum::{
+    Json,
+    extract::{Extension, Path, State},
+    http::StatusCode,
+};
+use serde_json::json;
 
-pub async fn list_flows(State(state): State<AppState>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn list_flows(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let flows = state.storage.list_flows().await?;
     Ok(Json(json!({ "flows": flows })))
 }
 
-pub async fn get_flow(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<Flow>, AppError> {
-    let flow = state.storage.get_flow(&id).await?
+pub async fn get_flow(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Flow>, AppError> {
+    let flow = state
+        .storage
+        .get_flow(&id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("Flow not found"))?;
     Ok(Json(flow))
 }
 
-pub async fn create_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Json(req): Json<Flow>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn create_flow(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(req): Json<Flow>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let id = req.id.clone();
-    state.storage.create_flow(&req.id, &req.name, req.enabled, &req.trigger_config, &req.nodes).await?;
+    state
+        .storage
+        .create_flow(
+            &req.id,
+            &req.name,
+            req.enabled,
+            &req.trigger_config,
+            &req.nodes,
+        )
+        .await?;
     if let Some(engine) = &state.flow_engine {
         let runtime_flow = db_flow_to_runtime_flow(req)?;
         engine.add_flow(runtime_flow).await;
@@ -30,8 +55,16 @@ pub async fn create_flow(State(state): State<AppState>, Extension(auth): Extensi
     Ok(Json(json!({ "id": id })))
 }
 
-pub async fn update_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>, Json(req): Json<Flow>) -> Result<StatusCode, AppError> {
-    state.storage.update_flow(&id, &req.name, req.enabled, &req.trigger_config, &req.nodes).await?;
+pub async fn update_flow(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<String>,
+    Json(req): Json<Flow>,
+) -> Result<StatusCode, AppError> {
+    state
+        .storage
+        .update_flow(&id, &req.name, req.enabled, &req.trigger_config, &req.nodes)
+        .await?;
     if let Some(engine) = &state.flow_engine {
         let runtime_flow = db_flow_to_runtime_flow(req)?;
         engine.update_flow(runtime_flow).await;
@@ -45,7 +78,11 @@ pub async fn update_flow(State(state): State<AppState>, Extension(auth): Extensi
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn delete_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
+pub async fn delete_flow(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
     state.storage.delete_flow(&id).await?;
     if let Some(engine) = &state.flow_engine {
         engine.remove_flow(&id).await;
@@ -59,12 +96,16 @@ pub async fn delete_flow(State(state): State<AppState>, Extension(auth): Extensi
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn start_flow(State(state): State<AppState>, Extension(auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
-    if let Some(engine) = &state.flow_engine {
-        if let Some(mut flow) = engine.get_flow(&id).await {
-            flow.enabled = true;
-            engine.update_flow(flow).await;
-        }
+pub async fn start_flow(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    if let Some(engine) = &state.flow_engine
+        && let Some(mut flow) = engine.get_flow(&id).await
+    {
+        flow.enabled = true;
+        engine.update_flow(flow).await;
     }
     state.audit_logger.log(crate::security::AuditEvent {
         action: "start_flow".to_string(),
@@ -75,12 +116,16 @@ pub async fn start_flow(State(state): State<AppState>, Extension(auth): Extensio
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn stop_flow(State(state): State<AppState>, Extension(_auth): Extension<AuthUser>, Path(id): Path<String>) -> Result<StatusCode, AppError> {
-    if let Some(engine) = &state.flow_engine {
-        if let Some(mut flow) = engine.get_flow(&id).await {
-            flow.enabled = false;
-            engine.update_flow(flow).await;
-        }
+pub async fn stop_flow(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    if let Some(engine) = &state.flow_engine
+        && let Some(mut flow) = engine.get_flow(&id).await
+    {
+        flow.enabled = false;
+        engine.update_flow(flow).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -90,13 +135,19 @@ pub async fn test_flow(
     Path(id): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let flow = state.storage.get_flow(&id).await?
+    let flow = state
+        .storage
+        .get_flow(&id)
+        .await?
         .ok_or_else(|| anyhow::anyhow!("Flow not found"))?;
 
-    let nodes: Vec<crate::flow_engine::node::NodeConfig> = serde_json::from_str(&flow.nodes)
-        .map_err(|e| anyhow::anyhow!("Invalid nodes: {}", e))?;
+    let nodes: Vec<crate::flow_engine::node::NodeConfig> =
+        serde_json::from_str(&flow.nodes).map_err(|e| anyhow::anyhow!("Invalid nodes: {}", e))?;
 
-    let payload = req.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+    let payload = req
+        .get("payload")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let mut msg = crate::flow_engine::message::Message::new(payload);
     let state_arc = crate::flow_engine::state::FlowState::new();
     let cache = state.cache.clone();
@@ -145,14 +196,18 @@ pub async fn test_flow(
     })))
 }
 
-pub async fn list_flow_runs(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+pub async fn list_flow_runs(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let runs = state.storage.list_flow_runs(&id, 20).await?;
     Ok(Json(json!({ "runs": runs })))
 }
 
 fn db_flow_to_runtime_flow(db_flow: Flow) -> Result<crate::flow_engine::engine::Flow, AppError> {
-    let trigger: crate::flow_engine::trigger::TriggerConfig = serde_json::from_str(&db_flow.trigger_config)
-        .map_err(|e| anyhow::anyhow!("Invalid trigger_config: {}", e))?;
+    let trigger: crate::flow_engine::trigger::TriggerConfig =
+        serde_json::from_str(&db_flow.trigger_config)
+            .map_err(|e| anyhow::anyhow!("Invalid trigger_config: {}", e))?;
     let nodes: Vec<crate::flow_engine::node::NodeConfig> = serde_json::from_str(&db_flow.nodes)
         .map_err(|e| anyhow::anyhow!("Invalid nodes: {}", e))?;
     Ok(crate::flow_engine::engine::Flow {

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use super::token::tokenize;
 use super::evaluator::{evaluate, evaluate_json};
+use super::token::tokenize;
+use std::collections::HashMap;
 
 fn vals() -> HashMap<String, f64> {
     HashMap::from([
@@ -18,7 +18,10 @@ fn test_single_register() {
 
 #[test]
 fn test_addition() {
-    assert_eq!(evaluate("{Voltage_L1} + {Voltage_L2}", &vals()).unwrap(), 441.0);
+    assert_eq!(
+        evaluate("{Voltage_L1} + {Voltage_L2}", &vals()).unwrap(),
+        441.0
+    );
 }
 
 #[test]
@@ -28,22 +31,34 @@ fn test_multiplication_with_constant() {
 
 #[test]
 fn test_precedence() {
-    assert_eq!(evaluate("{Voltage_L1} + {Voltage_L2} * 0.5", &vals()).unwrap(), 330.5);
+    assert_eq!(
+        evaluate("{Voltage_L1} + {Voltage_L2} * 0.5", &vals()).unwrap(),
+        330.5
+    );
 }
 
 #[test]
 fn test_parentheses() {
-    assert_eq!(evaluate("({Voltage_L1} + {Voltage_L2}) * 0.5", &vals()).unwrap(), 220.5);
+    assert_eq!(
+        evaluate("({Voltage_L1} + {Voltage_L2}) * 0.5", &vals()).unwrap(),
+        220.5
+    );
 }
 
 #[test]
 fn test_subtraction_and_division() {
-    assert_eq!(evaluate("({Active_Power} - {Voltage_L1}) / 2", &vals()).unwrap(), 2390.0);
+    assert_eq!(
+        evaluate("({Active_Power} - {Voltage_L1}) / 2", &vals()).unwrap(),
+        2390.0
+    );
 }
 
 #[test]
 fn test_three_registers() {
-    assert_eq!(evaluate("{Voltage_L1} + {Voltage_L2} + {Voltage_L3}", &vals()).unwrap(), 660.0);
+    assert_eq!(
+        evaluate("{Voltage_L1} + {Voltage_L2} + {Voltage_L3}", &vals()).unwrap(),
+        660.0
+    );
 }
 
 #[test]
@@ -213,7 +228,11 @@ fn test_if_function() {
             }
         }
     });
-    let result = evaluate_json("if(payload.metrics.temperature > 80, \"CRITICAL\", \"OK\")", &context).unwrap();
+    let result = evaluate_json(
+        "if(payload.metrics.temperature > 80, \"CRITICAL\", \"OK\")",
+        &context,
+    )
+    .unwrap();
     assert_eq!(result, serde_json::json!("CRITICAL"));
 }
 
@@ -226,7 +245,11 @@ fn test_if_function_false() {
             }
         }
     });
-    let result = evaluate_json("if(payload.metrics.temperature > 80, \"CRITICAL\", \"OK\")", &context).unwrap();
+    let result = evaluate_json(
+        "if(payload.metrics.temperature > 80, \"CRITICAL\", \"OK\")",
+        &context,
+    )
+    .unwrap();
     assert_eq!(result, serde_json::json!("OK"));
 }
 
@@ -279,10 +302,22 @@ fn test_gte_lte_operators() {
     let context = serde_json::json!({
         "temp": 80.0
     });
-    assert_eq!(evaluate_json("temp >= 80", &context).unwrap(), serde_json::json!(true));
-    assert_eq!(evaluate_json("temp <= 80", &context).unwrap(), serde_json::json!(true));
-    assert_eq!(evaluate_json("temp >= 81", &context).unwrap(), serde_json::json!(false));
-    assert_eq!(evaluate_json("temp <= 79", &context).unwrap(), serde_json::json!(false));
+    assert_eq!(
+        evaluate_json("temp >= 80", &context).unwrap(),
+        serde_json::json!(true)
+    );
+    assert_eq!(
+        evaluate_json("temp <= 80", &context).unwrap(),
+        serde_json::json!(true)
+    );
+    assert_eq!(
+        evaluate_json("temp >= 81", &context).unwrap(),
+        serde_json::json!(false)
+    );
+    assert_eq!(
+        evaluate_json("temp <= 79", &context).unwrap(),
+        serde_json::json!(false)
+    );
 }
 
 #[test]
@@ -292,9 +327,18 @@ fn test_null_comparison() {
         "b": null,
         "c": 1.0
     });
-    assert_eq!(evaluate_json("a == b", &context).unwrap(), serde_json::json!(true));
-    assert_eq!(evaluate_json("a == c", &context).unwrap(), serde_json::json!(false));
-    assert_eq!(evaluate_json("a > c", &context).unwrap(), serde_json::json!(false));
+    assert_eq!(
+        evaluate_json("a == b", &context).unwrap(),
+        serde_json::json!(true)
+    );
+    assert_eq!(
+        evaluate_json("a == c", &context).unwrap(),
+        serde_json::json!(false)
+    );
+    assert_eq!(
+        evaluate_json("a > c", &context).unwrap(),
+        serde_json::json!(false)
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -86,8 +86,14 @@ pub async fn create_device(
 
     // Sync to asset inventory
     crate::asset::sync::on_device_created(
-        &state.storage.asset(), "dnp3", &id.to_string(), &req.name, Some(&req.ip), "rtu",
-    ).await;
+        &state.storage.asset(),
+        "dnp3",
+        &id.to_string(),
+        &req.name,
+        Some(&req.ip),
+        "rtu",
+    )
+    .await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_dnp3_device".to_string(),
@@ -228,7 +234,10 @@ pub async fn add_point(
         )
         .await?;
 
-    Ok((StatusCode::CREATED, Json(json!({ "ok": true, "id": point_id }))))
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "ok": true, "id": point_id })),
+    ))
 }
 
 /// DELETE /api/v1/dnp3/devices/{id}/points/{point_id}
@@ -306,7 +315,9 @@ pub async fn trigger_integrity(
     let device = state.storage.get_dnp3_device(id).await?;
     device.ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
 
-    Ok(Json(json!({ "ok": true, "message": "Integrity poll triggered" })))
+    Ok(Json(
+        json!({ "ok": true, "message": "Integrity poll triggered" }),
+    ))
 }
 
 /// POST /api/v1/dnp3/devices/{id}/freeze

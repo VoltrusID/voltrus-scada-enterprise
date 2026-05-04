@@ -35,14 +35,18 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn update_write_policy(&self, data_source_id: i64, update: &WritePolicyUpdate) -> Result<()> {
+    pub async fn update_write_policy(
+        &self,
+        data_source_id: i64,
+        update: &WritePolicyUpdate,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         let writable = update.writable;
-        let write_min = update.write_min.clone();
-        let write_max = update.write_max.clone();
-        let write_max_rate = update.write_max_rate.clone();
+        let write_min = update.write_min;
+        let write_max = update.write_max;
+        let write_max_rate = update.write_max_rate;
         let write_requires_reason = update.write_requires_reason;
-        let write_deadband = update.write_deadband.clone();
+        let write_deadband = update.write_deadband;
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
 
@@ -85,7 +89,8 @@ impl Storage {
             );
             params.push(Box::new(data_source_id));
 
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
+                params.iter().map(|p| p.as_ref()).collect();
             conn.execute(&sql, param_refs.as_slice())
                 .context("Update write policy failed")?;
             Ok(())
@@ -119,7 +124,10 @@ impl Storage {
         .context("Task join failed")?
     }
 
-    pub async fn get_data_source_device_id(&self, data_source_id: i64) -> Result<Option<(i64, String)>> {
+    pub async fn get_data_source_device_id(
+        &self,
+        data_source_id: i64,
+    ) -> Result<Option<(i64, String)>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -168,7 +176,11 @@ impl Storage {
     }
 
     /// Find a data source by device_id and key. Returns the data source if found.
-    pub async fn find_data_source_by_device_and_key(&self, device_id: &str, key: &str) -> Result<Option<DataSource>> {
+    pub async fn find_data_source_by_device_and_key(
+        &self,
+        device_id: &str,
+        key: &str,
+    ) -> Result<Option<DataSource>> {
         let conn = self.conn.clone();
         let device_id = device_id.to_string();
         let key = key.to_string();
@@ -229,5 +241,4 @@ impl Storage {
         .await
         .context("Task join failed")?
     }
-
 }

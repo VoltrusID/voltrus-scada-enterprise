@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-    message::header::ContentType,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::header::ContentType,
     transport::smtp::authentication::Credentials,
 };
 use serde::Serialize;
@@ -298,8 +297,14 @@ mod tests {
 
     #[test]
     fn test_html_escape() {
-        assert_eq!(html_escape("<script>alert('x')</script>"), "&lt;script&gt;alert('x')&lt;/script&gt;");
-        assert_eq!(html_escape("a & b < c > d \"e\""), "a &amp; b &lt; c &gt; d &quot;e&quot;");
+        assert_eq!(
+            html_escape("<script>alert('x')</script>"),
+            "&lt;script&gt;alert('x')&lt;/script&gt;"
+        );
+        assert_eq!(
+            html_escape("a & b < c > d \"e\""),
+            "a &amp; b &lt; c &gt; d &quot;e&quot;"
+        );
     }
 
     #[test]
@@ -326,7 +331,10 @@ password: "pass"
 encryption: "implicittls"
 "#;
         let config: SmtpConfig = serde_yaml_neo::from_str(yaml).unwrap();
-        assert_eq!(config.encryption, crate::models::SmtpEncryption::ImplicitTls);
+        assert_eq!(
+            config.encryption,
+            crate::models::SmtpEncryption::ImplicitTls
+        );
 
         let yaml_none = r#"
 host: "smtp.example.com"
@@ -348,5 +356,4 @@ encryption: "none"
         assert!(text.contains("240.0"));
         assert!(text.contains("ALARM NOTIFICATION"));
     }
-
 }

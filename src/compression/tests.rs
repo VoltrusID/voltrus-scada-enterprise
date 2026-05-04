@@ -2,9 +2,10 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::compression::{BitWriter, BitReader, gorilla_encode, gorilla_decode, GorillaBlock,
-        rle_encode, rle_decode, rle_serialize, rle_deserialize,
-        varint_encode, varint_decode};
+    use crate::compression::{
+        BitReader, BitWriter, GorillaBlock, gorilla_decode, gorilla_encode, rle_decode,
+        rle_deserialize, rle_encode, rle_serialize, varint_decode, varint_encode,
+    };
 
     // -----------------------------------------------------------------------
     // BitWriter / BitReader tests
@@ -85,25 +86,18 @@ mod tests {
             1_700_000_009,
         ];
         let values: Vec<f64> = vec![
-            23.5,
-            23.6,
-            23.6,  // duplicate value
-            23.7,
-            23.7,  // duplicate value
-            23.5,  // back to earlier value
-            24.0,
-            24.1,
-            24.1,  // duplicate value
+            23.5, 23.6, 23.6, // duplicate value
+            23.7, 23.7, // duplicate value
+            23.5, // back to earlier value
+            24.0, 24.1, 24.1, // duplicate value
             24.2,
         ];
 
-        let block =
-            gorilla_encode(&timestamps, &values).expect("encode should succeed");
+        let block = gorilla_encode(&timestamps, &values).expect("encode should succeed");
         assert_eq!(block.count, 10);
         assert_eq!(block.first_ts, 1_700_000_000);
 
-        let (dec_ts, dec_vals) =
-            gorilla_decode(&block).expect("decode should succeed");
+        let (dec_ts, dec_vals) = gorilla_decode(&block).expect("decode should succeed");
 
         assert_eq!(dec_ts, timestamps);
         assert_eq!(dec_vals, values);
@@ -126,14 +120,12 @@ mod tests {
         let timestamps = vec![1234567890i64];
         let values = vec![42.0f64];
 
-        let block =
-            gorilla_encode(&timestamps, &values).expect("encode single value");
+        let block = gorilla_encode(&timestamps, &values).expect("encode single value");
         assert_eq!(block.count, 1);
         assert_eq!(block.first_ts, 1234567890);
         assert!(block.data.is_empty());
 
-        let (dec_ts, dec_vals) =
-            gorilla_decode(&block).expect("decode single value");
+        let (dec_ts, dec_vals) = gorilla_decode(&block).expect("decode single value");
         assert_eq!(dec_ts, timestamps);
         assert_eq!(dec_vals, values);
     }

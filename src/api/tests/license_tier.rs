@@ -84,17 +84,33 @@ async fn test_tier_trial_feature_gates() {
     );
 
     // SHOULD ALLOW (Trial) — health and branding are open
-    let resp = app.clone().oneshot(
-        Request::builder().uri("/api/v1/health").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
     // Branding returns defaults for trial (theme_level=none)
-    let resp = app.clone().oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "none");
 
@@ -130,11 +146,20 @@ async fn test_tier_starter_feature_gates() {
     );
 
     // Branding returns theme_level=basic for Starter
-    let resp = app.clone().oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "basic");
 
@@ -166,11 +191,20 @@ async fn test_tier_professional_feature_gates() {
     );
 
     // Branding returns theme_level=full for Professional
-    let resp = app.clone().oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "full");
 
@@ -206,11 +240,20 @@ async fn test_tier_enterprise_feature_gates() {
     );
 
     // Branding returns theme_level=full for Enterprise
-    let resp = app.clone().oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "full");
 
@@ -234,46 +277,78 @@ async fn test_branding_theme_levels_per_tier() {
     // Trial: branding returns defaults with theme_level=none
     let app = test_app_with_license_status(
         crate::license::LicenseStatus::Trial {
-            started_at: 0, expires_at: 2592000, days_remaining: 30,
+            started_at: 0,
+            expires_at: 2592000,
+            days_remaining: 30,
             tier: crate::license::LicenseTier::Trial,
             feature_flags: crate::license::LicenseTier::Trial.to_feature_flags(),
         },
         crate::license::LicenseTier::Trial,
     );
-    let resp = app.oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "none");
 
     // Starter: theme_level=basic
     let app = test_app_with_license_status(
         crate::license::LicenseStatus::Valid {
-            license_key: "test".into(), expires_at: None, days_remaining: None,
-            tier: Some("starter".into()), device_limit: None,
+            license_key: "test".into(),
+            expires_at: None,
+            days_remaining: None,
+            tier: Some("starter".into()),
+            device_limit: None,
         },
         crate::license::LicenseTier::Starter,
     );
-    let resp = app.oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "basic");
 
     // Professional: theme_level=full
     let app = test_app_with_license_status(
         crate::license::LicenseStatus::Valid {
-            license_key: "test".into(), expires_at: None, days_remaining: None,
-            tier: Some("professional".into()), device_limit: None,
+            license_key: "test".into(),
+            expires_at: None,
+            days_remaining: None,
+            tier: Some("professional".into()),
+            device_limit: None,
         },
         crate::license::LicenseTier::Professional,
     );
-    let resp = app.oneshot(
-        Request::builder().uri("/api/v1/settings/branding").body(Body::empty()).unwrap()
-    ).await.unwrap();
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/settings/branding")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "full");
 }

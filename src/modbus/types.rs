@@ -34,10 +34,15 @@ pub(crate) struct Backoff {
 
 impl Backoff {
     pub(crate) fn new() -> Self {
-        Self { attempt: 0, max_delay_ms: 30_000 }
+        Self {
+            attempt: 0,
+            max_delay_ms: 30_000,
+        }
     }
 
-    pub(crate) fn reset(&mut self) { self.attempt = 0; }
+    pub(crate) fn reset(&mut self) {
+        self.attempt = 0;
+    }
 
     pub(crate) fn next(&mut self) -> u64 {
         let attempt = self.attempt.min(30);

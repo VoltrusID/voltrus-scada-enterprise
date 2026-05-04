@@ -197,7 +197,8 @@ impl AssetStorage {
                 params.push(Box::new(v.clone()));
             }
             if let Some(ref s) = search {
-                where_clauses.push("(name LIKE ? OR ip_address LIKE ? OR vendor LIKE ?)".to_string());
+                where_clauses
+                    .push("(name LIKE ? OR ip_address LIKE ? OR vendor LIKE ?)".to_string());
                 let pattern = format!("%{s}%");
                 params.push(Box::new(pattern.clone()));
                 params.push(Box::new(pattern.clone()));
@@ -233,7 +234,8 @@ impl AssetStorage {
                         mac_address: row.get(9)?,
                         location: row.get(10)?,
                         criticality: row.get(11)?,
-                        tags: serde_json::from_str(row.get::<_, String>(12)?.as_str()).unwrap_or_default(),
+                        tags: serde_json::from_str(row.get::<_, String>(12)?.as_str())
+                            .unwrap_or_default(),
                         risk_score: row.get(13)?,
                         last_maintenance: row.get(14)?,
                         notes: row.get(15)?,
@@ -279,7 +281,8 @@ impl AssetStorage {
                         mac_address: row.get(9)?,
                         location: row.get(10)?,
                         criticality: row.get(11)?,
-                        tags: serde_json::from_str(row.get::<_, String>(12)?.as_str()).unwrap_or_default(),
+                        tags: serde_json::from_str(row.get::<_, String>(12)?.as_str())
+                            .unwrap_or_default(),
                         risk_score: row.get(13)?,
                         last_maintenance: row.get(14)?,
                         notes: row.get(15)?,
@@ -308,9 +311,18 @@ impl AssetStorage {
             let conn = conn.lock().unwrap();
 
             let allowed = [
-                "name", "asset_type", "vendor", "model", "firmware_version",
-                "serial_number", "ip_address", "mac_address", "location",
-                "criticality", "notes", "tags",
+                "name",
+                "asset_type",
+                "vendor",
+                "model",
+                "firmware_version",
+                "serial_number",
+                "ip_address",
+                "mac_address",
+                "location",
+                "criticality",
+                "notes",
+                "tags",
             ];
 
             let mut set_clauses: Vec<String> = Vec::new();
@@ -321,10 +333,14 @@ impl AssetStorage {
                     if let Some(value) = obj.get(key) {
                         set_clauses.push(format!("{key} = ?"));
                         if key == "tags" {
-                            params.push(Box::new(serde_json::to_string(value).unwrap_or_else(|_| "[]".to_string())));
+                            params.push(Box::new(
+                                serde_json::to_string(value).unwrap_or_else(|_| "[]".to_string()),
+                            ));
                         } else {
                             match value {
-                                serde_json::Value::Null => params.push(Box::new(Option::<String>::None)),
+                                serde_json::Value::Null => {
+                                    params.push(Box::new(Option::<String>::None))
+                                }
                                 serde_json::Value::String(s) => params.push(Box::new(s.clone())),
                                 other => params.push(Box::new(other.to_string())),
                             }
@@ -342,10 +358,7 @@ impl AssetStorage {
             params.push(Box::new(now));
             params.push(Box::new(id));
 
-            let sql = format!(
-                "UPDATE assets SET {} WHERE id = ?",
-                set_clauses.join(", ")
-            );
+            let sql = format!("UPDATE assets SET {} WHERE id = ?", set_clauses.join(", "));
 
             conn.execute(&sql, rusqlite::params_from_iter(params.iter()))
                 .context("Failed to update asset")?;
@@ -533,7 +546,8 @@ impl AssetStorage {
                             mac_address: row.get(9)?,
                             location: row.get(10)?,
                             criticality: row.get(11)?,
-                            tags: serde_json::from_str(row.get::<_, String>(12)?.as_str()).unwrap_or_default(),
+                            tags: serde_json::from_str(row.get::<_, String>(12)?.as_str())
+                                .unwrap_or_default(),
                             risk_score: row.get(13)?,
                             last_maintenance: row.get(14)?,
                             notes: row.get(15)?,

@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 use crate::cache::DeviceCache;
 use crate::models::{DeviceStatus, WriteResult};
 
-use super::types::*;
 use super::client::EthernetIpClient;
+use super::types::*;
 
 // ── Poller ──
 
@@ -47,10 +47,7 @@ pub async fn poll_enip_device(config: EnipDeviceRuntimeConfig, cache: DeviceCach
                 tracing::warn!("EtherNet/IP device {} error: {e}", device_id);
                 cache.set_status(&device_id, DeviceStatus::Offline).await;
                 let delay = backoff.next();
-                tracing::info!(
-                    "EtherNet/IP device {} retrying in {delay}ms",
-                    device_id
-                );
+                tracing::info!("EtherNet/IP device {} retrying in {delay}ms", device_id);
                 tokio::time::sleep(Duration::from_millis(delay)).await;
                 continue;
             }
@@ -64,7 +61,10 @@ pub async fn poll_enip_device(config: EnipDeviceRuntimeConfig, cache: DeviceCach
 /// Attempt one poll cycle: connect, read all tags, update cache.
 async fn try_poll_cycle(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -> Result<()> {
     let mut client = EthernetIpClient::new(&config.url);
-    client.connect().await.context("EtherNet/IP connect failed")?;
+    client
+        .connect()
+        .await
+        .context("EtherNet/IP connect failed")?;
 
     let mut metrics = HashMap::new();
 
@@ -76,11 +76,7 @@ async fn try_poll_cycle(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -
                 }
             }
             Err(e) => {
-                tracing::warn!(
-                    "EtherNet/IP tag read '{}' failed: {}",
-                    tag.tag_name,
-                    e
-                );
+                tracing::warn!("EtherNet/IP tag read '{}' failed: {}", tag.tag_name, e);
             }
         }
     }
@@ -100,21 +96,14 @@ async fn try_poll_cycle(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -
 ///
 /// Connects to the PLC at `ip:port`, writes the value as a DINT (i32) to the
 /// named tag, and returns a `WriteResult`.
-pub async fn write_tag(
-    ip: &str,
-    port: u16,
-    tag_name: &str,
-    value: f64,
-) -> WriteResult {
+pub async fn write_tag(ip: &str, port: u16, tag_name: &str, value: f64) -> WriteResult {
     let start = std::time::Instant::now();
     let url = format!("{}:{}", ip, port);
 
     // Connect with timeout
     let mut client = EthernetIpClient::new(&url);
-    let connect_result = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        client.connect(),
-    ).await;
+    let connect_result =
+        tokio::time::timeout(std::time::Duration::from_secs(5), client.connect()).await;
 
     match connect_result {
         Ok(Ok(())) => {}
@@ -124,7 +113,7 @@ pub async fn write_tag(
                 device_response: None,
                 error: Some(format!("EtherNet/IP connection failed: {e}")),
                 latency_ms: start.elapsed().as_millis() as u64,
-            }
+            };
         }
         Err(_) => {
             return WriteResult {
@@ -132,7 +121,7 @@ pub async fn write_tag(
                 device_response: None,
                 error: Some("EtherNet/IP connect timeout (5s)".into()),
                 latency_ms: start.elapsed().as_millis() as u64,
-            }
+            };
         }
     }
 
@@ -142,17 +131,15 @@ pub async fn write_tag(
     let write_result = tokio::time::timeout(
         std::time::Duration::from_secs(5),
         client.write_tag(tag_name, &cip_value),
-    ).await;
+    )
+    .await;
 
     let _ = client.disconnect().await;
 
     match write_result {
         Ok(Ok(())) => WriteResult {
             success: true,
-            device_response: Some(format!(
-                "Wrote tag '{}' = {} (DINT)",
-                tag_name, value
-            )),
+            device_response: Some(format!("Wrote tag '{}' = {} (DINT)", tag_name, value)),
             error: None,
             latency_ms: start.elapsed().as_millis() as u64,
         },

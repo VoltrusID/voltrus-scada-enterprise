@@ -1,38 +1,27 @@
-"""Write a setpoint to a tag and track command acknowledgment."""
+"""Write a setpoint to a Voltrus tag.
+
+Usage: python write_setpoint.py [host] [api_key] [tag_id] [value]
+"""
+
 import sys
 import time
-from voltrus import ApiClient, Configuration
-from voltrus.api.commands_api import CommandsApi
+from voltrus import VoltrusClient
 
-def main():
-    host = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:3000"
-    api_key = sys.argv[2] if len(sys.argv) > 2 else ""
-    tag_id = int(sys.argv[3]) if len(sys.argv) > 3 else 1
-    value = sys.argv[4] if len(sys.argv) > 4 else "1"
+host = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080"
+api_key = sys.argv[2] if len(sys.argv) > 2 else ""
+tag_id = sys.argv[3] if len(sys.argv) > 3 else "sensor-001"
+value = float(sys.argv[4]) if len(sys.argv) > 4 else 42.5
 
-    config = Configuration(host=host)
-    if api_key:
-        config.api_key["api_key"] = api_key
+client = VoltrusClient(host, api_key=api_key or None)
 
-    with ApiClient(config) as client:
-        api = CommandsApi(client)
-        result = api.write_tag(tag_id, {"value": value})
-        command_id = result.get("command_id")
-        print(f"Command submitted: {command_id}")
+# Write a setpoint
+result = client.write_tag(tag_id, value)
+print(f"Write accepted: command_id={result.command_id}, status={result.status}")
 
-        for _ in range(30):
-            status = api.get_command_status(command_id)
-            state = status.status
-            print(f"  Status: {state}")
-            if state in ("acked", "resolved"):
-                print("Command acknowledged!")
-                return
-            if state == "failed":
-                print(f"Command failed: {status.error_message}")
-                return
-            time.sleep(1)
-
-        print("Timeout waiting for acknowledgment")
-
-if __name__ == "__main__":
-    main()
+# Poll for acknowledgement
+for i in range(10):
+    time.sleep(1)
+    status = client.get_command_status(result.command_id)
+    print(f"  [{i + 1}s] status={status.status}")
+    if status.status in ("acked", "failed"):
+        break

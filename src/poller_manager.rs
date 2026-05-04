@@ -4,7 +4,9 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
-use crate::models::{DeviceConfig, OpcUaDeviceConfig, PollerStatus, EnipDeviceConfig, Dnp3DeviceConfig};
+use crate::models::{
+    DeviceConfig, Dnp3DeviceConfig, EnipDeviceConfig, OpcUaDeviceConfig, PollerStatus,
+};
 use crate::s7::S7DeviceConfig;
 use crate::storage::Storage;
 
@@ -17,7 +19,11 @@ pub struct PollerManager {
 }
 
 impl PollerManager {
-    pub fn new(cache: DeviceCache, storage: Storage, network_manager: crate::network::NetworkManager) -> Self {
+    pub fn new(
+        cache: DeviceCache,
+        storage: Storage,
+        network_manager: crate::network::NetworkManager,
+    ) -> Self {
         Self {
             handles: Arc::new(RwLock::new(HashMap::new())),
             cache,
@@ -27,44 +33,60 @@ impl PollerManager {
     }
 
     /// Check if device is in simulation mode and return config.
-    pub async fn get_simulation_config(&self, device_id: &str) -> Option<crate::sim_engine::SimConfig> {
-        let (sim_mode, profile_id, sim_config) = self.storage
-            .get_device_simulation(device_id).await.ok()??;
+    pub async fn get_simulation_config(
+        &self,
+        device_id: &str,
+    ) -> Option<crate::sim_engine::SimConfig> {
+        let (sim_mode, profile_id, sim_config) =
+            self.storage.get_device_simulation(device_id).await.ok()??;
 
-        if !sim_mode { return None; }
+        if !sim_mode {
+            return None;
+        }
 
         // Load profile if specified
-        let mut _config_str = sim_config.as_ref().map(|s| s.as_str()).unwrap_or("{}").to_string();
+        let mut _config_str = sim_config.as_deref().unwrap_or("{}").to_string();
 
-        if let Some(pid) = profile_id {
-            if let Ok(Some(profile)) = self.storage.get_sim_profile(pid).await {
-                // Merge profile config with device overrides
-                let mut base: serde_json::Value = serde_json::from_str(&profile.config).unwrap_or_default();
-                if let Some(override_cfg) = &sim_config {
-                    if let Ok(overrides) = serde_json::from_str::<serde_json::Value>(override_cfg) {
-                        if let (Some(base_obj), Some(over_obj)) = (base.as_object_mut(), overrides.as_object()) {
-                            for (k, v) in over_obj {
-                                base_obj.insert(k.clone(), v.clone());
-                            }
-                        }
-                    }
+        if let Some(pid) = profile_id
+            && let Ok(Some(profile)) = self.storage.get_sim_profile(pid).await
+        {
+            // Merge profile config with device overrides
+            let mut base: serde_json::Value =
+                serde_json::from_str(&profile.config).unwrap_or_default();
+            if let Some(override_cfg) = &sim_config
+                && let Ok(overrides) = serde_json::from_str::<serde_json::Value>(override_cfg)
+                && let (Some(base_obj), Some(over_obj)) =
+                    (base.as_object_mut(), overrides.as_object())
+            {
+                for (k, v) in over_obj {
+                    base_obj.insert(k.clone(), v.clone());
                 }
-                _config_str = base.to_string();
-
-                let data_type = profile.data_type.clone();
-                let params: std::collections::HashMap<String, serde_json::Value> =
-                    base.as_object()
-                        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-                        .unwrap_or_default();
-                return Some(crate::sim_engine::SimConfig { data_type, params });
             }
+            _config_str = base.to_string();
+
+            let data_type = profile.data_type.clone();
+            let params: std::collections::HashMap<String, serde_json::Value> = base
+                .as_object()
+                .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+            return Some(crate::sim_engine::SimConfig { data_type, params });
         }
 
         // Parse sim config directly
         let parsed: serde_json::Value = serde_json::from_str(&_config_str).unwrap_or_default();
-        let data_type = parsed.get("data_type").and_then(|v| v.as_str()).unwrap_or("constant").to_string();
-        let params: std::collections::HashMap<String, serde_json::Value> = parsed.as_object()
-            .map(|m| m.iter().filter(|(k, _)| *k != "data_type").map(|(k, v)| (k.clone(), v.clone())).collect())
+        let data_type = parsed
+            .get("data_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("constant")
+            .to_string();
+        let params: std::collections::HashMap<String, serde_json::Value> = parsed
+            .as_object()
+            .map(|m| {
+                m.iter()
+                    .filter(|(k, _)| *k != "data_type")
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
 
         Some(crate::sim_engine::SimConfig { data_type, params })
@@ -131,7 +153,8 @@ impl PollerManager {
                     tags: config.tags,
                 },
                 cache,
-            ).await;
+            )
+            .await;
         });
         self.handles.write().await.insert(device_id, handle);
     }
@@ -184,7 +207,10 @@ impl PollerManager {
         handles
             .keys()
             .map(|id| {
-                let status = cache_statuses.get(id).map(|s| s.as_str()).unwrap_or("offline");
+                let status = cache_statuses
+                    .get(id)
+                    .map(|s| s.as_str())
+                    .unwrap_or("offline");
                 PollerStatus {
                     device_id: id.clone(),
                     running: status == "online",

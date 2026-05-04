@@ -11,14 +11,20 @@ impl Storage {
         let keys: Vec<String> = keys.iter().map(|s| s.to_string()).collect();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let placeholders: Vec<String> = keys.iter().enumerate().map(|(i, _)| format!("?{}", i + 1)).collect();
+            let placeholders: Vec<String> = keys
+                .iter()
+                .enumerate()
+                .map(|(i, _)| format!("?{}", i + 1))
+                .collect();
             let sql = format!(
                 "SELECT key, value FROM settings WHERE key IN ({})",
                 placeholders.join(", ")
             );
             let mut stmt = conn.prepare(&sql).context("Prepare failed")?;
-            let param_refs: Vec<&dyn rusqlite::types::ToSql> =
-                keys.iter().map(|k| k as &dyn rusqlite::types::ToSql).collect();
+            let param_refs: Vec<&dyn rusqlite::types::ToSql> = keys
+                .iter()
+                .map(|k| k as &dyn rusqlite::types::ToSql)
+                .collect();
             let rows = stmt
                 .query_map(param_refs.as_slice(), |row| {
                     Ok(Setting {
@@ -56,12 +62,15 @@ impl Storage {
 
     /// Get a user-scoped preference value. Returns None if not set.
     pub async fn get_user_preference(&self, username: &str, key: &str) -> Result<Option<String>> {
-        let settings = self.get_settings(&[&format!("user:{}:{}", username, key)]).await?;
+        let settings = self
+            .get_settings(&[&format!("user:{}:{}", username, key)])
+            .await?;
         Ok(settings.into_iter().next().map(|s| s.value))
     }
 
     /// Set a user-scoped preference value.
     pub async fn set_user_preference(&self, username: &str, key: &str, value: &str) -> Result<()> {
-        self.upsert_setting(&format!("user:{}:{}", username, key), value).await
+        self.upsert_setting(&format!("user:{}:{}", username, key), value)
+            .await
     }
 }

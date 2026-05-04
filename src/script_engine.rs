@@ -1,5 +1,5 @@
-use std::time::Instant;
 use serde_json::Value;
+use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct ScriptResult {
@@ -23,19 +23,22 @@ pub fn validate_syntax(source: &str) -> Option<String> {
         Err(e) => return Some(format!("Failed to create JS context: {}", e)),
     };
     let source_owned = source.to_string();
-    let result = ctx.with(|ctx| -> Option<String> {
+
+    ctx.with(|ctx| -> Option<String> {
         use rquickjs::CatchResultExt;
-        let result = ctx.eval::<rquickjs::Value, _>(source_owned.as_bytes()).catch(&ctx);
+        let result = ctx
+            .eval::<rquickjs::Value, _>(source_owned.as_bytes())
+            .catch(&ctx);
         match result {
             Ok(_) => None,
-            Err(rquickjs::CaughtError::Exception(exc)) => {
-                Some(exc.message().unwrap_or_else(|| "Unknown syntax error".to_string()))
-            }
+            Err(rquickjs::CaughtError::Exception(exc)) => Some(
+                exc.message()
+                    .unwrap_or_else(|| "Unknown syntax error".to_string()),
+            ),
             Err(rquickjs::CaughtError::Value(val)) => Some(format!("{:?}", val)),
             Err(rquickjs::CaughtError::Error(e)) => Some(format!("{}", e)),
         }
-    });
-    result
+    })
 }
 
 /// Execute a script with the given input and resource limits.
@@ -94,9 +97,10 @@ fn execute_with_timeout(
     let timeout = std::time::Duration::from_millis(cpu_limit_ms);
     match rx.recv_timeout(timeout) {
         Ok(result) => result,
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-            Err(format!("Script execution timed out after {}ms", cpu_limit_ms))
-        }
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(format!(
+            "Script execution timed out after {}ms",
+            cpu_limit_ms
+        )),
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
             Err("Script execution thread panicked".to_string())
         }
@@ -111,8 +115,7 @@ fn run_script_in_quickjs(
 ) -> Result<String, String> {
     use rquickjs::CatchResultExt;
 
-    let rt = rquickjs::Runtime::new()
-        .map_err(|e| format!("Failed to create JS runtime: {}", e))?;
+    let rt = rquickjs::Runtime::new().map_err(|e| format!("Failed to create JS runtime: {}", e))?;
 
     rt.set_memory_limit(memory_limit_bytes as usize);
     rt.set_max_stack_size(256 * 1024);
@@ -125,8 +128,8 @@ fn run_script_in_quickjs(
         start.elapsed().as_millis() > cpu_limit
     })));
 
-    let ctx = rquickjs::Context::full(&rt)
-        .map_err(|e| format!("Failed to create JS context: {}", e))?;
+    let ctx =
+        rquickjs::Context::full(&rt).map_err(|e| format!("Failed to create JS context: {}", e))?;
 
     let source = source.to_string();
     let input_json = input_json.to_string();
@@ -234,8 +237,13 @@ mod tests {
         let source = "function main(input) { return { power: input.voltage * input.current }; }";
         let input = json!({"voltage": 220, "current": 5});
         let result = execute_script(source, &input, 1000, 1048576);
-        assert!(result.success, "Expected success, got error: {:?}", result.error);
-        let output: serde_json::Value = serde_json::from_str(result.output.unwrap().as_str()).unwrap();
+        assert!(
+            result.success,
+            "Expected success, got error: {:?}",
+            result.error
+        );
+        let output: serde_json::Value =
+            serde_json::from_str(result.output.unwrap().as_str()).unwrap();
         assert_eq!(output["power"], 1100);
     }
 
@@ -255,8 +263,11 @@ mod tests {
         let result = execute_script(source, &input, 200, 1048576);
         assert!(!result.success);
         let err = result.error.unwrap();
-        assert!(err.contains("timed out") || err.contains("interrupt") || err.contains("Internal"),
-            "Expected timeout error, got: {}", err);
+        assert!(
+            err.contains("timed out") || err.contains("interrupt") || err.contains("Internal"),
+            "Expected timeout error, got: {}",
+            err
+        );
     }
 
     #[test]

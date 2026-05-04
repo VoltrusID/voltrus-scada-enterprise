@@ -69,11 +69,7 @@ pub(crate) fn build_ascii_chart(points: &[DataPoint]) -> String {
 
     // Sample down to at most 40 characters
     let step = (values.len() as f64 / 40.0).ceil() as usize;
-    let sampled: Vec<f64> = values
-        .iter()
-        .step_by(step)
-        .cloned()
-        .collect();
+    let sampled: Vec<f64> = values.iter().step_by(step).cloned().collect();
 
     let bars = ['_', '.', '-', '~', '+', '=', '#'];
     let bar_count = bars.len();

@@ -16,13 +16,16 @@ pub fn generate_value(data_source: &DataSource, now: f64) -> f64 {
         "noise" => {
             let noise = pseudo_random(now + data_source.id as f64) * 2.0 - 1.0;
             let range = data_source.max_val - data_source.min_val;
-            (data_source.base_val + noise * range * 0.05).clamp(data_source.min_val, data_source.max_val)
+            (data_source.base_val + noise * range * 0.05)
+                .clamp(data_source.min_val, data_source.max_val)
         }
         "sine" => {
             let config: serde_json::Value =
                 serde_json::from_str(&data_source.source_config).unwrap_or(serde_json::json!({}));
             let period = config["period"].as_f64().unwrap_or(60.0);
-            let amplitude = config["amplitude"].as_f64().unwrap_or(data_source.max_val - data_source.min_val);
+            let amplitude = config["amplitude"]
+                .as_f64()
+                .unwrap_or(data_source.max_val - data_source.min_val);
             let phase = config["phase"].as_f64().unwrap_or(0.0);
             let range = data_source.max_val - data_source.min_val;
             let amp = amplitude.min(range / 2.0);
@@ -37,7 +40,8 @@ pub fn generate_value(data_source: &DataSource, now: f64) -> f64 {
             if should_jump {
                 let jump_target = pseudo_random(step_seed + data_source.id as f64 * 3.7);
                 let range = data_source.max_val - data_source.min_val;
-                (data_source.min_val + jump_target * range).clamp(data_source.min_val, data_source.max_val)
+                (data_source.min_val + jump_target * range)
+                    .clamp(data_source.min_val, data_source.max_val)
             } else {
                 data_source.base_val
             }
@@ -63,7 +67,11 @@ fn random_walk(data_source: &DataSource, now: f64) -> f64 {
 
 /// Aggregate values within a time bucket by sampling at 1s intervals.
 /// Returns (avg, min, max) — all rounded to 2 decimals.
-pub fn aggregate_bucket(data_source: &DataSource, bucket_start: f64, sub_samples: usize) -> (f64, f64, f64) {
+pub fn aggregate_bucket(
+    data_source: &DataSource,
+    bucket_start: f64,
+    sub_samples: usize,
+) -> (f64, f64, f64) {
     let n = sub_samples.max(1);
     let mut sum = 0.0;
     let mut mn = f64::MAX;
@@ -72,8 +80,13 @@ pub fn aggregate_bucket(data_source: &DataSource, bucket_start: f64, sub_samples
         let t = bucket_start + j as f64;
         let v = generate_value(data_source, t);
         sum += v;
-        if v < mn { mn = v; }
-        if v < mx { } else { mx = v; }
+        if v < mn {
+            mn = v;
+        }
+        if v < mx {
+        } else {
+            mx = v;
+        }
     }
     let avg = (sum / n as f64 * 100.0).round() / 100.0;
     let min_v = (mn * 100.0).round() / 100.0;
@@ -84,12 +97,12 @@ pub fn aggregate_bucket(data_source: &DataSource, bucket_start: f64, sub_samples
 /// Parse a range string like "30m", "1h", "6h", "24h" or "startMs-endMs" into (start_timestamp, end_timestamp) as seconds since epoch.
 pub fn parse_range(range: &str) -> (i64, i64) {
     // Custom range: "startMs-endMs" (milliseconds)
-    if let Some((s, e)) = range.split_once('-') {
-        if let (Ok(start_ms), Ok(end_ms)) = (s.parse::<i64>(), e.parse::<i64>()) {
-            if start_ms > 0 && end_ms > start_ms {
-                return (start_ms / 1000, end_ms / 1000);
-            }
-        }
+    if let Some((s, e)) = range.split_once('-')
+        && let (Ok(start_ms), Ok(end_ms)) = (s.parse::<i64>(), e.parse::<i64>())
+        && start_ms > 0
+        && end_ms > start_ms
+    {
+        return (start_ms / 1000, end_ms / 1000);
     }
     let now = crate::timeutil::now_secs();
     let secs = match range {
@@ -135,7 +148,13 @@ pub fn interval_for_range(range: &str, detail: Option<&str>) -> u64 {
 mod tests {
     use super::*;
 
-    fn make_data_source(id: i64, source_type: &str, base_val: f64, min_val: f64, max_val: f64) -> DataSource {
+    fn make_data_source(
+        id: i64,
+        source_type: &str,
+        base_val: f64,
+        min_val: f64,
+        max_val: f64,
+    ) -> DataSource {
         DataSource {
             id,
             key: "test".to_string(),
@@ -254,8 +273,14 @@ mod tests {
         assert_eq!(end - start, 10800); // 3 hours
 
         // Custom range interval: 3h = 10800000ms / 300 = 36000
-        assert_eq!(interval_for_range("1714300800000-1714311600000", None), 36_000);
+        assert_eq!(
+            interval_for_range("1714300800000-1714311600000", None),
+            36_000
+        );
         // Custom range with full detail: 1s per point = 10800 points for 3h
-        assert_eq!(interval_for_range("1714300800000-1714311600000", Some("full")), 1_000);
+        assert_eq!(
+            interval_for_range("1714300800000-1714311600000", Some("full")),
+            1_000
+        );
     }
 }

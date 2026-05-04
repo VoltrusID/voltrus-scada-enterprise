@@ -1,6 +1,5 @@
-
 pub fn hash_password(password: &str) -> String {
-    use argon2::password_hash::{SaltString, PasswordHasher};
+    use argon2::password_hash::{PasswordHasher, SaltString};
     use rand::Rng;
     let salt_bytes: [u8; 32] = rand::rng().random();
     let salt = SaltString::encode_b64(&salt_bytes).unwrap();

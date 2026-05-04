@@ -3,8 +3,8 @@ use anyhow::{Context, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use super::types::*;
 use super::packets::*;
+use super::types::*;
 
 #[derive(Debug)]
 pub struct EthernetIpClient {
@@ -130,11 +130,17 @@ impl EthernetIpClient {
         let packet = build_enip_header(CMD_REGISTER_SESSION, 0, 0, &body);
 
         let stream = self.stream.as_mut().context("Not connected")?;
-        stream.write_all(&packet).await.context("Write RegisterSession failed")?;
+        stream
+            .write_all(&packet)
+            .await
+            .context("Write RegisterSession failed")?;
         stream.flush().await?;
 
         let mut header_buf = [0u8; ENIP_HEADER_SIZE];
-        stream.read_exact(&mut header_buf).await.context("Read RegisterSession header failed")?;
+        stream
+            .read_exact(&mut header_buf)
+            .await
+            .context("Read RegisterSession header failed")?;
 
         let status = u32::from_le_bytes(header_buf[8..12].try_into().unwrap());
         if status != 0 {
@@ -146,10 +152,16 @@ impl EthernetIpClient {
         let length = u16::from_le_bytes(header_buf[2..4].try_into().unwrap()) as usize;
         if length > 0 {
             let mut body_buf = vec![0u8; length];
-            stream.read_exact(&mut body_buf).await.context("Read RegisterSession body failed")?;
+            stream
+                .read_exact(&mut body_buf)
+                .await
+                .context("Read RegisterSession body failed")?;
         }
 
-        tracing::debug!("EtherNet/IP session registered: handle=0x{:08X}", self.session_handle);
+        tracing::debug!(
+            "EtherNet/IP session registered: handle=0x{:08X}",
+            self.session_handle
+        );
         Ok(())
     }
 
@@ -173,12 +185,18 @@ impl EthernetIpClient {
         let packet = build_enip_header(CMD_SEND_RR_DATA, self.session_handle, 0, &rr_data);
 
         let stream = self.stream.as_mut().context("Not connected")?;
-        stream.write_all(&packet).await.context("Write SendRRData failed")?;
+        stream
+            .write_all(&packet)
+            .await
+            .context("Write SendRRData failed")?;
         stream.flush().await?;
 
         // Read response header
         let mut header_buf = [0u8; ENIP_HEADER_SIZE];
-        stream.read_exact(&mut header_buf).await.context("Read SendRRData header failed")?;
+        stream
+            .read_exact(&mut header_buf)
+            .await
+            .context("Read SendRRData header failed")?;
 
         let enip_status = u32::from_le_bytes(header_buf[8..12].try_into().unwrap());
         if enip_status != 0 {
@@ -188,7 +206,10 @@ impl EthernetIpClient {
         let length = u16::from_le_bytes(header_buf[2..4].try_into().unwrap()) as usize;
         let mut body_buf = vec![0u8; length];
         if length > 0 {
-            stream.read_exact(&mut body_buf).await.context("Read SendRRData body failed")?;
+            stream
+                .read_exact(&mut body_buf)
+                .await
+                .context("Read SendRRData body failed")?;
         }
 
         // Parse SendRRData response to extract CIP reply
@@ -205,7 +226,8 @@ impl EthernetIpClient {
         // Skip address item
         if pos + 4 <= body_buf.len() {
             let _addr_type = u16::from_le_bytes(body_buf[pos..pos + 2].try_into().unwrap());
-            let addr_len = u16::from_le_bytes(body_buf[pos + 2..pos + 4].try_into().unwrap()) as usize;
+            let addr_len =
+                u16::from_le_bytes(body_buf[pos + 2..pos + 4].try_into().unwrap()) as usize;
             pos += 4 + addr_len;
         }
 

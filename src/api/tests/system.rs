@@ -80,7 +80,8 @@ async fn test_license_tier_header_in_response() {
 
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let tier_header = resp.headers()
+    let tier_header = resp
+        .headers()
         .get("x-license-tier")
         .expect("X-License-Tier header should be present");
     // serde_json serializes LicenseTier::Professional as "professional"

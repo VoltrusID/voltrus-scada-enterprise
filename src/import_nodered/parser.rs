@@ -7,7 +7,6 @@ where
     D: Deserializer<'de>,
 {
     use serde::de::{self};
-    
 
     // Use a helper enum to accept either string or number
     #[derive(Deserialize)]
@@ -118,24 +117,16 @@ pub enum NodeCategory {
 impl NodeRedNode {
     pub fn category(&self) -> NodeCategory {
         match self.node_type.as_str() {
-            "modbus-read" | "modbus-write" | "modbus-response"
-            | "modbus-flex-getter" | "modbus-flex-write"
-            | "modbus-client" | "modbus-server"
-            | "opcua-client" | "opcua-item"
-            | "opcua-browser"
-            | "s7-client" | "s7-in" | "s7-out"
-            | "enip-read" | "enip-write"
-            | "bacnet-client" => NodeCategory::Convertible,
+            "modbus-read" | "modbus-write" | "modbus-response" | "modbus-flex-getter"
+            | "modbus-flex-write" | "modbus-client" | "modbus-server" | "opcua-client"
+            | "opcua-item" | "opcua-browser" | "s7-client" | "s7-in" | "s7-out" | "enip-read"
+            | "enip-write" | "bacnet-client" => NodeCategory::Convertible,
             "mqtt in" | "mqtt out" | "mqtt-broker" => NodeCategory::Convertible,
-            "switch" | "change" | "delay" | "trigger"
-            | "link in" | "link out" | "link-call"
-            | "complete" | "catch" | "status"
-            | "exec" | "template" => NodeCategory::Convertible,
-            "ui_gauge" | "ui_chart" | "ui_text"
-            | "ui_button" | "ui_slider" | "ui_dropdown"
-            | "ui_switch" | "ui_led" | "ui_notification"
-            | "ui_toast" | "ui_table"
-            | "ui_group" | "ui_tab" | "ui_spacer" => NodeCategory::Convertible,
+            "switch" | "change" | "delay" | "trigger" | "link in" | "link out" | "link-call"
+            | "complete" | "catch" | "status" | "exec" | "template" => NodeCategory::Convertible,
+            "ui_gauge" | "ui_chart" | "ui_text" | "ui_button" | "ui_slider" | "ui_dropdown"
+            | "ui_switch" | "ui_led" | "ui_notification" | "ui_toast" | "ui_table" | "ui_group"
+            | "ui_tab" | "ui_spacer" => NodeCategory::Convertible,
             "function" | "python" | "java" => NodeCategory::ManualReview,
             "inject" | "debug" => NodeCategory::UiDecoration,
             "comment" | "tab" | "subflow" | "subflow:" => NodeCategory::UiDecoration,
@@ -163,8 +154,7 @@ pub fn parse_flows(json_str: &str) -> Result<ParseResult, String> {
             .map_err(|e| format!("Failed to parse flows.json: {}", e))?;
         NodeRedFlow { nodes }
     } else {
-        serde_json::from_str(json_str)
-            .map_err(|e| format!("Failed to parse flows.json: {}", e))?
+        serde_json::from_str(json_str).map_err(|e| format!("Failed to parse flows.json: {}", e))?
     };
 
     let total_nodes = flow.nodes.len();
@@ -272,41 +262,110 @@ mod tests {
     #[test]
     fn test_node_category_classification() {
         let modbus = NodeRedNode {
-            id: "n1".into(), node_type: "modbus-read".into(),
-            name: Some("Read".into()), z: String::new(),
-            wires: Vec::new(), properties: HashMap::new(),
-            func: None, server: None, topic: None, qos: None, broker: None,
-            fc: None, unitid: None, address: None, quantity: None,
-            label: None, gmin: None, gmax: None, xaxis: None,
-            timeout: None, timeoutUnits: None, property: None, pt: None, ptt: None,
-            conditions: None, endpoint: None, item: None, payload: None,
-            payloadType: None, template: None, info: None, links: None,
+            id: "n1".into(),
+            node_type: "modbus-read".into(),
+            name: Some("Read".into()),
+            z: String::new(),
+            wires: Vec::new(),
+            properties: HashMap::new(),
+            func: None,
+            server: None,
+            topic: None,
+            qos: None,
+            broker: None,
+            fc: None,
+            unitid: None,
+            address: None,
+            quantity: None,
+            label: None,
+            gmin: None,
+            gmax: None,
+            xaxis: None,
+            timeout: None,
+            timeoutUnits: None,
+            property: None,
+            pt: None,
+            ptt: None,
+            conditions: None,
+            endpoint: None,
+            item: None,
+            payload: None,
+            payloadType: None,
+            template: None,
+            info: None,
+            links: None,
         };
         assert_eq!(modbus.category(), NodeCategory::Convertible);
 
         let func = NodeRedNode {
-            id: "n2".into(), node_type: "function".into(),
-            name: Some("Func".into()), z: String::new(),
-            wires: Vec::new(), properties: HashMap::new(),
-            func: None, server: None, topic: None, qos: None, broker: None,
-            fc: None, unitid: None, address: None, quantity: None,
-            label: None, gmin: None, gmax: None, xaxis: None,
-            timeout: None, timeoutUnits: None, property: None, pt: None, ptt: None,
-            conditions: None, endpoint: None, item: None, payload: None,
-            payloadType: None, template: None, info: None, links: None,
+            id: "n2".into(),
+            node_type: "function".into(),
+            name: Some("Func".into()),
+            z: String::new(),
+            wires: Vec::new(),
+            properties: HashMap::new(),
+            func: None,
+            server: None,
+            topic: None,
+            qos: None,
+            broker: None,
+            fc: None,
+            unitid: None,
+            address: None,
+            quantity: None,
+            label: None,
+            gmin: None,
+            gmax: None,
+            xaxis: None,
+            timeout: None,
+            timeoutUnits: None,
+            property: None,
+            pt: None,
+            ptt: None,
+            conditions: None,
+            endpoint: None,
+            item: None,
+            payload: None,
+            payloadType: None,
+            template: None,
+            info: None,
+            links: None,
         };
         assert_eq!(func.category(), NodeCategory::ManualReview);
 
         let unknown = NodeRedNode {
-            id: "n3".into(), node_type: "rare-custom-node".into(),
-            name: None, z: String::new(),
-            wires: Vec::new(), properties: HashMap::new(),
-            func: None, server: None, topic: None, qos: None, broker: None,
-            fc: None, unitid: None, address: None, quantity: None,
-            label: None, gmin: None, gmax: None, xaxis: None,
-            timeout: None, timeoutUnits: None, property: None, pt: None, ptt: None,
-            conditions: None, endpoint: None, item: None, payload: None,
-            payloadType: None, template: None, info: None, links: None,
+            id: "n3".into(),
+            node_type: "rare-custom-node".into(),
+            name: None,
+            z: String::new(),
+            wires: Vec::new(),
+            properties: HashMap::new(),
+            func: None,
+            server: None,
+            topic: None,
+            qos: None,
+            broker: None,
+            fc: None,
+            unitid: None,
+            address: None,
+            quantity: None,
+            label: None,
+            gmin: None,
+            gmax: None,
+            xaxis: None,
+            timeout: None,
+            timeoutUnits: None,
+            property: None,
+            pt: None,
+            ptt: None,
+            conditions: None,
+            endpoint: None,
+            item: None,
+            payload: None,
+            payloadType: None,
+            template: None,
+            info: None,
+            links: None,
         };
         assert_eq!(unknown.category(), NodeCategory::Unsupported);
     }

@@ -1,8 +1,8 @@
-use axum::extract::{Extension, State};
 use axum::Json;
+use axum::extract::{Extension, State};
+use axum::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
-use axum::response::IntoResponse;
 
 use crate::api::{AppError, AppState, AuthUser};
 use crate::mqtt_broker::{self, BrokerStatus};
@@ -18,7 +18,9 @@ pub async fn get_status(
         )));
     }
 
-    let broker = state.mqtt_broker_state.as_ref()
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
         .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
 
     let status = broker.current_status().await;
@@ -75,7 +77,9 @@ pub async fn update_config(
         )));
     }
 
-    let broker = state.mqtt_broker_state.as_ref()
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
         .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
 
     if broker.current_status().await == BrokerStatus::Running {
@@ -102,13 +106,20 @@ pub async fn update_config(
         }
         if let Some(auth_update) = req.auth {
             if let Some(enabled) = auth_update.enabled {
-                cfg.auth.mode = if enabled { "password".to_string() } else { "none".to_string() };
+                cfg.auth.mode = if enabled {
+                    "password".to_string()
+                } else {
+                    "none".to_string()
+                };
             }
             if let Some(users) = auth_update.users {
-                cfg.auth.users = users.into_iter().map(|u| crate::models::MqttUser {
-                    username: u.username,
-                    password: u.password,
-                }).collect();
+                cfg.auth.users = users
+                    .into_iter()
+                    .map(|u| crate::models::MqttUser {
+                        username: u.username,
+                        password: u.password,
+                    })
+                    .collect();
             }
         }
 
@@ -141,15 +152,19 @@ pub async fn start_broker(
         )));
     }
 
-    let broker = state.mqtt_broker_state.as_ref()
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
         .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
 
-    let config = broker.config.read().await.clone()
-        .ok_or_else(|| AppError(anyhow::anyhow!(
+    let config = broker.config.read().await.clone().ok_or_else(|| {
+        AppError(anyhow::anyhow!(
             "No MQTT broker configuration. Set config via PUT /api/v1/mqtt-broker/config first."
-        )))?;
+        ))
+    })?;
 
-    mqtt_broker::start_broker(broker.clone(), config).await
+    mqtt_broker::start_broker(broker.clone(), config)
+        .await
         .map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
 
     Ok(Json(json!({
@@ -169,10 +184,13 @@ pub async fn stop_broker(
         )));
     }
 
-    let broker = state.mqtt_broker_state.as_ref()
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
         .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
 
-    mqtt_broker::stop_broker(broker.clone()).await
+    mqtt_broker::stop_broker(broker.clone())
+        .await
         .map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
 
     Ok(Json(json!({

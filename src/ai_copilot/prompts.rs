@@ -138,7 +138,11 @@ Return JSON:
 Return ONLY the JSON array, no other text."#
 }
 
-pub fn tag_rename_user_prompt(tags: &str, convention: &str, custom_pattern: Option<&str>) -> String {
+pub fn tag_rename_user_prompt(
+    tags: &str,
+    convention: &str,
+    custom_pattern: Option<&str>,
+) -> String {
     let mut prompt = format!(
         "Convert these tag names to {} convention.\n\nCurrent tag names:\n{}",
         convention, tags

@@ -10,10 +10,7 @@ use crate::models::{RunChartPoint, RunChartResult, Signal};
 ///
 /// Returns a `RunChartResult` containing the chart points, median value,
 /// detected signals, and total run count.
-pub fn compute_run_chart(
-    values: &[f64],
-    timestamps: &[i64],
-) -> Result<RunChartResult, String> {
+pub fn compute_run_chart(values: &[f64], timestamps: &[i64]) -> Result<RunChartResult, String> {
     if values.is_empty() {
         return Err("values must not be empty".to_string());
     }
@@ -58,7 +55,7 @@ fn compute_median(values: &[f64]) -> f64 {
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let len = sorted.len();
-    if len % 2 == 0 {
+    if len.is_multiple_of(2) {
         (sorted[len / 2 - 1] + sorted[len / 2]) / 2.0
     } else {
         sorted[len / 2]
@@ -87,7 +84,10 @@ fn detect_runs(points: &[RunChartPoint], signals: &mut Vec<Signal>) {
                     end_idx: i - 1,
                     description: format!(
                         "{} consecutive points {} median (indices {}-{})",
-                        run_len, side, run_start, i - 1
+                        run_len,
+                        side,
+                        run_start,
+                        i - 1
                     ),
                 });
             }
@@ -111,7 +111,9 @@ fn detect_trends(values: &[f64], signals: &mut Vec<Signal>) {
     let mut trend_dir: i8 = 0; // direction of the current trend
 
     for i in 1..values.len() {
-        let cmp = values[i].partial_cmp(&values[i - 1]).unwrap_or(std::cmp::Ordering::Equal);
+        let cmp = values[i]
+            .partial_cmp(&values[i - 1])
+            .unwrap_or(std::cmp::Ordering::Equal);
 
         let dir: i8 = match cmp {
             std::cmp::Ordering::Greater => 1,
@@ -148,18 +150,17 @@ fn check_trend_signal(
 ) {
     let len = end - start;
     if len >= 6 && dir != 0 {
-        let direction = if dir > 0 {
-            "increasing"
-        } else {
-            "decreasing"
-        };
+        let direction = if dir > 0 { "increasing" } else { "decreasing" };
         signals.push(Signal {
             rule: "trend".to_string(),
             start_idx: start,
             end_idx: end - 1,
             description: format!(
                 "{} consecutive {} values (indices {}-{})",
-                len, direction, start, end - 1
+                len,
+                direction,
+                start,
+                end - 1
             ),
         });
     }
@@ -214,7 +215,11 @@ mod tests {
             assert!(!p.above_median);
         }
         let has_run = result.signals.iter().any(|s| s.rule == "run");
-        assert!(has_run, "expected a run signal but got signals: {:?}", result.signals);
+        assert!(
+            has_run,
+            "expected a run signal but got signals: {:?}",
+            result.signals
+        );
     }
 
     #[test]
@@ -225,7 +230,11 @@ mod tests {
         let result = compute_run_chart(&values, &timestamps).unwrap();
 
         let has_trend = result.signals.iter().any(|s| s.rule == "trend");
-        assert!(has_trend, "expected a trend signal but got signals: {:?}", result.signals);
+        assert!(
+            has_trend,
+            "expected a trend signal but got signals: {:?}",
+            result.signals
+        );
     }
 
     #[test]

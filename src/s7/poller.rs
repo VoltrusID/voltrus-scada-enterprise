@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-
 use crate::cache::DeviceCache;
 use crate::models::{DeviceStatus, WriteResult};
 
-use super::types::*;
 use super::client::S7Client;
+use super::types::*;
 
 // ── Poller ──
 
@@ -40,8 +39,11 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
                             let mut metrics = HashMap::new();
                             for (i, value) in values.iter().enumerate() {
                                 let tag_name = if i < config.tags.len() {
-                                    format!("{}_{}", config.tags[i].area.to_string().to_lowercase(),
-                                            config.tags[i].offset)
+                                    format!(
+                                        "{}_{}",
+                                        config.tags[i].area.to_string().to_lowercase(),
+                                        config.tags[i].offset
+                                    )
                                 } else {
                                     format!("tag_{}", i)
                                 };
@@ -62,7 +64,9 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
             Err(e) => {
                 tracing::warn!(
                     "S7 device {} connection failed: {}, retrying in {}s",
-                    device_id, e, backoff_secs
+                    device_id,
+                    e,
+                    backoff_secs
                 );
                 cache.set_status(&device_id, DeviceStatus::Offline).await;
             }
@@ -103,7 +107,7 @@ pub async fn write_tag(
                 device_response: None,
                 error: Some(format!("Unknown S7 area: '{}'", area)),
                 latency_ms: start.elapsed().as_millis() as u64,
-            }
+            };
         }
     };
 
@@ -121,10 +125,8 @@ pub async fn write_tag(
 
     // Connect with timeout
     let mut client = S7Client::new(&url, 0, 1);
-    let connect_result = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        client.connect(),
-    ).await;
+    let connect_result =
+        tokio::time::timeout(std::time::Duration::from_secs(5), client.connect()).await;
 
     match connect_result {
         Ok(Ok(())) => {}
@@ -134,7 +136,7 @@ pub async fn write_tag(
                 device_response: None,
                 error: Some(format!("S7 connection failed: {e}")),
                 latency_ms: start.elapsed().as_millis() as u64,
-            }
+            };
         }
         Err(_) => {
             return WriteResult {
@@ -142,7 +144,7 @@ pub async fn write_tag(
                 device_response: None,
                 error: Some("S7 connect timeout (5s)".into()),
                 latency_ms: start.elapsed().as_millis() as u64,
-            }
+            };
         }
     }
 
@@ -150,7 +152,8 @@ pub async fn write_tag(
     let write_result = tokio::time::timeout(
         std::time::Duration::from_secs(5),
         client.write_tag(&tag, &s7_value),
-    ).await;
+    )
+    .await;
 
     let _ = client.disconnect().await;
 

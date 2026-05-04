@@ -65,7 +65,9 @@ fn square_wave(params: &HashMap<String, serde_json::Value>, t: f64) -> f64 {
 }
 
 fn apply_noise(value: f64, noise_pct: f64) -> f64 {
-    if noise_pct <= 0.0 { return value; }
+    if noise_pct <= 0.0 {
+        return value;
+    }
     let mut rng = rand::rng();
     let noise_range = value.abs() * (noise_pct / 100.0);
     let noise: f64 = rand::Rng::random_range(&mut rng, -noise_range..noise_range);
@@ -77,21 +79,34 @@ mod tests {
     use super::*;
 
     fn params(keys: &[(&str, f64)]) -> HashMap<String, serde_json::Value> {
-        keys.iter().map(|(k, v)| (k.to_string(), serde_json::json!(*v))).collect()
+        keys.iter()
+            .map(|(k, v)| (k.to_string(), serde_json::json!(*v)))
+            .collect()
     }
 
     #[test]
     fn test_constant() {
         let p = params(&[("value", 42.5)]);
-        let config = SimConfig { data_type: "constant".into(), params: p };
+        let config = SimConfig {
+            data_type: "constant".into(),
+            params: p,
+        };
         assert_eq!(generate_value(&config, 0.0), 42.5);
         assert_eq!(generate_value(&config, 100.0), 42.5);
     }
 
     #[test]
     fn test_sinusoidal_zero_noise() {
-        let p = params(&[("amplitude", 1.0), ("center", 0.0), ("period_sec", 1.0), ("noise_pct", 0.0)]);
-        let config = SimConfig { data_type: "sinusoidal".into(), params: p };
+        let p = params(&[
+            ("amplitude", 1.0),
+            ("center", 0.0),
+            ("period_sec", 1.0),
+            ("noise_pct", 0.0),
+        ]);
+        let config = SimConfig {
+            data_type: "sinusoidal".into(),
+            params: p,
+        };
         let v = generate_value(&config, 0.0);
         assert!((v - 0.0).abs() < 0.001);
         let v = generate_value(&config, 0.25);
@@ -100,8 +115,15 @@ mod tests {
 
     #[test]
     fn test_step() {
-        let p = params(&[("low_value", 0.0), ("high_value", 5.0), ("step_period_sec", 10.0)]);
-        let config = SimConfig { data_type: "step".into(), params: p };
+        let p = params(&[
+            ("low_value", 0.0),
+            ("high_value", 5.0),
+            ("step_period_sec", 10.0),
+        ]);
+        let config = SimConfig {
+            data_type: "step".into(),
+            params: p,
+        };
         assert_eq!(generate_value(&config, 5.0), 5.0);
         assert_eq!(generate_value(&config, 15.0), 0.0);
         assert_eq!(generate_value(&config, 25.0), 5.0);
@@ -109,16 +131,32 @@ mod tests {
 
     #[test]
     fn test_square_wave() {
-        let p = params(&[("high_value", 1.0), ("low_value", 0.0), ("period_sec", 10.0), ("duty_pct", 50.0)]);
-        let config = SimConfig { data_type: "square_wave".into(), params: p };
+        let p = params(&[
+            ("high_value", 1.0),
+            ("low_value", 0.0),
+            ("period_sec", 10.0),
+            ("duty_pct", 50.0),
+        ]);
+        let config = SimConfig {
+            data_type: "square_wave".into(),
+            params: p,
+        };
         assert_eq!(generate_value(&config, 2.0), 1.0);
         assert_eq!(generate_value(&config, 7.0), 0.0);
     }
 
     #[test]
     fn test_random_walk_clamped() {
-        let p = params(&[("start_value", 0.0), ("step_size", 0.1), ("min", -1.0), ("max", 1.0)]);
-        let config = SimConfig { data_type: "random_walk".into(), params: p };
+        let p = params(&[
+            ("start_value", 0.0),
+            ("step_size", 0.1),
+            ("min", -1.0),
+            ("max", 1.0),
+        ]);
+        let config = SimConfig {
+            data_type: "random_walk".into(),
+            params: p,
+        };
         let v = generate_value(&config, 0.0);
         assert!(v >= -1.0 && v <= 1.0);
     }

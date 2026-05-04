@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode as HttpStatus,
     response::IntoResponse,
-    Json,
 };
 use serde_json::json;
 
@@ -97,36 +97,38 @@ pub async fn create_report(
     let device_ids = req.device_ids.unwrap_or_else(|| "all".to_string());
 
     // Validate device_ids if it's not "all"
-    if device_ids != "all" {
-        if serde_json::from_str::<Vec<String>>(&device_ids).is_err() {
-            return (
-                HttpStatus::BAD_REQUEST,
-                Json(json!({"error": "device_ids must be a valid JSON array or the string 'all'"})),
-            )
-                .into_response();
-        }
+    if device_ids != "all" && serde_json::from_str::<Vec<String>>(&device_ids).is_err() {
+        return (
+            HttpStatus::BAD_REQUEST,
+            Json(json!({"error": "device_ids must be a valid JSON array or the string 'all'"})),
+        )
+            .into_response();
     }
 
     match state
         .storage
-        .create_report(&name, &req.schedule, enabled, &device_ids, &req.email_recipients)
+        .create_report(
+            &name,
+            &req.schedule,
+            enabled,
+            &device_ids,
+            &req.email_recipients,
+        )
         .await
     {
-        Ok(id) => {
-            match state.storage.get_report(id).await {
-                Ok(Some(report)) => (HttpStatus::CREATED, Json(json!(report))).into_response(),
-                Ok(None) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "Report created but could not be retrieved"})),
-                )
-                    .into_response(),
-                Err(e) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Failed to retrieve created report: {}", e)})),
-                )
-                    .into_response(),
-            }
-        }
+        Ok(id) => match state.storage.get_report(id).await {
+            Ok(Some(report)) => (HttpStatus::CREATED, Json(json!(report))).into_response(),
+            Ok(None) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Report created but could not be retrieved"})),
+            )
+                .into_response(),
+            Err(e) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Failed to retrieve created report: {}", e)})),
+            )
+                .into_response(),
+        },
         Err(e) => (
             HttpStatus::INTERNAL_SERVER_ERROR,
             Json(json!({"error": format!("Failed to create report: {}", e)})),
@@ -146,14 +148,14 @@ pub async fn update_report(
     }
 
     // Validate schedule if provided
-    if let Some(ref schedule) = req.schedule {
-        if !matches!(schedule.as_str(), "daily" | "weekly" | "monthly") {
-            return (
-                HttpStatus::BAD_REQUEST,
-                Json(json!({"error": "Schedule must be 'daily', 'weekly', or 'monthly'"})),
-            )
-                .into_response();
-        }
+    if let Some(ref schedule) = req.schedule
+        && !matches!(schedule.as_str(), "daily" | "weekly" | "monthly")
+    {
+        return (
+            HttpStatus::BAD_REQUEST,
+            Json(json!({"error": "Schedule must be 'daily', 'weekly', or 'monthly'"})),
+        )
+            .into_response();
     }
 
     // Validate recipients if provided
@@ -187,16 +189,15 @@ pub async fn update_report(
     }
 
     // Validate device_ids if provided
-    if let Some(ref device_ids) = req.device_ids {
-        if device_ids != "all" {
-            if serde_json::from_str::<Vec<String>>(device_ids).is_err() {
-                return (
-                    HttpStatus::BAD_REQUEST,
-                    Json(json!({"error": "device_ids must be a valid JSON array or the string 'all'"})),
-                )
-                    .into_response();
-            }
-        }
+    if let Some(ref device_ids) = req.device_ids
+        && device_ids != "all"
+        && serde_json::from_str::<Vec<String>>(device_ids).is_err()
+    {
+        return (
+            HttpStatus::BAD_REQUEST,
+            Json(json!({"error": "device_ids must be a valid JSON array or the string 'all'"})),
+        )
+            .into_response();
     }
 
     // Check report exists
@@ -222,7 +223,10 @@ pub async fn update_report(
         .storage
         .update_report(
             id,
-            req.name.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty()),
+            req.name
+                .as_deref()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty()),
             req.schedule.as_deref(),
             req.device_ids.as_deref(),
             req.email_recipients.as_deref(),
@@ -230,21 +234,19 @@ pub async fn update_report(
         )
         .await
     {
-        Ok(()) => {
-            match state.storage.get_report(id).await {
-                Ok(Some(report)) => (HttpStatus::OK, Json(json!(report))).into_response(),
-                Ok(None) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": "Report updated but could not be retrieved"})),
-                )
-                    .into_response(),
-                Err(e) => (
-                    HttpStatus::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("Failed to retrieve updated report: {}", e)})),
-                )
-                    .into_response(),
-            }
-        }
+        Ok(()) => match state.storage.get_report(id).await {
+            Ok(Some(report)) => (HttpStatus::OK, Json(json!(report))).into_response(),
+            Ok(None) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "Report updated but could not be retrieved"})),
+            )
+                .into_response(),
+            Err(e) => (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Failed to retrieve updated report: {}", e)})),
+            )
+                .into_response(),
+        },
         Err(e) => (
             HttpStatus::INTERNAL_SERVER_ERROR,
             Json(json!({"error": format!("Failed to update report: {}", e)})),
@@ -329,9 +331,7 @@ pub async fn generate_report(
             // Return HTML content
             (
                 HttpStatus::OK,
-                [
-                    ("content-type", "text/html; charset=utf-8"),
-                ],
+                [("content-type", "text/html; charset=utf-8")],
                 html,
             )
                 .into_response()

@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use serde::{Deserialize, Serialize};
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 
 /// SAML Service Provider configuration.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SamlConfig {
     #[serde(default)]
     pub enabled: bool,
@@ -21,21 +21,6 @@ pub struct SamlConfig {
     pub idp_sso_url: String,
     #[serde(default)]
     pub idp_certificate: String,
-}
-
-impl Default for SamlConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            idp_metadata_url: String::new(),
-            sp_entity_id: String::new(),
-            acs_url: String::new(),
-            certificate: String::new(),
-            private_key: String::new(),
-            idp_sso_url: String::new(),
-            idp_certificate: String::new(),
-        }
-    }
 }
 
 /// Parsed SAML response containing the authenticated user's identity.
@@ -102,11 +87,12 @@ pub fn generate_sp_metadata(config: &SamlConfig) -> String {
         entity_id = xml_escape(&config.sp_entity_id),
         valid_until = valid_until,
         acs_url = xml_escape(&config.acs_url),
-        certificate = config.certificate.replace("-----BEGIN CERTIFICATE-----", "")
+        certificate = config
+            .certificate
+            .replace("-----BEGIN CERTIFICATE-----", "")
             .replace("-----END CERTIFICATE-----", "")
             .replace('\n', "")
-            .trim()
-            .to_string(),
+            .trim(),
     )
 }
 
@@ -117,8 +103,7 @@ pub fn parse_saml_response(response_b64: &str) -> Result<SamlAssertion, String> 
         .decode(response_b64.trim())
         .map_err(|e| format!("Base64 decode failed: {}", e))?;
 
-    let xml_str = String::from_utf8(decoded)
-        .map_err(|e| format!("UTF-8 decode failed: {}", e))?;
+    let xml_str = String::from_utf8(decoded).map_err(|e| format!("UTF-8 decode failed: {}", e))?;
 
     extract_saml_assertion(&xml_str)
 }
@@ -278,7 +263,9 @@ fn xml_escape(s: &str) -> String {
 fn chrono_now_iso8601() -> String {
     // Use std::time for simplicity since we cannot add chrono
     let now = std::time::SystemTime::now();
-    let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let duration = now
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
     let secs = duration.as_secs();
     // Manual ISO 8601 formatting
     let days_since_epoch = secs / 86400;
@@ -310,7 +297,18 @@ fn days_to_date(days: u64) -> (u64, u64, u64) {
 
     let leap = is_leap_year(y);
     let month_days = [
-        31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
     ];
 
     let mut m = 0;
@@ -326,7 +324,7 @@ fn days_to_date(days: u64) -> (u64, u64, u64) {
 }
 
 fn is_leap_year(y: u64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+    (y.is_multiple_of(4) && !y.is_multiple_of(100)) || y.is_multiple_of(400)
 }
 
 #[cfg(test)]
@@ -434,7 +432,10 @@ mod tests {
 
     #[test]
     fn test_xml_escape() {
-        assert_eq!(xml_escape("a<b>c&d\"e'f"), "a&lt;b&gt;c&amp;d&quot;e&apos;f");
+        assert_eq!(
+            xml_escape("a<b>c&d\"e'f"),
+            "a&lt;b&gt;c&amp;d&quot;e&apos;f"
+        );
     }
 
     #[test]
@@ -460,7 +461,10 @@ mod tests {
     #[test]
     fn test_extract_xml_element() {
         let xml = "<root><NameID>user@example.com</NameID></root>";
-        assert_eq!(extract_xml_element(xml, "NameID"), Some("user@example.com".to_string()));
+        assert_eq!(
+            extract_xml_element(xml, "NameID"),
+            Some("user@example.com".to_string())
+        );
         assert_eq!(extract_xml_element(xml, "Missing"), None);
     }
 
@@ -468,7 +472,10 @@ mod tests {
     fn test_extract_attr_value() {
         let tag = r#"<saml:Attribute Name="email" NameFormat="basic">"#;
         assert_eq!(extract_attr_value(tag, "Name"), Some("email".to_string()));
-        assert_eq!(extract_attr_value(tag, "NameFormat"), Some("basic".to_string()));
+        assert_eq!(
+            extract_attr_value(tag, "NameFormat"),
+            Some("basic".to_string())
+        );
         assert_eq!(extract_attr_value(tag, "Missing"), None);
     }
 

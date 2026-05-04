@@ -1,6 +1,6 @@
 use super::*;
-use crate::models::WriteResult;
 use crate::dnp3::master::Dnp3MasterSession;
+use crate::models::WriteResult;
 
 impl CommandQueue {
     pub(super) async fn execute_write(&self, cmd: &crate::models::Command) -> WriteResult {
@@ -12,7 +12,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("Invalid value: '{}'", cmd.value)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -52,7 +52,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Data source not found".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -63,9 +63,11 @@ impl CommandQueue {
                 return WriteResult {
                     success: false,
                     device_response: None,
-                    error: Some("Could not determine register address from source_config".to_string()),
+                    error: Some(
+                        "Could not determine register address from source_config".to_string(),
+                    ),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -78,7 +80,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("Modbus device '{}' not found", ds.device_id)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -114,7 +116,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Data source not found".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -126,7 +128,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Could not parse S7 address from source_config".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -138,7 +140,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("S7 device {} not found", cmd.device_id)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -161,7 +163,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Data source not found".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -173,7 +175,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Could not parse OPC UA node_id from source_config".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -185,7 +187,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("OPC UA device {} not found", cmd.device_id)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -205,7 +207,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Data source not found".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -215,9 +217,11 @@ impl CommandQueue {
                 return WriteResult {
                     success: false,
                     device_response: None,
-                    error: Some("Could not parse EtherNet/IP tag name from source_config".to_string()),
+                    error: Some(
+                        "Could not parse EtherNet/IP tag name from source_config".to_string(),
+                    ),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -229,7 +233,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("EtherNet/IP device {} not found", cmd.device_id)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -251,7 +255,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Data source not found".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -263,7 +267,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Could not parse DNP3 point index from source_config".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -275,7 +279,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("DNP3 device {} not found", cmd.device_id)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -288,12 +292,15 @@ impl CommandQueue {
         )
         .await
         {
-            Ok(mut session) => session.direct_operate_binary(point_index, on).await.unwrap_or_else(|e| WriteResult {
-                success: false,
-                device_response: None,
-                error: Some(format!("DNP3 write failed: {e}")),
-                latency_ms: 0,
-            }),
+            Ok(mut session) => session
+                .direct_operate_binary(point_index, on)
+                .await
+                .unwrap_or_else(|e| WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some(format!("DNP3 write failed: {e}")),
+                    latency_ms: 0,
+                }),
             Err(e) => WriteResult {
                 success: false,
                 device_response: None,
@@ -316,7 +323,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some("Data source not found".to_string()),
                     latency_ms: 0,
-                }
+                };
             }
         };
 
@@ -331,7 +338,7 @@ impl CommandQueue {
                             "Could not parse BACnet object info from source_config".to_string(),
                         ),
                         latency_ms: 0,
-                    }
+                    };
                 }
             };
 
@@ -343,7 +350,7 @@ impl CommandQueue {
                     device_response: None,
                     error: Some(format!("BACnet device {} not found", cmd.device_id)),
                     latency_ms: 0,
-                }
+                };
             }
         };
 

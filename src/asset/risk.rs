@@ -13,12 +13,10 @@ pub async fn compute_risk_score(storage: &AssetStorage, asset: &Asset) -> i64 {
     // Factor 1: Firmware outdated (+30)
     if let (Some(vendor), Some(model), Some(firmware)) =
         (&asset.vendor, &asset.model, &asset.firmware_version)
+        && let Ok(Some(latest)) = storage.get_latest_firmware(vendor, model).await
+        && *firmware != latest
     {
-        if let Ok(Some(latest)) = storage.get_latest_firmware(vendor, model).await {
-            if *firmware != latest {
-                score += 30;
-            }
-        }
+        score += 30;
     }
 
     // Factor 2: No maintenance in 12+ months (+20)

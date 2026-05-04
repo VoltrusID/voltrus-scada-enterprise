@@ -1,11 +1,11 @@
 [package]
-name = "voltrus-lite-rust-service"
+name = "voltrus"
 version = "0.34.0"
 edition = "2024"
 license = "MIT"
 
 [[bin]]
-name = "voltrus-lite-rust-service"
+name = "voltrus"
 path = "src/main.rs"
 
 [[bin]]

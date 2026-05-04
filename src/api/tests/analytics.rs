@@ -31,8 +31,7 @@ fn test_analytics_change_percent_negative() {
 #[test]
 fn test_recipe_values_json_parse() {
     let json = r#"{"temp": 25.0, "pressure": 1.5}"#;
-    let values: std::collections::HashMap<String, f64> =
-        serde_json::from_str(json).unwrap();
+    let values: std::collections::HashMap<String, f64> = serde_json::from_str(json).unwrap();
     assert_eq!(values.len(), 2);
     assert!((values["temp"] - 25.0).abs() < 0.001);
     assert!((values["pressure"] - 1.5).abs() < 0.001);

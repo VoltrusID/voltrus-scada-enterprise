@@ -63,7 +63,7 @@ fn test_validate_aggregation_valid() {
 #[test]
 fn test_validate_aggregation_invalid() {
     assert!(!helpers::validate_aggregation(""));
-    assert!(!helpers::validate_aggregation("AVG"));       // case-sensitive
+    assert!(!helpers::validate_aggregation("AVG")); // case-sensitive
     assert!(!helpers::validate_aggregation("Avg"));
     assert!(!helpers::validate_aggregation("mean"));
     assert!(!helpers::validate_aggregation("median"));
@@ -85,11 +85,11 @@ fn test_validate_interval_valid() {
 #[test]
 fn test_validate_interval_invalid() {
     assert!(!helpers::validate_interval(""));
-    assert!(!helpers::validate_interval("10m"));     // not in the allowed set
-    assert!(!helpers::validate_interval("30m"));     // not in the allowed set
-    assert!(!helpers::validate_interval("2h"));      // not in the allowed set
-    assert!(!helpers::validate_interval("7d"));      // not in the allowed set
-    assert!(!helpers::validate_interval("1s"));      // seconds not supported
-    assert!(!helpers::validate_interval("1w"));      // weeks not supported
-    assert!(!helpers::validate_interval("minute"));  // not abbreviated
+    assert!(!helpers::validate_interval("10m")); // not in the allowed set
+    assert!(!helpers::validate_interval("30m")); // not in the allowed set
+    assert!(!helpers::validate_interval("2h")); // not in the allowed set
+    assert!(!helpers::validate_interval("7d")); // not in the allowed set
+    assert!(!helpers::validate_interval("1s")); // seconds not supported
+    assert!(!helpers::validate_interval("1w")); // weeks not supported
+    assert!(!helpers::validate_interval("minute")); // not abbreviated
 }

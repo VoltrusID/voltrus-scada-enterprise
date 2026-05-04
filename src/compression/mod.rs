@@ -3,9 +3,9 @@
 pub mod bitio;
 pub mod gorilla;
 pub mod rle;
-pub mod varint;
 #[cfg(test)]
 mod tests;
+pub mod varint;
 
 // Re-export all public items for backward compatibility
 #[allow(unused_imports)]

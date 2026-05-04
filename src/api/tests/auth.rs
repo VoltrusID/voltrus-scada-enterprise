@@ -46,10 +46,17 @@ async fn test_seed_requires_auth() {
 async fn test_login_with_seeded_user() {
     let storage = Storage::new_in_memory().unwrap();
     let password_hash = crate::api::auth::hash_password("admin");
-    storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+    storage
+        .create_user("admin", &password_hash, "", "admin")
+        .await
+        .unwrap();
 
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     let state = AppState {
         cache,
         storage,
@@ -82,9 +89,13 @@ async fn test_login_with_seeded_user() {
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+            crate::models::WatchdogConfig::default(),
+        )),
         ha_state: crate::ha::HaState::disabled(),
-        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
     let app = create_router(state);
 
@@ -120,10 +131,17 @@ async fn test_login_with_seeded_user() {
 async fn test_login_invalid_credentials() {
     let storage = Storage::new_in_memory().unwrap();
     let password_hash = crate::api::auth::hash_password("admin");
-    storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+    storage
+        .create_user("admin", &password_hash, "", "admin")
+        .await
+        .unwrap();
 
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     let state = AppState {
         cache,
         storage,
@@ -156,9 +174,13 @@ async fn test_login_invalid_credentials() {
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+            crate::models::WatchdogConfig::default(),
+        )),
         ha_state: crate::ha::HaState::disabled(),
-        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
     let app = create_router(state);
 
@@ -198,10 +220,17 @@ async fn test_protected_route_requires_cookie() {
 async fn test_full_auth_flow() {
     let storage = Storage::new_in_memory().unwrap();
     let password_hash = crate::api::auth::hash_password("admin");
-    storage.create_user("admin", &password_hash, "", "admin").await.unwrap();
+    storage
+        .create_user("admin", &password_hash, "", "admin")
+        .await
+        .unwrap();
 
     let cache = DeviceCache::new();
-    let poller_manager = PollerManager::new(cache.clone(), storage.clone(), crate::network::NetworkManager::new(vec![]));
+    let poller_manager = PollerManager::new(
+        cache.clone(),
+        storage.clone(),
+        crate::network::NetworkManager::new(vec![]),
+    );
     let state = AppState {
         cache,
         storage,
@@ -234,9 +263,13 @@ async fn test_full_auth_flow() {
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(crate::models::WatchdogConfig::default())),
+        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+            crate::models::WatchdogConfig::default(),
+        )),
         ha_state: crate::ha::HaState::disabled(),
-        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from("voltrus/widgets")),
+        widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
+            "voltrus/widgets",
+        )),
     };
     let app = create_router(state);
 

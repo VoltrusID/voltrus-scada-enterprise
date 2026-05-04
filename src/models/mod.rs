@@ -473,8 +473,12 @@ mod tests {
     #[test]
     fn test_command_status_roundtrip() {
         for status in [
-            CommandStatus::Pending, CommandStatus::Queued, CommandStatus::Sent,
-            CommandStatus::Acked, CommandStatus::Failed, CommandStatus::Expired,
+            CommandStatus::Pending,
+            CommandStatus::Queued,
+            CommandStatus::Sent,
+            CommandStatus::Acked,
+            CommandStatus::Failed,
+            CommandStatus::Expired,
             CommandStatus::Cancelled,
         ] {
             let s = status.as_str();

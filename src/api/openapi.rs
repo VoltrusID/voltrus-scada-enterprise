@@ -454,8 +454,8 @@ mod tests {
     #[test]
     fn test_openapi_spec_generates_valid_json() {
         let spec = ApiDoc::openapi();
-        let json = serde_json::to_string_pretty(&spec)
-            .expect("OpenAPI spec should serialize to JSON");
+        let json =
+            serde_json::to_string_pretty(&spec).expect("OpenAPI spec should serialize to JSON");
         assert!(!json.is_empty());
         assert!(json.contains("\"openapi\""));
         assert!(json.contains("\"paths\""));
@@ -482,9 +482,22 @@ mod tests {
     fn test_openapi_spec_has_paths() {
         let spec = ApiDoc::openapi();
         let paths = &spec.paths;
-        assert!(paths.paths.len() > 20, "Should have at least 20 paths, got {}", paths.paths.len());
-        assert!(paths.paths.contains_key("/api/v1/health"), "Should have /api/v1/health");
-        assert!(paths.paths.contains_key("/api/v1/data"), "Should have /api/v1/data");
-        assert!(paths.paths.contains_key("/api/v1/auth/login"), "Should have /api/v1/auth/login");
+        assert!(
+            paths.paths.len() > 20,
+            "Should have at least 20 paths, got {}",
+            paths.paths.len()
+        );
+        assert!(
+            paths.paths.contains_key("/api/v1/health"),
+            "Should have /api/v1/health"
+        );
+        assert!(
+            paths.paths.contains_key("/api/v1/data"),
+            "Should have /api/v1/data"
+        );
+        assert!(
+            paths.paths.contains_key("/api/v1/auth/login"),
+            "Should have /api/v1/auth/login"
+        );
     }
 }

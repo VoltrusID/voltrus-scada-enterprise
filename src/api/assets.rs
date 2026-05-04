@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -98,11 +98,7 @@ pub async fn create_asset(
 
     // Recompute risk score
     let asset_storage = state.storage.asset();
-    let _ = crate::asset::risk::recompute_and_update(
-        &asset_storage,
-        &asset.id,
-    )
-    .await;
+    let _ = crate::asset::risk::recompute_and_update(&asset_storage, &asset.id).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_asset".to_string(),
@@ -172,11 +168,7 @@ pub async fn update_asset(
 
     // Recompute risk score
     let asset_storage = state.storage.asset();
-    let _ = crate::asset::risk::recompute_and_update(
-        &asset_storage,
-        &id,
-    )
-    .await;
+    let _ = crate::asset::risk::recompute_and_update(&asset_storage, &id).await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "update_asset".to_string(),

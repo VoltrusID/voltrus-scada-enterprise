@@ -19,20 +19,36 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
             match serde_yaml_neo::from_str::<DeviceExport>(&content) {
                 Ok(device) => {
                     let mut issues = Vec::new();
-                    if device.id.is_empty() { issues.push("empty id"); }
-                    if device.ip.is_empty() { issues.push("empty ip"); }
-                    if device.port == 0 { issues.push("port is 0"); }
+                    if device.id.is_empty() {
+                        issues.push("empty id");
+                    }
+                    if device.ip.is_empty() {
+                        issues.push("empty ip");
+                    }
+                    if device.port == 0 {
+                        issues.push("port is 0");
+                    }
                     if issues.is_empty() {
-                        messages.push(format!("OK: devices/{:?} — {} ({} registers)",
+                        messages.push(format!(
+                            "OK: devices/{:?} — {} ({} registers)",
                             path.file_name().unwrap_or_default(),
                             device.id,
-                            device.registers.len()));
+                            device.registers.len()
+                        ));
                     } else {
-                        messages.push(format!("ERROR: devices/{:?} — {}", path.file_name().unwrap_or_default(), issues.join(", ")));
+                        messages.push(format!(
+                            "ERROR: devices/{:?} — {}",
+                            path.file_name().unwrap_or_default(),
+                            issues.join(", ")
+                        ));
                     }
                 }
                 Err(e) => {
-                    messages.push(format!("ERROR: devices/{:?} — parse error: {}", path.file_name().unwrap_or_default(), e));
+                    messages.push(format!(
+                        "ERROR: devices/{:?} — parse error: {}",
+                        path.file_name().unwrap_or_default(),
+                        e
+                    ));
                 }
             }
         }
@@ -52,14 +68,20 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
             let content = std::fs::read_to_string(&path)?;
             match serde_yaml_neo::from_str::<ScreenExport>(&content) {
                 Ok(screen) => {
-                    messages.push(format!("OK: screens/{:?} — {} ({} data sources, {} layouts)",
+                    messages.push(format!(
+                        "OK: screens/{:?} — {} ({} data sources, {} layouts)",
                         path.file_name().unwrap_or_default(),
                         screen.id,
                         screen.data_sources.len(),
-                        screen.layouts.len()));
+                        screen.layouts.len()
+                    ));
                 }
                 Err(e) => {
-                    messages.push(format!("ERROR: screens/{:?} — parse error: {}", path.file_name().unwrap_or_default(), e));
+                    messages.push(format!(
+                        "ERROR: screens/{:?} — parse error: {}",
+                        path.file_name().unwrap_or_default(),
+                        e
+                    ));
                 }
             }
         }
@@ -79,13 +101,19 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
             let content = std::fs::read_to_string(&path)?;
             match serde_yaml_neo::from_str::<FlowExport>(&content) {
                 Ok(flow) => {
-                    messages.push(format!("OK: flows/{:?} — {} (enabled={})",
+                    messages.push(format!(
+                        "OK: flows/{:?} — {} (enabled={})",
                         path.file_name().unwrap_or_default(),
                         flow.id,
-                        flow.enabled));
+                        flow.enabled
+                    ));
                 }
                 Err(e) => {
-                    messages.push(format!("ERROR: flows/{:?} — parse error: {}", path.file_name().unwrap_or_default(), e));
+                    messages.push(format!(
+                        "ERROR: flows/{:?} — parse error: {}",
+                        path.file_name().unwrap_or_default(),
+                        e
+                    ));
                 }
             }
         }
@@ -99,7 +127,10 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
         let content = std::fs::read_to_string(&alarms_path)?;
         match serde_yaml_neo::from_str::<Vec<AlarmExport>>(&content) {
             Ok(alarms) => {
-                messages.push(format!("OK: alarms.yaml — {} alarm thresholds", alarms.len()));
+                messages.push(format!(
+                    "OK: alarms.yaml — {} alarm thresholds",
+                    alarms.len()
+                ));
             }
             Err(e) => {
                 messages.push(format!("ERROR: alarms.yaml — parse error: {}", e));
@@ -115,7 +146,10 @@ pub fn validate_config(input_dir: &str) -> Result<Vec<String>> {
         let content = std::fs::read_to_string(&notif_path)?;
         match serde_yaml_neo::from_str::<Vec<NotificationExport>>(&content) {
             Ok(notifs) => {
-                messages.push(format!("OK: notifications.yaml — {} notification settings", notifs.len()));
+                messages.push(format!(
+                    "OK: notifications.yaml — {} notification settings",
+                    notifs.len()
+                ));
             }
             Err(e) => {
                 messages.push(format!("ERROR: notifications.yaml — parse error: {}", e));

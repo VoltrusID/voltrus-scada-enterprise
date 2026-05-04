@@ -11,8 +11,7 @@ use crate::models::{BacnetDeviceConfig, DeviceStatus};
 use bacnet_rs::network::Npdu;
 use bacnet_rs::object::{ObjectIdentifier, PropertyIdentifier};
 use bacnet_rs::service::{
-    ConfirmedServiceChoice, PropertyReference, ReadAccessSpecification,
-    ReadPropertyMultipleRequest,
+    ConfirmedServiceChoice, PropertyReference, ReadAccessSpecification, ReadPropertyMultipleRequest,
 };
 
 use super::helpers::{object_type_from_str, property_id_from_str};
@@ -62,7 +61,12 @@ pub async fn poll_bacnet_device(config: BacnetDeviceConfig, cache: DeviceCache) 
 }
 
 async fn try_poll_cycle(config: &BacnetDeviceConfig) -> Result<HashMap<String, f64>> {
-    let objects: Vec<(String, bacnet_rs::object::ObjectType, u32, PropertyIdentifier)> = config
+    let objects: Vec<(
+        String,
+        bacnet_rs::object::ObjectType,
+        u32,
+        PropertyIdentifier,
+    )> = config
         .objects
         .iter()
         .filter_map(|o| {
@@ -92,9 +96,9 @@ async fn try_poll_cycle(config: &BacnetDeviceConfig) -> Result<HashMap<String, f
 
     let metrics = tokio::task::spawn_blocking(move || -> Result<HashMap<String, f64>> {
         // Bind socket once and reuse for the entire poll cycle
-        let socket = std::net::UdpSocket::bind("0.0.0.0:0")
-            .context("BACnet socket bind failed")?;
-        socket.set_read_timeout(Some(Duration::from_secs(6)))
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0").context("BACnet socket bind failed")?;
+        socket
+            .set_read_timeout(Some(Duration::from_secs(6)))
             .context("BACnet socket set_read_timeout failed")?;
 
         // Send ReadPropertyMultiple
@@ -121,12 +125,16 @@ async fn try_poll_cycle(config: &BacnetDeviceConfig) -> Result<HashMap<String, f
                 let value = match tag {
                     0x44 if pos + 5 <= data.len() => {
                         // Real (f32)
-                        let bytes: [u8; 4] = data[pos + 1..pos + 5].try_into().map_err(|_| anyhow::anyhow!("parse f32 bytes"))?;
+                        let bytes: [u8; 4] = data[pos + 1..pos + 5]
+                            .try_into()
+                            .map_err(|_| anyhow::anyhow!("parse f32 bytes"))?;
                         Some(f32::from_be_bytes(bytes) as f64)
                     }
                     0x55 if pos + 9 <= data.len() => {
                         // Double (f64)
-                        let bytes: [u8; 8] = data[pos + 1..pos + 9].try_into().map_err(|_| anyhow::anyhow!("parse f64 bytes"))?;
+                        let bytes: [u8; 8] = data[pos + 1..pos + 9]
+                            .try_into()
+                            .map_err(|_| anyhow::anyhow!("parse f64 bytes"))?;
                         Some(f64::from_be_bytes(bytes))
                     }
                     0x22 if pos + 3 <= data.len() => {
@@ -139,7 +147,9 @@ async fn try_poll_cycle(config: &BacnetDeviceConfig) -> Result<HashMap<String, f
                     }
                     0x24 if pos + 5 <= data.len() => {
                         // Unsigned 4-byte
-                        let bytes: [u8; 4] = data[pos + 1..pos + 5].try_into().map_err(|_| anyhow::anyhow!("parse u32 bytes"))?;
+                        let bytes: [u8; 4] = data[pos + 1..pos + 5]
+                            .try_into()
+                            .map_err(|_| anyhow::anyhow!("parse u32 bytes"))?;
                         Some(u32::from_be_bytes(bytes) as f64)
                     }
                     0x31 => {

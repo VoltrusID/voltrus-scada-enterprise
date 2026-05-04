@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -95,10 +95,7 @@ pub async fn export_audit_csv(
     Ok((
         StatusCode::OK,
         [
-            (
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("text/csv"),
-            ),
+            (header::CONTENT_TYPE, HeaderValue::from_static("text/csv")),
             (
                 header::CONTENT_DISPOSITION,
                 HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename)).unwrap(),

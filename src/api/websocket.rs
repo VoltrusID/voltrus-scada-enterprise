@@ -1,5 +1,5 @@
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
@@ -44,9 +44,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     let data = match first_msg.into_data() {
         d if !d.is_empty() => d,
         _ => {
-            let _ = send_msg(&mut sink, &ServerMessage::AuthError {
-                message: "First message must be a binary Auth message".to_string(),
-            })
+            let _ = send_msg(
+                &mut sink,
+                &ServerMessage::AuthError {
+                    message: "First message must be a binary Auth message".to_string(),
+                },
+            )
             .await;
             return;
         }
@@ -56,9 +59,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         Ok(m) => m,
         Err(e) => {
             tracing::warn!("WS: failed to decode first message: {}", e);
-            let _ = send_msg(&mut sink, &ServerMessage::AuthError {
-                message: format!("Invalid MessagePack: {}", e),
-            })
+            let _ = send_msg(
+                &mut sink,
+                &ServerMessage::AuthError {
+                    message: format!("Invalid MessagePack: {}", e),
+                },
+            )
             .await;
             return;
         }
@@ -67,26 +73,31 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     let token = match client_msg {
         ClientMessage::Auth { token } => token,
         _ => {
-            let _ = send_msg(&mut sink, &ServerMessage::AuthError {
-                message: "First message must be Auth".to_string(),
-            })
+            let _ = send_msg(
+                &mut sink,
+                &ServerMessage::AuthError {
+                    message: "First message must be Auth".to_string(),
+                },
+            )
             .await;
             return;
         }
     };
 
     // 3. Validate the JWT token.
-    let claims =
-        match crate::api::auth::verify_token(&token, &state.auth_secret) {
-            Some(c) => c,
-            None => {
-                let _ = send_msg(&mut sink, &ServerMessage::AuthError {
+    let claims = match crate::api::auth::verify_token(&token, &state.auth_secret) {
+        Some(c) => c,
+        None => {
+            let _ = send_msg(
+                &mut sink,
+                &ServerMessage::AuthError {
                     message: "Invalid or expired token".to_string(),
-                })
-                .await;
-                return;
-            }
-        };
+                },
+            )
+            .await;
+            return;
+        }
+    };
 
     let username = claims.username.clone();
     let role = claims.role.clone();
@@ -209,11 +220,7 @@ async fn handle_client_message(
     match msg {
         ClientMessage::Subscribe { tag_ids } => {
             ws_manager.subscribe(conn_id, tag_ids);
-            tracing::debug!(
-                "WS: user={} subscribed to {} tags",
-                username,
-                tag_ids.len()
-            );
+            tracing::debug!("WS: user={} subscribed to {} tags", username, tag_ids.len());
         }
 
         ClientMessage::Unsubscribe { tag_ids } => {
@@ -284,27 +291,27 @@ async fn handle_tag_write(
     };
 
     // Look up write policy and device info
-    let (writable, device_id, protocol) =
-        match state.storage.get_data_source_device_id(data_source_id).await {
-            Ok(Some((dev_id, proto))) => {
-                let policy_ok = state
-                    .storage
-                    .get_write_policy(data_source_id)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|p| p.writable)
-                    .unwrap_or(false);
-                (policy_ok, dev_id, proto)
-            }
-            _ => {
-                tracing::warn!(
-                    "WS: data_source {} not found for tag write",
-                    data_source_id
-                );
-                return;
-            }
-        };
+    let (writable, device_id, protocol) = match state
+        .storage
+        .get_data_source_device_id(data_source_id)
+        .await
+    {
+        Ok(Some((dev_id, proto))) => {
+            let policy_ok = state
+                .storage
+                .get_write_policy(data_source_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|p| p.writable)
+                .unwrap_or(false);
+            (policy_ok, dev_id, proto)
+        }
+        _ => {
+            tracing::warn!("WS: data_source {} not found for tag write", data_source_id);
+            return;
+        }
+    };
 
     if !writable {
         tracing::warn!("WS: data_source {} is not writable", data_source_id);
@@ -312,17 +319,15 @@ async fn handle_tag_write(
     }
 
     // Generate command ID
-    let cmd_id = command_id
-        .clone()
-        .unwrap_or_else(|| {
-            use rand::Rng;
-            rand::rng()
-                .sample_iter(&rand::distr::Alphanumeric)
-                .take(21)
-                .map(char::from)
-                .collect::<String>()
-                .to_lowercase()
-        });
+    let cmd_id = command_id.clone().unwrap_or_else(|| {
+        use rand::Rng;
+        rand::rng()
+            .sample_iter(&rand::distr::Alphanumeric)
+            .take(21)
+            .map(char::from)
+            .collect::<String>()
+            .to_lowercase()
+    });
 
     let now = crate::timeutil::now_secs();
     let cmd = crate::models::Command {
@@ -360,11 +365,7 @@ async fn handle_tag_write(
 /// Map a user role to a list of permission strings.
 fn role_to_permissions(role: &str) -> Vec<String> {
     match role {
-        "admin" => vec![
-            "read".to_string(),
-            "write".to_string(),
-            "admin".to_string(),
-        ],
+        "admin" => vec!["read".to_string(), "write".to_string(), "admin".to_string()],
         "api" => vec!["read".to_string(), "write".to_string()],
         _ => vec!["read".to_string()],
     }
@@ -375,11 +376,7 @@ async fn send_msg(
     sink: &mut futures_util::stream::SplitSink<WebSocket, Message>,
     msg: &ServerMessage,
 ) -> Result<(), axum::Error> {
-    let bytes = rmp_serde::to_vec(msg).map_err(|e| {
-        axum::Error::new(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            e,
-        ))
-    })?;
+    let bytes = rmp_serde::to_vec(msg)
+        .map_err(|e| axum::Error::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
     sink.send(Message::Binary(bytes.into())).await
 }

@@ -73,7 +73,9 @@ impl DeadbandFilter {
                 Some(&last) => {
                     let threshold = if let Some(cfg) = configs.get(&key) {
                         match cfg.deadband_type {
-                            DeadbandType::Percent => (cfg.deadband_value * last.abs()).max(self.absolute_min),
+                            DeadbandType::Percent => {
+                                (cfg.deadband_value * last.abs()).max(self.absolute_min)
+                            }
                             DeadbandType::Absolute => cfg.deadband_value,
                         }
                     } else {
@@ -97,7 +99,9 @@ impl DeadbandFilter {
         let key = (device_id.to_string(), metric.to_string());
         if let Some(cfg) = configs.get(&key) {
             match cfg.deadband_type {
-                DeadbandType::Percent => (cfg.deadband_value * last_value.abs()).max(self.absolute_min),
+                DeadbandType::Percent => {
+                    (cfg.deadband_value * last_value.abs()).max(self.absolute_min)
+                }
                 DeadbandType::Absolute => cfg.deadband_value,
             }
         } else {
@@ -141,10 +145,16 @@ mod tests {
     #[tokio::test]
     async fn test_absolute_deadband() {
         let filter = DeadbandFilter::new();
-        filter.set_config("dev1", "temp", DeadbandEntry {
-            deadband_type: DeadbandType::Absolute,
-            deadband_value: 1.0,
-        }).await;
+        filter
+            .set_config(
+                "dev1",
+                "temp",
+                DeadbandEntry {
+                    deadband_type: DeadbandType::Absolute,
+                    deadband_value: 1.0,
+                },
+            )
+            .await;
         filter.record_write("dev1", "temp", 25.0).await;
         assert!(!filter.should_write("dev1", "temp", 25.5).await);
         assert!(filter.should_write("dev1", "temp", 26.1).await);

@@ -5,8 +5,7 @@ use crate::models::{Camera, CameraSnapshot};
 
 #[test]
 fn test_parse_rtsp_url_basic() {
-    let (host, port, path, creds) =
-        parse_rtsp_url("rtsp://192.168.1.100:554/stream").unwrap();
+    let (host, port, path, creds) = parse_rtsp_url("rtsp://192.168.1.100:554/stream").unwrap();
     assert_eq!(host, "192.168.1.100");
     assert_eq!(port, 554);
     assert_eq!(path, "/stream");
@@ -15,8 +14,7 @@ fn test_parse_rtsp_url_basic() {
 
 #[test]
 fn test_parse_rtsp_url_default_port() {
-    let (host, port, path, creds) =
-        parse_rtsp_url("rtsp://10.0.0.1/live").unwrap();
+    let (host, port, path, creds) = parse_rtsp_url("rtsp://10.0.0.1/live").unwrap();
     assert_eq!(host, "10.0.0.1");
     assert_eq!(port, 554);
     assert_eq!(path, "/live");
@@ -26,8 +24,7 @@ fn test_parse_rtsp_url_default_port() {
 #[test]
 fn test_parse_rtsp_url_with_credentials() {
     let (host, port, path, creds) =
-        parse_rtsp_url("rtsp://admin:password@192.168.1.100:554/stream")
-            .unwrap();
+        parse_rtsp_url("rtsp://admin:password@192.168.1.100:554/stream").unwrap();
     assert_eq!(host, "192.168.1.100");
     assert_eq!(port, 554);
     assert_eq!(path, "/stream");
@@ -38,8 +35,7 @@ fn test_parse_rtsp_url_with_credentials() {
 
 #[test]
 fn test_parse_rtsp_url_no_path() {
-    let (host, port, path, _) =
-        parse_rtsp_url("rtsp://192.168.1.100").unwrap();
+    let (host, port, path, _) = parse_rtsp_url("rtsp://192.168.1.100").unwrap();
     assert_eq!(host, "192.168.1.100");
     assert_eq!(port, 554);
     assert_eq!(path, "/");
@@ -47,8 +43,7 @@ fn test_parse_rtsp_url_no_path() {
 
 #[test]
 fn test_parse_rtsp_url_custom_port() {
-    let (host, port, _, _) =
-        parse_rtsp_url("rtsp://192.168.1.100:8554/stream").unwrap();
+    let (host, port, _, _) = parse_rtsp_url("rtsp://192.168.1.100:8554/stream").unwrap();
     assert_eq!(host, "192.168.1.100");
     assert_eq!(port, 8554);
 }
@@ -74,8 +69,7 @@ fn test_parse_rtsp_response_ok() {
 
 #[test]
 fn test_parse_rtsp_response_with_body() {
-    let raw =
-        "RTSP/1.0 200 OK\r\nCSeq: 2\r\nContent-Length: 10\r\n\r\nhello body";
+    let raw = "RTSP/1.0 200 OK\r\nCSeq: 2\r\nContent-Length: 10\r\n\r\nhello body";
     let resp = RtspResponse::parse(raw).unwrap();
     assert_eq!(resp.status_code, 200);
     assert_eq!(resp.body, "hello body");
@@ -153,8 +147,7 @@ fn test_cseq_increments() {
 
 #[test]
 fn test_auth_header_in_request() {
-    let mut client =
-        RtspClient::new("rtsp://admin:secret@192.168.1.100:554/stream");
+    let mut client = RtspClient::new("rtsp://admin:secret@192.168.1.100:554/stream");
     let req = client.build_request("OPTIONS", "");
     assert!(req.contains("Authorization: Basic "));
 }
@@ -265,7 +258,10 @@ fn test_camera_snapshot_serialization() {
     let parsed: CameraSnapshot = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.id, 42);
     assert_eq!(parsed.camera_id, 1);
-    assert_eq!(parsed.alarm_source, Some("temperature_critical".to_string()));
+    assert_eq!(
+        parsed.alarm_source,
+        Some("temperature_critical".to_string())
+    );
     assert_eq!(parsed.file_size, 2048);
 }
 
@@ -306,7 +302,10 @@ async fn test_stream_proxy_add_remove_camera() {
         created_at: 0,
     };
     proxy.add_camera(&camera).await;
-    assert_eq!(proxy.get_stream_url(1), Some("rtsp://192.168.1.100:554/stream".to_string()));
+    assert_eq!(
+        proxy.get_stream_url(1),
+        Some("rtsp://192.168.1.100:554/stream".to_string())
+    );
 
     proxy.remove_camera(1).await;
     assert!(proxy.get_stream_url(1).is_none());

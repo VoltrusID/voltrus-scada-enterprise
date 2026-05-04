@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 
 use crate::asset::models::*;
-use crate::asset::storage::core::{now_iso, AssetStorage};
+use crate::asset::storage::core::{AssetStorage, now_iso};
 
 impl AssetStorage {
     // ── Firmware Catalog ──
@@ -33,7 +33,9 @@ impl AssetStorage {
                     )
                 };
 
-            let mut stmt = conn.prepare(&sql).context("Failed to prepare firmware catalog query")?;
+            let mut stmt = conn
+                .prepare(&sql)
+                .context("Failed to prepare firmware catalog query")?;
             let rows = stmt
                 .query_map(rusqlite::params_from_iter(params.iter()), |row| {
                     Ok(FirmwareCatalogEntry {
@@ -117,7 +119,9 @@ impl AssetStorage {
                     if let Some(value) = obj.get(key) {
                         set_clauses.push(format!("{key} = ?"));
                         match value {
-                            serde_json::Value::Null => params.push(Box::new(Option::<String>::None)),
+                            serde_json::Value::Null => {
+                                params.push(Box::new(Option::<String>::None))
+                            }
                             serde_json::Value::String(s) => params.push(Box::new(s.clone())),
                             other => params.push(Box::new(other.to_string())),
                         }
@@ -165,11 +169,7 @@ impl AssetStorage {
         .context("Task join failed")?
     }
 
-    pub async fn get_latest_firmware(
-        &self,
-        vendor: &str,
-        model: &str,
-    ) -> Result<Option<String>> {
+    pub async fn get_latest_firmware(&self, vendor: &str, model: &str) -> Result<Option<String>> {
         let conn = self.conn.clone();
         let vendor = vendor.to_string();
         let model = model.to_string();

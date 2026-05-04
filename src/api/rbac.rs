@@ -1,11 +1,11 @@
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
-use crate::models::*;
 use super::{AppError, AppState};
+use crate::models::*;
 
 // ── Permission check helper ──
 
@@ -19,14 +19,16 @@ pub fn has_permission(permissions: &[String], role: &str, perm: &str) -> bool {
 }
 
 fn license_forbidden() -> Response {
-    (StatusCode::FORBIDDEN, Json(json!({"error": "RBAC requires Professional or Enterprise license"}))).into_response()
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({"error": "RBAC requires Professional or Enterprise license"})),
+    )
+        .into_response()
 }
 
 // ── List roles ──
 
-pub async fn list_roles(
-    State(state): State<AppState>,
-) -> Result<Response, AppError> {
+pub async fn list_roles(State(state): State<AppState>) -> Result<Response, AppError> {
     if !state.license_tier.rbac() {
         return Ok(license_forbidden());
     }
@@ -46,25 +48,40 @@ pub async fn create_role(
     }
 
     if body.name.trim().is_empty() {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role name is required"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "role name is required"})),
+        )
+            .into_response());
     }
 
     // Validate that permissions is a valid JSON array
     let perms: Vec<String> = match serde_json::from_str(&body.permissions) {
         Ok(p) => p,
         Err(_) => {
-            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "permissions must be a valid JSON array of strings"}))).into_response());
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": "permissions must be a valid JSON array of strings"})),
+            )
+                .into_response());
         }
     };
 
     // Validate each permission string
     for p in &perms {
         if !ALL_PERMISSIONS.contains(&p.as_str()) {
-            return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": format!("unknown permission: {}", p)}))).into_response());
+            return Ok((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": format!("unknown permission: {}", p)})),
+            )
+                .into_response());
         }
     }
 
-    let id = state.storage.create_role(&body.name, &body.permissions).await?;
+    let id = state
+        .storage
+        .create_role(&body.name, &body.permissions)
+        .await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "create_role".to_string(),
@@ -93,12 +110,20 @@ pub async fn update_role(
         let perms: Vec<String> = match serde_json::from_str(perms_json) {
             Ok(p) => p,
             Err(_) => {
-                return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "permissions must be a valid JSON array of strings"}))).into_response());
+                return Ok((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": "permissions must be a valid JSON array of strings"})),
+                )
+                    .into_response());
             }
         };
         for p in &perms {
             if !ALL_PERMISSIONS.contains(&p.as_str()) {
-                return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": format!("unknown permission: {}", p)}))).into_response());
+                return Ok((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error": format!("unknown permission: {}", p)})),
+                )
+                    .into_response());
             }
         }
     }
@@ -131,7 +156,11 @@ pub async fn delete_role(
 
     let role = state.storage.get_role_by_id(id).await?;
     if role.is_none() {
-        return Ok((StatusCode::NOT_FOUND, Json(json!({"error": "role not found"}))).into_response());
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "role not found"})),
+        )
+            .into_response());
     }
 
     state.storage.delete_role(id).await?;
@@ -161,16 +190,27 @@ pub async fn assign_user_role(
     // Verify the role exists
     let role = state.storage.get_role_by_id(body.role_id).await?;
     if role.is_none() {
-        return Ok((StatusCode::BAD_REQUEST, Json(json!({"error": "role not found"}))).into_response());
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "role not found"})),
+        )
+            .into_response());
     }
 
     // Verify the user exists
     let user = state.storage.get_user_by_id(user_id).await?;
     if user.is_none() {
-        return Ok((StatusCode::NOT_FOUND, Json(json!({"error": "user not found"}))).into_response());
+        return Ok((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "user not found"})),
+        )
+            .into_response());
     }
 
-    state.storage.assign_user_role(user_id, body.role_id).await?;
+    state
+        .storage
+        .assign_user_role(user_id, body.role_id)
+        .await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "assign_role".to_string(),

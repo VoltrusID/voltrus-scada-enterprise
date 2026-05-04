@@ -4,7 +4,9 @@
 //! statistics (mean, stddev, skewness, kurtosis), generates a normal curve overlay,
 //! and optionally calculates process capability indices (Cp, Cpk, Pp, Ppk).
 
-use crate::models::{CapabilityIndices, CurvePoint, DistributionStats, HistogramBin, HistogramResult};
+use crate::models::{
+    CapabilityIndices, CurvePoint, DistributionStats, HistogramBin, HistogramResult,
+};
 
 use std::f64::consts::PI;
 
@@ -141,12 +143,7 @@ pub fn compute_histogram(
                 // Pp = Cp, Ppk = Cpk (same since we don't separate within/overall)
                 let pp = cp;
                 let ppk = cpk;
-                Some(CapabilityIndices {
-                    cp,
-                    cpk,
-                    pp,
-                    ppk,
-                })
+                Some(CapabilityIndices { cp, cpk, pp, ppk })
             }
         }
         _ => None,
@@ -178,9 +175,17 @@ fn compute_distribution_stats(values: &[f64]) -> DistributionStats {
         (0.0, 0.0)
     } else {
         // M3 = sum(((x - mean) / stddev)^3) / n
-        let m3: f64 = values.iter().map(|&x| ((x - mean) / stddev).powi(3)).sum::<f64>() / n;
+        let m3: f64 = values
+            .iter()
+            .map(|&x| ((x - mean) / stddev).powi(3))
+            .sum::<f64>()
+            / n;
         // M4 = sum(((x - mean) / stddev)^4) / n
-        let m4: f64 = values.iter().map(|&x| ((x - mean) / stddev).powi(4)).sum::<f64>() / n;
+        let m4: f64 = values
+            .iter()
+            .map(|&x| ((x - mean) / stddev).powi(4))
+            .sum::<f64>()
+            / n;
         let skew = m3;
         let kurt = m4 - 3.0; // excess kurtosis
         (skew, kurt)

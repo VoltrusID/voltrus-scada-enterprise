@@ -70,9 +70,7 @@ pub fn verify_password_complexity(password: &str, config: &ComplianceConfig) -> 
         ));
     }
 
-    if config.password_require_uppercase
-        && !password.chars().any(|c| c.is_ascii_uppercase())
-    {
+    if config.password_require_uppercase && !password.chars().any(|c| c.is_ascii_uppercase()) {
         return Err("Password must contain at least one uppercase letter".to_string());
     }
 
@@ -181,7 +179,10 @@ mod tests {
         let checksum = compute_record_checksum(record);
         assert!(verify_record_integrity(record, &checksum));
         // Tampered record
-        assert!(!verify_record_integrity(r#"{"id": 1, "name": "tampered"}"#, &checksum));
+        assert!(!verify_record_integrity(
+            r#"{"id": 1, "name": "tampered"}"#,
+            &checksum
+        ));
     }
 
     #[test]
@@ -192,15 +193,23 @@ mod tests {
 
     #[test]
     fn test_generate_signature_hash_deterministic() {
-        let hash1 = generate_signature_hash("user1", "create", "recipe", "42", "approved", "Created", 1000);
-        let hash2 = generate_signature_hash("user1", "create", "recipe", "42", "approved", "Created", 1000);
+        let hash1 = generate_signature_hash(
+            "user1", "create", "recipe", "42", "approved", "Created", 1000,
+        );
+        let hash2 = generate_signature_hash(
+            "user1", "create", "recipe", "42", "approved", "Created", 1000,
+        );
         assert_eq!(hash1, hash2);
     }
 
     #[test]
     fn test_generate_signature_hash_unique_for_different_inputs() {
-        let hash1 = generate_signature_hash("user1", "create", "recipe", "42", "approved", "Created", 1000);
-        let hash2 = generate_signature_hash("user2", "create", "recipe", "42", "approved", "Created", 1000);
+        let hash1 = generate_signature_hash(
+            "user1", "create", "recipe", "42", "approved", "Created", 1000,
+        );
+        let hash2 = generate_signature_hash(
+            "user2", "create", "recipe", "42", "approved", "Created", 1000,
+        );
         assert_ne!(hash1, hash2);
     }
 

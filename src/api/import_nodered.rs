@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::{Extension, Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -41,8 +41,8 @@ pub async fn import_node_red(
         ))
     })?;
 
-    let parse_result = parser::parse_flows(&json_str)
-        .map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
+    let parse_result =
+        parser::parse_flows(&json_str).map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
 
     let conversion = converter::convert(&parse_result);
 
@@ -51,13 +51,13 @@ pub async fn import_node_red(
     let current_device_count = state.storage.count_modbus_devices().await.unwrap_or(0);
 
     let mut warnings = conversion.warnings.clone();
-    if let Some(limit) = device_limit {
-        if current_device_count + total_new_devices > limit {
-            warnings.push(format!(
+    if let Some(limit) = device_limit
+        && current_device_count + total_new_devices > limit
+    {
+        warnings.push(format!(
                 "Import would create {} Modbus device(s), exceeding the {} device limit. {} device(s) already exist.",
                 total_new_devices, limit, current_device_count
             ));
-        }
     }
 
     Ok((

@@ -3,14 +3,14 @@
 //! Provides X-bar & R, CUSUM, EWMA, P-chart, and NP-chart functions
 //! using the crate's `SpcResult`, `SpcPoint`, and `ControlLimits` types.
 
-pub mod spc_calculations;
 pub mod spc_attributes;
+pub mod spc_calculations;
 
 // Re-export all public items so that `analytics::spc::xxx` still works.
 #[allow(unused_imports)]
-pub use spc_calculations::*;
-#[allow(unused_imports)]
 pub use spc_attributes::*;
+#[allow(unused_imports)]
+pub use spc_calculations::*;
 
 #[cfg(test)]
 mod tests {
@@ -61,8 +61,8 @@ mod tests {
     fn test_cusum_basic() {
         // Data centered on target=10 — should produce no violations
         let values: Vec<f64> = vec![
-            10.1, 9.9, 10.0, 9.8, 10.2, 10.0, 9.9, 10.1, 10.0, 10.0,
-            9.9, 10.1, 10.0, 9.8, 10.2, 10.0, 10.1, 9.9, 10.0, 10.0,
+            10.1, 9.9, 10.0, 9.8, 10.2, 10.0, 9.9, 10.1, 10.0, 10.0, 9.9, 10.1, 10.0, 9.8, 10.2,
+            10.0, 10.1, 9.9, 10.0, 10.0,
         ];
         let timestamps: Vec<i64> = (0..20).collect();
 

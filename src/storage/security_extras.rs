@@ -1,18 +1,21 @@
 use super::Storage;
-use anyhow::{Context, Result};
 use crate::models::{
-    Annotation, CreateAnnotationRequest, UpdateAnnotationRequest,
-    ShiftHandover, CreateShiftHandoverRequest,
-    UserNotification, CreateNotificationRequest,
+    Annotation, CreateAnnotationRequest, CreateNotificationRequest, CreateShiftHandoverRequest,
+    ShiftHandover, UpdateAnnotationRequest, UserNotification,
 };
+use anyhow::{Context, Result};
 
 impl Storage {
     // ── Annotation CRUD (v0.23.0) ──
 
-    pub async fn create_annotation(&self, req: &CreateAnnotationRequest, author_id: i64) -> Result<i64> {
+    pub async fn create_annotation(
+        &self,
+        req: &CreateAnnotationRequest,
+        author_id: i64,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
         let req = req.clone();
-        let author_id = author_id;
+
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
@@ -104,10 +107,13 @@ impl Storage {
                 conn.execute(
                     "UPDATE annotations SET annotation_text = ?1, updated_at = ?2 WHERE id = ?3",
                     rusqlite::params![text, now, id],
-                ).context("Update annotation failed")?;
+                )
+                .context("Update annotation failed")?;
             }
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn delete_annotation(&self, id: i64) -> Result<()> {
@@ -117,17 +123,24 @@ impl Storage {
             conn.execute(
                 "DELETE FROM annotations WHERE id = ?1",
                 rusqlite::params![id],
-            ).context("Delete annotation failed")?;
+            )
+            .context("Delete annotation failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── Shift Handover CRUD (v0.23.0) ──
 
-    pub async fn create_shift_handover(&self, req: &CreateShiftHandoverRequest, author_id: i64) -> Result<i64> {
+    pub async fn create_shift_handover(
+        &self,
+        req: &CreateShiftHandoverRequest,
+        author_id: i64,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
         let req = req.clone();
-        let author_id = author_id;
+
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
@@ -287,9 +300,12 @@ impl Storage {
             conn.execute(
                 "UPDATE user_notifications SET read = 1 WHERE id = ?1",
                 rusqlite::params![id],
-            ).context("Mark notification read failed")?;
+            )
+            .context("Mark notification read failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn dismiss_notification(&self, id: i64) -> Result<()> {
@@ -299,9 +315,12 @@ impl Storage {
             conn.execute(
                 "DELETE FROM user_notifications WHERE id = ?1",
                 rusqlite::params![id],
-            ).context("Dismiss notification failed")?;
+            )
+            .context("Dismiss notification failed")?;
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn cleanup_old_notifications(&self) -> Result<u64> {
@@ -309,11 +328,15 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let cutoff = crate::timeutil::now_secs() - 30 * 24 * 3600;
-            let affected = conn.execute(
-                "DELETE FROM user_notifications WHERE created_at < ?1",
-                rusqlite::params![cutoff],
-            ).context("Cleanup old notifications failed")?;
+            let affected = conn
+                .execute(
+                    "DELETE FROM user_notifications WHERE created_at < ?1",
+                    rusqlite::params![cutoff],
+                )
+                .context("Cleanup old notifications failed")?;
             Ok(affected as u64)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 }

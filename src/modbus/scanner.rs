@@ -23,15 +23,18 @@ pub async fn scan_registers(
         .context("Modbus connection failed")?;
 
     let total = (end_addr - start_addr + 1) as usize;
-    let mut results = vec![ScannedRegister {
-        address: 0,
-        raw_value: None,
-        raw_value2: None,
-        changed: false,
-        readable: false,
-        likely_type: "uint16".to_string(),
-        interpreted_value: None,
-    }; total];
+    let mut results = vec![
+        ScannedRegister {
+            address: 0,
+            raw_value: None,
+            raw_value2: None,
+            changed: false,
+            readable: false,
+            likely_type: "uint16".to_string(),
+            interpreted_value: None,
+        };
+        total
+    ];
 
     for (i, r) in results.iter_mut().enumerate() {
         r.address = start_addr + i as u16;
@@ -50,22 +53,45 @@ pub async fn scan_registers(
             tokio::time::timeout(
                 std::time::Duration::from_secs(5),
                 ctx.read_coils(addr, count),
-            ).await.map(|r| r.map(|r| r.map(|coils| coils.iter().map(|&c| if c { 1u16 } else { 0u16 }).collect::<Vec<u16>>())))
+            )
+            .await
+            .map(|r| {
+                r.map(|r| {
+                    r.map(|coils| {
+                        coils
+                            .iter()
+                            .map(|&c| if c { 1u16 } else { 0u16 })
+                            .collect::<Vec<u16>>()
+                    })
+                })
+            })
         } else if use_discrete {
             tokio::time::timeout(
                 std::time::Duration::from_secs(5),
                 ctx.read_discrete_inputs(addr, count),
-            ).await.map(|r| r.map(|r| r.map(|bits| bits.iter().map(|&b| if b { 1u16 } else { 0u16 }).collect::<Vec<u16>>())))
+            )
+            .await
+            .map(|r| {
+                r.map(|r| {
+                    r.map(|bits| {
+                        bits.iter()
+                            .map(|&b| if b { 1u16 } else { 0u16 })
+                            .collect::<Vec<u16>>()
+                    })
+                })
+            })
         } else if use_input {
             tokio::time::timeout(
                 std::time::Duration::from_secs(5),
                 ctx.read_input_registers(addr, count),
-            ).await
+            )
+            .await
         } else {
             tokio::time::timeout(
                 std::time::Duration::from_secs(5),
                 ctx.read_holding_registers(addr, count),
-            ).await
+            )
+            .await
         };
 
         match read_result {
@@ -92,30 +118,53 @@ pub async fn scan_registers(
     while addr <= end_addr {
         let count = std::cmp::min(batch_size, end_addr - addr + 1);
         let offset = (addr - start_addr) as usize;
-        let has_readable = (offset..std::cmp::min(offset + count as usize, total))
-            .any(|i| results[i].readable);
+        let has_readable =
+            (offset..std::cmp::min(offset + count as usize, total)).any(|i| results[i].readable);
 
         if has_readable {
             let read_result = if use_coils {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
                     ctx.read_coils(addr, count),
-                ).await.map(|r| r.map(|r| r.map(|coils| coils.iter().map(|&c| if c { 1u16 } else { 0u16 }).collect::<Vec<u16>>())))
+                )
+                .await
+                .map(|r| {
+                    r.map(|r| {
+                        r.map(|coils| {
+                            coils
+                                .iter()
+                                .map(|&c| if c { 1u16 } else { 0u16 })
+                                .collect::<Vec<u16>>()
+                        })
+                    })
+                })
             } else if use_discrete {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
                     ctx.read_discrete_inputs(addr, count),
-                ).await.map(|r| r.map(|r| r.map(|bits| bits.iter().map(|&b| if b { 1u16 } else { 0u16 }).collect::<Vec<u16>>())))
+                )
+                .await
+                .map(|r| {
+                    r.map(|r| {
+                        r.map(|bits| {
+                            bits.iter()
+                                .map(|&b| if b { 1u16 } else { 0u16 })
+                                .collect::<Vec<u16>>()
+                        })
+                    })
+                })
             } else if use_input {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
                     ctx.read_input_registers(addr, count),
-                ).await
+                )
+                .await
             } else {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
                     ctx.read_holding_registers(addr, count),
-                ).await
+                )
+                .await
             };
 
             if let Ok(Ok(Ok(response))) = read_result {
@@ -193,6 +242,9 @@ pub async fn scan_registers(
     Ok(results
         .into_iter()
         .filter(|r| !r.likely_type.ends_with("_lo"))
-        .map(|mut r| { r.address = r.address.wrapping_add(offset); r })
+        .map(|mut r| {
+            r.address = r.address.wrapping_add(offset);
+            r
+        })
         .collect())
 }
