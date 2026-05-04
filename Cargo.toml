@@ -70,6 +70,7 @@ bacnet-rs = "0.3"
 futures-util = "=0.3.31"
 rumqttd = "0.20"
 
+regex = "1"
 wasmtime = "43"
 
 [dev-dependencies]

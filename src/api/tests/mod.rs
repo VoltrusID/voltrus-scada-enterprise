@@ -7,6 +7,7 @@ mod license_tier;
 mod analytics;
 mod ui_preferences;
 mod tag_tree;
+mod naming_convention;
 
 pub use helpers::*;
 

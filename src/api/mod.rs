@@ -34,6 +34,7 @@ mod shift_handover;
 mod user_notifications;
 mod commands;
 mod tag_tree;
+mod naming_convention;
 mod simulation;
 mod scripts;
 mod config_snapshots;
@@ -205,6 +206,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route("/api/v1/settings/alarm-cooldown", get(settings::get_alarm_cooldown))
+        .route("/api/v1/settings/naming-convention", get(naming_convention::get_naming_convention))
         .route("/api/license/status", get(license::get_license_status))
         .route("/api/v1/ws", get(websocket::websocket_handler));
 
@@ -283,6 +285,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
         .route("/api/v1/settings/alarm-cooldown", put(settings::update_alarm_cooldown))
+        .route("/api/v1/settings/naming-convention", put(naming_convention::update_naming_convention))
         // Alarm management: shelving, audit trail, analytics, summary
         .route("/api/v1/alarms/{id}/shelf", post(alarms::shelf_alarm))
         .route("/api/v1/alarms/{id}/unshelf", post(alarms::unshelf_alarm))
