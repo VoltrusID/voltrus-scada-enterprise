@@ -321,3 +321,46 @@ export {
 } from './mqtt_broker'
 
 export type { MqttBrokerStatus, MqttClient, MqttConfigUpdate } from './mqtt_broker'
+
+export {
+  useDocsTopology,
+  useDocsTagXref,
+  useDocsAutomation,
+} from './docs'
+
+export type {
+  TopologyDevice, TopologyData, TagXrefEntry, TagXrefData,
+  ScriptDoc, FlowDoc, AutomationData,
+} from './docs'
+
+export {
+  useTemplates,
+  useTemplate,
+  usePreviewTemplate,
+  useInstantiateTemplate,
+} from './templates'
+
+export type {
+  TemplateSummary, IndustryInfo, TemplateListResponse,
+  TemplateDetail, PreviewResult, InstantiateResult,
+} from './templates'
+
+export {
+  useFeedTemplates,
+  useFeedTemplate,
+  useWizardCreate,
+} from './wizard'
+
+export type {
+  FeedTemplateSummary, FeedTemplatesResponse,
+  FeedDetail, WizardResult,
+} from './wizard'
+
+export {
+  useCompressionStats,
+  useCompressionDeadband,
+} from './compression'
+
+export type { CompressionStats, DeadbandEntry } from './compression'
+
+export { useVersion } from './version'

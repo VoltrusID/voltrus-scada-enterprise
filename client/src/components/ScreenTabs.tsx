@@ -43,15 +43,21 @@ export function ScreenTabs({
 
   const tabListStyle: React.CSSProperties = isMobile
     ? {
-        display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20,
+        display: 'flex', alignItems: 'center', gap: 0, marginBottom: 16,
         borderBottom: '1px solid var(--border)',
+        background: 'var(--card)',
+        margin: '0 -24px 16px',
+        padding: '0 24px',
         overflowX: 'auto', flexWrap: 'nowrap' as const,
         scrollbarWidth: 'none' as const,
         msOverflowStyle: 'none' as const,
       }
     : {
-        display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20,
+        display: 'flex', alignItems: 'center', gap: 0, marginBottom: 16,
         borderBottom: '1px solid var(--border)',
+        background: 'var(--card)',
+        margin: '0 -24px 16px',
+        padding: '0 24px',
       }
 
   return (

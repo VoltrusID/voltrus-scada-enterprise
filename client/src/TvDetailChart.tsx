@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import {
   createChart,
+  createSeriesMarkers,
   LineSeries,
   LineType,
   CrosshairMode,
@@ -10,6 +11,7 @@ import {
   type LineStyleOptions,
   type SeriesOptionsCommon,
   type Time,
+  type SeriesMarker,
 } from 'lightweight-charts'
 import { DataPoint } from './types'
 import { toHexColor } from './styles'
@@ -19,6 +21,12 @@ export interface OverlaySeries {
   color: string
   name: string
   unit: string
+}
+
+export interface AnnotationMarker {
+  id: number
+  time: number // epoch seconds
+  text: string
 }
 
 function toTvData(points: DataPoint[]): LineData<Time>[] {
@@ -35,6 +43,8 @@ interface Props {
   crit: number
   unit: string
   overlays?: OverlaySeries[]
+  annotations?: AnnotationMarker[]
+  onAnnotationClick?: (time: number) => void
 }
 
 export function TvDetailChart({
@@ -44,6 +54,8 @@ export function TvDetailChart({
   crit,
   unit,
   overlays = [],
+  annotations = [],
+  onAnnotationClick,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -51,6 +63,7 @@ export function TvDetailChart({
   const overlayRefs = useRef<ISeriesApi<'Line'>[]>([])
   const warnLineRef = useRef<ReturnType<ISeriesApi<'Line'>['createPriceLine']> | null>(null)
   const critLineRef = useRef<ReturnType<ISeriesApi<'Line'>['createPriceLine']> | null>(null)
+  const markersPluginRef = useRef<ReturnType<typeof createSeriesMarkers<Time>> | null>(null)
 
   const color = toHexColor(rawColor)
 
@@ -102,6 +115,11 @@ export function TvDetailChart({
     } as LineStyleOptions & SeriesOptionsCommon)
     seriesRef.current = series
 
+    // Create markers plugin on the series
+    markersPluginRef.current = createSeriesMarkers(series, [], {
+      zOrder: 'top',
+    })
+
     // Threshold lines
     if (warn > 0) {
       warnLineRef.current = series.createPriceLine({
@@ -124,7 +142,6 @@ export function TvDetailChart({
       })
     }
 
-    // Legend via tooltip formatter
     chart.applyOptions({
       localization: {
         priceFormatter: (p: number) => p.toFixed(2) + (unit ? ' ' + unit : ''),
@@ -143,9 +160,32 @@ export function TvDetailChart({
       chartRef.current = null
       seriesRef.current = null
       overlayRefs.current = []
+      markersPluginRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Right-click handler for creating annotations
+  useEffect(() => {
+    const container = containerRef.current
+    const chart = chartRef.current
+    if (!container || !chart || !onAnnotationClick) return
+
+    const handler = (e: MouseEvent) => {
+      e.preventDefault()
+      const rect = container.getBoundingClientRect()
+      const x = e.clientX - rect.left
+
+      const timeScale = chart.timeScale()
+      const coord = timeScale.coordinateToTime(x)
+      if (coord && typeof coord === 'number') {
+        onAnnotationClick(coord as number)
+      }
+    }
+
+    container.addEventListener('contextmenu', handler)
+    return () => container.removeEventListener('contextmenu', handler)
+  }, [onAnnotationClick])
 
   // Update primary data
   useEffect(() => {
@@ -163,11 +203,9 @@ export function TvDetailChart({
   useEffect(() => {
     const chart = chartRef.current
     if (!chart) return
-    // Remove old overlay series
     overlayRefs.current.forEach(s => chart.removeSeries(s))
     overlayRefs.current = []
 
-    // Create new overlay series
     overlayRefs.current = overlays.map(ov => {
       const s = chart.addSeries(LineSeries, {
         color: toHexColor(ov.color),
@@ -181,6 +219,32 @@ export function TvDetailChart({
       return s
     })
   }, [overlays])
+
+  // Update annotation markers natively on the chart
+  useEffect(() => {
+    const plugin = markersPluginRef.current
+    if (!plugin) return
+
+    if (annotations.length === 0) {
+      plugin.setMarkers([])
+      return
+    }
+
+    // Sort by time (required by lightweight-charts)
+    const sorted = [...annotations].sort((a, b) => a.time - b.time)
+
+    const markers: SeriesMarker<Time>[] = sorted.map(ann => ({
+      time: ann.time as Time,
+      position: 'belowBar' as const,
+      color: '#60a5fa',
+      shape: 'arrowUp' as const,
+      text: ann.text.length > 20 ? ann.text.slice(0, 20) + '…' : ann.text,
+      id: String(ann.id),
+      size: 1,
+    }))
+
+    plugin.setMarkers(markers)
+  }, [annotations])
 
   // Update threshold lines when warn/crit changes
   useEffect(() => {

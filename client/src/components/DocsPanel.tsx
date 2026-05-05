@@ -1,23 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { fetchJson } from '../queries'
-
-// ── Types ──
-
-interface TopologyDevice {
-  id: string; name: string; protocol: string; address: string; enabled: boolean; tag_count: number; online: boolean
-}
-interface ProtocolCount { protocol: string; device_count: number; tag_count: number }
-interface TopologySummary { total_devices: number; total_tags: number; protocols: ProtocolCount[]; online_count: number; offline_count: number }
-interface TopologyData { devices: TopologyDevice[]; summary: TopologySummary }
-
-interface TagXrefEntry {
-  key: string; name: string; device_id: string; device_name: string; protocol: string;
-  unit: string; has_alarm: boolean; alarm_severity?: string; warn_val: number; crit_val: number
-}
-
-interface ScriptDoc { id: number; name: string; enabled: boolean; description: string; cpu_limit_ms: number; syntax_error?: string }
-interface FlowDoc { id: string; name: string; enabled: boolean; trigger_description: string; node_descriptions: string[]; description: string }
-interface AutomationData { scripts: ScriptDoc[]; flows: FlowDoc[]; summary: { total_scripts: number; enabled_scripts: number; total_flows: number; enabled_flows: number } }
+import { useState } from 'react'
+import { useDocsTopology, useDocsTagXref, useDocsAutomation } from '../queries/docs'
+import type { TopologyData, TagXrefEntry, AutomationData } from '../queries/docs'
 
 const protoColors: Record<string, string> = {
   'Modbus TCP': '#f97316', 'OPC-UA': '#3b82f6', 'Siemens S7': '#8b5cf6',
@@ -29,46 +12,18 @@ const protoColors: Record<string, string> = {
 
 export function DocsPanel() {
   const [tab, setTab] = useState<'topology' | 'tags' | 'automation'>('topology')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
-  // Topology
-  const [topology, setTopology] = useState<TopologyData | null>(null)
-  // Tags
-  const [tags, setTags] = useState<TagXrefEntry[]>([])
-  const [tagTotal, setTagTotal] = useState(0)
-  // Automation
-  const [automation, setAutomation] = useState<AutomationData | null>(null)
+  const topologyQ = useDocsTopology()
+  const tagsQ = useDocsTagXref()
+  const automationQ = useDocsAutomation()
 
-  const loadTopology = useCallback(async () => {
-    setLoading(true); setError('')
-    try { setTopology(await fetchJson<TopologyData>('/docs/topology')) } catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [])
+  const loading = tab === 'topology' ? topologyQ.isLoading
+    : tab === 'tags' ? tagsQ.isLoading
+    : automationQ.isLoading
 
-  const loadTags = useCallback(async () => {
-    setLoading(true); setError('')
-    try {
-      const d = await fetchJson<{ tags: TagXrefEntry[]; total_tags: number }>('/docs/tag-xref')
-      setTags(d.tags || []); setTagTotal(d.total_tags || 0)
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [])
-
-  const loadAutomation = useCallback(async () => {
-    setLoading(true); setError('')
-    try { setAutomation(await fetchJson<AutomationData>('/docs/automation')) } catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { loadTopology() }, [loadTopology])
-
-  const switchTab = (t: 'topology' | 'tags' | 'automation') => {
-    setTab(t); setError('')
-    if (t === 'tags' && tags.length === 0) loadTags()
-    if (t === 'automation' && !automation) loadAutomation()
-    if (t === 'topology' && !topology) loadTopology()
-  }
+  const error = tab === 'topology' ? topologyQ.error?.message
+    : tab === 'tags' ? tagsQ.error?.message
+    : automationQ.error?.message
 
   return (
     <div style={{ padding: 16 }}>
@@ -77,7 +32,7 @@ export function DocsPanel() {
 
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
         {(['topology', 'tags', 'automation'] as const).map(t => (
-          <div key={t} onClick={() => switchTab(t)} style={{
+          <div key={t} onClick={() => setTab(t)} style={{
             padding: '8px 16px', cursor: 'pointer', fontSize: 13,
             color: tab === t ? 'var(--fg)' : 'var(--muted)',
             borderBottom: tab === t ? '2px solid #f97316' : '2px solid transparent',
@@ -85,17 +40,17 @@ export function DocsPanel() {
             {t === 'topology' ? 'Topology' : t === 'tags' ? 'Tag Xref' : 'Automation'}
           </div>
         ))}
-        <a href="/api/v1/docs/export?format=pdf" target="_blank" style={{
+        <a href="/api/v1/docs/export?format=html" target="_blank" style={{
           padding: '8px 16px', fontSize: 13, color: '#f97316', cursor: 'pointer', textDecoration: 'none', fontWeight: 600,
-        }}>Export PDF ↗</a>
+        }}>Export HTML ↗</a>
       </div>
 
       {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{error}</div>}
       {loading && <div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</div>}
 
-      {!loading && tab === 'topology' && topology && <TopologyTab data={topology} />}
-      {!loading && tab === 'tags' && <TagsTab tags={tags} total={tagTotal} />}
-      {!loading && tab === 'automation' && automation && <AutomationTab data={automation} />}
+      {!loading && tab === 'topology' && topologyQ.data && <TopologyTab data={topologyQ.data} />}
+      {!loading && tab === 'tags' && tagsQ.data && <TagsTab tags={tagsQ.data.tags || []} total={tagsQ.data.total_tags || 0} />}
+      {!loading && tab === 'automation' && automationQ.data && <AutomationTab data={automationQ.data} />}
     </div>
   )
 }

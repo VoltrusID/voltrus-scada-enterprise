@@ -86,26 +86,11 @@ async fn generate_and_send(
 ) -> anyhow::Result<()> {
     let html = crate::report::generate_report_html(storage, cache, report).await?;
 
-    // Try PDF conversion, fall back to HTML
-    let (attachment_bytes, content_type, extension) =
-        match crate::report::generate_report_pdf(&html) {
-            Ok(pdf_bytes) => (pdf_bytes, "application/pdf".to_string(), "pdf".to_string()),
-            Err(e) => {
-                tracing::warn!(
-                    "PDF conversion unavailable for report '{}': {}. Sending as HTML instead.",
-                    report.name,
-                    e
-                );
-                (
-                    html.into_bytes(),
-                    "text/html".to_string(),
-                    "html".to_string(),
-                )
-            }
-        };
+    let attachment_bytes = html.into_bytes();
+    let content_type = "text/html";
+    let extension = "html";
 
     let filename = crate::report::report_filename(report);
-    let filename_with_ext = filename.replace(".html", &format!(".{}", extension));
 
     // Parse recipients
     let recipients: Vec<String> =
@@ -128,7 +113,7 @@ async fn generate_and_send(
             &report.schedule,
             &attachment_bytes,
             &content_type,
-            &filename_with_ext,
+            &filename,
         )
         .await
         {

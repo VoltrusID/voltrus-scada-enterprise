@@ -1,26 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { fetchJson } from '../queries'
-
-// ── Types ──
-
-interface IndustryInfo { id: string; name: string }
-interface TemplateSummary { id: string; name: string; industry: string; description: string; estimated_tag_count: number; equipment_units: string[] }
-interface FeedSummary { templates: TemplateSummary[] }
-
-interface FeedDetail {
-  id: string; name: string; industry: string; description: string;
-  estimated_tag_count: number; equipment_units: { name: string; quantity: string; description: string }[]
-  io_list: { signal: string; description: string; io_type: string; unit: string; data_type: string; equipment: string; criticality: string; notes: string }[]
-  alarm_strategy: { equipment: string; rules: { signal_pattern: string; severity: string; condition: string; setpoint: string; deadband: string; description: string; alarm_class: string }[] }[]
-  dashboard: { description: string; recommended_screens: { name: string; layout: string; sections: { title: string; equipment_group: string; widget_type: string; signals: string[] }[] }[] }
-  network_notes?: string
-}
-
-interface WizardResult {
-  success: boolean; device_id: string
-  tags_created: number; alarms_created: number; flows_created: number; screens_created: number; tags_discovered: number
-  warnings: string[]; next_steps: string[]
-}
+import { useState } from 'react'
+import { useFeedTemplates, useFeedTemplate, useWizardCreate } from '../queries/wizard'
+import type { FeedDetail, WizardResult } from '../queries/wizard'
 
 const industries = [
   { id: 'Water/Wastewater', name: 'Water/Wastewater' },
@@ -46,17 +26,13 @@ type Step = 'industry' | 'template' | 'device' | 'scan' | 'review' | 'result'
 
 export function ProjectWizard() {
   const [step, setStep] = useState<Step>('industry')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
   // Step 1: Industry
   const [industry, setIndustry] = useState('')
 
   // Step 2: Template
-  const [templates, setTemplates] = useState<TemplateSummary[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [templateSource, setTemplateSource] = useState<'vertical' | 'feed'>('vertical')
-  const [feedDetail, setFeedDetail] = useState<FeedDetail | null>(null)
 
   // Step 3: Device
   const [protocol, setProtocol] = useState('modbus')
@@ -77,63 +53,51 @@ export function ProjectWizard() {
   // Result
   const [result, setResult] = useState<WizardResult | null>(null)
 
-  // Load templates when industry selected
-  const loadFeedTemplates = useCallback(async () => {
-    setLoading(true)
-    try {
-      const d = await fetchJson<FeedSummary>('/wizard/feed-templates')
-      setTemplates(d.templates || [])
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [])
+  // Queries (only fetch when on template step)
+  const feedTemplatesQ = useFeedTemplates()
+  const feedDetailQ = useFeedTemplate(step === 'template' && templateSource === 'feed' ? selectedTemplate : null)
 
-  useEffect(() => { if (step === 'template' && templates.length === 0) loadFeedTemplates() }, [step])
+  // Mutation
+  const createM = useWizardCreate()
 
-  // Load feed template detail
-  const loadFeedDetail = useCallback(async (id: string) => {
-    setLoading(true)
-    try {
-      setFeedDetail(await fetchJson<FeedDetail>(`/wizard/feed-templates/${id}`))
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [])
+  const templates = feedTemplatesQ.data?.templates || []
+  const feedDetail = feedDetailQ.data ?? null
 
-  // Execute wizard
-  const execute = async () => {
-    setLoading(true); setError('')
-    try {
-      const res = await fetch('/wizard/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          template_id: templateSource === 'vertical' ? selectedTemplate : null,
-          template_source: templateSource,
-          industry,
-          device: {
-            id: deviceId || null,
-            protocol,
-            address,
-            port,
-            unit_id: unitId,
-            auto_scan: autoScan && protocol === 'modbus',
-            scan: autoScan ? {
-              register_area: regArea,
-              start_address: startAddr,
-              end_address: endAddr,
-              scan_delay_ms: 10,
-            } : null,
-          },
-          instance_counts: { n: instanceCount },
-          generate_dashboard: genDashboard,
-          generate_alarms: genAlarms,
-        }),
-        credentials: 'include' as RequestCredentials,
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Wizard failed')
-      setResult(data); setStep('result')
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
+  const loadFeedDetail = (id: string) => {
+    setSelectedTemplate(id)
+  }
+
+  const execute = () => {
+    createM.mutate(
+      {
+        template_id: templateSource === 'vertical' ? selectedTemplate : null,
+        template_source: templateSource,
+        industry,
+        device: {
+          id: deviceId || null,
+          protocol,
+          address,
+          port,
+          unit_id: unitId,
+          auto_scan: autoScan && protocol === 'modbus',
+          scan: autoScan ? {
+            register_area: regArea,
+            start_address: startAddr,
+            end_address: endAddr,
+            scan_delay_ms: 10,
+          } : null,
+        },
+        instance_counts: { n: instanceCount },
+        generate_dashboard: genDashboard,
+        generate_alarms: genAlarms,
+      },
+      {
+        onSuccess: (data) => {
+          setResult(data)
+          setStep('result')
+        },
+      },
+    )
   }
 
   const proto = protocols.find(p => p.id === protocol)!
@@ -151,6 +115,9 @@ export function ProjectWizard() {
 
   const stepIndex = ['industry', 'template', 'device', 'scan', 'review', 'result'].indexOf(step)
   const stepLabels = ['Industry', 'Template', 'Device', 'Scan', 'Review', 'Done']
+
+  const loading = feedTemplatesQ.isLoading || feedDetailQ.isLoading || createM.isPending
+  const error = feedTemplatesQ.error?.message || feedDetailQ.error?.message || createM.error?.message
 
   return (
     <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
@@ -365,7 +332,7 @@ export function ProjectWizard() {
           </div>
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
             <button onClick={() => autoScan ? setStep('scan') : setStep('device')} style={btn('← Back')}>Back</button>
-            <button onClick={execute} disabled={loading} style={btn(loading ? 'Creating…' : '🚀 Create Project', true)}>Create Project</button>
+            <button onClick={execute} disabled={createM.isPending} style={btn(createM.isPending ? 'Creating…' : '🚀 Create Project', true)}>Create Project</button>
           </div>
         </>
       )}
@@ -420,7 +387,7 @@ export function ProjectWizard() {
           </div>
 
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-            <button onClick={() => { setStep('industry'); setResult(null); setSelectedTemplate(null); setFeedDetail(null) }} style={btn('Create Another')}>Create Another</button>
+            <button onClick={() => { setStep('industry'); setResult(null); setSelectedTemplate(null) }} style={btn('Create Another')}>Create Another</button>
             <button onClick={() => window.location.reload()} style={btn('Go to Dashboard →', true)}>Go to Dashboard</button>
           </div>
         </>

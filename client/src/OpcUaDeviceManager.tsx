@@ -11,7 +11,7 @@ import {
   useStartOpcUaDevice,
   useStopOpcUaDevice,
 } from './queries/opcua'
-import { inputStyle, touchBtnStyle, btnStyle } from './styles'
+import { inputStyle, btnStyle } from './styles'
 import type { OpcUaDevice, OpcUaNode, BrowseResult } from './queries/opcua'
 
 export function OpcUaDeviceManager({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
@@ -125,7 +125,7 @@ export function OpcUaDeviceManager({ onClose, embedded }: { onClose: () => void;
             style={{ ...inputStyle, width: 200 }}
           />
           <button
-            style={{ ...touchBtnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
+            style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
             onClick={() => setShowForm(f => !f)}
             aria-label="Add OPC-UA device"
           >
@@ -172,7 +172,7 @@ export function OpcUaDeviceManager({ onClose, embedded }: { onClose: () => void;
             <input name="interval_ms" type="number" min={100} defaultValue={1000} style={inputStyle} />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <button type="submit" style={touchBtnStyle} disabled={createMut.isPending}>
+            <button type="submit" style={btnStyle} disabled={createMut.isPending}>
               {createMut.isPending ? 'Creating...' : 'Create'}
             </button>
             <button type="button" style={{ ...btnStyle }} onClick={() => setShowForm(false)}>Cancel</button>
@@ -401,7 +401,9 @@ function BrowseDialog({ isLoading, results, selectedNodes, onToggleNode, onAdd, 
       <div style={modalStyle} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 600 }}>Browse Server Nodes</h2>
-          <button onClick={onClose} style={{ ...btnStyle, padding: '4px 8px' }} aria-label="Close browse dialog">X</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, transition: 'color 0.15s' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
 
         {isLoading ? (
@@ -451,7 +453,7 @@ function BrowseDialog({ isLoading, results, selectedNodes, onToggleNode, onAdd, 
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={btnStyle} onClick={onClose}>Cancel</button>
             <button
-              style={{ ...touchBtnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
+              style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
               onClick={onAdd}
               disabled={selectedNodes.size === 0}
             >

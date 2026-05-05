@@ -22,6 +22,11 @@ let DashboardSettings = class DashboardSettings extends LitElement {
         this._shortcuts = {};
         this._navShortcuts = {};
         this._saving = false;
+        this._apiKeys = [];
+        this._newKeyName = '';
+        this._newKeyExpiry = 365;
+        this._generatedKey = '';
+        this._apiKeyError = '';
         this._navActions = [
             { key: 'grid', label: 'Grid View' },
             { key: 'canvas', label: 'Canvas View' },
@@ -103,6 +108,50 @@ let DashboardSettings = class DashboardSettings extends LitElement {
             this._navShortcuts = await api('/nav-shortcuts');
         }
         catch { /* ignore */ }
+        await this._loadApiKeys();
+    }
+    async _loadApiKeys() {
+        try {
+            const res = await api('/api-keys');
+            this._apiKeys = res?.keys || [];
+        }
+        catch {
+            this._apiKeys = [];
+        }
+    }
+    async _createApiKey() {
+        this._apiKeyError = '';
+        this._generatedKey = '';
+        if (!this._newKeyName.trim()) {
+            this._apiKeyError = 'Name is required';
+            return;
+        }
+        try {
+            const body = { name: this._newKeyName.trim(), permissions: '["read"]' };
+            if (this._newKeyExpiry > 0) {
+                body.expires_at = Math.floor(Date.now() / 1000) + this._newKeyExpiry * 86400;
+            }
+            const res = await api('/api-keys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            this._generatedKey = res.key || '';
+            this._newKeyName = '';
+            await this._loadApiKeys();
+        }
+        catch (e) {
+            this._apiKeyError = e?.message || 'Failed to create key';
+        }
+    }
+    async _revokeApiKey(id) {
+        if (!confirm('Revoke this API key? It will stop working immediately.'))
+            return;
+        try {
+            await fetchOk(`/api/v1/api-keys/${id}`, { method: 'DELETE' });
+            await this._loadApiKeys();
+        }
+        catch { /* ignore */ }
     }
     _setAgg(a) {
         this._agg = a;
@@ -170,6 +219,7 @@ let DashboardSettings = class DashboardSettings extends LitElement {
             <button class="${this._tab === 'general' ? 'active' : ''}" @click="${() => this._tab = 'general'}">General</button>
             <button class="${this._tab === 'branding' ? 'active' : ''}" @click="${() => this._tab = 'branding'}">Branding</button>
             <button class="${this._tab === 'shortcuts' ? 'active' : ''}" @click="${() => this._tab = 'shortcuts'}">Shortcuts</button>
+            <button class="${this._tab === 'apikeys' ? 'active' : ''}" @click="${() => { this._tab = 'apikeys'; this._loadApiKeys(); }}">API Keys</button>
           </div>
           <div class="body">
             ${this._tab === 'general' ? html `
@@ -227,6 +277,37 @@ let DashboardSettings = class DashboardSettings extends LitElement {
               ${this._sensors.length > 20 ? html `<div style="font-size:11px;color:var(--muted)">Showing first 20 sensors.</div>` : ''}
               <button class="save-btn" @click="${this._saveShortcuts}" .disabled="${this._saving}">${this._saving ? 'Saving...' : 'Save Shortcuts'}</button>
             ` : ''}
+            ${this._tab === 'apikeys' ? html `
+              <div class="section-title">Create New API Key</div>
+              <div class="row">
+                <span class="label">Key Name</span>
+                <input type="text" .value="${this._newKeyName}" @input="${(e) => this._newKeyName = e.target.value}" placeholder="e.g. Grafana Integration" />
+              </div>
+              <div class="row">
+                <span class="label">Expires In (days)</span>
+                <input type="text" .value="${String(this._newKeyExpiry)}" @input="${(e) => this._newKeyExpiry = parseInt(e.target.value) || 365}" />
+              </div>
+              ${this._apiKeyError ? html `<div style="font-size:11px;color:var(--red);margin-bottom:8px">${this._apiKeyError}</div>` : ''}
+              ${this._generatedKey ? html `
+                <div style="background:var(--bg);border:1px solid var(--warn);border-radius:6px;padding:10px;margin-bottom:12px">
+                  <div style="font-size:11px;color:var(--warn);margin-bottom:4px;font-weight:600">⚠️ COPY THIS KEY NOW — IT WILL NOT BE SHOWN AGAIN</div>
+                  <div style="font-size:12px;font-family:'JetBrains Mono',monospace;word-break:break-all;color:var(--fg)">${this._generatedKey}</div>
+                </div>
+              ` : ''}
+              <button class="save-btn" @click="${this._createApiKey}">Generate API Key</button>
+              ${this._apiKeys.length > 0 ? html `
+                <div class="section-title">Active API Keys (${this._apiKeys.length})</div>
+                ${this._apiKeys.map(k => html `
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+                    <div>
+                      <div style="font-size:13px;color:var(--fg)">${k.name}</div>
+                      <div style="font-size:10px;color:var(--muted)">${k.key_prefix}... · Created ${new Date(k.created_at * 1000).toLocaleDateString()}${k.expires_at ? ' · Expires ' + new Date(k.expires_at * 1000).toLocaleDateString() : ' · No expiry'}</div>
+                    </div>
+                    <button @click="${() => this._revokeApiKey(k.id)}" style="background:transparent;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-family:inherit">Revoke</button>
+                  </div>
+                `)}
+              ` : html `<div style="font-size:11px;color:var(--muted);margin-top:12px">No API keys created yet.</div>`}
+            ` : ''}
           </div>
           <button class="close-btn" @click="${this._close}">Close</button>
         </div>
@@ -264,6 +345,21 @@ __decorate([
 __decorate([
     state()
 ], DashboardSettings.prototype, "_saving", void 0);
+__decorate([
+    state()
+], DashboardSettings.prototype, "_apiKeys", void 0);
+__decorate([
+    state()
+], DashboardSettings.prototype, "_newKeyName", void 0);
+__decorate([
+    state()
+], DashboardSettings.prototype, "_newKeyExpiry", void 0);
+__decorate([
+    state()
+], DashboardSettings.prototype, "_generatedKey", void 0);
+__decorate([
+    state()
+], DashboardSettings.prototype, "_apiKeyError", void 0);
 DashboardSettings = __decorate([
     customElement('vlt-dashboard-settings')
 ], DashboardSettings);

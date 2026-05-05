@@ -1,31 +1,10 @@
-import React, { useEffect, useState } from 'react';
-
-interface DeadbandEntry {
-  device_id: string;
-  metric: string;
-  deadband_type: string;
-  deadband_value: number;
-}
+import React from 'react';
+import { useCompressionDeadband } from '../queries/compression';
 
 export const DeadbandConfig: React.FC = () => {
-  const [entries, setEntries] = useState<DeadbandEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: entries, isLoading } = useCompressionDeadband();
 
-  useEffect(() => {
-    const fetchConfigs = async () => {
-      try {
-        const res = await fetch('/api/v1/compression/deadband');
-        if (res.ok) setEntries(await res.json());
-      } catch (err) {
-        console.error('Failed to fetch deadband configs:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchConfigs();
-  }, []);
-
-  if (loading) return <div className="p-4 text-gray-400">Loading deadband config...</div>;
+  if (isLoading) return <div className="p-4 text-gray-400">Loading deadband config...</div>;
 
   return (
     <div className="p-4">
@@ -40,7 +19,7 @@ export const DeadbandConfig: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry, i) => (
+          {(entries || []).map((entry, i) => (
             <tr key={i} className="border-b border-gray-800">
               <td className="py-2 text-gray-300">{entry.device_id}</td>
               <td className="py-2 text-gray-300">{entry.metric}</td>
@@ -48,7 +27,7 @@ export const DeadbandConfig: React.FC = () => {
               <td className="py-2 text-right text-gray-300">{entry.deadband_value}</td>
             </tr>
           ))}
-          {entries.length === 0 && (
+          {(!entries || entries.length === 0) && (
             <tr>
               <td colSpan={4} className="py-4 text-center text-gray-500">
                 Using defaults (0.1% analog, 0 digital)

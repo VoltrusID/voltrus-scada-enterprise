@@ -219,8 +219,11 @@ function Dnp3ScanPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div style={{ marginBottom: 16, padding: 16, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
-        Network Discovery
+      <div style={{ display: 'flex', alignItems: 'center', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>Network Discovery</span>
+        <button onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, transition: 'color 0.15s' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'end', marginBottom: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -238,7 +241,6 @@ function Dnp3ScanPanel({ onClose }: { onClose: () => void }) {
         >
           {scanMut.isPending ? 'Scanning...' : 'Scan'}
         </button>
-        <button onClick={onClose} style={{ ...btnStyle }}>Close</button>
       </div>
       {scanMut.isError && (
         <div style={{ color: 'var(--crit)', fontSize: 12, marginBottom: 8 }}>Scan failed: {String(scanMut.error)}</div>

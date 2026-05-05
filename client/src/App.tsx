@@ -1,25 +1,14 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
 import { LicenseActivationScreen } from './LicenseActivationScreen'
-import { DashboardSettings } from './DashboardSettings'
-import { SensorDetail } from './SensorDetail'
-import { DataManager } from './DataManager'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
-import { AlarmPanel } from './AlarmPanel'
-import { AnnotationPanel } from './AnnotationPanel'
-import { ShiftHandoverPanel } from './ShiftHandoverPanel'
-import { DataExportPanel } from './DataExportPanel'
-import { ShortcutsConfigPanel } from './ShortcutsConfigPanel'
-import { CommandPanel } from './components/CommandPanel'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
 import { ScreenTabs } from './components/ScreenTabs'
-import { SystemPanel } from './components/SystemPanel'
-import { FlowManager } from './FlowManager'
 import { LayoutBreakpointSelector } from './components/LayoutBreakpointSelector'
 import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
@@ -31,17 +20,30 @@ import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, u
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { TrialBanner } from './TrialBanner'
 import { HaBanner } from './components/HaBanner'
-import { ConfigSnapshotPanel } from './components/ConfigSnapshotPanel'
+import { OverlayScreen } from './components/OverlayScreen'
 import { VoltrusWebSocket } from './api/websocket'
 import { ThemeProvider } from './ThemeContext'
 import { useTranslation } from 'react-i18next'
-import { TagBrowser } from './TagBrowser'
-import { AuditLogPanel } from './AuditLogPanel'
-import { DataImportWizard } from './DataImportWizard'
-import { NodeRedImportWizard } from './NodeRedImportWizard'
-import { MqttBrokerPanel } from './MqttBrokerPanel'
-import { AssetInventory } from './views/AssetInventory'
-import { EdrCompatPanel } from './EdrCompatPanel'
+
+// Lazy-loaded heavy components — only fetched when opened
+const DashboardSettings = lazy(() => import('./DashboardSettings').then(m => ({ default: m.DashboardSettings })))
+const SensorDetail = lazy(() => import('./SensorDetail').then(m => ({ default: m.SensorDetail })))
+const DataManager = lazy(() => import('./DataManager').then(m => ({ default: m.DataManager })))
+const AlarmPanel = lazy(() => import('./AlarmPanel').then(m => ({ default: m.AlarmPanel })))
+const ShiftHandoverPanel = lazy(() => import('./ShiftHandoverPanel').then(m => ({ default: m.ShiftHandoverPanel })))
+const DataExportPanel = lazy(() => import('./DataExportPanel').then(m => ({ default: m.DataExportPanel })))
+const ShortcutsConfigPanel = lazy(() => import('./ShortcutsConfigPanel').then(m => ({ default: m.ShortcutsConfigPanel })))
+const CommandPanel = lazy(() => import('./components/CommandPanel').then(m => ({ default: m.CommandPanel })))
+const SystemPanel = lazy(() => import('./components/SystemPanel').then(m => ({ default: m.SystemPanel })))
+const FlowManager = lazy(() => import('./FlowManager').then(m => ({ default: m.FlowManager })))
+const TagBrowser = lazy(() => import('./TagBrowser').then(m => ({ default: m.TagBrowser })))
+const AssetInventory = lazy(() => import('./views/AssetInventory').then(m => ({ default: m.AssetInventory })))
+const ConfigSnapshotPanel = lazy(() => import('./components/ConfigSnapshotPanel').then(m => ({ default: m.ConfigSnapshotPanel })))
+const AuditLogPanel = lazy(() => import('./AuditLogPanel').then(m => ({ default: m.AuditLogPanel })))
+const DataImportWizard = lazy(() => import('./DataImportWizard').then(m => ({ default: m.DataImportWizard })))
+const NodeRedImportWizard = lazy(() => import('./NodeRedImportWizard').then(m => ({ default: m.NodeRedImportWizard })))
+const MqttBrokerPanel = lazy(() => import('./MqttBrokerPanel').then(m => ({ default: m.MqttBrokerPanel })))
+const EdrCompatPanel = lazy(() => import('./EdrCompatPanel').then(m => ({ default: m.EdrCompatPanel })))
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -87,7 +89,6 @@ function AppInner() {
   const [showAlarmPanel, setShowAlarmPanel] = useState(false)
   const [showCommandPanel, setShowCommandPanel] = useState(false)
   const [showExportPanel, setShowExportPanel] = useState(false)
-  const [showAnnotationPanel, setShowAnnotationPanel] = useState(false)
   const [showShiftHandover, setShowShiftHandover] = useState(false)
   const [showSnapshotPanel, setShowSnapshotPanel] = useState(false)
   const [showAuditPanel, setShowAuditPanel] = useState(false)
@@ -458,7 +459,6 @@ function AppInner() {
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
         onCommandPanelToggle={() => setShowCommandPanel(v => !v)}
         onExportClick={() => setShowExportPanel(true)}
-        onAnnotationPanelToggle={() => setShowAnnotationPanel(v => !v)}
         onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
         onSnapshotsClick={() => setShowSnapshotPanel(v => !v)}
         onAuditPanelToggle={() => setShowAuditPanel(v => !v)}
@@ -469,7 +469,7 @@ function AppInner() {
       />
       </header>
 
-      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', position: 'relative' }} className="main-content">
+      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px', display: 'flex', flexDirection: 'column', position: 'relative' }} className="main-content">
         <ScreenTabs
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
@@ -495,10 +495,10 @@ function AppInner() {
           display: 'flex',
           flexDirection: 'column',
         }}>
-          {mode === 'system' && <SystemPanel systemInfo={effectiveSystemInfo} />}
-          {mode === 'flows' && <FlowManager isAdmin={isAdmin} />}
-          {mode === 'tags' && <TagBrowser isAdmin={isAdmin} />}
-          {mode === 'assets' && <AssetInventory />}
+          {mode === 'system' && <Suspense fallback={null}><SystemPanel systemInfo={effectiveSystemInfo} /></Suspense>}
+          {mode === 'flows' && <Suspense fallback={null}><FlowManager isAdmin={isAdmin} /></Suspense>}
+          {mode === 'tags' && <Suspense fallback={null}><TagBrowser isAdmin={isAdmin} /></Suspense>}
+          {mode === 'assets' && <Suspense fallback={null}><AssetInventory /></Suspense>}
           {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && (
             <MainContent
               viewMode={viewMode} mode={mode}
@@ -549,52 +549,37 @@ function AppInner() {
           }}>
             {(() => {
               const s = sensors.find(x => x.id === selectedSensor)
-              return s ? <SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} isAdmin={isAdmin} /> : null
+              return s ? <Suspense fallback={null}><SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} isAdmin={isAdmin} /></Suspense> : null
             })()}
           </div>
         )}
 
 
 
-        {showDashSettings && <DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted) }} />}
-        {showDataManager && <DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdmin} />}
+        {showDashSettings && <Suspense fallback={null}><DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted) }} /></Suspense>}
+        {showDataManager && <Suspense fallback={null}><DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdmin} /></Suspense>}
         {showAddDialog && activeScreen !== 'all' && (
           <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => { setShowAddDialog(false); queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] }); queryClient.invalidateQueries({ queryKey: ['sensors'] }) }} />
         )}
         {screenPrompt && <PromptDialog {...screenPrompt} onClose={() => setScreenPrompt(null)} />}
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
-        {showAlarmPanel && <AlarmPanel onClose={() => setShowAlarmPanel(false)} />}
-        {showCommandPanel && <CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} />}
-        {showExportPanel && <DataExportPanel onClose={() => setShowExportPanel(false)} />}
-        {showAnnotationPanel && <AnnotationPanel onClose={() => setShowAnnotationPanel(false)} />}
-        {showShiftHandover && <ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} />}
+        {showAlarmPanel && <Suspense fallback={null}><AlarmPanel onClose={() => setShowAlarmPanel(false)} /></Suspense>}
+        {showCommandPanel && <Suspense fallback={null}><CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} /></Suspense>}
+        {showExportPanel && <Suspense fallback={null}><DataExportPanel onClose={() => setShowExportPanel(false)} /></Suspense>}
+        {showShiftHandover && <Suspense fallback={null}><ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} /></Suspense>}
         {showSnapshotPanel && (
-          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{t('snapshots.title')}</h2>
-              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowSnapshotPanel(false)}>{t('common.close')}</button>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <ConfigSnapshotPanel />
-            </div>
-          </div>
+          <OverlayScreen title={t('snapshots.title')} onClose={() => setShowSnapshotPanel(false)}>
+            <Suspense fallback={null}><ConfigSnapshotPanel /></Suspense>
+          </OverlayScreen>
         )}
         {showAuditPanel && (
-          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Audit Log</h2>
-              <button style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }} onClick={() => setShowAuditPanel(false)}>Close</button>
-            </div>
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <AuditLogPanel />
-            </div>
-          </div>
+          <Suspense fallback={null}><AuditLogPanel onClose={() => setShowAuditPanel(false)} /></Suspense>
         )}
-        {showImportWizard && <DataImportWizard onClose={() => setShowImportWizard(false)} />}
-        {showNodeRedWizard && <NodeRedImportWizard onClose={() => setShowNodeRedWizard(false)} />}
-        {showMqttPanel && <MqttBrokerPanel onClose={() => setShowMqttPanel(false)} />}
-        {showEdrPanel && <EdrCompatPanel onClose={() => setShowEdrPanel(false)} />}
+        {showImportWizard && <Suspense fallback={null}><DataImportWizard onClose={() => setShowImportWizard(false)} /></Suspense>}
+        {showNodeRedWizard && <Suspense fallback={null}><NodeRedImportWizard onClose={() => setShowNodeRedWizard(false)} /></Suspense>}
+        {showMqttPanel && <Suspense fallback={null}><MqttBrokerPanel onClose={() => setShowMqttPanel(false)} /></Suspense>}
+        {showEdrPanel && <Suspense fallback={null}><EdrCompatPanel onClose={() => setShowEdrPanel(false)} /></Suspense>}
       </main>
 
       <Footer />

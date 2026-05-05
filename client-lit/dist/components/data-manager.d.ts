@@ -10,6 +10,11 @@ export declare class DataManager extends LitElement {
     private _modbusDevices;
     private _modbusFilter;
     private _users;
+    private _scanRange;
+    private _scanPort;
+    private _scanning;
+    private _scanResults;
+    private _showScanResults;
     private _userFilter;
     connectedCallback(): void;
     disconnectedCallback(): void;
@@ -22,6 +27,7 @@ export declare class DataManager extends LitElement {
     private _duplicateSensor;
     private _deleteUser;
     private _deleteModbus;
+    private _scanNetwork;
     private _close;
     private _sourcesTab;
     private _modbusTab;

@@ -46,6 +46,7 @@ let AppShell = class AppShell extends LitElement {
         this._authRole = 'user';
         this._systemInfo = {};
         this._licenseValid = true;
+        this._licenseCheckDone = false;
         this._onAuth = () => {
             const s = authManager.state;
             this._authed = s.authed;
@@ -162,9 +163,10 @@ let AppShell = class AppShell extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._readUrlParams();
-        this._checkLicense();
         authManager.addEventListener('change', this._onAuth);
         authManager.check();
+        // Defer license check to avoid blocking initial render
+        setTimeout(() => this._checkLicense(), 1000);
         this._loadScreens();
         this._loadAllSensors();
         this._loadBranding();

@@ -11,9 +11,17 @@ export declare class DashboardSettings extends LitElement {
     private _shortcuts;
     private _navShortcuts;
     private _saving;
+    private _apiKeys;
+    private _newKeyName;
+    private _newKeyExpiry;
+    private _generatedKey;
+    private _apiKeyError;
     private _navActions;
     connectedCallback(): void;
     private _load;
+    private _loadApiKeys;
+    private _createApiKey;
+    private _revokeApiKey;
     private _setAgg;
     private _toggleMute;
     private _saveBranding;

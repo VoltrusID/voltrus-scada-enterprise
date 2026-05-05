@@ -1,3 +1,4 @@
+import { authManager } from './auth.js';
 /**
  * Backend base URL — derived from current origin so it works
  * regardless of server port or hostname.
@@ -66,7 +67,8 @@ async function fetchWithRefresh(url, init) {
         if (ok) {
             return fetch(url, { credentials: 'include', ...init });
         }
-        window.location.href = '/login';
+        // Let the auth manager handle state — don't hard-redirect
+        authManager.check();
         throw new Error('Session expired');
     }
     return r;

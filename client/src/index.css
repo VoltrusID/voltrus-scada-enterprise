@@ -102,6 +102,10 @@ input[type="color"] {
   transition-property: left, top, width, height;
 }
 
+.react-grid-item > div {
+  height: 100%;
+}
+
 .react-grid-item.cssTransforms {
   transition-property: transform, width, height;
 }
@@ -279,6 +283,11 @@ input, textarea, [contenteditable] {
 }
 .skip-to-content:focus {
   top: 0;
+}
+
+/* Navigation header */
+nav[role="navigation"] button:hover {
+  opacity: 0.85;
 }
 
 /* Mobile navigation drawer */

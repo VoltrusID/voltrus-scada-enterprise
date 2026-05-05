@@ -10,7 +10,7 @@ import {
   useStreamInfo,
 } from './queries/video'
 import type { Camera, CameraSnapshot } from './queries/video'
-import { inputStyle, touchBtnStyle, btnStyle } from './styles'
+import { inputStyle, btnStyle } from './styles'
 import { useLicense } from './LicenseContext'
 import { FeatureBadge } from './components/FeatureBadge'
 
@@ -223,7 +223,7 @@ function CameraEditForm({ camera, onSave, onCancel }: {
         </label>
       </div>
       <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
-        <button type="submit" style={touchBtnStyle}>Save</button>
+        <button type="submit" style={btnStyle}>Save</button>
         <button type="button" style={btnStyle} onClick={onCancel}>Cancel</button>
       </div>
     </form>
@@ -332,7 +332,7 @@ export function CameraManager({ onClose, embedded }: { onClose: () => void; embe
             style={{ ...inputStyle, width: 200 }}
           />
           <button
-            style={{ ...touchBtnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
+            style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
             onClick={() => setShowForm(f => !f)}
             aria-label="Add camera"
           >
@@ -370,7 +370,7 @@ export function CameraManager({ onClose, embedded }: { onClose: () => void; embe
             <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#e74c3c' }}>{formError}</div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="submit" style={touchBtnStyle} disabled={createMut.isPending}>
+            <button type="submit" style={btnStyle} disabled={createMut.isPending}>
               {createMut.isPending ? 'Adding...' : 'Add Camera'}
             </button>
             <button type="button" style={btnStyle} onClick={() => { setShowForm(false); setFormError('') }}>Cancel</button>

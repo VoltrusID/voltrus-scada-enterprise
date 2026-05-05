@@ -7,7 +7,7 @@ import {
   useGenerateReport,
 } from './queries/reports'
 import type { Report } from './queries/reports'
-import { inputStyle, touchBtnStyle, btnStyle } from './styles'
+import { inputStyle, btnStyle } from './styles'
 import { useLicense } from './LicenseContext'
 import { FeatureBadge } from './components/FeatureBadge'
 
@@ -230,7 +230,7 @@ export function ReportManager({ onClose, embedded }: { onClose: () => void; embe
             style={{ ...inputStyle, width: 200 }}
           />
           <button
-            style={{ ...touchBtnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
+            style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
             onClick={() => setShowForm(f => !f)}
             aria-label="Add report"
           >
@@ -268,7 +268,7 @@ export function ReportManager({ onClose, embedded }: { onClose: () => void; embe
             </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', gap: 8 }}>
-            <button type="submit" style={touchBtnStyle} disabled={createMut.isPending}>
+            <button type="submit" style={btnStyle} disabled={createMut.isPending}>
               {createMut.isPending ? 'Creating...' : 'Create Report'}
             </button>
             <button type="button" style={btnStyle} onClick={() => setShowForm(false)}>Cancel</button>
@@ -335,7 +335,7 @@ export function ReportManager({ onClose, embedded }: { onClose: () => void; embe
                       </td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          <button type="submit" form={`edit-${r.id}`} style={touchBtnStyle} disabled={updateMut.isPending}>
+                          <button type="submit" form={`edit-${r.id}`} style={btnStyle} disabled={updateMut.isPending}>
                             {updateMut.isPending ? 'Saving...' : 'Save'}
                           </button>
                           <button type="button" style={btnStyle} onClick={() => setEditState(null)}>Cancel</button>

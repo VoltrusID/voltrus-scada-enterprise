@@ -1,11 +1,12 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { SensorConfig } from './types';
-import { stColor, btnStyle, safeMinMax, displayShortcut } from './styles';
-import { TvDetailChart, OverlaySeries } from './TvDetailChart';
+import { stColor, btnStyle, safeMinMax, displayShortcut, inputStyle, labelTextStyle } from './styles';
+import { TvDetailChart, OverlaySeries, AnnotationMarker } from './TvDetailChart';
 import { HistoryRangeBar } from './CustomRangePicker';
 import { useDetailData, useSensorCurrentValue, useDashboardSelector } from './store/dashboardStore';
 import { WriteDialog } from './components/WriteDialog';
 import { WritePolicyEditor } from './components/WritePolicyEditor';
+import { useAnnotations, useCreateAnnotation, useDeleteAnnotation } from './queries/annotations';
 import type { WritePolicy } from './api/commands';
 
 export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, historyDetail, onDetailChange, historyAutoAgg, shortcuts, mode, onModeChange, allSensors, isAdmin }: {
@@ -32,6 +33,39 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
   const [showWriteDialog, setShowWriteDialog] = useState(false);
   const [writePolicy, setWritePolicy] = useState<WritePolicy | null>(null);
   const [showPolicyEditor, setShowPolicyEditor] = useState(false);
+
+  // ── Annotation state ──
+  const [annotationTime, setAnnotationTime] = useState<number | null>(null)
+  const [annotationText, setAnnotationText] = useState('')
+  const [annotationPopoverPos, setAnnotationPopoverPos] = useState<{ x: number; y: number } | null>(null)
+  const [showAnnotationList, setShowAnnotationList] = useState(false)
+
+  const { data: annotationsData } = useAnnotations({ tag_id: sensor.key })
+  const annotations = annotationsData?.annotations ?? []
+  const createAnnotationMut = useCreateAnnotation()
+  const deleteAnnotationMut = useDeleteAnnotation()
+
+  const chartAnnotations: AnnotationMarker[] = useMemo(() =>
+    annotations.map(a => ({ id: a.id, time: a.data_timestamp, text: a.annotation_text })),
+    [annotations]
+  )
+
+  const handleAnnotationClick = useCallback((time: number) => {
+    setAnnotationTime(time)
+    setAnnotationText('')
+  }, [])
+
+  const handleCreateAnnotation = () => {
+    if (!annotationText.trim() || annotationTime === null) return
+    createAnnotationMut.mutate(
+      { tag_id: sensor.key, annotation_text: annotationText.trim(), data_timestamp: Math.floor(annotationTime) },
+      { onSuccess: () => { setAnnotationTime(null); setAnnotationText('') } }
+    )
+  }
+
+  const handleDeleteAnnotation = (id: number) => {
+    deleteAnnotationMut.mutate(id)
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onBack(); };
@@ -188,8 +222,129 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
             )}
           </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <TvDetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} />
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <TvDetailChart data={data} color={sensor.color} warn={sensor.warn_val} crit={sensor.crit_val} unit={sensor.unit} overlays={overlays} annotations={chartAnnotations} onAnnotationClick={handleAnnotationClick} />
+
+          {/* Top-left toolbar: hint + notes toggle */}
+          <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 6, zIndex: 5 }}>
+            <div style={{
+              fontSize: 10, color: 'var(--muted)',
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 4, padding: '2px 8px', opacity: 0.7,
+            }}>
+              Right-click to annotate
+            </div>
+            {annotations.length > 0 && (
+              <button
+                onClick={() => setShowAnnotationList(v => !v)}
+                style={{
+                  ...btnStyle, fontSize: 11, padding: '4px 10px',
+                  borderColor: showAnnotationList ? '#60a5fa' : 'var(--border)',
+                  color: showAnnotationList ? '#60a5fa' : 'var(--muted)',
+                  background: 'var(--card)',
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                {annotations.length} note{annotations.length !== 1 ? 's' : ''}
+              </button>
+            )}
+          </div>
+
+          {/* Annotation list panel */}
+          {showAnnotationList && annotations.length > 0 && (
+            <div style={{
+              position: 'absolute', top: 40, left: 8, width: 320, maxHeight: 280,
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 8, overflow: 'hidden', zIndex: 5,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{
+                padding: '10px 14px', borderBottom: '1px solid var(--border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Annotations</span>
+                <button
+                  onClick={() => setShowAnnotationList(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}
+                >&times;</button>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {annotations.map(ann => (
+                  <div key={ann.id} style={{
+                    padding: '8px 14px', borderBottom: '1px solid var(--border)',
+                    fontSize: 12, display: 'flex', gap: 8, alignItems: 'flex-start',
+                    transition: 'background 0.1s',
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover-overlay)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  >
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%', background: '#60a5fa',
+                      flexShrink: 0, marginTop: 5,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>
+                        {new Date(ann.data_timestamp * 1000).toLocaleString()}
+                      </div>
+                      <div style={{ marginTop: 2, lineHeight: 1.4 }}>{ann.annotation_text}</div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteAnnotation(ann.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 11, padding: 2, opacity: 0.5, flexShrink: 0 }}
+                      title="Delete annotation"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Right-click annotation popover */}
+          {annotationTime !== null && (
+            <div style={{
+              position: 'absolute', top: 12, right: 12, width: 280,
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 8, padding: 14, zIndex: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Add Note</span>
+                </div>
+                <button onClick={() => setAnnotationTime(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}>&times;</button>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>
+                {new Date(annotationTime * 1000).toLocaleString()}
+              </div>
+              <textarea
+                autoFocus
+                value={annotationText}
+                onChange={e => setAnnotationText(e.target.value)}
+                placeholder="Annotation text..."
+                rows={2}
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 48, marginBottom: 8 }}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleCreateAnnotation() }}
+              />
+              <button
+                onClick={handleCreateAnnotation}
+                disabled={!annotationText.trim() || createAnnotationMut.isPending}
+                style={{
+                  ...btnStyle, width: '100%', justifyContent: 'center',
+                  borderColor: 'var(--cyan)', color: 'var(--cyan)',
+                  opacity: (!annotationText.trim() || createAnnotationMut.isPending) ? 0.5 : 1,
+                }}
+              >
+                {createAnnotationMut.isPending ? 'Saving...' : 'Save Annotation'}
+                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>⌘+Enter</span>
+              </button>
+              {createAnnotationMut.isError && (
+                <div style={{ fontSize: 11, color: 'var(--crit)', marginTop: 6 }}>{createAnnotationMut.error?.message || 'Failed'}</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

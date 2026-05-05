@@ -388,6 +388,7 @@ export function AlarmPanel({ onClose }: Props) {
     getScrollElement: () => parentRef.current,
     estimateSize: () => isMobile ? 120 : 100,
     overscan: 5,
+    measureElement: (el) => el?.getBoundingClientRect().height ?? (isMobile ? 120 : 100),
   })
 
   // Escape key closes the panel
@@ -423,12 +424,12 @@ export function AlarmPanel({ onClose }: Props) {
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '12px 16px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
           <span style={{ fontSize: isMobile ? 17 : 15, fontWeight: 700 }}>Alarms</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => ackAllMut.mutate()} aria-label="Acknowledge all alarms" style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid var(--warn)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 11, fontWeight: 600, minHeight: 44 }}>Ack All</button>
-            <button onClick={onClose} aria-label="Close alarm panel" style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, padding: '0 4px', minHeight: 44, minWidth: 44 }}>&times;</button>
-          </div>
+          <button onClick={() => ackAllMut.mutate()} aria-label="Acknowledge all alarms" style={{ marginLeft: 10, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--warn)', background: 'transparent', color: 'var(--warn)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Ack All</button>
+          <button onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, transition: 'color 0.15s' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
 
         {/* Summary header badges */}
@@ -512,23 +513,23 @@ export function AlarmPanel({ onClose }: Props) {
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           {isActive && !isShelved && (
                             <button onClick={() => ackMut.mutate(alarm.id)} aria-label={`Acknowledge alarm: ${alarm.source_name}`} style={{
-                              padding: '8px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                              border: `1px solid ${sevColor}`, background: 'transparent', color: sevColor, minHeight: 44,
+                              padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                              border: `1px solid ${sevColor}`, background: 'transparent', color: sevColor,
                             }}>Acknowledge</button>
                           )}
 
                           {/* Shelf / Unshelf controls */}
                           {isActive && !isShelved && (
                             <button onClick={() => setShelfTarget(shelfTarget === alarm.id ? null : alarm.id)} style={{
-                              padding: '8px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                              border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', minHeight: 44,
+                              padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                              border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)',
                             }}>Shelf</button>
                           )}
                           {isShelved && (
                             <button onClick={() => unshelfMut.mutate(alarm.id)} disabled={unshelfMut.isPending} style={{
-                              padding: '8px 14px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                              padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                               border: '1px solid #94a3b8', background: 'transparent', color: '#94a3b8',
-                              minHeight: 44, opacity: unshelfMut.isPending ? 0.6 : 1,
+                              opacity: unshelfMut.isPending ? 0.6 : 1,
                             }}>Unshelf</button>
                           )}
                         </div>
@@ -545,10 +546,15 @@ export function AlarmPanel({ onClose }: Props) {
                     )
 
                     return (
-                      <div key={alarm.id} style={{
-                        position: 'absolute', top: 0, left: 0, width: '100%',
-                        transform: `translateY(${virtualItem.start}px)`,
-                      }}>
+                      <div
+                        key={alarm.id}
+                        ref={virtualizer.measureElement}
+                        data-index={virtualItem.index}
+                        style={{
+                          position: 'absolute', top: 0, left: 0, width: '100%',
+                          transform: `translateY(${virtualItem.start}px)`,
+                        }}
+                      >
                         <SwipeableAlarmRow
                           alarm={alarm}
                           isMobile={isMobile}

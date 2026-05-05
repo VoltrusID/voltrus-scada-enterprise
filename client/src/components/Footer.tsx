@@ -1,18 +1,15 @@
-import { useEffect, useState } from 'react'
 import { useSseConnected } from '../store/dashboardStore'
+import { useVersion } from '../queries/version'
 
 export function Footer() {
   const sseConnected = useSseConnected()
-  const [version, setVersion] = useState('')
-  useEffect(() => {
-    fetch('/api/v1/version').then(r => r.json()).then(d => setVersion(d.version)).catch(() => {})
-  }, [])
+  const { data: versionData } = useVersion()
 
   return (
-    <div style={{ position: 'fixed', bottom: 12, right: 12, display: 'flex', alignItems: 'center', gap: 8, zIndex: 51 }}>
-      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={{ position: 'fixed', bottom: 12, right: 12, display: 'flex', alignItems: 'center', gap: 6, zIndex: 51 }}>
+      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
         <span style={{ color: 'var(--cyan)', fontWeight: 600 }}>Voltrus Lite</span>
-        {version && <span style={{ opacity: 0.6 }}>v{version}</span>}
+        {versionData?.version && <span style={{ opacity: 0.6 }}>v{versionData.version}</span>}
       </div>
       <a href="https://joyodigitama.com" target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'Inter,sans-serif', fontSize: 11, color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 4, textDecoration: 'none' }}>
         by <span style={{ color: 'var(--cyan)', fontWeight: 600 }}>JoyoDigitama</span>

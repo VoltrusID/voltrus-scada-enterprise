@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { fetchJson } from '../queries'
+import { queryKeys } from '../queries/keys'
 
 interface HealthIssue {
   severity: 'critical' | 'warning' | 'info' | 'pass'
@@ -35,19 +37,13 @@ const severityBg: Record<string, string> = {
 }
 
 export function HealthCheckPanel() {
-  const [report, setReport] = useState<HealthReport | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const [expandedIssues, setExpandedIssues] = useState<Set<number>>(new Set())
 
-  const runCheck = useCallback(async () => {
-    setLoading(true); setError('')
-    try { setReport(await fetchJson<HealthReport>('/wizard/health-check')) }
-    catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { runCheck() }, [runCheck])
+  const { data: report, isLoading: loading, error: queryError, refetch: runCheck } = useQuery({
+    queryKey: queryKeys.wizardHealthCheck,
+    queryFn: () => fetchJson<HealthReport>('/api/v1/wizard/health-check'),
+  })
+  const error = queryError?.message || ''
 
   const toggleIssue = (idx: number) => {
     const next = new Set(expandedIssues)
@@ -65,7 +61,7 @@ export function HealthCheckPanel() {
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Project Health Check</h2>
           <p style={{ color: 'var(--muted)', fontSize: 13, margin: '4px 0 0' }}>Audit your configuration for common issues and best practices.</p>
         </div>
-        <button onClick={runCheck} disabled={loading} style={{
+        <button onClick={() => runCheck()} disabled={loading} style={{
           padding: '8px 16px', borderRadius: 6, border: 'none', background: '#f97316', color: '#fff',
           cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600,
         }}>{loading ? 'Running…' : 'Run Health Check'}</button>

@@ -8,7 +8,7 @@ import {
   useStartHubSite,
   useStopHubSite,
 } from './queries/hub'
-import { inputStyle, touchBtnStyle, btnStyle } from './styles'
+import { inputStyle, btnStyle } from './styles'
 import { useLicense } from './LicenseContext'
 import { FeatureBadge } from './components/FeatureBadge'
 
@@ -134,7 +134,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
             style={{ ...inputStyle, width: 200 }}
           />
           <button
-            style={{ ...touchBtnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
+            style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}
             onClick={() => setShowForm(f => !f)}
             aria-label="Add site"
           >
@@ -158,7 +158,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
             <input name="api_key" required style={inputStyle} placeholder="vlk_..." type="password" />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <button type="submit" style={touchBtnStyle} disabled={createMut.isPending}>
+            <button type="submit" style={btnStyle} disabled={createMut.isPending}>
               {createMut.isPending ? 'Adding...' : 'Add Site'}
             </button>
             <button type="button" style={btnStyle} onClick={() => setShowForm(false)}>Cancel</button>

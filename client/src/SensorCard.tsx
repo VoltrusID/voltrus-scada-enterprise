@@ -56,6 +56,7 @@ export const SensorCard = React.memo(function SensorCard({
 
   const sourceTag = useMemo(() => SOURCE_CATEGORY[s.source_type]?.tag ?? s.source_type, [s.source_type]);
   const sourceTagColor = useMemo(() => SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--muted)', [s.source_type]);
+  const [hovered, setHovered] = useState(false);
 
   // Compact mode for small screens
   if (isCompact) {
@@ -65,17 +66,20 @@ export const SensorCard = React.memo(function SensorCard({
         tabIndex={0}
         aria-label={cardAriaLabel}
         onKeyDown={handleKeyDown}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
           background: 'var(--card)',
-          border: `1px solid ${selected ? 'var(--cyan)' : editingId === s.id ? 'var(--cyan)' : 'var(--border)'}`,
-          borderRadius: 10,
+          border: `1px solid ${selected ? 'var(--cyan)' : editingId === s.id ? 'var(--cyan)' : hovered ? 'var(--border-light)' : 'var(--border)'}`,
+          borderRadius: 12,
           overflow: 'hidden',
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           padding: '12px 14px',
-          ...(selected ? { boxShadow: '0 0 0 2px var(--cyan)' } : {}),
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+          boxShadow: selected ? '0 0 0 2px var(--cyan)' : hovered ? '0 4px 16px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.2)',
         }}
         onClick={onClick}
       >
@@ -110,20 +114,23 @@ export const SensorCard = React.memo(function SensorCard({
       tabIndex={0}
       aria-label={cardAriaLabel}
       onKeyDown={handleKeyDown}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         background: 'var(--card)',
-        border: `1px solid ${selected ? 'var(--cyan)' : editingId === s.id ? 'var(--cyan)' : 'var(--border)'}`,
-        borderRadius: 10,
+        border: `1px solid ${selected ? 'var(--cyan)' : editingId === s.id ? 'var(--cyan)' : hovered ? 'var(--border-light)' : 'var(--border)'}`,
+        borderRadius: 12,
         overflow: 'hidden',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        ...(selected ? { boxShadow: '0 0 0 2px var(--cyan)' } : {}),
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+        boxShadow: selected ? '0 0 0 2px var(--cyan)' : hovered ? '0 4px 16px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.2)',
       }}
       onClick={onClick}
     >
-      {!hideStatus && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+      {!hideStatus && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 0, overflow: 'hidden' }}>
           {showDragHandle && editMode && (
             <span className="drag-handle" style={{ cursor: 'grab', display: 'inline-flex', alignItems: 'center', padding: '0 2px', opacity: 0.4 }}>
               <svg width="8" height="12" viewBox="0 0 8 12">
@@ -152,8 +159,8 @@ export const SensorCard = React.memo(function SensorCard({
           {editMode && activeScreen !== 'all' && (
             <button onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
           )}
-          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', padding: '2px 8px', borderRadius: 4,
-            background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : st === 'offline' ? 'rgba(100,100,100,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, minWidth: 52, textAlign: 'center' as const,
+            background: st === 'critical' ? 'rgba(239,68,68,.12)' : st === 'warning' ? 'rgba(234,179,8,.12)' : st === 'offline' ? 'rgba(100,100,100,.12)' : 'rgba(34,197,94,.12)', color: stColor(st) }}>{st}</div>
         </div>
       </div>}
       {hideStatus && editMode && (
@@ -170,9 +177,9 @@ export const SensorCard = React.memo(function SensorCard({
         </div>
       )}
       {!hideStatus && (
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 22, fontWeight: 700, padding: '0 16px' }}>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 24, fontWeight: 700, padding: '0 14px', lineHeight: 1.3 }}>
           <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
-          <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
+          <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginLeft: 4 }}>{s.unit}</span>
         </div>
       )}
       <div style={{ flex: 1, minHeight: 0 }}>

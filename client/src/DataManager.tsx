@@ -95,14 +95,14 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
     color: tab === t ? 'var(--cyan)' : 'var(--muted)',
     background: tab === t ? 'rgba(34,197,94,.1)' : 'transparent',
     borderBottom: tab === t ? '2px solid var(--cyan)' : '2px solid transparent',
-    fontWeight: tab === t ? 600 : 400, minHeight: 44,
+    fontWeight: tab === t ? 600 : 400, padding: '5px 10px',
   });
 
   return (
     <div ref={modalRef} role="dialog" aria-label="Data Manager" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column', padding: 24 }}>
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 0, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6, minHeight: 44 }}>
+          <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
           </button>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>Data</h1>
