@@ -90,7 +90,7 @@ pub(super) fn run_migrations(conn: &Connection) {
             name TEXT NOT NULL,
             category TEXT,
             device_id TEXT NOT NULL,
-            values TEXT NOT NULL,
+            \"values\" TEXT NOT NULL,
             version INTEGER NOT NULL DEFAULT 1,
             description TEXT,
             created_at INTEGER NOT NULL,

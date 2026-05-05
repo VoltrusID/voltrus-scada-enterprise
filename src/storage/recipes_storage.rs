@@ -22,7 +22,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT INTO recipes (name, category, device_id, values, version, description, created_at, updated_at)
+                "INSERT INTO recipes (name, category, device_id, \"values\", version, description, created_at, updated_at)
                  VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, ?7)",
                 rusqlite::params![name, category, device_id, values, description, now, now],
             ).context("Insert recipe failed")?;
@@ -35,7 +35,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, name, category, device_id, values, version, description, created_at, updated_at
+                "SELECT id, name, category, device_id, \"values\", version, description, created_at, updated_at
                  FROM recipes WHERE id = ?1"
             ).context("Prepare get_recipe failed")?;
             let mut rows = stmt.query_map(rusqlite::params![id], |row| {
@@ -68,7 +68,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let recipes = if let Some(ref did) = device_id_owned {
                 let mut stmt = conn.prepare(
-                    "SELECT id, name, category, device_id, values, version, description, created_at, updated_at
+                    "SELECT id, name, category, device_id, \"values\", version, description, created_at, updated_at
                      FROM recipes WHERE device_id = ?1 ORDER BY updated_at DESC"
                 ).context("Prepare list_recipes failed")?;
                 let rows = stmt.query_map(rusqlite::params![did], |row| {
@@ -87,7 +87,7 @@ impl Storage {
                 rows.collect::<Result<Vec<_>, _>>().context("Row parse list_recipes failed")?
             } else {
                 let mut stmt = conn.prepare(
-                    "SELECT id, name, category, device_id, values, version, description, created_at, updated_at
+                    "SELECT id, name, category, device_id, \"values\", version, description, created_at, updated_at
                      FROM recipes ORDER BY updated_at DESC"
                 ).context("Prepare list_recipes failed")?;
                 let rows = stmt.query_map([], |row| {
@@ -127,7 +127,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let existing: Option<String> = conn
                 .query_row(
-                    "SELECT values FROM recipes WHERE id = ?1",
+                    "SELECT \"values\" FROM recipes WHERE id = ?1",
                     rusqlite::params![id],
                     |row| row.get(0),
                 )
@@ -140,7 +140,7 @@ impl Storage {
                         .prepare(
                             "UPDATE recipes SET name = COALESCE(?1, name),
                          category = COALESCE(?2, category),
-                         values = ?3,
+                         \"values\" = ?3,
                          description = COALESCE(?4, description),
                          version = version + 1,
                          updated_at = ?5
