@@ -1,6 +1,6 @@
 mod generator;
 mod helpers;
-mod pdf;
+pub mod pdf;
 
 #[cfg(test)]
 mod tests;

@@ -180,6 +180,7 @@ impl S7Client {
                         bit_offset,
                         data_type,
                         length: 1,
+                        name: None,
                     });
                 }
             }
@@ -216,6 +217,7 @@ impl S7Client {
                     bit_offset,
                     data_type: S7DataType::Bool,
                     length: 1,
+                    name: None,
                 });
             }
         }
@@ -243,6 +245,7 @@ impl S7Client {
             bit_offset: 0,
             data_type,
             length: 1,
+            name: None,
         })
     }
 

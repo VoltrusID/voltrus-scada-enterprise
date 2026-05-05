@@ -108,6 +108,10 @@ pub async fn rollback(
     }
 }
 
+pub fn compute_diff_public(from: &serde_json::Value, to: &serde_json::Value) -> serde_json::Value {
+    compute_diff(from, to)
+}
+
 fn compute_diff(from: &serde_json::Value, to: &serde_json::Value) -> serde_json::Value {
     let mut result = serde_json::Map::new();
     let from_map = match from.as_object() {

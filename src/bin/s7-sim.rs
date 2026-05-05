@@ -292,13 +292,14 @@ fn build_s7_setup_comm_response(pdu_ref: u16) -> Vec<u8> {
     // Data: 4 zeros
     let data = [0x00u8; 4];
 
-    let mut frame = Vec::with_capacity(10 + params.len() + data.len());
+    let mut frame = Vec::with_capacity(12 + params.len() + data.len());
     frame.push(S7_PROTOCOL_ID);
     frame.push(S7_MSG_TYPE_ACK_DATA);
     frame.extend_from_slice(&[0x00, 0x00]); // reserved
     frame.extend_from_slice(&pdu_ref.to_be_bytes());
     frame.extend_from_slice(&(params.len() as u16).to_be_bytes());
     frame.extend_from_slice(&(data.len() as u16).to_be_bytes());
+    frame.extend_from_slice(&0x0000u16.to_be_bytes()); // error code = 0 (success)
     frame.extend_from_slice(&params);
     frame.extend_from_slice(&data);
     frame
@@ -347,13 +348,14 @@ fn build_s7_read_var_response(
         data.extend_from_slice(&area_bytes);
     }
 
-    let mut frame = Vec::with_capacity(10 + params.len() + data.len());
+    let mut frame = Vec::with_capacity(12 + params.len() + data.len());
     frame.push(S7_PROTOCOL_ID);
     frame.push(S7_MSG_TYPE_ACK_DATA);
     frame.extend_from_slice(&[0x00, 0x00]); // reserved
     frame.extend_from_slice(&pdu_ref.to_be_bytes());
     frame.extend_from_slice(&(params.len() as u16).to_be_bytes());
     frame.extend_from_slice(&(data.len() as u16).to_be_bytes());
+    frame.extend_from_slice(&0x0000u16.to_be_bytes()); // error code = 0 (success)
     frame.extend_from_slice(&params);
     frame.extend_from_slice(&data);
     frame
@@ -366,13 +368,14 @@ fn build_s7_write_var_response(pdu_ref: u16, item_count: u8) -> Vec<u8> {
     // Data: return code for each item (all success)
     let data = vec![0xFFu8; item_count as usize];
 
-    let mut frame = Vec::with_capacity(10 + params.len() + data.len());
+    let mut frame = Vec::with_capacity(12 + params.len() + data.len());
     frame.push(S7_PROTOCOL_ID);
     frame.push(S7_MSG_TYPE_ACK_DATA);
     frame.extend_from_slice(&[0x00, 0x00]); // reserved
     frame.extend_from_slice(&pdu_ref.to_be_bytes());
     frame.extend_from_slice(&(params.len() as u16).to_be_bytes());
     frame.extend_from_slice(&(data.len() as u16).to_be_bytes());
+    frame.extend_from_slice(&0x0000u16.to_be_bytes()); // error code = 0 (success)
     frame.extend_from_slice(&params);
     frame.extend_from_slice(&data);
     frame

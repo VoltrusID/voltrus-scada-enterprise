@@ -383,7 +383,7 @@ pub async fn refresh_token(
 }
 
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    state.storage.seed_database().await?;
+    state.storage.seed_database(&[]).await?;
     Ok(Json(json!({"ok": true})))
 }
 

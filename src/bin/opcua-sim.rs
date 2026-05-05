@@ -120,14 +120,14 @@ async fn main() -> Result<()> {
 
     let (port, delay_ms) = parse_args();
 
-    let endpoint_path = format!("opc.tcp://0.0.0.0:{port}");
-    let discovery_url = format!("opc.tcp://localhost:{port}");
+    let endpoint_path = format!("opc.tcp://127.0.0.1:{port}");
+    let discovery_url = format!("opc.tcp://127.0.0.1:{port}");
 
     let (server, handle) = ServerBuilder::new()
         .application_name("Voltrus Lite OPC-UA Simulator")
         .application_uri("urn:voltrus-lite-opcua-sim")
         .product_uri("urn:voltrus-lite-opcua-sim")
-        .host("0.0.0.0".to_string())
+        .host("127.0.0.1".to_string())
         .port(port)
         .discovery_urls(vec![discovery_url])
         .create_sample_keypair(true)

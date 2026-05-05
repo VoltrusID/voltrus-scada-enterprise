@@ -46,8 +46,10 @@ mod script_engine;
 mod security;
 mod sim_engine;
 mod storage;
+mod system_docs;
 mod timeutil;
 mod video;
+mod vertical_templates;
 mod widget_sdk;
 mod ws_manager;
 mod ws_types;
@@ -197,7 +199,7 @@ async fn main() -> anyhow::Result<()> {
     flow_engine.spawn().await;
 
     // Auto-seed on startup if no admin user exists
-    storage.seed_database().await?;
+    storage.seed_database(&app_config.devices).await?;
 
     // Migrate YAML devices to DB (one-time)
     if !storage.is_yaml_migrated().await? && !app_config.devices.is_empty() {
