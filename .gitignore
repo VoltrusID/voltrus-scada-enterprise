@@ -23,3 +23,10 @@ voltrus-pre-restore-*.tar.gz
 
 # License activation binary (sensitive)
 license-activation.bin
+
+# Test artifacts
+test-activation.bin
+test-all-protocols.db*
+test-solar-farm.db*
+pki-opcua-sim/
+pki/
