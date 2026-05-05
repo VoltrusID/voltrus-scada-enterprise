@@ -1,6 +1,6 @@
 # Voltrus — Post-Launch Roadmap
 
-*Last updated: May 2026 — v0.39.0 shipped, all items through v0.39.0 complete*
+*Last updated: May 2026 — v0.35.0 shipped. All versions COMPLETE except v0.40.0 (BACKLOG). Versions shipped out of order: v0.34.0 before v0.32.0, v0.37.0 after v0.39.0.*
 
 ---
 
@@ -23,9 +23,12 @@ voltrus/                          # Monorepo root
 │   │   ├── ethernet_ip.rs        # Allen-Bradley EtherNet/IP driver
 │   │   ├── storage.rs            # SQLite storage layer
 │   │   ├── security.rs           # IEC 62443 security audit mode
+│   │   ├── system_docs/          # Auto-generated documentation & system mapping
+│   │   ├── vertical_templates/    # Industry-specific template definitions & instantiator
 │   │   └── ...                   # analytics, compliance, hub, oee, recipes, etc.
-│   ├── client-lit/              # Lit frontend (TypeScript + Vite)
-│   │   └── src/                  # Components, views, panels, services
+│   ├── client/                  # React frontend (TypeScript + Vite)
+│   │   └── src/                  # Components, views, panels, stores, queries
+│   ├── client-lit/               # Legacy Lit frontend (deprecated, replaced by client/)
 │   ├── static/                   # Static assets served by Rust
 │   ├── config.yaml               # Runtime configuration
 │   └── Cargo.toml                # Rust dependencies
@@ -41,7 +44,7 @@ voltrus/                          # Monorepo root
     └── src/index.ts              # Handles activation requests, tier validation
 ```
 
-**Development is fullstack** — each feature touches both Rust backend (`voltrus/src/`) and Lit frontend (`voltrus/client-lit/src/`). The landing page (`voltrus-landing/`) must be updated per release: changelog, docs, and feature list.
+**Development is fullstack** — each feature touches both Rust backend (`voltrus/src/`) and React frontend (`voltrus/client/src/`). The landing page (`voltrus-landing/`) must be updated per release: changelog, docs, and feature list.
 
 ---
 
@@ -55,9 +58,9 @@ voltrus/                          # Monorepo root
 
 ---
 
-## Current State (v0.39.0)
+## Current State (v0.35.0 shipped)
 
-All features from v0.18.0 through v0.39.0 have been implemented and shipped. The current binary includes:
+All features from v0.18.0 through v0.39.0 have been implemented and shipped. v0.40.0 remains in backlog. v0.35.0 was the last version shipped. The current binary includes:
 
 ### Protocols
 - Modbus TCP (all tiers)
@@ -145,6 +148,24 @@ All features from v0.18.0 through v0.39.0 have been implemented and shipped. The
 - Air-gap friendly (offline activation flow)
 - Cloudflare worker for license server
 
+### Documentation & System Mapping
+- Auto-generated system topology (devices, connections, protocols, online/offline status)
+- Tag cross-reference report: every tag with source device, data type, alarm config
+- Automation documentation: plain-English descriptions for scripts and flow rules
+- PDF and HTML export for handover, audits, and compliance
+- Config diff viewer: compare two config snapshots with highlighted changes
+- API: `GET /api/v1/docs/topology`, `GET /api/v1/docs/tag-xref`, `GET /api/v1/docs/automation`, `GET /api/v1/docs/export`, `GET /api/v1/docs/config-diff`
+
+### Vertical-Specific Templates
+- Wastewater treatment template: pump stations, flow meters, chlorine dosing, pH/DO monitoring
+- Car wash template: conveyor control, chemical dosing, water recycling, payment integration
+- Maritime template: bilge pumps, engine monitoring, navigation lights, GPS, tank levels
+- Elevator/ski lift template: motor control, safety interlocks, position tracking, e-stop
+- Hydroelectric template: turbine control, gate position, flow/head, generator output, grid sync
+- Each template includes: ISA-5.1 tag naming, default alarms, dashboard layout, OEE metrics, automation rules
+- Template preview and one-click instantiation engine
+- API: `GET /api/v1/templates`, `GET /api/v1/templates/{id}`, `POST /api/v1/templates/{id}/instantiate`, `POST /api/v1/templates/preview`
+
 ### External Integration & BI Connectors
 - Prometheus exporter endpoint (`/metrics`) with tag values, device status, alarm counts
 - REST API BI query endpoint with filtering, pagination, CSV/JSON output (Power BI, Metabase)
@@ -159,7 +180,7 @@ All features from v0.18.0 through v0.39.0 have been implemented and shipped. The
 
 ## Post-Launch Roadmap
 
-*Reshuffled May 2026 — all items reprioritized based on competitive analysis (LiRAYS-SCADA) and SCADA industry veteran feedback. v0.34.0 shipped out of order before v0.32.0.*
+*Reshuffled May 2026 — all items reprioritized based on competitive analysis (LiRAYS-SCADA) and SCADA industry veteran feedback. v0.34.0 shipped out of order before v0.32.0. v0.37.0 shipped out of order after v0.39.0.*
 
 ### v0.22.0 — IEC 62443 Security Audit Mode (COMPLETE)
 
@@ -436,16 +457,18 @@ Core Voltrus remains lifetime license with no recurring fees. AI Copilot is an o
 
 ---
 
-### v0.35.0 — Documentation & System Mapping (BACKLOG — 4-5 weeks)
+### v0.35.0 — Documentation & System Mapping (COMPLETE)
 
 **Goal:** Reverse-engineer your own system. Auto-generated documentation for handover and compliance.
 
-- Auto-generated system topology diagram (devices, connections, protocols)
-- Tag cross-reference report: every tag with source device, data type, alarm config
-- "What does this do?" — auto-document sequences and scripts with plain-English descriptions
-- Export system documentation as PDF (for handover, audits, compliance)
-- Config diff viewer: compare two config versions with highlighted changes
+- ✅ Auto-generated system topology diagram (devices, connections, protocols, online/offline status)
+- ✅ Tag cross-reference report: every tag with source device, data type, alarm config
+- ✅ "What does this do?" — auto-document sequences and scripts with plain-English descriptions
+- ✅ Export system documentation as PDF or HTML (for handover, audits, compliance)
+- ✅ Config diff viewer: compare two config versions with highlighted changes
+- ✅ Web UI: Documentation panel in System view with Topology, Tag Xref, Automation Docs, Config Diff tabs
 - **Tier:** Professional ($499)
+- **API:** `GET /api/v1/docs/topology`, `GET /api/v1/docs/tag-xref`, `GET /api/v1/docs/automation`, `GET /api/v1/docs/export`, `GET /api/v1/docs/config-diff`
 - **Source:** r/PLC — "archaeological expedition through layers of undocumented AOIs" — engineers inherit undocumented systems and need to understand them fast
 
 ---
@@ -463,17 +486,21 @@ Core Voltrus remains lifetime license with no recurring fees. AI Copilot is an o
 
 ---
 
-### v0.37.0 — Vertical-Specific Templates (BACKLOG — 4-6 weeks)
+### v0.37.0 — Vertical-Specific Templates (COMPLETE — shipped May 2026, after v0.39.0)
 
 **Goal:** Pre-built configurations for niche verticals to reduce time-to-value.
 
-- Wastewater treatment template: pump stations, flow meters, chlorine dosing, lift stations
-- Car wash template: conveyor control, chemical dosing, water recycling, payment integration
-- Maritime template: bilge pumps, engine monitoring, navigation lights, tank levels
-- Elevator/ski lift template: motor control, safety interlocks, position tracking, emergency stop
-- Hydroelectric template: turbine control, gate position, flow monitoring, grid sync
-- Each template includes: tag naming convention (ISA-5.1), default alarms, dashboard layout, OEE metrics
-- **Tier:** Starter ($249, 1 template) / Professional ($499, all templates)
+- ✅ Wastewater treatment template: pump stations, flow meters, chlorine dosing, lift stations
+- ✅ Car wash template: conveyor control, chemical dosing, water recycling, payment integration
+- ✅ Maritime template: bilge pumps, engine monitoring, navigation lights, tank levels
+- ✅ Elevator/ski lift template: motor control, safety interlocks, position tracking, emergency stop
+- ✅ Hydroelectric template: turbine control, gate position, flow monitoring, grid sync
+- ✅ Each template includes: tag naming convention (ISA-5.1), default alarms, dashboard layout, OEE metrics
+- ✅ Template instantiation engine: expand patterns, create devices/tags/screens/flows
+- ✅ Preview endpoint: show expanded tags and alarms before instantiation
+- ✅ Web UI: Templates panel in System view with browse/detail/instantiate workflow
+- **Tier:** Starter ($249, browse + preview) / Professional ($499, full instantiation + all templates)
+- **API:** `GET /api/v1/templates`, `GET /api/v1/templates/{id}`, `POST /api/v1/templates/{id}/instantiate`, `POST /api/v1/templates/preview`
 - **Source:** r/PLC — 98 comments on niche industries, most underserved by current SCADA vendors
 
 ---
@@ -561,7 +588,7 @@ These are content/marketing actions extracted from appendix research that should
 | 5 | **"Mid-Market SCADA" blog post** — "The issue is not high, the issue is entry" | Walker Reynolds (4.0 Solutions) on AVEVA $50K/yr pricing + Alan White on mid-market being "vastly underserved" | `blog/scada-mid-market-entry-price.html` | **DONE** |
 | 6 | **"Data Company First" blog post** — before AI, before analytics, get the data | Walker Reynolds core message + r/SCADA predictive maintenance thread | Covered by `blog/scada-data-extraction-predictive-maintenance.html` | **DONE** (merged into #2) |
 | 7 | **"Cloud-Dependent Licensing is a Trap" blog post** — AVEVA forcing cloud migration, recurring costs | Walker Reynolds — "Aveva Changing Pricing?" video, every license becomes cloud-dependent | Covered by `blog/scada-mid-market-entry-price.html` (section: "Why Lifetime Licensing Matters") | **DONE** (merged into #5) |
-| 8 | **Pricing page: "Entry price" messaging** — quote "the issue is not high, the issue is entry" | Walker Reynolds on AVEVA pricing | `index.html` pricing section | **TODO** |
+| 8 | **Pricing page: "Entry price" messaging** — quote "the issue is not high, the issue is entry" | Walker Reynolds on AVEVA pricing | `index.html` pricing section | **DONE** |
 | 9 | **Hardware compatibility matrix** | r/SCADA — fanless HMI thread, Advantech/SEL mentions | Docs page | **DONE** (v0.38) |
 | 10 | **OT Network Deployment Guide** (security hardening, firewall rules, Defender exclusions) | r/SCADA — IT/OT bridging, Windows Defender thread | Docs page | **DONE** (v0.36) |
 
@@ -570,11 +597,11 @@ These are content/marketing actions extracted from appendix research that should
 | Channel | Handle | Why | Priority |
 |---------|--------|-----|----------|
 | **4.0 Solutions** (Walker Reynolds) | `@4.0Solutions` | Industry 4.0 thought leader, ProveIt! conference host, shapes UNS conversation | **DONE** — 11 transcripts analyzed, Appendix G |
-| **Automatic Revolution** | `@automaticrevolution` | SCADA-specific content, beginner-to-advanced playlists | **TODO** |
-| **Inductive Automation** (Ignition) | `@inductiveautomation` | Direct competitor's official channel — product direction, marketing language | **TODO** |
-| **Mike Holcomb** | `@UtilSec` | OT/ICS cybersecurity educator — insight into security buyer concerns | **TODO** |
-| **RealPars** | `@realpars` | Largest automation education channel — what beginners ask about, content gaps to fill | **TODO** |
-| **OT SCADA CON** | Conference channel | Direct community conference — speaker topics reveal market trends | **TODO** |
+| **Automatic Revolution** | `@automaticrevolution` | SCADA-specific content, beginner-to-advanced playlists | **REMOVED** — Channel does not exist. Handle returns 404. Closest match is "Automation Revolution" (small Indian tutorial channel, not SCADA-specific). See Appendix H. |
+| **Inductive Automation** (Ignition) | `@inductiveautomation` | Direct competitor's official channel — product direction, marketing language | **DONE** — 30 videos analyzed, Appendix H |
+| **Mike Holcomb** | `@UtilSec` | OT/ICS cybersecurity educator — insight into security buyer concerns | **DONE** — 30 videos analyzed, Appendix H |
+| **RealPars** | `@realpars` | Largest automation education channel — what beginners ask about, content gaps to fill | **DONE** — 30 videos analyzed, Appendix H |
+| **OT SCADA CON** | Conference channel | Direct community conference — speaker topics reveal market trends | **DONE** — Conference content analyzed (no dedicated channel). See Appendix H. |
 
 ---
 
@@ -1106,3 +1133,229 @@ After each release:
 4. **Product (v0.38):** API structured for external tool consumption (MCP clients, BI tools) — track but don't implement AI features
 5. **Business:** Monitor ProveIt! conference for potential sponsorship/presentation opportunity as Voltrus gains traction
 6. **Content:** Engage with Walker's community on LinkedIn/YouTube — our "affordable but serious" positioning matches his data-first message
+
+---
+
+## Appendix H — YouTube Competitive Intelligence (May 2026 — Channels 2-6)
+
+*Scraped May 2026 — 5 YouTube channels, ~125 videos analyzed. Follows Appendix G format.*
+
+### Channel 1: Inductive Automation (Ignition) — Direct Competitor
+
+**Channel:** [@inductiveautomation](https://www.youtube.com/@inductiveautomation) — 30 videos analyzed, most recent: May 2026.
+
+**Who:** Inductive Automation, makers of Ignition SCADA. The market leader in industrial automation software. Not a thought leader channel — this is their official product marketing.
+
+**Content mix:** Product demos (Ignition 8.3, Historian, Drawing Editor), case studies (data centers, mining, solar, water), training announcements, integrator program promotion, "People Who Make Things" interview series.
+
+**Channel metrics:** Modest YouTube presence — most videos get 100-300 views. Their flagship "What is UNS?" hit 1,222 views. "Most Interesting SCADA Engineer" (humor/ad) got 1,052. Training video got 698. Low engagement overall compared to their market dominance.
+
+#### Key Insights for Voltrus
+
+| Video | Insight | Implication for Voltrus |
+|-------|---------|----------------------|
+| **"What is UNS?"** (Mar 2026, 1.2K views) | Ignition is investing heavily in Unified Namespace messaging. They're positioning UNS as the bridge between plant floor and enterprise — exactly the space Voltrus occupies with multi-protocol data extraction. | **UNS is going mainstream.** Ignition validating UNS means more customers will expect it. Our tag browser with UNS-style hierarchy (v0.32) is table stakes now, not a differentiator. |
+| **"CTO Carl Gould's ARC 2026 Interview"** (Mar 2026) | CTO discussing: (1) cybersecurity approach for Ignition, (2) Software-Defined Architectures decoupling layers, (3) community-driven R&D roadmap. Ignition is moving toward software-defined everything. | **SDA is their R&D direction.** Decoupling layers = they're architecting for flexibility. Our single-binary philosophy is the opposite. Both can win — we win on simplicity, they win on extensibility. |
+| **"Why is Ignition perfect for water and wastewater?"** (Mar 2026) | Key messaging: "Perpetual licensing, unlimited tags/devices/clients, built on open standards, eliminates vendor lock-in, native mobile support." They're directly competing on our strongest points. | **They're using OUR messaging.** "Perpetual licensing" and "unlimited tags" from Ignition is rich — they START at $6K. But their marketing language shows these are the buying criteria. We deliver the same at $249. |
+| **"How Vertech Scaled Ignition up to 20 Million Tags"** (Mar 2026) | Hyperscale data center case study. 20M tags across one building. Horizontally scalable architecture. Standardized, redundant deployment. | **They're playing in the stratosphere.** 20M tags is a different universe from our 50-500 tag customers. This proves we're in different markets — they're enterprise hyperscale, we're mid-market. No direct competition. |
+| **"Mining Company Achieves Zero Downtime SCADA Migration"** (Jan 2026) | Pivotal Engineering migrated legacy SCADA at Bluebird Gold Mine to Ignition. Used OPC UA, implemented ASM Guidelines, advanced alarm aggregation. "Zero downtime" was the key selling point. | **Migration is a use case.** Legacy SCADA replacement is a market segment. Our import tools (CSV, Node-RED importer) + simulation mode for safe migration address this without Ignition's price tag. |
+| **"How DMC Improved Scalability With Standardization and MQTT"** (Mar 2026) | Sila Nanotechnologies deployment: 8 PLCs + MQTT + standardized architecture for pilot-to-production scaling. MQTT is their recommended architecture for scalability. | **MQTT is the scalability bridge.** Both we and Ignition use it. Our MQTT broker is embedded (v0.32), theirs requires Cirrus Link modules. Our simplicity advantage. |
+| **"Ignition Training Program's Upgrades Explained"** (Jan 2026, 698 views) | Major training overhaul — more modular, skill-level-based, aligned with real career progression. They're investing in lowering the learning curve. | **Training is their moat.** Ignition's training ecosystem is massive. Our "no certification needed" positioning is the anti-moat. Market it: "Deploy in 5 minutes vs. weeks of Ignition training." |
+| **"Industrial Historian Solution Suite Demo"** (Feb 2026, 556 views) | New Historian suite: multiple historian engines, SQL + Core Historian, splitters, bindings, scripting. Storing, querying, visualizing, extending historical data. | **Their historian is complex.** Multiple engines, splitters, bindings. Our compression (Appendix A) is simpler: one SQLite + Gorilla encoding. Market as: "No historian module. Compression built-in." |
+| **"Ignition 8.3 Drawing Editor"** (Apr 2026) | New in-Perspective drawing tools: build HMI graphics directly in the browser, no external tools needed. Vector graphics, dynamic components, real-world representation. | **They're improving HMI UX.** Our 2D SCADA editor and Canvas view compete here. Theirs is more polished but requires Ignition's full stack. |
+| **"Solar & BESS Discovery Day"** (Apr 2026) | Dedicated vertical event for utility-scale solar and battery storage. Fleet-level visibility, grid integration. | **Energy is a priority vertical for them.** We should double down on hydroelectric (already in v0.37 templates) and consider solar/storage templates for a future release. |
+| **"Data Center Discovery Day"** (Mar 2026) | Vantage Data Centers case study: 4M tags, 12K devices, one building. Early vendor engagement, standardized architecture. | **Data centers are their flagship vertical.** Not our market — too large. But validates that vertical-specific go-to-market works. |
+| **"Mobile Energy Provider Implements Ignition"** (Jan 2026) | Certarus: 500+ users, fleet of smart trailers, mobile/remote SCADA with cell coverage gaps. 1B+ data records/day. | **Edge + remote is a real need.** Mobile assets going in/out of coverage = exactly where our edge-friendly, single-binary approach shines. |
+
+#### Competitive Signals — Inductive Automation
+
+| Signal | Source | Implication |
+|--------|--------|-------------|
+| They use "perpetual licensing" as marketing copy | Water/wastewater video | **Co-opt their language.** If Ignition ($6K+) can say "perpetual licensing," we ($249) should own that phrase. It means more at our price point. |
+| UNS is central to their product strategy | Dedicated "What is UNS?" video + multiple case studies | **UNS is not optional.** Every serious SCADA vendor is adopting UNS terminology. Our tag browser must speak UNS. |
+| Heavy vertical-specific marketing | Solar, Data Center, Water, Mining case studies | **Vertical templates (v0.37) are validated.** They're doing the same playbook at enterprise scale. |
+| Training is a major investment area | Training overhaul announcement | **We can't compete on training.** Position against it: "No certification needed. Deploy in 5 minutes." |
+| Integrator program is massive and growing | Dedicated integrator program video | **Their integrator channel is their distribution.** Our direct-to-integrator pricing ($249/deployment) is the alternative. |
+| YouTube engagement is low relative to market position | Most videos <300 views | **They're not winning on content marketing.** Opportunity for us to build better content and SEO. |
+
+#### Actionable Items — Inductive Automation
+
+1. **Marketing:** Own the phrase "perpetual licensing" harder — if Ignition at $6K can say it, we at $249 should scream it
+2. **Marketing:** Comparison content: "Voltrus vs Ignition for <500 tag projects" — they're hyping 20M tags, we own the small-to-mid segment
+3. **Product:** UNS-style tag browser (v0.32) is table stakes now, not a differentiator
+4. **Product:** Their historian is complex (multiple engines, splitters). Market our compression as "no historian module needed"
+5. **Content:** Blog post — "Why You Don't Need 20 Million Tags: SCADA for the Other 99%"
+
+---
+
+### Channel 2: Mike Holcomb (@UtilSec) — OT/ICS Cybersecurity Educator
+
+**Channel:** [@UtilSec](https://www.youtube.com/@UtilSec) — 30 videos analyzed, most recent: Feb 2026.
+
+**Who:** Mike Holcomb, OT/ICS cybersecurity professional. Fellow at ICS/OT Cybersecurity, frequent conference speaker. Not a vendor — an independent educator.
+
+**Content mix:** Full OT penetration testing course (8 parts), ISA/IEC 62443 cybersecurity management system (CSMS) training, OSINT for ICS/OT course (10+ hours), interviews with industry leaders (Rob Lee of Dragos, Patrick Miller), career advice for OT security.
+
+**Channel metrics:** Strong engagement for niche OT content. Top videos: "ISA/IEC 62443 Made Simple" (15.5K views), "Intro to OT/ICS Pentesting Part 1" (7.5K), "Mastering OT/ICS Cybersecurity Part 2" (6.9K). Most videos get 1K-5K views.
+
+#### Key Insights for Voltrus
+
+| Video | Insight | Implication for Voltrus |
+|-------|---------|----------------------|
+| **"ISA/IEC 62443 Made Simple"** (May 2025, 15.5K views) | Mike calls 62443 the "gold standard" for OT security. Certifications are highly sought-after. CSMS (Cybersecurity Management System) is the core concept. | **62443 compliance is a purchasing factor.** Our IEC 62443 audit mode (v0.22) is a genuine differentiator. Market it: "Built-in 62443 audit mode — no separate security tool needed." |
+| **"How Easy Is It to Attack a PLC?"** (Dec 2025, 1.2K views) | Direct demo: attacking a PLC over Modbus. No authentication needed. Can read/write registers freely. "Modbus has no security built in." | **Our passive-by-default posture is correct.** Voltrus is read-only by default, write commands are explicit opt-in. This is a security feature we should market. |
+| **"Securing OT/ICS Does Not Have to Be Hard"** (Nov 2025, 1.6K views) | B.A.S.I.C. framework for OT security: Backups, Access control, Segmentation, Inventory, Configuration hardening. Simple, actionable steps. | **We address 4/5 of B.A.S.I.C.:** Backups (CLI), Access (RBAC/SSO), Inventory (v0.34 asset tracking), Configuration (import/export/validate). Only Segmentation is network-level (partner opportunity). |
+| **"Intro to OT/ICS Penetration Testing"** (8-part series, Aug 2025–Jan 2026) | Detailed walkthrough: finding exposed OT assets online (Shodan), breaching IT→OT, attacking PLCs, exploiting Modbus, lateral movement. | **Our customer's worst nightmare is our sales pitch.** Every exposed HMI, every unsecured Modbus device is a Voltrus use case. Secure monitoring replaces exposed systems. |
+| **"Rob Lee: Adversaries Are Trying to Hurt People"** (May 2025, 2.1K views) | Dragos founder warning: "We are not ready." OT attacks are increasing in frequency and sophistication. Critical infrastructure is the target. | **Compliance is a growth driver.** NIS2, IEC 62443, CFATS — regulations forcing companies to implement OT monitoring = our TAM grows. |
+| **"Hacking ICS/OT with ChatGPT"** (Sep 2024, 4.8K views) | How attackers use ChatGPT to find vulnerabilities, write exploits, and target PLCs. Defense side: how to use AI for threat detection. | **Validates our no-AI-in-control-loop stance.** Attackers ARE using AI. Defenders need deterministic, verifiable systems — exactly what Voltrus provides. |
+| **"OSINT for ICS/OT"** (10-part course, 2024) | Finding exposed OT assets via Shodan, Google dorking, social media. ICS Advisory Project, openinframap.org, specialized OT search tools. | **The problem we solve.** Every exposed PLC/HMI found via OSINT is a Voltrus deployment waiting to happen. This course describes the nightmare our customers face. |
+| **"Getting Hired in OT Cybersecurity"** (Jul 2025, 2.4K views) | Interview with Dragos recruiter Josh Fullmer. Certifications matter (GICSP, ISA/IEC 62443), but practical experience matters more. OT security is a growing field. | **OT security talent is scarce.** Our built-in security features (RBAC, audit trail, 62443 mode) are valuable because most sites don't have dedicated OT security staff. |
+| **"5 Awesome Books for ICS/OT Cyber Security"** (Dec 2024, 4.1K views) | Recommended reading: industrial cybersecurity, 62443 guides, OT pentesting. Shows what the community considers authoritative. | **Content opportunity:** Our OT Security Checklist blog post aligns with Mike's B.A.S.I.C. framework. Could do a Voltrus-specific security hardening guide. |
+
+#### Competitive Signals — Mike Holcomb
+
+| Signal | Source | Implication |
+|--------|--------|-------------|
+| 62443 is the dominant security framework | Multiple videos emphasize ISA/IEC 62443 | **Our 62443 audit mode (v0.22) is marketable.** Add 62443-specific marketing language. |
+| Modbus insecurity is a teaching example | "How Easy Is It to Attack a PLC?" | **Passive-by-default is a security feature.** Market Voltrus as "secure by default — read-only until you opt in." |
+| OT security is skills-short | "Getting Hired in OT Cybersecurity" | **Our built-in security is valuable.** No separate security expertise needed — 62443 audit works out of the box. |
+| Dragos is the dominant OT security vendor | Multiple Dragos references | **Partner/ecosystem opportunity.** If Dragos monitors OT networks, Voltrus could be the SCADA layer they recommend. |
+
+#### Actionable Items — Mike Holcomb
+
+1. **Content:** Create a "Voltrus OT Security Hardening Guide" based on Mike's B.A.S.I.C. framework — show how Voltrus addresses each pillar
+2. **Marketing:** Add security-specific messaging to landing page — "Passive by default. Write commands are explicit opt-in. Modbus security doesn't exist — but our posture does."
+3. **Product:** Consider adding a security posture report (checklist of B.A.S.I.C. items) to the IEC 62443 audit mode
+4. **Ecosystem:** Explore Dragos partnership/integration — if Dragos is the monitoring layer, Voltrus is the SCADA layer
+
+---
+
+### Channel 3: RealPars — Industrial Automation Education
+
+**Channel:** [@realpars](https://www.youtube.com/@realpars) — 30 videos analyzed, most recent: May 2026.
+
+**Who:** RealPars is the largest industrial automation education platform. Video courses + certification. Target audience: engineers learning PLC programming, HMI design, industrial networking.
+
+**Content mix:** PLC programming (Studio 5000, TIA Portal), industrial protocols (MQTT, OPC UA, Modbus vs Profibus), HMI design, OT cybersecurity, VFD configuration, practical how-tos. Heavy Rockwell/Siemens focus.
+
+**Channel metrics:** Massive reach. Videos regularly hit 3K-10K views. Top performers: "Why PLC Inputs Fail" (51K), "How PWM Sensors Work" (45K), "Sinking and Sourcing PLC Outputs" (10K), "Modbus vs Profibus vs OPC UA" (10K). Total channel: 1M+ subscribers.
+
+#### Key Insights for Voltrus
+
+| Video | Insight | Implication for Voltrus |
+|-------|---------|----------------------|
+| **"What Is MQTT and How It Works"** (Apr 2026, 3.5K views) | MQTT basics for industrial IoT. Explains broker/client model, publish/subscribe, QoS levels. Treats MQTT as new/emerging for industrial users. | **Industrial MQTT adoption is still early.** RealPars treating MQTT as a new topic means many engineers still don't know it. Our MQTT support + embedded broker is ahead of the learning curve. |
+| **"Modbus vs Profibus vs OPC UA in Oil and Gas"** (Oct 2025, 9.9K views) | Head-to-head protocol comparison. Modbus: simple, widely supported, no security. Profibus: deterministic, Siemens ecosystem. OPC UA: modern, secure, complex. | **Protocol comparison content works.** 10K views = high interest. We should create "Which SCADA protocol for your project?" content featuring our 7 protocols. |
+| **"How to Build a Custom HMI"** (Mar 2026, 4.8K views) | Tutorial on building custom HMIs. Covers standard vs custom, design considerations, communication options. Treats HMI as something you BUILD, not buy. | **Our target audience is asking this question.** Engineers looking to build custom HMIs are potential Voltrus users. Content: "Stop building HMIs from scratch. Deploy Voltrus." |
+| **"How FactoryTalk Design Studio Uses AI to Help You"** (Dec 2025, 3.9K views) | Rockwell's AI copilot in FactoryTalk: auto-generates ladder logic, suggests tag names, explains code. AI in PLC programming tools. | **AI is entering PLC tools.** Rockwell adding AI copilot to FactoryTalk validates our AI Copilot for engineering (v0.26.5). The market is ready for AI-assisted configuration. |
+| **"Assessing Risk Factors in OT Cybersecurity Step by Step"** (Jan 2026, 3.6K views) | Practical OT risk assessment: asset inventory, threat identification, vulnerability assessment, risk calculation. Step-by-step methodology. | **Our OT asset inventory (v0.34) feeds directly into this workflow.** The first step of OT risk assessment is knowing what assets you have. Voltrus auto-populates this. |
+| **"How Git Fits into Logix Designer Projects"** (Dec 2025, 2.9K views) | Version control for PLC projects using Git. Engineers are adopting software dev practices for automation. | **Git-friendly config (v0.32) is forward-looking.** Engineers want version control for their automation configs. Our import/export/validate + diff viewer matches this trend. |
+| **"PLC Program Version Control"** (Nov 2025, 3.1K views) | FactoryTalk Design Studio version control features. Rockwell building Git-like features into their IDE. | **Version control is becoming standard in automation.** Our config versioning + rollback (v0.26) is exactly what the market is adopting. |
+| **"DOS Commands Every Engineer Should Know"** (Apr 2026, 2.5K views) | Basic IT skills for automation engineers. Command prompt, networking commands, system tools. | **Our target audience has basic IT skills.** They can handle editing a YAML config and running a binary. Our "no IT team needed" positioning is correct. |
+| **"Connect ABB ACS880 to Siemens S7-1500 with PROFINET"** (Nov 2025, 8.7K views) | Multi-vendor integration tutorial. ABB VFD + Siemens PLC. Engineers routinely integrate across brands. | **Multi-vendor is the real world.** Our multi-protocol support (S7, Modbus, AB, OPC-UA) is necessary because real sites mix vendors. |
+| **"How a Micro800 PLC Keeps a Water Tank Level Steady"** (Feb 2026, 4.4K views) | PID control tutorial using Micro800. Water tank level control is a common learning example. | **Water/wastewater is the universal SCADA example.** It's the "hello world" of industrial automation. Our wastewater template (v0.37) targets the right vertical. |
+
+#### Content Gaps — What RealPars Doesn't Cover (Opportunities for Voltrus)
+
+| Gap | Voltrus Opportunity |
+|-----|---------------------|
+| **Affordable SCADA software options** | RealPars teaches PLC programming and HMI building but never covers SCADA software pricing or options. Their audience learns to BUILD monitoring but doesn't know affordable tools exist. |
+| **Single-binary deployment** | They teach complex multi-component setups (PLC + HMI + SCADA + historian). Nobody is teaching "one binary, 5 minutes, done." |
+| **System integrator business model** | RealPars teaches technical skills but not how to price projects, choose tools, or run an integration business. Our "keep the margin" messaging fills this gap. |
+| **Protocol-native SCADA** | They teach protocols conceptually but not tools that speak all protocols natively without middleware. |
+| **Lifetime licensing vs SaaS** | Zero coverage of SCADA licensing models. Our "no recurring fees" message is completely absent from the education space. |
+
+#### Actionable Items — RealPars
+
+1. **Content:** Create comparison video/article: "You learned PLC programming. Now what SCADA do you deploy?" — target RealPars graduates
+2. **Content:** "How to build a custom HMI" → our answer is "Don't build one. Deploy Voltrus in 5 minutes."
+3. **Marketing:** RealPars audience is our exact customer — engineers who know PLCs but are underserved on SCADA options
+4. **Partnership:** Explore RealPars affiliate/referral — if they teach PLC programming, we're the natural next step
+5. **SEO:** Target keywords RealPars doesn't: "affordable SCADA," "SCADA for small projects," "cheap SCADA software"
+
+---
+
+### Channel 4: Automatic Revolution — CHANNEL DOES NOT EXIST
+
+**Finding:** The handle `@automaticrevolution` returns HTTP 404 on YouTube. No channel with this name or handle exists in the SCADA/industrial automation space.
+
+**Closest matches:**
+- "Automation Revolution" (UC5Ee35gHvMRfV_afPLInHYw) — Small Indian tutorial channel. Content: basic PLC/SCADA tutorials, cybersecurity intro, Industry 4.0 overview. Low production quality, no SCADA-specific focus. Not relevant for competitive intelligence.
+- No other SCADA-focused channels use "automatic revolution" branding.
+
+**Recommendation:** Remove from tracking list. The channel appears to have been listed in the roadmap based on a mistaken handle or a channel that has since been deleted/renamed.
+
+---
+
+### Channel 5: OT SCADA CON — Conference, Not a Channel
+
+**Finding:** OT SCADA CON is a live conference, not a YouTube channel. No dedicated channel exists at `@OTSCADACON` (returns 404). Conference content is distributed across presenter and attendee channels.
+
+**Content found across YouTube:**
+
+| Channel | Video | Views |
+|---------|-------|-------|
+| Automation Ladies | "What inspired OT SCADA CON?" | 32 |
+| Automation Ladies | "AI, OT SCADA Con, and Big Updates" | 34 |
+| Wolfe Evolution | "OT SCADA CON - Ashley Van Hoesen" | 30 |
+| Tim Wilborne | "What a Successful Automation Conference! OT SCADA CON" | 805 |
+| Automation Consulting, LLC | "OT SCADA CON 2025 Conference Recap" | 37 |
+| Automation Consulting, LLC | "OT SCADA CON 2024 with Guests" | 80 |
+| Automation Consulting, LLC | "OT SCADA CON 2025 with Ali G." | 67 |
+| Automation Consulting, LLC | "OT SCADA CON 2025 Recap" | 92 |
+| Tupinix | "Unboxing swag bag from OT SCADA CON" | 30 |
+
+**Conference profile:**
+- Organizer: Nikki Gonzales (Automation Ladies podcast co-host)
+- Focus: OT/SCADA community building, not vendor pitches
+- Format: In-person conference, not livestreamed or recorded centrally
+- YouTube presence: Minimal — recap/reaction videos only, not talk recordings
+- Attendance appears modest (based on video engagement — hundreds, not thousands)
+
+**Key insight:** OT SCADA CON is a community event, not a content platform. The conference itself is valuable for networking but YouTube provides almost no usable competitive intelligence. The Automation Ladies podcast (co-hosts Nikki Gonzales & Courtney Fernandez) is a better channel to track for OT community sentiment.
+
+**Recommendation:** Replace OT SCADA CON tracking with:
+1. **Automation Ladies podcast** — co-hosts run OT SCADA CON, interview industry figures
+2. **Tim Wilborne** (@TimWilborne) — 805-view OT SCADA CON recap, active automation YouTuber
+3. Direct conference attendance — more valuable than YouTube scraping for this channel
+
+#### Actionable Items — OT SCADA CON
+
+1. **Replace tracking target:** Track Automation Ladies podcast instead of OT SCADA CON channel
+2. **Conference attendance:** Consider attending OT SCADA CON 2026/2027 for networking and competitive visibility
+3. **Speaker opportunity:** Propose a talk: "SCADA for the Mid-Market: How We Built a Full SCADA Stack for $249"
+
+---
+
+## Updated YouTube Intelligence Summary (May 2026)
+
+| Channel | Status | Value for Voltrus | Key Takeaway |
+|---------|--------|-------------------|--------------|
+| **4.0 Solutions** (Walker Reynolds) | **DONE** (Appendix G) | HIGH — Thought leader shaping UNS/data-first narrative | "The issue is entry" — our $249 pricing is the answer |
+| **Inductive Automation** (Ignition) | **DONE** (Appendix H) | HIGH — Direct competitor intelligence | They're going upmarket (20M tags). We own mid-market. They're using "perpetual licensing" language we should own harder. |
+| **Mike Holcomb** (@UtilSec) | **DONE** (Appendix H) | MEDIUM — OT security buyer psychology | 62443 compliance is a purchase driver. Our passive-by-default posture is a security feature. |
+| **RealPars** (@realpars) | **DONE** (Appendix H) | HIGH — Content gap identification | 1M+ subscribers, zero coverage of affordable SCADA. Our exact audience with no competitor content. |
+| **Automatic Revolution** | **REMOVED** | NONE — Channel doesn't exist | Handle is invalid. Removed from tracking. |
+| **OT SCADA CON** | **REPLACED** | LOW via YouTube — Better via direct attendance | Conference, not channel. Replace with Automation Ladies podcast tracking. |
+
+---
+
+## Consolidated Actionable Items from All YouTube Intelligence
+
+### Marketing Actions
+1. **Own "entry price" and "perpetual licensing"** harder in all copy — if Ignition uses these phrases at $6K, we should own them at $249
+2. **Target RealPars audience** — create content for engineers who learned PLCs but don't know affordable SCADA exists
+3. **Comparison content:** "Voltrus vs Ignition for <500 tag projects" — they're focused on 20M tags, we own the rest
+4. **Security messaging:** "Passive by default. Write commands explicit opt-in. Modbus has no security — but we do."
+5. **Content gap attack:** RealPars covers how to BUILD SCADA. Nobody covers what to DEPLOY affordably.
+
+### Product Actions
+1. **UNS-style tag browser (v0.32)** is now table stakes — Ignition is mainstreaming UNS terminology
+2. **IEC 62443 audit mode (v0.22)** should map to Mike Holcomb's B.A.S.I.C. framework for clearer marketing
+3. **Security posture report** — generate a compliance checklist showing how Voltrus addresses each B.A.S.I.C. pillar
+
+### Business Development Actions
+1. **ProveIt! Conference** — target for sponsorship/presentation when Voltrus has more traction
+2. **OT SCADA CON** — consider attending/speaking ("SCADA for the Mid-Market")
+3. **RealPars partnership** — explore affiliate/referral (they teach PLCs, we're the next step)
+4. **Automation Ladies podcast** — pitch a guest appearance on affordable SCADA for integrators
