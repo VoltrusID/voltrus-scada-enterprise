@@ -5,7 +5,7 @@ use serde_json::json;
 
 use super::{AppError, AppState, AuthUser};
 
-const ISA_5_1_DEFAULT: &str = r"^[A-Z]{2,4}\d{3}_[A-Z0-9_]+$";
+const ISA_5_1_DEFAULT: &str = r"^[A-Za-z0-9_ .-]+$";
 
 const BUILTIN_TEMPLATES: &[(&str, &str, &str)] = &[
     (
@@ -24,6 +24,11 @@ const BUILTIN_TEMPLATES: &[(&str, &str, &str)] = &[
         r"^[A-Z]{2}\d{2}[A-Z]{2}\d{3}$",
     ),
     ("custom", "Custom (user-defined regex)", ""),
+    (
+        "permissive",
+        "Permissive (accept any name)",
+        r"^[A-Za-z0-9_ .-]+$",
+    ),
 ];
 
 /// GET /api/v1/settings/naming-convention
@@ -35,7 +40,7 @@ pub async fn get_naming_convention(
         .get_settings(&["naming_template", "naming_regex"])
         .await?;
 
-    let mut template = "isa-5.1".to_string();
+    let mut template = "permissive".to_string();
     let mut custom_regex: Option<String> = None;
 
     for s in &settings {
@@ -137,7 +142,7 @@ pub async fn validate_tag_name(state: &AppState, name: &str) -> Result<(), Strin
         .await
         .map_err(|e| format!("Failed to read naming settings: {:#}", e))?;
 
-    let mut template = "isa-5.1".to_string();
+    let mut template = "permissive".to_string();
     let mut custom_regex = String::new();
 
     for s in &settings {
