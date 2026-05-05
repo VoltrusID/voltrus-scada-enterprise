@@ -528,6 +528,7 @@ function AppInner() {
               saveTwinConnectionsMut={saveTwinConnectionsMut}
               updateSensorMut={updateSensorMut}
               fetchOk={fetchOk}
+              onScadaBack={() => setViewMode('cards')}
             />
           )}
         </div>
