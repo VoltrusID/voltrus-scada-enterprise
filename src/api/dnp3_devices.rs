@@ -8,6 +8,7 @@ use serde_json::json;
 use crate::api::{AppError, AppState, AuthUser};
 use crate::dnp3::objects::common_group_variations;
 use crate::models::*;
+use crate::models::Dnp3DeviceConfig;
 
 // ── Device CRUD ──
 
@@ -260,6 +261,106 @@ pub async fn remove_point(
         return Err(AppError(anyhow::anyhow!("Point not found")));
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Start / Stop ──
+
+/// POST /api/v1/dnp3/devices/{id}/start
+pub async fn start_device(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    if user.role != "admin" {
+        return Err(AppError(anyhow::anyhow!("Admin access required")));
+    }
+    if !state.license_tier.dnp3() {
+        return Err(AppError(anyhow::anyhow!(
+            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
+        )));
+    }
+
+    // Load device from DB
+    let device = state
+        .storage
+        .get_dnp3_device(id)
+        .await?
+        .ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
+
+    if !device.enabled {
+        return Err(AppError(anyhow::anyhow!(
+            "Device is disabled. Enable it first before starting."
+        )));
+    }
+
+    // Load points for device
+    let points = state.storage.list_dnp3_points(id).await?;
+
+    if points.is_empty() {
+        return Err(AppError(anyhow::anyhow!(
+            "Device has no points configured. Add points before starting."
+        )));
+    }
+
+    // Build runtime config
+    let device_key = format!("dnp3_{}", device.id);
+    let config = Dnp3DeviceConfig {
+        id: device_key.clone(),
+        ip: device.ip.clone(),
+        port: device.port,
+        master_address: device.master_address,
+        outstation_address: device.outstation_address,
+        event_scan_interval_ms: device.event_scan_interval_ms,
+        points: points
+            .iter()
+            .map(|p| crate::models::Dnp3PointConfig {
+                group_num: p.group_num,
+                variation: p.variation,
+                point_index: p.point_index,
+                name: p.name.clone(),
+                scale: p.scale,
+            })
+            .collect(),
+    };
+
+    state.poller_manager.start_dnp3(config).await;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "start_dnp3_device".to_string(),
+        username: user.username.clone(),
+        resource: format!("dnp3_device:{}", id),
+        details: None,
+    });
+
+    Ok(Json(json!({"ok": true})))
+}
+
+/// POST /api/v1/dnp3/devices/{id}/stop
+pub async fn stop_device(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthUser>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    if user.role != "admin" {
+        return Err(AppError(anyhow::anyhow!("Admin access required")));
+    }
+    if !state.license_tier.dnp3() {
+        return Err(AppError(anyhow::anyhow!(
+            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
+        )));
+    }
+
+    let device_key = format!("dnp3_{}", id);
+    state.poller_manager.stop(&device_key).await;
+
+    state.audit_logger.log(crate::security::AuditEvent {
+        action: "stop_dnp3_device".to_string(),
+        username: user.username.clone(),
+        resource: format!("dnp3_device:{}", id),
+        details: None,
+    });
+
+    Ok(Json(json!({"ok": true})))
 }
 
 // ── Discovery ──

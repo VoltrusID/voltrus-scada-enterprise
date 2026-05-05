@@ -52,10 +52,12 @@ mod shortcuts;
 mod simulation;
 mod snmp_scan;
 pub(crate) mod stream;
+mod system_docs;
 mod system;
 mod tag_tree;
 mod user_notifications;
 mod video;
+mod vertical_templates;
 mod websocket;
 
 use axum::extract::DefaultBodyLimit;
@@ -297,6 +299,11 @@ pub fn create_router(state: AppState) -> Router {
             get(compression::get_compression_config),
         )
         .route("/api/v1/version", get(system::get_version))
+        .route("/api/v1/docs/topology", get(system_docs::get_topology))
+        .route("/api/v1/docs/tag-xref", get(system_docs::get_tag_xref))
+        .route("/api/v1/docs/automation", get(system_docs::get_automation_docs))
+        .route("/api/v1/docs/export", get(system_docs::export_docs))
+        .route("/api/v1/docs/config-diff", get(system_docs::get_config_diff))
         .route("/api/v1/auth/change-password", post(auth::change_password))
         .route("/api/v1/data", get(data::get_data))
         .route("/api/v1/data/export", get(data::export_data))
@@ -485,6 +492,8 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/ai/generate/from-template",
             post(ai_copilot::generate_from_template),
         )
+        .route("/api/v1/templates", get(vertical_templates::list_templates))
+        .route("/api/v1/templates/preview", post(vertical_templates::preview_template))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -731,6 +740,14 @@ pub fn create_router(state: AppState) -> Router {
             delete(dnp3_devices::remove_point),
         )
         .route("/api/v1/dnp3/scan", post(dnp3_devices::scan_network))
+        .route(
+            "/api/v1/dnp3/devices/{id}/start",
+            post(dnp3_devices::start_device),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}/stop",
+            post(dnp3_devices::stop_device),
+        )
         .route(
             "/api/v1/dnp3/devices/{id}/integrity",
             post(dnp3_devices::trigger_integrity),
@@ -1042,6 +1059,8 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/ai/proposals/{id}/apply",
             post(ai_copilot::apply_proposal),
         )
+        .route("/api/v1/templates/{id}", get(vertical_templates::get_template))
+        .route("/api/v1/templates/{id}/instantiate", post(vertical_templates::instantiate_template))
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

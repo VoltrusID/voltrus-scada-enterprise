@@ -193,6 +193,18 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    /// Vertical-specific templates — browse and preview.
+    /// Starter tier and above.
+    pub fn templates(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
+    /// Vertical-specific templates — instantiate (create tags, devices, flows).
+    /// Professional tier and above. Starter gets 1 template.
+    pub fn templates_write(&self) -> bool {
+        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    }
+
     /// Returns all feature flags as a JSON object.
     pub fn to_feature_flags(&self) -> serde_json::Value {
         serde_json::json!({
@@ -229,6 +241,8 @@ impl LicenseTier {
             "bi_connectors": self.bi_connectors(),
             "data_egress": self.data_egress(),
             "outbound_webhooks": self.outbound_webhooks(),
+            "templates": self.templates(),
+            "templates_write": self.templates_write(),
         })
     }
 }

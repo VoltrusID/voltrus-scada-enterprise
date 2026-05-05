@@ -158,6 +158,7 @@ fn test_s7_read_request_construction() {
         bit_offset: 0,
         data_type: S7DataType::DWord,
         length: 1,
+        name: None,
     }];
     let packet = client.build_read_var_request(&tags).unwrap();
 
@@ -178,6 +179,7 @@ fn test_s7_write_request_construction() {
         bit_offset: 0,
         data_type: S7DataType::Word,
         length: 1,
+        name: None,
     };
     let packet = client
         .build_write_var_request(&tag, &S7Value::Word(1234))
@@ -275,6 +277,7 @@ fn test_decode_value_word_be() {
         bit_offset: 0,
         data_type: S7DataType::Word,
         length: 1,
+        name: None,
     };
     let val = S7Client::decode_value(&data, &tag);
     assert_eq!(val, S7Value::Word(255));
@@ -290,6 +293,7 @@ fn test_decode_value_real() {
         bit_offset: 0,
         data_type: S7DataType::Real,
         length: 1,
+        name: None,
     };
     let val = S7Client::decode_value(&data, &tag);
     match val {
@@ -307,6 +311,7 @@ fn test_encode_value_word() {
         bit_offset: 0,
         data_type: S7DataType::Word,
         length: 1,
+        name: None,
     };
     let bytes = S7Client::encode_value(&S7Value::Word(0x1234), &tag);
     assert_eq!(bytes, vec![0x12, 0x34]);
@@ -321,6 +326,7 @@ fn test_encode_value_bool_bit_offset() {
         bit_offset: 3,
         data_type: S7DataType::Bool,
         length: 1,
+        name: None,
     };
     let bytes = S7Client::encode_value(&S7Value::Bool(true), &tag);
     assert_eq!(bytes, vec![0x08]); // 1 << 3

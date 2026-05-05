@@ -142,6 +142,10 @@ pub struct S7Tag {
     pub bit_offset: u8,
     pub data_type: S7DataType,
     pub length: u16,
+    /// Human-readable name from configuration (e.g. "voltage", "current").
+    /// Falls back to "{area}_{offset}" when not set.
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

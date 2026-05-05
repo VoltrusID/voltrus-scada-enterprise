@@ -125,6 +125,10 @@ export class SystemView extends LitElement {
       </div>
 
       <vlt-integration-panel></vlt-integration-panel>
+
+      <vlt-templates-panel></vlt-templates-panel>
+
+      <vlt-docs-panel></vlt-docs-panel>
     `;
   }
 }

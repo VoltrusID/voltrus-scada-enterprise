@@ -145,7 +145,10 @@ pub async fn update_device(
         let mut s7_tags = Vec::new();
         for tag_row in &tags {
             match S7Client::parse_tag_address(&tag_row.tag_address) {
-                Ok(s7_tag) => s7_tags.push(s7_tag),
+                Ok(mut s7_tag) => {
+                    s7_tag.name = Some(tag_row.name.clone());
+                    s7_tags.push(s7_tag)
+                }
                 Err(_) => continue,
             }
         }
@@ -361,7 +364,10 @@ pub async fn start_device(
     let mut s7_tags = Vec::new();
     for tag_row in &tags {
         match S7Client::parse_tag_address(&tag_row.tag_address) {
-            Ok(s7_tag) => s7_tags.push(s7_tag),
+            Ok(mut s7_tag) => {
+                s7_tag.name = Some(tag_row.name.clone());
+                s7_tags.push(s7_tag)
+            }
             Err(e) => {
                 return Err(AppError(anyhow::anyhow!(
                     "Failed to parse tag '{}': {}",

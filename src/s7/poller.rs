@@ -39,11 +39,13 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
                             let mut metrics = HashMap::new();
                             for (i, value) in values.iter().enumerate() {
                                 let tag_name = if i < config.tags.len() {
-                                    format!(
-                                        "{}_{}",
-                                        config.tags[i].area.to_string().to_lowercase(),
-                                        config.tags[i].offset
-                                    )
+                                    config.tags[i].name.clone().unwrap_or_else(|| {
+                                        format!(
+                                            "{}_{}",
+                                            config.tags[i].area.to_string().to_lowercase(),
+                                            config.tags[i].offset
+                                        )
+                                    })
                                 } else {
                                     format!("tag_{}", i)
                                 };
@@ -119,6 +121,7 @@ pub async fn write_tag(
         bit_offset: 0,
         data_type: S7DataType::Real,
         length: 1,
+        name: None,
     };
 
     let s7_value = S7Value::Real(value as f32);
