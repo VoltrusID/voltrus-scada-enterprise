@@ -1,40 +1,11 @@
-import React, { useEffect, useState } from 'react';
-
-interface CompressionStats {
-  hot_rows: number;
-  warm_rows: number;
-  cold_rows: number;
-  db_size_bytes: number;
-  db_size_mb: number;
-  estimated_hot_mb: number;
-  estimated_warm_mb: number;
-  estimated_cold_mb: number;
-}
+import React from 'react';
+import { useCompressionStats } from '../queries/compression';
 
 export const CompressionStats: React.FC = () => {
-  const [stats, setStats] = useState<CompressionStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: stats, isLoading, isError } = useCompressionStats();
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch('/api/v1/compression/stats');
-        if (res.ok) {
-          setStats(await res.json());
-        }
-      } catch (err) {
-        console.error('Failed to fetch compression stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loading) return <div className="p-4 text-gray-400">Loading compression stats...</div>;
-  if (!stats) return <div className="p-4 text-red-400">Failed to load stats</div>;
+  if (isLoading) return <div className="p-4 text-gray-400">Loading compression stats...</div>;
+  if (isError || !stats) return <div className="p-4 text-red-400">Failed to load stats</div>;
 
   const totalRows = stats.hot_rows + stats.warm_rows + stats.cold_rows;
 

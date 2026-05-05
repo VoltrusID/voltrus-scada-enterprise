@@ -414,22 +414,23 @@ pub async fn export_docs(
     let html = generate_docs_html(&topology, &tag_xref, &automation, &hostname, &generated_at);
 
     match query.format.as_deref() {
-        Some("pdf") => {
-            let pdf_bytes = crate::report::pdf::generate_report_pdf(&html)
-                .map_err(|e| AppError(anyhow::anyhow!("PDF generation failed: {}", e)))?;
-            Ok(axum::response::Response::builder()
-                .status(200)
-                .header("content-type", "application/pdf")
-                .header("content-disposition", "attachment; filename=\"voltrus-system-docs.pdf\"")
-                .body(axum::body::Body::from(pdf_bytes))
-                .unwrap())
-        }
+        // PDF and HTML both return print-friendly HTML — users can Ctrl+P → Save as PDF
         _ => {
+            let print_html = format!(
+                "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Voltrus System Docs</title>\
+                <style>body{{font-family:system-ui,sans-serif;margin:40px;max-width:1000px;color:#111}}\
+                table{{border-collapse:collapse;width:100%;margin:12px 0}}th,td{{border:1px solid #ccc;padding:6px 10px;text-align:left;font-size:13px}}\
+                th{{background:#f5f5f5;font-size:11px;text-transform:uppercase}}\
+                h1{{font-size:20px}}h2{{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:4px}}h3{{font-size:14px}}\
+                .meta{{color:#666;font-size:12px}}@media print{{body{{margin:0}}}}</style>\
+                </head><body>{}</body></html>",
+                html
+            );
             Ok(axum::response::Response::builder()
                 .status(200)
                 .header("content-type", "text/html")
                 .header("content-disposition", "attachment; filename=\"voltrus-system-docs.html\"")
-                .body(axum::body::Body::from(html))
+                .body(axum::body::Body::from(print_html))
                 .unwrap())
         }
     }

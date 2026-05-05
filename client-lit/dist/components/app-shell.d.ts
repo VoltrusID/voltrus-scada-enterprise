@@ -36,6 +36,7 @@ export declare class AppShell extends LitElement {
     private _authRole;
     private _systemInfo;
     private _licenseValid;
+    private _licenseCheckDone;
     connectedCallback(): void;
     disconnectedCallback(): void;
     private _checkLicense;

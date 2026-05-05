@@ -48,15 +48,16 @@ export const monoInputStyle: React.CSSProperties = { ...inputStyle, fontFamily: 
 export const labelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
 export const labelTextStyle: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' as const };
 export const tabStyle = (active: boolean): React.CSSProperties => ({
-  padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+  padding: '10px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
   borderBottom: active ? '2px solid var(--cyan)' : '2px solid transparent',
   color: active ? 'var(--cyan)' : 'var(--muted)', background: 'transparent', textTransform: 'uppercase' as const,
-  letterSpacing: '.04em'
+  letterSpacing: '.05em',
+  transition: 'color 0.15s, border-color 0.15s',
 });
 export const btnStyle: React.CSSProperties = {
-  fontFamily: 'Inter,sans-serif', fontSize: 13, fontWeight: 500, padding: '7px 14px', borderRadius: 6,
+  fontFamily: 'Inter,sans-serif', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6,
   border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer',
-  display: 'flex', alignItems: 'center', gap: 6
+  display: 'flex', alignItems: 'center', gap: 5, transition: 'border-color 0.15s, color 0.15s',
 };
 
 export const touchTarget: React.CSSProperties = { minHeight: 44, minWidth: 44 };

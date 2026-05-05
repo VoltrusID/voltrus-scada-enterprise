@@ -110,6 +110,12 @@ let SystemView = class SystemView extends LitElement {
           </div>
         </div>
       </div>
+
+      <vlt-integration-panel></vlt-integration-panel>
+
+      <vlt-templates-panel></vlt-templates-panel>
+
+      <vlt-docs-panel></vlt-docs-panel>
     `;
     }
 };

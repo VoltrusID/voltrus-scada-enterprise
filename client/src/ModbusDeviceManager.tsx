@@ -180,9 +180,11 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
     })()}
     {showSimProfiles && (
       <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 60, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Simulation Profiles</h2>
-          <button style={btnStyle} onClick={() => setShowSimProfiles(false)}>Close</button>
+          <button onClick={() => setShowSimProfiles(false)} aria-label="Close" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, transition: 'color 0.15s' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
         <div style={{ flex: 1, overflow: 'auto' }}>
           <SimProfileManager />

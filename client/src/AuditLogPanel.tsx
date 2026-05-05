@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuditLogs, useExportAuditCsv, type AuditQueryParams } from './queries';
 import { inputStyle, btnStyle } from './styles';
+import { OverlayScreen } from './components/OverlayScreen';
 
 const LIMIT = 25;
 
-export function AuditLogPanel() {
+export function AuditLogPanel({ onClose }: { onClose?: () => void } = {}) {
   const [search, setSearch] = useState('');
   const [action, setAction] = useState('');
   const [username, setUsername] = useState('');
@@ -58,7 +59,7 @@ export function AuditLogPanel() {
     padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', color: 'var(--fg)',
   };
 
-  return (
+  const content = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -131,4 +132,12 @@ export function AuditLogPanel() {
       </div>
     </div>
   );
+
+  // When used standalone (from header menu), wrap in OverlayScreen
+  if (onClose) {
+    return <OverlayScreen title="Audit Log" onClose={onClose}>{content}</OverlayScreen>;
+  }
+
+  // When embedded (e.g. inside DataManager tab), render content directly
+  return content;
 }

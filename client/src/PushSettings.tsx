@@ -5,7 +5,7 @@ import {
   useSubscribePush,
   useUnsubscribePush,
 } from './queries/push'
-import { touchBtnStyle } from './styles'
+import { btnStyle } from './styles'
 
 export function PushSettings() {
   const supported = usePushSupported()
@@ -98,7 +98,7 @@ export function PushSettings() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {!isGranted && !isDenied && (
           <button
-            style={{ ...touchBtnStyle, borderColor: 'var(--ok)', color: 'var(--ok)' }}
+            style={{ ...btnStyle, borderColor: 'var(--ok)', color: 'var(--ok)' }}
             onClick={handleEnable}
             disabled={isLoading}
           >
@@ -107,7 +107,7 @@ export function PushSettings() {
         )}
         {isGranted && (
           <button
-            style={{ ...touchBtnStyle, borderColor: 'var(--crit)', color: 'var(--crit)' }}
+            style={{ ...btnStyle, borderColor: 'var(--crit)', color: 'var(--crit)' }}
             onClick={handleDisable}
             disabled={isLoading}
           >

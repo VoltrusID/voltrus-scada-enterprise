@@ -1,98 +1,58 @@
-import { useState, useEffect, useCallback } from 'react'
-import { fetchJson } from '../queries'
-
-// ── Types ──
-
-interface TemplateSummary {
-  id: string; name: string; industry: string; description: string
-  tag_count: number; alarm_count: number; flow_count: number; has_oee: boolean
-}
-interface IndustryInfo { id: string; name: string }
-interface TemplateListResponse { templates: TemplateSummary[]; industries: IndustryInfo[] }
-
-interface TemplateDetail {
-  id: string; name: string; industry: string; description: string; equipment_type: string
-  tags: { name_pattern: string; description: string; unit: string; data_type: string; group: string; widget: string }[]
-  alarms: { tag_pattern: string; severity: string; comparison: string; threshold: number; message_template: string }[]
-  flows: { name: string; description: string; trigger_type: string }[]
-  oee_config: any
-  dashboard: { screen_name: string }
-}
+import { useState } from 'react'
+import { useTemplates, useTemplate, usePreviewTemplate, useInstantiateTemplate } from '../queries/templates'
+import type { TemplateSummary } from '../queries/templates'
 
 // ── Component ──
 
 export function TemplatesPanel() {
   const [tab, setTab] = useState<'browse' | 'detail' | 'instantiate'>('browse')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-
-  const [templates, setTemplates] = useState<TemplateSummary[]>([])
-  const [industries, setIndustries] = useState<IndustryInfo[]>([])
   const [selectedIndustry, setSelectedIndustry] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<TemplateDetail | null>(null)
 
   // Instantiate form
   const [instanceName, setInstanceName] = useState('')
   const [instanceCount, setInstanceCount] = useState('2')
-  const [instantiating, setInstantiating] = useState(false)
-  // Preview
+
+  // Queries
+  const templatesQ = useTemplates(selectedIndustry || undefined)
+  const detailQ = useTemplate(tab === 'detail' ? selectedId : null)
+
+  // Mutations
+  const previewM = usePreviewTemplate()
+  const instantiateM = useInstantiateTemplate()
+
+  // Preview state (from mutation result)
   const [previewTags, setPreviewTags] = useState<any[]>([])
   const [previewAlarms, setPreviewAlarms] = useState<any[]>([])
 
-  const load = useCallback(async () => {
-    setLoading(true); setError('')
-    try {
-      const d = await fetchJson<TemplateListResponse>('/templates' + (selectedIndustry ? `?industry=${selectedIndustry}` : ''))
-      setTemplates(d.templates || []); setIndustries(d.industries || [])
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
-  }, [selectedIndustry])
-
-  useEffect(() => { load() }, [load])
-
-  const selectTemplate = async (id: string) => {
-    setSelectedId(id); setTab('detail'); setLoading(true)
-    try { setDetail(await fetchJson<TemplateDetail>(`/templates/${id}`)) } catch (e: any) { setError(e.message) }
-    setLoading(false)
+  const selectTemplate = (id: string) => {
+    setSelectedId(id)
+    setTab('detail')
   }
 
-  const preview = async () => {
+  const preview = () => {
     if (!selectedId) return
-    setLoading(true)
-    try {
-      const r = await fetch(`/templates/preview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: selectedId, instance_counts: { n: parseInt(instanceCount) || 2 } }),
-        credentials: 'include',
-      })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || 'preview failed')
-      setPreviewTags(data.expanded_tags || []); setPreviewAlarms(data.expanded_alarms || [])
-      setTab('instantiate')
-    } catch (e: any) { setError(e.message) }
-    setLoading(false)
+    previewM.mutate(
+      { template_id: selectedId, instance_counts: { n: parseInt(instanceCount) || 2 } },
+      {
+        onSuccess: (data) => {
+          setPreviewTags(data.expanded_tags || [])
+          setPreviewAlarms(data.expanded_alarms || [])
+          setTab('instantiate')
+        },
+      },
+    )
   }
 
-  const instantiate = async () => {
+  const instantiate = () => {
     if (!selectedId || !instanceName.trim()) return
-    setInstantiating(true); setError(''); setSuccess('')
-    try {
-      const r = await fetch(`/templates/${selectedId}/instantiate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template_id: selectedId, name: instanceName.trim(), instance_counts: { n: parseInt(instanceCount) || 2 } }),
-        credentials: 'include',
-      })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || 'instantiate failed')
-      setSuccess(`Created: ${data.tags_created} tags, ${data.alarms_created} alarms, ${data.flows_created} flows on device "${data.device_id}"`)
-    } catch (e: any) { setError(e.message) }
-    setInstantiating(false)
+    instantiateM.mutate(
+      { template_id: selectedId, name: instanceName.trim(), instance_counts: { n: parseInt(instanceCount) || 2 } },
+    )
   }
 
+  const templates = templatesQ.data?.templates || []
+  const industries = templatesQ.data?.industries || []
   const industryName = (id: string) => industries.find(i => i.id === id)?.name || id
 
   const tabStyle = (active: boolean) => ({
@@ -103,6 +63,8 @@ export function TemplatesPanel() {
 
   const cardBase = { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, cursor: 'pointer', transition: 'border-color 0.2s' } as React.CSSProperties
   const badge = (bg: string, c: string) => ({ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: bg, color: c })
+
+  const detail = detailQ.data
 
   return (
     <div style={{ padding: 16 }}>
@@ -117,11 +79,21 @@ export function TemplatesPanel() {
         <div style={tabStyle(tab === 'instantiate')} onClick={() => { if (selectedId) setTab('instantiate') }}>Instantiate</div>
       </div>
 
-      {error && <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{error}</div>}
-      {success && <div style={{ color: '#16a34a', fontSize: 13, fontWeight: 500, marginBottom: 12 }}>{success}</div>}
-      {loading && <div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</div>}
+      {(templatesQ.error || detailQ.error || previewM.isError || instantiateM.isError) && (
+        <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>
+          {(templatesQ.error || detailQ.error || previewM.error || instantiateM.error)?.message}
+        </div>
+      )}
+      {instantiateM.isSuccess && instantiateM.data && (
+        <div style={{ color: '#16a34a', fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
+          Created: {instantiateM.data.tags_created} tags, {instantiateM.data.alarms_created} alarms, {instantiateM.data.flows_created} flows on device "{instantiateM.data.device_id}"
+        </div>
+      )}
+      {(templatesQ.isLoading || detailQ.isLoading || previewM.isPending || instantiateM.isPending) && (
+        <div style={{ color: 'var(--muted)', fontSize: 13 }}>Loading…</div>
+      )}
 
-      {!loading && tab === 'browse' && (
+      {!templatesQ.isLoading && tab === 'browse' && (
         <>
           <select value={selectedIndustry} onChange={e => setSelectedIndustry(e.target.value)} style={{
             padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', fontSize: 13, marginBottom: 12,
@@ -151,7 +123,7 @@ export function TemplatesPanel() {
         </>
       )}
 
-      {!loading && tab === 'detail' && detail && (
+      {!detailQ.isLoading && tab === 'detail' && detail && (
         <>
           <div style={cardBase}>
             <div style={{ fontSize: 18, fontWeight: 600 }}>{detail.name}</div>
@@ -210,7 +182,7 @@ export function TemplatesPanel() {
         </>
       )}
 
-      {!loading && tab === 'instantiate' && (
+      {!previewM.isPending && tab === 'instantiate' && (
         <>
           <div style={cardBase}>
             <h3 style={{ margin: '0 0 12px' }}>Instantiate Template</h3>
@@ -246,11 +218,11 @@ export function TemplatesPanel() {
           )}
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={instantiate} disabled={instantiating || !instanceName.trim()} style={{
+            <button onClick={instantiate} disabled={instantiateM.isPending || !instanceName.trim()} style={{
               padding: '8px 16px', borderRadius: 6, border: 'none',
-              background: instantiating || !instanceName.trim() ? '#666' : '#f97316',
-              color: '#fff', cursor: instantiating || !instanceName.trim() ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600,
-            }}>{instantiating ? 'Creating…' : 'Instantiate Template'}</button>
+              background: instantiateM.isPending || !instanceName.trim() ? '#666' : '#f97316',
+              color: '#fff', cursor: instantiateM.isPending || !instanceName.trim() ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600,
+            }}>{instantiateM.isPending ? 'Creating…' : 'Instantiate Template'}</button>
             <button onClick={() => setTab('detail')} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer', fontSize: 13 }}>Back</button>
           </div>
         </>

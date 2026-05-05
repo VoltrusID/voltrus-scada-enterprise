@@ -181,16 +181,14 @@ export function AnnotationPanel({ onClose, embedded }: Props) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => setShowCreate(v => !v)} style={{
-            ...btnStyle, borderColor: 'var(--cyan)', color: 'var(--cyan)',
+            ...btnStyle, padding: '5px 10px', borderColor: 'var(--cyan)', color: 'var(--cyan)',
           }} aria-label="Create new annotation">
             <PlusIcon /> New
           </button>
           {!embedded && (
-            <button onClick={onClose} aria-label="Close annotations panel" style={{
-              background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer',
-              fontSize: 20, padding: '0 4px', lineHeight: 1, minHeight: 44, minWidth: 44,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>&times;</button>
+            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, transition: 'color 0.15s', marginLeft: 'auto' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           )}
         </div>
       </div>
@@ -218,13 +216,13 @@ export function AnnotationPanel({ onClose, embedded }: Props) {
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button onClick={handleCreate} disabled={!form.tag_id || !form.annotation_text || createMut.isPending} style={{
-              ...btnStyle, borderColor: 'var(--cyan)', color: 'var(--cyan)',
+              ...btnStyle, padding: '5px 10px', borderColor: 'var(--cyan)', color: 'var(--cyan)',
               opacity: (!form.tag_id || !form.annotation_text || createMut.isPending) ? 0.5 : 1,
             }}>
               {createMut.isPending ? 'Creating...' : 'Create'}
             </button>
             <button onClick={() => { setShowCreate(false); setForm(emptyForm) }} style={{
-              ...btnStyle, color: 'var(--muted)',
+              ...btnStyle, padding: '5px 10px', color: 'var(--muted)',
             }}>Cancel</button>
             {createMut.isError && <span style={{ fontSize: 12, color: 'var(--crit)' }}>{createMut.error?.message || 'Failed'}</span>}
           </div>
@@ -299,13 +297,13 @@ export function AnnotationPanel({ onClose, embedded }: Props) {
                           </label>
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={handleUpdate} disabled={!editForm.annotation_text || updateMut.isPending} style={{
-                              ...btnStyle, fontSize: 12, borderColor: 'var(--cyan)', color: 'var(--cyan)',
+                              ...btnStyle, padding: '5px 10px', fontSize: 12, borderColor: 'var(--cyan)', color: 'var(--cyan)',
                               opacity: (!editForm.annotation_text || updateMut.isPending) ? 0.5 : 1,
                             }}>
                               {updateMut.isPending ? 'Saving...' : 'Save'}
                             </button>
                             <button onClick={() => { setEditingId(null); setEditForm(emptyForm) }} style={{
-                              ...btnStyle, fontSize: 12, color: 'var(--muted)',
+                              ...btnStyle, padding: '5px 10px', fontSize: 12, color: 'var(--muted)',
                             }}>Cancel</button>
                           </div>
                         </div>
