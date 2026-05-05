@@ -197,7 +197,16 @@ async fn write_to_s3(url: &str, filename: &str, content: &str, compress: bool) -
 
 fn format_timestamp(ts: i64) -> String {
     match time::OffsetDateTime::from_unix_timestamp(ts) {
-        Ok(dt) => dt.format(&time::format_description::parse("[year][month][day]-[hour][minute]").unwrap_or_else(|_| time::format_description::parse("YYYYMMDD-HHmm").unwrap())).unwrap_or_else(|_| format!("{}", ts)),
+        Ok(dt) => {
+            let fmt = time::format_description::parse("[year][month][day]-[hour][minute]");
+            match fmt {
+                Ok(f) => match dt.format(&f) {
+                    Ok(s) => s,
+                    Err(_) => format!("{}", ts),
+                },
+                Err(_) => format!("{}", ts),
+            }
+        }
         Err(_) => format!("{}", ts),
     }
 }
@@ -232,8 +241,42 @@ pub async fn run_egress_scheduler(storage: Storage, mut shutdown_rx: tokio::sync
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn test_parse_time_range() { assert_eq!(parse_time_range("1h").unwrap(), 3600); assert_eq!(parse_time_range("24h").unwrap(), 86400); assert_eq!(parse_time_range("7d").unwrap(), 7*86400); assert_eq!(parse_time_range("30m").unwrap(), 1800); }
-    #[test] fn test_is_schedule_due() { let now = 1000000; assert!(is_schedule_due("hourly", None, now)); assert!(!is_schedule_due("hourly", Some(now - 1800), now)); assert!(is_schedule_due("hourly", Some(now - 7200), now)); }
-    #[test] fn test_is_schedule_due_custom() { let now = 1000000; assert!(is_schedule_due("every_30m", Some(now - 1800), now)); assert!(!is_schedule_due("every_30m", Some(now - 1000), now)); }
-    #[test] fn test_sanitize_filename() { assert_eq!(sanitize_filename("my job"), "my_job"); assert_eq!(sanitize_filename("job-1"), "job-1"); }
+    #[test]
+    fn test_parse_time_range() {
+        assert_eq!(parse_time_range("1h").unwrap(), 3600);
+        assert_eq!(parse_time_range("24h").unwrap(), 86400);
+        assert_eq!(parse_time_range("7d").unwrap(), 7 * 86400);
+        assert_eq!(parse_time_range("30m").unwrap(), 1800);
+    }
+
+    #[test]
+    fn test_parse_time_range_errors() {
+        assert!(parse_time_range("").is_err());
+        assert!(parse_time_range("abc").is_err());
+        assert!(parse_time_range("5w").is_err());
+    }
+
+    #[test]
+    fn test_is_schedule_due() {
+        let now = 1000000;
+        assert!(is_schedule_due("hourly", None, now));
+        assert!(!is_schedule_due("hourly", Some(now - 1800), now));
+        assert!(is_schedule_due("hourly", Some(now - 7200), now));
+    }
+
+    #[test]
+    fn test_is_schedule_due_custom() {
+        let now = 1000000;
+        assert!(is_schedule_due("every_30m", Some(now - 1800), now));
+        assert!(!is_schedule_due("every_30m", Some(now - 1000), now));
+        assert!(is_schedule_due("every_2h", Some(now - 7200), now));
+        assert!(is_schedule_due("every_1d", Some(now - 86400), now));
+    }
+
+    #[test]
+    fn test_sanitize_filename() {
+        assert_eq!(sanitize_filename("my job"), "my_job");
+        assert_eq!(sanitize_filename("job-1"), "job-1");
+        assert_eq!(sanitize_filename("a/b\\c"), "a_b_c");
+    }
 }

@@ -98,7 +98,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let rows: Vec<(String, String)> = conn
                 .prepare(
-                    "SELECT DISTINCT device_id, metric FROM telemetry_hourly WHERE timestamp < ?1",
+                    "SELECT DISTINCT device_id, metric FROM telemetry_hourly WHERE bucket_start < ?1",
                 )?
                 .query_map(rusqlite::params![cutoff_ts], |row| {
                     Ok((row.get(0)?, row.get(1)?))
@@ -110,7 +110,7 @@ impl Storage {
             for (device_id, metric) in &rows {
                 let result: (f64, f64, f64, i64) = conn
                     .query_row(
-                        "SELECT COALESCE(AVG(avg),0), COALESCE(MIN(min_val),0), COALESCE(MAX(max_val),0), SUM(count) FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
+                        "SELECT COALESCE(AVG(avg_value),0), COALESCE(MIN(min_value),0), COALESCE(MAX(max_value),0), SUM(sample_count) FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND bucket_start < ?3",
                         rusqlite::params![device_id, metric, cutoff_ts],
                         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
                     )
@@ -121,12 +121,12 @@ impl Storage {
                 if count > 0 {
                     let day_ts = (cutoff_ts / 86400) * 86400;
                     conn.execute(
-                        "INSERT OR REPLACE INTO telemetry_daily (device_id, metric, timestamp, avg, min_val, max_val, count) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        "INSERT OR REPLACE INTO telemetry_daily (device_id, metric, bucket_start, avg_value, min_value, max_value, sample_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                         rusqlite::params![device_id, metric, day_ts, avg, min_val, max_val, count],
                     )?;
 
                     let deleted = conn.execute(
-                        "DELETE FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND timestamp < ?3",
+                        "DELETE FROM telemetry_hourly WHERE device_id = ?1 AND metric = ?2 AND bucket_start < ?3",
                         rusqlite::params![device_id, metric, cutoff_ts],
                     )?;
                     compressed += deleted;

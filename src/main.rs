@@ -591,6 +591,30 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
                 }
+
+                // ── Outbound webhooks: tag_change events (v0.39.0) ──
+                // Dispatch tag_change webhooks for the latest data.
+                // We do this after persistence + alarm evaluation, not on every
+                // tick — outbound webhooks get the latest snapshot values.
+                {
+                    let storage_wh = storage.clone();
+                    for snap in &snapshots {
+                        if snap.status != DeviceStatus::Online { continue; }
+                        for (metric, value) in &snap.metrics {
+                            let payload = serde_json::json!({
+                                "event": "tag_change",
+                                "device_id": snap.device_id,
+                                "metric": metric,
+                                "value": value,
+                                "timestamp": snap.timestamp,
+                                "status": "online",
+                            });
+                            crate::notification::dispatch_outbound_webhooks(
+                                &storage_wh, "tag_change", &payload,
+                            ).await;
+                        }
+                    }
+                }
             }
         });
     }

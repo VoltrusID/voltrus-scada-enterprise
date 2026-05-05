@@ -57,6 +57,12 @@ export class IntegrationPanel extends LitElement {
     .tab.active { color: var(--fg); border-bottom-color: #f97316; }
     .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
     .actions { display: flex; gap: 8px; margin-top: 8px; }
+    .form-grid { display: grid; grid-template-columns: 120px 1fr; gap: 8px 12px; align-items: center; }
+    .form-label { font-size: 12px; color: var(--muted); text-align: right; }
+    input, select { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font-size: 13px; font-family: inherit; }
+    input:focus, select:focus { outline: none; border-color: #f97316; }
+    select { cursor: pointer; }
+    .form-error { color: #ef4444; font-size: 11px; margin-top: 4px; }
   `;
 
   @state() private _tab = 'overview';
@@ -64,6 +70,19 @@ export class IntegrationPanel extends LitElement {
   @state() private _webhooks: OutboundWebhook[] = [];
   @state() private _connectionInfo: any = null;
   @state() private _loading = false;
+  @state() private _showCreateWebhook = false;
+  @state() private _showCreateEgress = false;
+  // Webhook form
+  @state() private _whName = '';
+  @state() private _whUrl = '';
+  @state() private _whEvents = 'alarm';
+  // Egress form
+  @state() private _egName = '';
+  @state() private _egDest = '';
+  @state() private _egSchedule = 'daily';
+  @state() private _egRange = '24h';
+  @state() private _egFormat = 'csv';
+  @state() private _egCompress = false;
 
   connectedCallback() {
     super.connectedCallback();
@@ -111,6 +130,45 @@ export class IntegrationPanel extends LitElement {
     if (!confirm('Delete this webhook?')) return;
     try {
       await api(`/integration/webhooks/outbound/${id}`, { method: 'DELETE' });
+      this._load();
+    } catch (e: any) { alert('Failed: ' + e.message); }
+  }
+
+  private async _createWebhook() {
+    if (!this._whName.trim() || !this._whUrl.trim()) { alert('Name and URL are required.'); return; }
+    try {
+      await api('/integration/webhooks/outbound', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: this._whName.trim(),
+          url: this._whUrl.trim(),
+          events: JSON.stringify([this._whEvents]),
+        }),
+      });
+      this._whName = '';
+      this._whUrl = '';
+      this._showCreateWebhook = false;
+      this._load();
+    } catch (e: any) { alert('Failed: ' + e.message); }
+  }
+
+  private async _createEgress() {
+    if (!this._egName.trim() || !this._egDest.trim()) { alert('Name and destination are required.'); return; }
+    try {
+      await api('/egress/jobs', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: this._egName.trim(),
+          schedule: this._egSchedule,
+          format: this._egFormat,
+          destination: this._egDest.trim(),
+          time_range: this._egRange,
+          compression: this._egCompress,
+        }),
+      });
+      this._egName = '';
+      this._egDest = '';
+      this._showCreateEgress = false;
       this._load();
     } catch (e: any) { alert('Failed: ' + e.message); }
   }
@@ -190,9 +248,31 @@ export class IntegrationPanel extends LitElement {
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <h3 style="margin:0">Outbound Webhooks</h3>
+          <button class="btn primary" @click=${() => { this._showCreateWebhook = !this._showCreateWebhook; }}>${this._showCreateWebhook ? 'Cancel' : '+ Add Webhook'}</button>
         </div>
       </div>
-      ${this._webhooks.length === 0 ? html`<div class="empty">No outbound webhooks configured. Create one via the API.</div>` : ''}
+
+      ${this._showCreateWebhook ? html`
+        <div class="card" style="border-color:#f97316">
+          <div class="form-grid">
+            <span class="form-label">Name</span>
+            <input type="text" placeholder="e.g. Slack Alert" .value=${this._whName} @input=${(e: any) => { this._whName = e.target.value; }} />
+            <span class="form-label">URL</span>
+            <input type="url" placeholder="https://hooks.slack.com/..." .value=${this._whUrl} @input=${(e: any) => { this._whUrl = e.target.value; }} />
+            <span class="form-label">Event</span>
+            <select .value=${this._whEvents} @change=${(e: any) => { this._whEvents = e.target.value; }}>
+              <option value="alarm" selected>Alarm</option>
+              <option value="tag_change">Tag Change</option>
+            </select>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn primary" @click=${() => this._createWebhook()}>Create Webhook</button>
+            <button class="btn" @click=${() => { this._showCreateWebhook = false; }}>Cancel</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${this._webhooks.length === 0 && !this._showCreateWebhook ? html`<div class="empty">No outbound webhooks configured.</div>` : ''}
       ${this._webhooks.map(w => html`
         <div class="card">
           <div class="row">
@@ -220,9 +300,46 @@ export class IntegrationPanel extends LitElement {
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <h3 style="margin:0">Scheduled Data Exports</h3>
+          <button class="btn primary" @click=${() => { this._showCreateEgress = !this._showCreateEgress; }}>${this._showCreateEgress ? 'Cancel' : '+ Add Export'}</button>
         </div>
       </div>
-      ${this._egressJobs.length === 0 ? html`<div class="empty">No egress jobs configured. Create one via the API.</div>` : ''}
+
+      ${this._showCreateEgress ? html`
+        <div class="card" style="border-color:#f97316">
+          <div class="form-grid">
+            <span class="form-label">Name</span>
+            <input type="text" placeholder="e.g. Daily Backup" .value=${this._egName} @input=${(e: any) => { this._egName = e.target.value; }} />
+            <span class="form-label">Destination</span>
+            <input type="text" placeholder="/mnt/exports or s3://bucket/prefix/" .value=${this._egDest} @input=${(e: any) => { this._egDest = e.target.value; }} />
+            <span class="form-label">Schedule</span>
+            <select .value=${this._egSchedule} @change=${(e: any) => { this._egSchedule = e.target.value; }}>
+              <option value="hourly">Hourly</option>
+              <option value="daily" selected>Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+            <span class="form-label">Time Range</span>
+            <select .value=${this._egRange} @change=${(e: any) => { this._egRange = e.target.value; }}>
+              <option value="1h">Last 1 hour</option>
+              <option value="24h" selected>Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
+            <span class="form-label">Format</span>
+            <select .value=${this._egFormat} @change=${(e: any) => { this._egFormat = e.target.value; }}>
+              <option value="csv" selected>CSV</option>
+              <option value="parquet">Parquet</option>
+            </select>
+            <span class="form-label">Compress</span>
+            <label style="font-size:13px;color:var(--fg)"><input type="checkbox" .checked=${this._egCompress} @change=${(e: any) => { this._egCompress = e.target.checked; }} /> Gzip compression</label>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn primary" @click=${() => this._createEgress()}>Create Export Job</button>
+            <button class="btn" @click=${() => { this._showCreateEgress = false; }}>Cancel</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${this._egressJobs.length === 0 && !this._showCreateEgress ? html`<div class="empty">No egress jobs configured.</div>` : ''}
       ${this._egressJobs.map(j => html`
         <div class="card">
           <div class="row">
