@@ -42,12 +42,33 @@ pub struct GrafanaResponse {
 }
 
 pub fn parse_time(s: &str) -> Option<i64> {
+    // Unix timestamp
     if let Ok(ts) = s.parse::<i64>() {
         return Some(ts);
     }
-    time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339)
-        .ok()
-        .map(|dt| dt.unix_timestamp())
+    // ISO 8601
+    if let Ok(dt) = time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339) {
+        return Some(dt.unix_timestamp());
+    }
+    // Relative time: "now", "now-1h", "now-30m", "now-7d"
+    let s = s.trim();
+    if s == "now" {
+        return Some(crate::timeutil::now_secs());
+    }
+    if let Some(rest) = s.strip_prefix("now-") {
+        let now = crate::timeutil::now_secs();
+        if let Some(num) = rest.strip_suffix('h') {
+            if let Ok(n) = num.parse::<i64>() { return Some(now - n * 3600); }
+        } else if let Some(num) = rest.strip_suffix('m') {
+            if let Ok(n) = num.parse::<i64>() { return Some(now - n * 60); }
+        } else if let Some(num) = rest.strip_suffix('d') {
+            if let Ok(n) = num.parse::<i64>() { return Some(now - n * 86400); }
+        } else if let Ok(n) = rest.parse::<i64>() {
+            // Bare number = seconds
+            return Some(now - n);
+        }
+    }
+    None
 }
 
 pub async fn execute_bi_query(storage: &Storage, query: &BiQuery) -> Result<BiResponse> {
@@ -128,9 +149,35 @@ fn format_timestamp_iso(ts: i64) -> String {
 mod tests {
     use super::*;
     #[test]
-    fn test_parse_time_unix() { assert_eq!(parse_time("1710000000"), Some(1710000000)); }
+    fn test_parse_time_unix() {
+        assert_eq!(parse_time("1710000000"), Some(1710000000));
+    }
+
     #[test]
-    fn test_parse_time_iso() { assert!(parse_time("2024-03-09T20:00:00Z").is_some()); }
+    fn test_parse_time_iso() {
+        assert!(parse_time("2024-03-09T20:00:00Z").is_some());
+    }
+
+    #[test]
+    fn test_parse_time_now() {
+        assert!(parse_time("now").is_some());
+        let now = crate::timeutil::now_secs();
+        assert_eq!(parse_time("now"), Some(now));
+    }
+
+    #[test]
+    fn test_parse_time_relative() {
+        let now = crate::timeutil::now_secs();
+        assert_eq!(parse_time("now-1h"), Some(now - 3600));
+        assert_eq!(parse_time("now-30m"), Some(now - 1800));
+        assert_eq!(parse_time("now-7d"), Some(now - 7 * 86400));
+        assert_eq!(parse_time("now-3600"), Some(now - 3600));
+    }
+
+    #[test]
+    fn test_parse_time_invalid() {
+        assert!(parse_time("not-a-time").is_none());
+    }
     #[test]
     fn test_render_bi_csv() {
         let rows = vec![BiRow { timestamp: 1710000000, timestamp_iso: "2024-03-09T19:20:00Z".into(), device_id: "plc1".into(), metric: "voltage".into(), value: 220.5 }];

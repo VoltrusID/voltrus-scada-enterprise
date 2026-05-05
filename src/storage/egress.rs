@@ -99,7 +99,7 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("UPDATE egress_jobs SET last_run=?1, last_status=?2, last_error=?3 WHERE id=?4", rusqlite::params![last_run, last_status, last_error, id])
+            conn.execute("UPDATE egress_jobs SET last_run=?1, last_status=?2, last_error=?3, updated_at=?4 WHERE id=?5", rusqlite::params![last_run, last_status, last_error, crate::timeutil::now_secs(), id])
                 .context("Update egress job status failed").map(|_| ())
         }).await.context("Task join failed")?
     }

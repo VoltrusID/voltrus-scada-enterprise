@@ -468,7 +468,7 @@ impl Storage {
 
     pub async fn list_data_sources_for_tree(
         &self,
-    ) -> Result<Vec<(i64, String, String, String, Option<String>)>> {
+    ) -> Result<Vec<(i64, String, String, Option<String>, Option<String>)>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -481,7 +481,7 @@ impl Storage {
                         row.get::<_, i64>(0)?,
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
-                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(3)?,
                         row.get::<_, Option<String>>(4)?,
                     ))
                 })
@@ -494,7 +494,7 @@ impl Storage {
     }
 
     pub fn build_tag_tree(
-        tags: &[(i64, String, String, String, Option<String>)],
+        tags: &[(i64, String, String, Option<String>, Option<String>)],
         search_term: Option<&str>,
     ) -> Vec<serde_json::Value> {
         use std::collections::BTreeMap;
