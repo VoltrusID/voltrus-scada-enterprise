@@ -8,6 +8,8 @@ interface WidgetShellProps {
   instance: WidgetInstance
   sensor: SensorConfig | undefined
   data: SensorData | undefined
+  sensors: SensorConfig[]
+  currentValues: Record<string, SensorData>
   editMode: boolean
   selected: boolean
   onSelect: (id: string) => void
@@ -16,14 +18,8 @@ interface WidgetShellProps {
 }
 
 export default function WidgetShell({
-  instance,
-  sensor,
-  data,
-  editMode,
-  selected,
-  onSelect,
-  onMove,
-  onResize,
+  instance, sensor, data, sensors, currentValues,
+  editMode, selected, onSelect, onMove, onResize,
 }: WidgetShellProps) {
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -71,11 +67,11 @@ export default function WidgetShell({
       onDragStop={handleDragStop}
       onResizeStop={handleResizeStop}
       minWidth={60}
-      minHeight={40}
+      minHeight={20}
       bounds="parent"
       dragGrid={[10, 10]}
       resizeGrid={[10, 10]}
-      style={{ display: 'flex' }}
+      style={{ display: 'flex', zIndex: selected ? 5 : 2 }}
     >
       <div
         onClick={handleClick}
@@ -89,7 +85,7 @@ export default function WidgetShell({
           overflow: 'hidden',
           cursor: editMode ? 'move' : 'default',
           boxShadow: selected ? '0 0 0 2px var(--cyan)' : 'none',
-          background: 'transparent',
+          background: instance.type === 'data_table' ? 'var(--card)' : 'transparent',
         }}
       >
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -97,6 +93,8 @@ export default function WidgetShell({
             instance={instance}
             sensor={sensor}
             data={data}
+            sensors={sensors}
+            currentValues={currentValues}
             editMode={editMode}
             selected={selected}
           />

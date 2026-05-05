@@ -81,6 +81,8 @@ export const ScadaCanvas: React.FC<Props> = ({
             instance={w}
             sensor={sensor}
             data={data}
+            sensors={sensors}
+            currentValues={currentValues}
             editMode={editMode}
             selected={selectedId === w.id}
             onSelect={onSelectWidget}

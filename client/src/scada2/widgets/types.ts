@@ -6,6 +6,7 @@ import type { SensorConfig, SensorData } from '../../types'
 export type ScadaWidgetType =
   | 'gauge' | 'indicator' | 'bar' | 'status_light'
   | 'tank_level' | 'on_off' | 'label' | 'trend'
+  | 'big_number' | 'data_table' | 'pipe'
 
 // ── Config field schema ──
 
@@ -43,6 +44,7 @@ export interface WidgetInstance {
   id: string
   type: ScadaWidgetType
   sensorId: number | null
+  sensorIds: number[]   // multi-sensor binding (for table, etc.)
   x: number
   y: number
   width: number
@@ -68,6 +70,8 @@ export interface WidgetProps {
   instance: WidgetInstance
   sensor: SensorConfig | undefined
   data: SensorData | undefined
+  sensors: SensorConfig[]
+  currentValues: Record<string, SensorData>
   editMode: boolean
   selected: boolean
 }

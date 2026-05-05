@@ -19,6 +19,9 @@ import './widgets/TankLevelWidget'
 import './widgets/OnOffWidget'
 import './widgets/LabelWidget'
 import './widgets/TrendWidget'
+import './widgets/BigNumberWidget'
+import './widgets/DataTableWidget'
+import './widgets/PipeWidget'
 
 interface Props {
   sensors: SensorConfig[]
@@ -48,6 +51,7 @@ function loadLayoutFromAPI(
       id: eq.equipment_id,
       type: eq.equipment_type as ScadaWidgetType,
       sensorId: bindings[0] ?? null,
+      sensorIds: bindings,
       x: eq.x,
       y: eq.y,
       width: eq.width,

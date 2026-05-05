@@ -87,6 +87,7 @@ export function createWidget(
     id: `w_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     type,
     sensorId,
+    sensorIds: sensorId != null ? [sensorId] : [],
     x,
     y,
     width: defaultWidth,
