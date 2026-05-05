@@ -4,7 +4,6 @@ import { SensorGrid } from '../SensorGrid'
 import { CanvasView } from '../CanvasView'
 import { ScreenLayouts, CanvasLayoutItem, SensorConfig } from '../types'
 import type { LayoutItem } from '../types'
-import { OverlayScreen } from './OverlayScreen'
 
 const DigitalTwinView = lazy(() => import('../DigitalTwinView').then(m => ({ default: m.DigitalTwinView })))
 const ScadaView = lazy(() => import('../scada2/ScadaView').then(m => ({ default: m.ScadaView })))
@@ -39,7 +38,6 @@ interface Props {
   saveTwinConnectionsMut: any
   updateSensorMut: any
   fetchOk: any
-  onScadaBack: () => void
 }
 
 export function MainContent({
@@ -49,7 +47,7 @@ export function MainContent({
   forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections,
   twinLayouts, twinCamera, twinConnections, sensors,
   saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
-  saveTwinConnectionsMut, updateSensorMut, fetchOk, onScadaBack,
+  saveTwinConnectionsMut, updateSensorMut, fetchOk,
 }: Props) {
   const queryClient = useQueryClient()
 
@@ -104,19 +102,17 @@ export function MainContent({
 
   if (viewMode === 'scada') {
     return (
-      <OverlayScreen title="SCADA 2D" onClose={onScadaBack}>
-        <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 2D View...</div>}>
-          <ScadaView
-            sensors={screenSensors}
-            activeScreen={activeScreen}
-            scadaEquipment={scadaEquipment}
-            scadaConnections={scadaConnections}
-            onSaveEquipment={(items: any[]) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
-            onSaveConnections={(items: any[]) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
-            onSensorClick={(id: number) => setSelectedSensor(id)}
-          />
-        </Suspense>
-      </OverlayScreen>
+      <Suspense fallback={<div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>Loading 2D View...</div>}>
+        <ScadaView
+          sensors={screenSensors}
+          activeScreen={activeScreen}
+          scadaEquipment={scadaEquipment}
+          scadaConnections={scadaConnections}
+          onSaveEquipment={(items: any[]) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
+          onSaveConnections={(items: any[]) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
+          onSensorClick={(id: number) => setSelectedSensor(id)}
+        />
+      </Suspense>
     )
   }
 
