@@ -1,5 +1,6 @@
 server_port: 3100
 db_path: "data.db"
+cookie_secure: false
 persist_interval_secs: 5
 
 devices:

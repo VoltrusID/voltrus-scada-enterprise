@@ -31,7 +31,8 @@ async function fetchWithRefresh(
     if (ok) {
       return fetch(url, { credentials: 'include', ...init })
     }
-    window.location.href = '/login'
+    // Don't hard-redirect — throw so React Query handles it gracefully.
+    // The App component's auth gate will show the login screen.
     throw new Error('Session expired')
   }
   return r
