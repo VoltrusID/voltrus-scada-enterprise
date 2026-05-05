@@ -14,7 +14,7 @@ pub const LOGIN_MAX_ATTEMPTS: u32 = 5;
 const LOGIN_WINDOW_SECS: u64 = 60;
 const LOGIN_MAX_IP_ATTEMPTS: u32 = 10;
 
-const GLOBAL_MAX_REQUESTS: u32 = 100;
+const GLOBAL_MAX_REQUESTS: u32 = 2000;
 const GLOBAL_WINDOW_SECS: u64 = 60;
 
 #[derive(Clone)]
