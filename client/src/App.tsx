@@ -495,10 +495,26 @@ function AppInner() {
           display: 'flex',
           flexDirection: 'column',
         }}>
-          {mode === 'system' && <Suspense fallback={null}><SystemPanel systemInfo={effectiveSystemInfo} /></Suspense>}
-          {mode === 'flows' && <Suspense fallback={null}><FlowManager isAdmin={isAdmin} /></Suspense>}
-          {mode === 'tags' && <Suspense fallback={null}><TagBrowser isAdmin={isAdmin} /></Suspense>}
-          {mode === 'assets' && <Suspense fallback={null}><AssetInventory /></Suspense>}
+          {mode === 'system' && (
+            <OverlayScreen title="System" onClose={() => setMode('live')}>
+              <Suspense fallback={null}><SystemPanel systemInfo={effectiveSystemInfo} /></Suspense>
+            </OverlayScreen>
+          )}
+          {mode === 'flows' && (
+            <OverlayScreen title="Flow Manager" onClose={() => setMode('live')}>
+              <Suspense fallback={null}><FlowManager isAdmin={isAdmin} /></Suspense>
+            </OverlayScreen>
+          )}
+          {mode === 'tags' && (
+            <OverlayScreen title="Tag Browser" onClose={() => setMode('live')}>
+              <Suspense fallback={null}><TagBrowser isAdmin={isAdmin} /></Suspense>
+            </OverlayScreen>
+          )}
+          {mode === 'assets' && (
+            <OverlayScreen title="Asset Inventory" onClose={() => setMode('live')}>
+              <Suspense fallback={null}><AssetInventory /></Suspense>
+            </OverlayScreen>
+          )}
           {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && (
             <MainContent
               viewMode={viewMode} mode={mode}
@@ -528,7 +544,6 @@ function AppInner() {
               saveTwinConnectionsMut={saveTwinConnectionsMut}
               updateSensorMut={updateSensorMut}
               fetchOk={fetchOk}
-              onScadaBack={() => setViewMode('cards')}
             />
           )}
         </div>

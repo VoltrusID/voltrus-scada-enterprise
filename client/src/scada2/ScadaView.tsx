@@ -2,7 +2,6 @@ import React, { useReducer, useState, useCallback, useRef, useEffect } from 'rea
 import type { ScadaWidgetType, ScadaCanvasState, ConnectionInstance } from './widgets/types'
 import { WIDGET_MANIFESTS } from './widgets/registry'
 import { ScadaCanvas, WidgetTypePicker } from './ScadaCanvas'
-import { ScadaToolbar } from './ScadaToolbar'
 import { ScadaPalette } from './ScadaPalette'
 import { ConnectionLayer } from './connections/ConnectionLayer'
 import { layoutReducer, createWidget, createConnection } from './engine/widgetState'
@@ -187,20 +186,61 @@ export const ScadaView: React.FC<Props> = ({
 
   return (
     <div style={{ position: 'relative' }}>
-      <ScadaToolbar
-        editMode={canvasState.editMode}
-        activeTool={canvasState.activeTool}
-        onToggleEdit={handleToggleEdit}
-        onToolChange={handleToolChange}
-        onSave={handleSave}
-        hasChanges={dirtyRef.current}
-      />
       <div style={{ position: 'relative' }}>
         <ScadaPalette
           visible={canvasState.editMode}
           sensors={sensors}
           onSelect={handlePaletteSelect}
         />
+        {/* Floating controls — top-right of canvas area */}
+        <div style={{
+          position: 'absolute', top: 8, right: 8, zIndex: 20,
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          {canvasState.editMode && (
+            <>
+              <button onClick={() => handleToolChange('select')} style={{
+                padding: '5px 10px', borderRadius: 6,
+                border: `1px solid ${canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--border)'}`,
+                background: canvasState.activeTool === 'select' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+                color: canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--fg)',
+                cursor: 'pointer', fontSize: 11, fontWeight: 500,
+              }}>Select</button>
+              <button onClick={() => handleToolChange('connect')} style={{
+                padding: '5px 10px', borderRadius: 6,
+                border: `1px solid ${canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--border)'}`,
+                background: canvasState.activeTool === 'connect' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+                color: canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--fg)',
+                cursor: 'pointer', fontSize: 11, fontWeight: 500,
+              }}>Connect</button>
+              <button onClick={() => handleToolChange('delete')} style={{
+                padding: '5px 10px', borderRadius: 6,
+                border: `1px solid ${canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--border)'}`,
+                background: canvasState.activeTool === 'delete' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+                color: canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--fg)',
+                cursor: 'pointer', fontSize: 11, fontWeight: 500,
+              }}>Delete</button>
+              <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+              <button onClick={handleSave} disabled={!dirtyRef.current} style={{
+                padding: '5px 10px', borderRadius: 6,
+                border: `1px solid ${dirtyRef.current ? 'var(--cyan)' : 'var(--border)'}`,
+                background: dirtyRef.current ? 'var(--cyan)' : 'var(--card)',
+                color: dirtyRef.current ? '#fff' : 'var(--muted)',
+                cursor: dirtyRef.current ? 'pointer' : 'not-allowed',
+                fontSize: 11, fontWeight: 600,
+              }}>Save</button>
+            </>
+          )}
+          <button onClick={handleToggleEdit} style={{
+            padding: '5px 10px', borderRadius: 6,
+            border: `1px solid ${canvasState.editMode ? 'var(--warn)' : 'var(--border)'}`,
+            background: canvasState.editMode ? 'rgba(245,158,11,.1)' : 'var(--card)',
+            color: canvasState.editMode ? 'var(--warn)' : 'var(--fg)',
+            cursor: 'pointer', fontSize: 11, fontWeight: 600,
+          }}>
+            {canvasState.editMode ? 'Done' : 'Edit'}
+          </button>
+        </div>
         <ScadaCanvas
           layout={layout}
           sensors={sensors}
