@@ -114,6 +114,55 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
       { key: 'pointsCount', label: 'Points', type: 'number', default: 60, min: 10, max: 300 },
     ],
   },
+  big_number: {
+    type: 'big_number',
+    displayName: 'Big Number',
+    icon: '⢀',
+    defaultWidth: 180,
+    defaultHeight: 120,
+    minBindings: 1,
+    maxBindings: 1,
+    compatibleDataTypes: ['analog', 'digital'],
+    configSchema: [
+      { key: 'fontSize', label: 'Font Size', type: 'number', default: 48, min: 20, max: 120 },
+      { key: 'showUnit', label: 'Show Unit', type: 'boolean', default: true },
+      { key: 'showName', label: 'Show Name', type: 'boolean', default: true },
+      { key: 'decimals', label: 'Decimals', type: 'number', default: 1, min: 0, max: 6 },
+    ],
+  },
+  data_table: {
+    type: 'data_table',
+    displayName: 'Data Table',
+    icon: '⊞',
+    defaultWidth: 320,
+    defaultHeight: 200,
+    minBindings: 0,
+    maxBindings: 99,
+    compatibleDataTypes: ['any'],
+    configSchema: [
+      { key: 'showStatus', label: 'Show Status', type: 'boolean', default: true },
+      { key: 'compact', label: 'Compact', type: 'boolean', default: false },
+    ],
+  },
+  pipe: {
+    type: 'pipe',
+    displayName: 'Pipe',
+    icon: '━',
+    defaultWidth: 200,
+    defaultHeight: 30,
+    minBindings: 0,
+    maxBindings: 1,
+    compatibleDataTypes: ['any'],
+    configSchema: [
+      { key: 'direction', label: 'Direction', type: 'select', default: 'horizontal', options: [
+        { value: 'horizontal', label: 'Horizontal' },
+        { value: 'vertical', label: 'Vertical' },
+      ] },
+      { key: 'pipeColor', label: 'Pipe Color', type: 'color', default: '#3b82f6' },
+      { key: 'flowSpeed', label: 'Flow Speed', type: 'number', default: 2, min: 0, max: 10 },
+      { key: 'thickness', label: 'Thickness', type: 'number', default: 8, min: 4, max: 24 },
+    ],
+  },
 }
 
 export const WIDGET_MANIFESTS = manifests
