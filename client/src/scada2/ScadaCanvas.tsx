@@ -1,313 +1,153 @@
-import { useEffect, useRef } from 'react'
-import { Canvas, FabricObject, Polyline, Point } from 'fabric'
+import React, { useCallback, useRef } from 'react'
+import type { WidgetInstance, ScadaWidgetType } from './widgets/types'
+import type { ScadaLayoutState } from './engine/widgetState'
+import { WIDGET_MANIFESTS, getCompatibleWidgetTypes } from './widgets/registry'
+import WidgetShell from './widgets/WidgetShell'
 import type { SensorConfig, SensorData } from '../types'
-import type { ScadaCanvasState } from './engine/types'
-import { createEquipmentObject } from './objects/ScadaEquipment'
-import { updateConnectionPoints } from './objects/ScadaConnection'
-import { createLabelObject } from './objects/ScadaLabel'
-import { updateCanvasObjects } from './engine/render-loop'
 
 const GRID_SIZE = 20
 
 interface Props {
+  layout: ScadaLayoutState
   sensors: SensorConfig[]
-  getState: () => { currentValues: Record<string, SensorData> }
-  canvasState: ScadaCanvasState
-  onStateChange: (update: Partial<ScadaCanvasState>) => void
-  onSaveNeeded: () => void
-  onSensorClick: (sensorId: number) => void
+  currentValues: Record<string, SensorData>
+  editMode: boolean
+  selectedId: string | null
+  onSelectWidget: (id: string | null) => void
+  onMoveWidget: (id: string, x: number, y: number) => void
+  onResizeWidget: (id: string, x: number, y: number, width: number, height: number) => void
+  onDropSensor: (sensorId: number, x: number, y: number) => void
+  onClickEmpty: () => void
+  children?: React.ReactNode  // for ConnectionLayer overlay
 }
 
 export const ScadaCanvas: React.FC<Props> = ({
-  sensors,
-  getState,
-  canvasState,
-  onStateChange,
-  onSaveNeeded,
-  onSensorClick,
+  layout, sensors, currentValues, editMode, selectedId,
+  onSelectWidget, onMoveWidget, onResizeWidget, onDropSensor, onClickEmpty, children,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<Canvas | null>(null)
-  const stateRef = useRef(canvasState)
-  stateRef.current = canvasState
 
-  // ---------- Init effect ----------
-  useEffect(() => {
-    if (!containerRef.current) return
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    const sensorId = parseInt(e.dataTransfer.getData('text/plain'), 10)
+    if (isNaN(sensorId)) return
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = Math.round((e.clientX - rect.left) / GRID_SIZE) * GRID_SIZE
+    const y = Math.round((e.clientY - rect.top) / GRID_SIZE) * GRID_SIZE
+    onDropSensor(sensorId, x, y)
+  }, [onDropSensor])
 
-    const container = containerRef.current
-    const canvasEl = container.querySelector('canvas') as HTMLCanvasElement
-
-    const canvas = new Canvas(canvasEl, {
-      width: container.clientWidth,
-      height: container.clientHeight,
-      backgroundColor: 'transparent',
-      selection: true,
-      preserveObjectStacking: true,
-    })
-
-    canvasRef.current = canvas
-    ;(window as any).__scadaCanvas = canvas
-
-    // Resize observer
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect
-        canvas.setDimensions({ width, height })
-        canvas.requestRenderAll()
-      }
-    })
-    ro.observe(container)
-
-    // Store-driven updates (no RAF polling)
-    let lastValues: Record<string, SensorData> = {}
-    const interval = setInterval(() => {
-      const { currentValues } = getState()
-      if (currentValues !== lastValues) {
-        lastValues = currentValues
-        updateCanvasObjects(canvas, currentValues, sensors)
-      }
-    }, 250)
-
-    return () => {
-      clearInterval(interval)
-      ro.disconnect()
-      canvas.dispose()
-      canvasRef.current = null
-      ;(window as any).__scadaCanvas = null
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
   }, [])
 
-  // ---------- Tool handling effect ----------
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-
-    const { editMode, activeTool } = canvasState
-    const isSelectMode = editMode && activeTool === 'select'
-
-    cv.getObjects().forEach((obj) => {
-      if ((obj as any)._isGrid) return
-      if (isSelectMode) {
-        obj.set({
-          selectable: true,
-          evented: true,
-          hasControls: true,
-          hasBorders: true,
-        })
-      } else {
-        obj.set({
-          selectable: false,
-          evented: editMode,
-          hasControls: false,
-          hasBorders: false,
-        })
-      }
-    })
-    cv.requestRenderAll()
-  }, [canvasState.editMode, canvasState.activeTool])
-
-  // ---------- Selection effect ----------
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-
-    const handleSelection = () => {
-      const active = cv.getActiveObject()
-      const scada = active ? (active as any)._scada : null
-      onStateChange({ selectedId: scada?.id ?? null })
-    }
-
-    const handleCleared = () => {
-      onStateChange({ selectedId: null })
-    }
-
-    cv.on('selection:created', handleSelection)
-    cv.on('selection:updated', handleSelection)
-    cv.on('selection:cleared', handleCleared)
-
-    return () => {
-      cv.off('selection:created', handleSelection)
-      cv.off('selection:updated', handleSelection)
-      cv.off('selection:cleared', handleCleared)
-    }
-  }, [onStateChange])
-
-  // ---------- Object modified + moving connections ----------
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-
-    const handleModified = () => {
-      onSaveNeeded()
-    }
-
-    const handleMoving = () => {
-      cv.getObjects().forEach((obj) => {
-        if (obj instanceof Polyline && (obj as any)._scada?.type === 'ScadaConnection') {
-          updateConnectionPoints(obj, cv)
-        }
-      })
-      cv.requestRenderAll()
-    }
-
-    cv.on('object:modified', handleModified)
-    cv.on('object:moving', handleMoving)
-
-    return () => {
-      cv.off('object:modified', handleModified)
-      cv.off('object:moving', handleMoving)
-    }
-  }, [onSaveNeeded])
-
-  // ---------- Click to add ----------
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-
-    const handleMouseDown = async (opt: any) => {
-      if (!stateRef.current.editMode) return
-      if (opt.target) return
-
-      const pointer = cv.getScenePoint(opt.e)
-      const st = stateRef.current
-
-      if (st.pendingType) {
-        const group = await createEquipmentObject(st.pendingType, {
-          x: pointer.x,
-          y: pointer.y,
-        })
-        cv.add(group)
-        cv.setActiveObject(group)
-        cv.requestRenderAll()
-        onStateChange({ pendingType: null })
-        onSaveNeeded()
-        return
-      }
-
-      if (st.activeTool === 'label') {
-        const label = createLabelObject({
-          x: pointer.x,
-          y: pointer.y,
-        })
-        cv.add(label)
-        cv.setActiveObject(label)
-        cv.requestRenderAll()
-        onSaveNeeded()
-        return
-      }
-    }
-
-    cv.on('mouse:down', handleMouseDown)
-
-    return () => {
-      cv.off('mouse:down', handleMouseDown)
-    }
-  }, [onStateChange, onSaveNeeded])
-
-  // ---------- Zoom ----------
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-
-    const handleWheel = (opt: any) => {
-      const delta = opt.e.deltaY
-      let zoom = cv.getZoom()
-      zoom *= 0.999 ** delta
-      zoom = Math.min(Math.max(0.1, zoom), 5)
-
-      cv.zoomToPoint(
-        new Point(opt.e.offsetX, opt.e.offsetY),
-        zoom,
-      )
-      opt.e.preventDefault()
-      opt.e.stopPropagation()
-    }
-
-    cv.on('mouse:wheel', handleWheel)
-
-    return () => {
-      cv.off('mouse:wheel', handleWheel)
-    }
-  }, [])
-
-  // ---------- Pan (middle mouse or alt+left) ----------
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-
-    let isPanning = false
-    let lastPosX = 0
-    let lastPosY = 0
-
-    const handleMiddleDown = (opt: any) => {
-      const e = opt.e as MouseEvent
-      if (e.button === 1) {
-        isPanning = true
-        lastPosX = e.clientX
-        lastPosY = e.clientY
-        cv.selection = false
-        e.preventDefault()
-      }
-    }
-
-    const handleAltDown = (opt: any) => {
-      const e = opt.e as MouseEvent
-      if (e.altKey && e.button === 0) {
-        isPanning = true
-        lastPosX = e.clientX
-        lastPosY = e.clientY
-        cv.selection = false
-        e.preventDefault()
-        e.stopPropagation()
-      }
-    }
-
-    const handleMove = (opt: any) => {
-      if (!isPanning) return
-      const e = opt.e as MouseEvent
-      const vpt = cv.viewportTransform!
-      vpt[4] += e.clientX - lastPosX
-      vpt[5] += e.clientY - lastPosY
-      lastPosX = e.clientX
-      lastPosY = e.clientY
-      cv.requestRenderAll()
-      e.preventDefault()
-      e.stopPropagation()
-    }
-
-    const handleUp = () => {
-      isPanning = false
-      cv.selection = true
-    }
-
-    cv.on('mouse:down', handleMiddleDown)
-    cv.on('mouse:down', handleAltDown)
-    cv.on('mouse:move', handleMove)
-    cv.on('mouse:up', handleUp)
-
-    return () => {
-      cv.off('mouse:down', handleMiddleDown)
-      cv.off('mouse:down', handleAltDown)
-      cv.off('mouse:move', handleMove)
-      cv.off('mouse:up', handleUp)
-    }
-  }, [])
+  const sensorMap = new Map(sensors.map(s => [s.id, s]))
 
   return (
-    <div style={{
-      height: 'calc(100vh - 180px)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      overflow: 'hidden',
-      backgroundColor: '#060e09',
-      backgroundImage: `linear-gradient(to right, #0d1a12 1px, transparent 1px), linear-gradient(to bottom, #0d1a12 1px, transparent 1px)`,
-      backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
-    }}>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-        <canvas />
-      </div>
+    <div
+      ref={containerRef}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onClick={e => {
+        // Only deselect if clicking the canvas background, not a widget
+        if (e.target === containerRef.current) onClickEmpty()
+      }}
+      style={{
+        position: 'relative',
+        height: 'calc(100vh - 180px)',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        backgroundImage: editMode
+          ? `linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)`
+          : 'none',
+        backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
+        transition: 'background 0.2s',
+      }}
+    >
+      {/* Connection layer (SVG overlay) */}
+      {children}
+
+      {/* Widget shells */}
+      {layout.widgets.map(w => {
+        const sensor = w.sensorId != null ? sensorMap.get(w.sensorId) : undefined
+        const data = w.sensorId != null ? currentValues[w.sensorId] : undefined
+        return (
+          <WidgetShell
+            key={w.id}
+            instance={w}
+            sensor={sensor}
+            data={data}
+            editMode={editMode}
+            selected={selectedId === w.id}
+            onSelect={onSelectWidget}
+            onMove={onMoveWidget}
+            onResize={onResizeWidget}
+          />
+        )
+      })}
     </div>
+  )
+}
+
+// ── Widget Type Picker ──
+
+interface TypePickerProps {
+  x: number
+  y: number
+  sensorId: number
+  sensors: SensorConfig[]
+  onSelect: (type: ScadaWidgetType) => void
+  onCancel: () => void
+}
+
+export const WidgetTypePicker: React.FC<TypePickerProps> = ({ x, y, sensorId, sensors, onSelect, onCancel }) => {
+  const sensor = sensors.find(s => s.id === sensorId)
+  const isAnalog = sensor ? (sensor.max_val !== sensor.min_val) : true
+  const types = getCompatibleWidgetTypes(isAnalog)
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={onCancel} />
+      {/* Picker */}
+      <div style={{
+        position: 'absolute', left: x, top: y, zIndex: 100,
+        background: 'var(--card)', border: '1px solid var(--border)',
+        borderRadius: 8, padding: 8, minWidth: 200,
+        boxShadow: '0 4px 16px rgba(0,0,0,.2)',
+      }}>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6, fontWeight: 600 }}>
+          Choose visualization for {sensor?.name ?? `Tag #${sensorId}`}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
+          {types.map(type => {
+            const m = WIDGET_MANIFESTS[type]
+            return (
+              <button
+                key={type}
+                onClick={() => onSelect(type)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 8px', borderRadius: 6,
+                  border: '1px solid var(--border)', background: 'var(--bg)',
+                  color: 'var(--fg)', cursor: 'pointer', fontSize: 12,
+                  transition: 'border-color 0.15s',
+                  textAlign: 'left',
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--cyan)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              >
+                <span style={{ fontSize: 16 }}>{m.icon}</span>
+                <span>{m.displayName}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </>
   )
 }

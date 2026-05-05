@@ -18,8 +18,8 @@ export default defineConfig({
           'three': ['three'],
           // React vendor chunk for long-term caching
           'vendor-react': ['react', 'react-dom'],
-          // Fabric.js (~300KB) — only used by SCADA canvas
-          'fabric': ['fabric'],
+          // Fabric.js — only loaded if old SCADA objects are imported
+          // 'fabric': ['fabric'],
           // TradingView lightweight-charts (~190KB) — only used by TvDetailChart
           'lightweight-charts': ['lightweight-charts'],
         },
