@@ -115,13 +115,15 @@ export class AppShell extends LitElement {
   @state() private _authRole = 'user';
   @state() private _systemInfo: { hostname?: string; os?: string; uptime_secs?: number } = {};
   @state() private _licenseValid = true;
+  private _licenseCheckDone = false;
 
   connectedCallback() {
     super.connectedCallback();
     this._readUrlParams();
-    this._checkLicense();
     authManager.addEventListener('change', this._onAuth as EventListener);
     authManager.check();
+    // Defer license check to avoid blocking initial render
+    setTimeout(() => this._checkLicense(), 1000);
     this._loadScreens();
     this._loadAllSensors();
     this._loadBranding();
