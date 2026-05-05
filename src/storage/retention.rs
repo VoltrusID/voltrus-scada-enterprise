@@ -75,7 +75,7 @@ impl Storage {
                 if count > 0 {
                     let hour_ts = (cutoff_ts / 3600) * 3600;
                     conn.execute(
-                        "INSERT OR REPLACE INTO telemetry_hourly (device_id, metric, timestamp, avg, min_val, max_val, count) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        "INSERT OR REPLACE INTO telemetry_hourly (device_id, metric, bucket_start, avg_value, min_value, max_value, sample_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                         rusqlite::params![device_id, metric, hour_ts, avg, min_val, max_val, count],
                     )?;
 
