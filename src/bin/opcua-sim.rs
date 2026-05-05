@@ -84,14 +84,25 @@ impl MeterData {
 
 // --- CLI ---
 
-fn parse_args() -> (u16, u64) {
+fn parse_args() -> (String, u16, u64) {
     let args: Vec<String> = std::env::args().collect();
+    let mut host: String = "127.0.0.1".to_string();
     let mut port: u16 = 4840;
     let mut delay_ms: u64 = 0;
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "--host" => {
+                host = args
+                    .get(i + 1)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        eprintln!("Missing host value, using default 127.0.0.1");
+                        "127.0.0.1".to_string()
+                    });
+                i += 2;
+            }
             "--port" => {
                 port = args
                     .get(i + 1)
@@ -111,23 +122,24 @@ fn parse_args() -> (u16, u64) {
             }
         }
     }
-    (port, delay_ms)
+    (host, port, delay_ms)
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
 
-    let (port, delay_ms) = parse_args();
+    let (host, port, delay_ms) = parse_args();
 
-    let endpoint_path = format!("opc.tcp://127.0.0.1:{port}");
-    let discovery_url = format!("opc.tcp://127.0.0.1:{port}");
+    let endpoint_path = format!("opc.tcp://{host}:{port}");
+    let discovery_url = format!("opc.tcp://{host}:{port}");
+    let endpoint_rel_path = "/";
 
     let (server, handle) = ServerBuilder::new()
         .application_name("Voltrus Lite OPC-UA Simulator")
         .application_uri("urn:voltrus-lite-opcua-sim")
         .product_uri("urn:voltrus-lite-opcua-sim")
-        .host("127.0.0.1".to_string())
+        .host(host.clone())
         .port(port)
         .discovery_urls(vec![discovery_url])
         .create_sample_keypair(true)
@@ -135,7 +147,7 @@ async fn main() -> Result<()> {
         .add_endpoint(
             "none",
             (
-                endpoint_path.as_str(),
+                endpoint_rel_path,
                 SecurityPolicy::None,
                 MessageSecurityMode::None,
                 &[ANONYMOUS_USER_TOKEN_ID] as &[&str],
@@ -364,7 +376,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    tracing::info!("OPC-UA 3-phase energy meter simulator listening on 0.0.0.0:{port}");
+    tracing::info!("OPC-UA 3-phase energy meter simulator listening on {host}:{port}");
     tracing::info!("Endpoint: {endpoint_path}");
     if delay_ms > 0 {
         tracing::info!("PLC delay simulation: {delay_ms}ms between updates");
