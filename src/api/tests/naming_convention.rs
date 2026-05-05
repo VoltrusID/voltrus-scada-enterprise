@@ -26,7 +26,7 @@ async fn test_get_naming_convention_returns_ok() {
         .await
         .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["template"], "isa-5.1");
+    assert_eq!(json["template"], "permissive");
     assert!(json["templates"].is_array());
 }
 
@@ -52,7 +52,7 @@ async fn test_create_data_source_validates_naming_convention() {
     let app = test_app_with_seeded_admin().await;
     let cookie = seed_and_get_cookie(&app).await;
 
-    // Default ISA-5.1: PT001_TEMP should pass
+    // Default is permissive: any reasonable name passes
     let body = serde_json::json!({
         "name": "PT001_TEMP",
         "key": "pt001_temp",
@@ -74,8 +74,8 @@ async fn test_create_data_source_validates_naming_convention() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
 
-    // "my_sensor" should fail ISA-5.1 convention
-    let bad_body = serde_json::json!({
+    // Permissive default: even informal names pass
+    let body2 = serde_json::json!({
         "name": "my_sensor",
         "key": "my_sensor2",
         "unit": "C",
@@ -89,10 +89,11 @@ async fn test_create_data_source_validates_naming_convention() {
                 .uri("/api/v1/data-sources")
                 .header("cookie", format!("voltrus_token={}", cookie))
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_string(&bad_body).unwrap()))
+                .body(Body::from(serde_json::to_string(&body2).unwrap()))
                 .unwrap(),
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    // Permissive default accepts any reasonable name
+    assert_eq!(resp.status(), StatusCode::CREATED);
 }
