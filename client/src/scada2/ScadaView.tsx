@@ -1,19 +1,24 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Point, Group } from 'fabric'
-import type { SensorConfig, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
-import type { ScadaCanvasState } from './engine/types'
-import type { ScadaEquipmentProps, ScadaConnectionProps, ScadaLabelProps } from './engine/types'
-import { ScadaCanvas } from './ScadaCanvas'
+import React, { useReducer, useState, useCallback, useRef, useEffect } from 'react'
+import type { ScadaWidgetType, ScadaCanvasState, ConnectionInstance } from './widgets/types'
+import { WIDGET_MANIFESTS } from './widgets/registry'
+import { ScadaCanvas, WidgetTypePicker } from './ScadaCanvas'
 import { ScadaToolbar } from './ScadaToolbar'
 import { ScadaPalette } from './ScadaPalette'
-import { ScadaEditPanel } from './ScadaEditPanel'
-import { loadFromAPI, exportToAPI } from './engine/serializer'
+import { ConnectionLayer } from './connections/ConnectionLayer'
+import { layoutReducer, createWidget, createConnection } from './engine/widgetState'
+import type { ScadaLayoutState } from './engine/widgetState'
+import type { SensorConfig, SensorData, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
 import { useDashboardSelector } from '../store/dashboardStore'
 
-type SelectedObject =
-  | { kind: 'equipment'; props: ScadaEquipmentProps }
-  | { kind: 'connection'; props: ScadaConnectionProps }
-  | { kind: 'label'; props: ScadaLabelProps }
+// Import all widgets to trigger registration
+import './widgets/IndicatorWidget'
+import './widgets/GaugeWidget'
+import './widgets/BarWidget'
+import './widgets/StatusLightWidget'
+import './widgets/TankLevelWidget'
+import './widgets/OnOffWidget'
+import './widgets/LabelWidget'
+import './widgets/TrendWidget'
 
 interface Props {
   sensors: SensorConfig[]
@@ -29,172 +34,152 @@ const initialCanvasState: ScadaCanvasState = {
   editMode: false,
   activeTool: 'select',
   selectedId: null,
-  pendingType: null,
   connectFrom: null,
+  pendingSensor: null,
+}
+
+function loadLayoutFromAPI(
+  equipment: ScadaEquipmentItem[],
+  connections: ScadaConnectionItem[],
+): ScadaLayoutState {
+  const widgets = equipment.map(eq => {
+    const bindings: number[] = JSON.parse(eq.sensor_bindings || '[]')
+    return {
+      id: eq.equipment_id,
+      type: eq.equipment_type as ScadaWidgetType,
+      sensorId: bindings[0] ?? null,
+      x: eq.x,
+      y: eq.y,
+      width: eq.width,
+      height: eq.height,
+      config: {} as Record<string, any>,
+    }
+  })
+
+  const conns: ConnectionInstance[] = connections.map(c => ({
+    id: c.connection_id,
+    fromWidgetId: c.from_equipment,
+    toWidgetId: c.to_equipment,
+    connectionType: c.connection_type as ConnectionInstance['connectionType'],
+    waypoints: JSON.parse(c.waypoints || '[]'),
+  }))
+
+  return { widgets, connections: conns }
 }
 
 export const ScadaView: React.FC<Props> = ({
-  sensors,
-  activeScreen,
-  scadaEquipment,
-  scadaConnections,
-  onSaveEquipment,
-  onSaveConnections,
-  onSensorClick,
+  sensors, activeScreen, scadaEquipment, scadaConnections,
+  onSaveEquipment, onSaveConnections, onSensorClick,
 }) => {
   const currentValues = useDashboardSelector(s => s.currentValues)
-
-  const [editMode, setEditMode] = useState(false)
+  const [layout, dispatch] = useReducer(layoutReducer, { widgets: [], connections: [] })
   const [canvasState, setCanvasState] = useState<ScadaCanvasState>(initialCanvasState)
   const dirtyRef = useRef(false)
 
-  const getState = useCallback(() => ({ currentValues }), [currentValues])
-
-  // Load equipment/connections when screen changes
+  // Load layout when screen changes
   useEffect(() => {
-    const cv = (window as any).__scadaCanvas
-    if (!cv) return
-    loadFromAPI(cv, scadaEquipment, scadaConnections)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeScreen])
+    const loaded = loadLayoutFromAPI(scadaEquipment, scadaConnections)
+    dispatch({ type: 'LOAD_LAYOUT', widgets: loaded.widgets, connections: loaded.connections })
+    dirtyRef.current = false
+  }, [activeScreen, scadaEquipment, scadaConnections])
 
-  // Keep canvasState.editMode in sync
-  useEffect(() => {
-    setCanvasState(prev => ({ ...prev, editMode }))
-  }, [editMode])
+  // ── Handlers ──
 
-  const handleStateChange = useCallback((update: Partial<ScadaCanvasState>) => {
-    setCanvasState(prev => ({ ...prev, ...update }))
+  const handleToggleEdit = useCallback(() => {
+    setCanvasState(prev => ({
+      ...prev,
+      editMode: !prev.editMode,
+      activeTool: 'select',
+      connectFrom: null,
+      pendingSensor: null,
+    }))
   }, [])
 
-  const handleSaveNeeded = useCallback(() => {
+  const handleToolChange = useCallback((tool: ScadaCanvasState['activeTool']) => {
+    setCanvasState(prev => ({ ...prev, activeTool: tool, connectFrom: null }))
+  }, [])
+
+  const handleSelectWidget = useCallback((id: string | null) => {
+    setCanvasState(prev => ({ ...prev, selectedId: id }))
+
+    // Connect mode: clicking a second widget creates a connection
+    if (id && canvasState.activeTool === 'connect' && canvasState.editMode) {
+      if (canvasState.connectFrom && canvasState.connectFrom !== id) {
+        dispatch({ type: 'ADD_CONNECTION', connection: createConnection(canvasState.connectFrom, id, 'power') })
+        dirtyRef.current = true
+        setCanvasState(prev => ({ ...prev, connectFrom: null }))
+      } else {
+        setCanvasState(prev => ({ ...prev, connectFrom: id }))
+      }
+    }
+
+    // Delete mode
+    if (id && canvasState.activeTool === 'delete' && canvasState.editMode) {
+      dispatch({ type: 'REMOVE_WIDGET', id })
+      dirtyRef.current = true
+      setCanvasState(prev => ({ ...prev, selectedId: null }))
+    }
+  }, [canvasState.activeTool, canvasState.editMode, canvasState.connectFrom])
+
+  const handleMoveWidget = useCallback((id: string, x: number, y: number) => {
+    dispatch({ type: 'MOVE_WIDGET', id, x, y })
     dirtyRef.current = true
   }, [])
 
-  // Save
+  const handleResizeWidget = useCallback((id: string, x: number, y: number, width: number, height: number) => {
+    dispatch({ type: 'RESIZE_WIDGET', id, x, y, width, height })
+    dirtyRef.current = true
+  }, [])
+
+  const handleDropSensor = useCallback((sensorId: number, x: number, y: number) => {
+    setCanvasState(prev => ({ ...prev, pendingSensor: { sensorId, x, y } }))
+  }, [])
+
+  const handlePickWidgetType = useCallback((type: ScadaWidgetType) => {
+    if (!canvasState.pendingSensor) return
+    const { sensorId, x, y } = canvasState.pendingSensor
+    const manifest = WIDGET_MANIFESTS[type]
+    const widget = createWidget(type, sensorId, x, y, manifest.defaultWidth, manifest.defaultHeight)
+    dispatch({ type: 'ADD_WIDGET', widget })
+    dirtyRef.current = true
+    setCanvasState(prev => ({ ...prev, pendingSensor: null }))
+  }, [canvasState.pendingSensor])
+
+  const handleCancelPick = useCallback(() => {
+    setCanvasState(prev => ({ ...prev, pendingSensor: null }))
+  }, [])
+
+  // Save: convert widget layout back to API format
   const handleSave = useCallback(() => {
-    const cv = (window as any).__scadaCanvas
-    if (!cv) return
-    const { equipment, connections } = exportToAPI(cv)
+    const equipment: ScadaEquipmentItem[] = layout.widgets.map(w => ({
+      equipment_id: w.id,
+      equipment_type: w.type as any,
+      equipment_name: sensors.find(s => s.id === w.sensorId)?.name ?? w.type,
+      x: w.x,
+      y: w.y,
+      width: w.width,
+      height: w.height,
+      rotation: 0,
+      sensor_bindings: JSON.stringify(w.sensorId != null ? [w.sensorId] : []),
+    }))
+
+    const connections: ScadaConnectionItem[] = layout.connections.map(c => ({
+      connection_id: c.id,
+      from_equipment: c.fromWidgetId,
+      to_equipment: c.toWidgetId,
+      waypoints: JSON.stringify(c.waypoints),
+      connection_type: c.connectionType,
+    }))
+
     onSaveEquipment(equipment)
     onSaveConnections(connections)
     dirtyRef.current = false
-  }, [onSaveEquipment, onSaveConnections])
+  }, [layout, sensors, onSaveEquipment, onSaveConnections])
 
-  // Toggle edit mode
-  const handleToggleEdit = useCallback(() => {
-    if (editMode) {
-      setCanvasState(prev => ({
-        ...prev,
-        editMode: false,
-        activeTool: 'select',
-        pendingType: null,
-        connectFrom: null,
-      }))
-    } else {
-      setCanvasState(prev => ({
-        ...prev,
-        editMode: true,
-      }))
-    }
-    setEditMode(prev => !prev)
-  }, [editMode])
-
-  // Tool change
-  const handleToolChange = useCallback((tool: ScadaCanvasState['activeTool']) => {
-    setCanvasState(prev => ({
-      ...prev,
-      activeTool: tool,
-      pendingType: tool === 'select' ? null : prev.pendingType,
-      connectFrom: null,
-    }))
-  }, [])
-
-  // Palette selection
-  const handlePaletteSelect = useCallback((type: ScadaCanvasState['pendingType']) => {
-    setCanvasState(prev => ({
-      ...prev,
-      pendingType: type,
-      activeTool: 'select',
-    }))
-  }, [])
-
-  // Zoom controls
-  const handleZoomIn = useCallback(() => {
-    const cv = (window as any).__scadaCanvas
-    if (!cv) return
-    const zoom = Math.min(cv.getZoom() * 1.2, 5)
-    const center = new Point(cv.getWidth() / 2, cv.getHeight() / 2)
-    cv.zoomToPoint(center, zoom)
-  }, [])
-
-  const handleZoomOut = useCallback(() => {
-    const cv = (window as any).__scadaCanvas
-    if (!cv) return
-    const zoom = Math.max(cv.getZoom() / 1.2, 0.1)
-    const center = new Point(cv.getWidth() / 2, cv.getHeight() / 2)
-    cv.zoomToPoint(center, zoom)
-  }, [])
-
-  const handleFitView = useCallback(() => {
-    const cv = (window as any).__scadaCanvas
-    if (!cv) return
-    const objects = cv.getObjects().filter((o: any) => o._scada && !o._isGrid)
-    if (objects.length === 0) {
-      cv.setViewportTransform([1, 0, 0, 1, 0, 0])
-      cv.requestRenderAll()
-      return
-    }
-    const group = new (Group as any)(objects) as any
-    const bounds = group.getBoundingRect(true)
-    group.destroy()
-    const padding = 40
-    const scaleX = (cv.getWidth() - padding * 2) / bounds.width
-    const scaleY = (cv.getHeight() - padding * 2) / bounds.height
-    const zoom = Math.min(scaleX, scaleY, 2)
-    const center = new Point(cv.getWidth() / 2, cv.getHeight() / 2)
-    cv.setViewportTransform([1, 0, 0, 1, 0, 0])
-    cv.zoomToPoint(center, zoom)
-    const vpt = cv.viewportTransform!
-    vpt[4] = cv.getWidth() / 2 - (bounds.left + bounds.width / 2) * zoom
-    vpt[5] = cv.getHeight() / 2 - (bounds.top + bounds.height / 2) * zoom
-    cv.requestRenderAll()
-  }, [])
-
-  // Derive selectedObject from canvasState.selectedId
-  const selectedObject: SelectedObject | null = (() => {
-    if (!canvasState.selectedId) return null
-    const cv = (window as any).__scadaCanvas
-    if (!cv) return null
-    const obj = cv.getObjects().find((o: any) => o._scada?.id === canvasState.selectedId)
-    if (!obj) return null
-    const scada = (obj as any)._scada
-    if (scada.type === 'ScadaEquipment') {
-      return { kind: 'equipment', props: scada as ScadaEquipmentProps }
-    }
-    if (scada.type === 'ScadaConnection') {
-      return { kind: 'connection', props: scada as ScadaConnectionProps }
-    }
-    if (scada.type === 'ScadaLabel') {
-      return { kind: 'label', props: scada as ScadaLabelProps }
-    }
-    return null
-  })()
-
-  // Edit panel update: patch _scada metadata on the canvas object
-  const handleEditUpdate = useCallback((updates: Record<string, any>) => {
-    const cv = (window as any).__scadaCanvas
-    if (!cv || !canvasState.selectedId) return
-    const obj = cv.getObjects().find((o: any) => o._scada?.id === canvasState.selectedId)
-    if (!obj) return
-    Object.assign((obj as any)._scada, updates)
-    dirtyRef.current = true
-    cv.requestRenderAll()
-  }, [canvasState.selectedId])
-
-  const handleCloseEditPanel = useCallback(() => {
-    setCanvasState(prev => ({ ...prev, selectedId: null }))
-  }, [])
+  // Palette tag click: enter drop mode
+  const handlePaletteSelect = useCallback((sensorId: number) => {
+    onSensorClick(sensorId)
+  }, [onSensorClick])
 
   return (
     <div style={{ position: 'relative' }}>
@@ -205,30 +190,39 @@ export const ScadaView: React.FC<Props> = ({
         onToolChange={handleToolChange}
         onSave={handleSave}
         hasChanges={dirtyRef.current}
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onFitView={handleFitView}
       />
       <div style={{ position: 'relative' }}>
         <ScadaPalette
-          visible={canvasState.editMode && canvasState.activeTool === 'select'}
+          visible={canvasState.editMode}
+          sensors={sensors}
           onSelect={handlePaletteSelect}
-          selectedType={canvasState.pendingType}
         />
         <ScadaCanvas
+          layout={layout}
           sensors={sensors}
-          getState={getState}
-          canvasState={canvasState}
-          onStateChange={handleStateChange}
-          onSaveNeeded={handleSaveNeeded}
-          onSensorClick={onSensorClick}
-        />
-        {canvasState.editMode && selectedObject && (
-          <ScadaEditPanel
-            selected={selectedObject}
+          currentValues={currentValues}
+          editMode={canvasState.editMode}
+          selectedId={canvasState.selectedId}
+          onSelectWidget={handleSelectWidget}
+          onMoveWidget={handleMoveWidget}
+          onResizeWidget={handleResizeWidget}
+          onDropSensor={handleDropSensor}
+          onClickEmpty={() => setCanvasState(prev => ({ ...prev, selectedId: null }))}
+        >
+          <ConnectionLayer
+            widgets={layout.widgets}
+            connections={layout.connections}
+            editMode={canvasState.editMode}
+          />
+        </ScadaCanvas>
+        {canvasState.pendingSensor && (
+          <WidgetTypePicker
+            x={canvasState.pendingSensor.x}
+            y={canvasState.pendingSensor.y}
+            sensorId={canvasState.pendingSensor.sensorId}
             sensors={sensors}
-            onUpdate={handleEditUpdate}
-            onClose={handleCloseEditPanel}
+            onSelect={handlePickWidgetType}
+            onCancel={handleCancelPick}
           />
         )}
       </div>
