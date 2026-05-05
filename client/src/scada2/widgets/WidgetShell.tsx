@@ -34,7 +34,7 @@ export default function WidgetShell({
   )
 
   const handleDragStop = useCallback(
-    (_e: React.DragEvent, d: { x: number; y: number }) => {
+    (_e: any, d: { x: number; y: number }) => {
       onMove(instance.id, Math.round(d.x), Math.round(d.y))
     },
     [onMove, instance.id],
