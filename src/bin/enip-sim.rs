@@ -385,8 +385,15 @@ fn handle_read_tag(cip_request: &[u8], data: &Arc<Mutex<MeterData>>, tags: &[Tag
     let num_elements =
         u16::from_le_bytes([cip_request[2 + path_bytes], cip_request[3 + path_bytes]]);
 
-    // Find tag
-    let tag_idx = match tags.iter().position(|t| t.name == tag_name) {
+    // Find tag — case-insensitive, then fuzzy (e.g. "voltage" matches "Voltage_L1")
+    let tag_idx = match tags
+        .iter()
+        .position(|t| t.name.eq_ignore_ascii_case(&tag_name))
+        .or_else(|| {
+            tags.iter().position(|t| {
+                t.name.to_lowercase().contains(&tag_name.to_lowercase())
+            })
+        }) {
         Some(idx) => idx,
         None => {
             tracing::warn!("Unknown tag: {}", tag_name);
@@ -442,7 +449,8 @@ fn handle_write_tag(cip_request: &[u8], _data: &Arc<Mutex<MeterData>>, tags: &[T
         u16::from_le_bytes([cip_request[4 + path_bytes], cip_request[5 + path_bytes]]);
 
     // Check tag exists
-    if !tags.iter().any(|t| t.name == tag_name) {
+    if !tags.iter().any(|t| t.name.eq_ignore_ascii_case(&tag_name)
+        || t.name.to_lowercase().contains(&tag_name.to_lowercase())) {
         tracing::warn!("Unknown tag for write: {}", tag_name);
         return cip_error_reply(CIP_WRITE_TAG, 0x04);
     }
