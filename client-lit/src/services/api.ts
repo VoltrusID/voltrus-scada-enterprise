@@ -1,4 +1,5 @@
 import type { SensorConfig, SensorData } from '../types.js';
+import { authManager } from './auth.js';
 
 /**
  * Backend base URL — derived from current origin so it works
@@ -71,7 +72,8 @@ async function fetchWithRefresh(
     if (ok) {
       return fetch(url, { credentials: 'include', ...init })
     }
-    window.location.href = '/login'
+    // Let the auth manager handle state — don't hard-redirect
+    authManager.check()
     throw new Error('Session expired')
   }
   return r
