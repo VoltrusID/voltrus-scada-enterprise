@@ -59,6 +59,7 @@ mod user_notifications;
 mod video;
 mod vertical_templates;
 mod websocket;
+mod wizard;
 
 use axum::extract::DefaultBodyLimit;
 use axum::{
@@ -494,6 +495,10 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/templates", get(vertical_templates::list_templates))
         .route("/api/v1/templates/preview", post(vertical_templates::preview_template))
+        .route("/api/v1/wizard/create", post(wizard::wizard_create))
+        .route("/api/v1/wizard/health-check", get(wizard::wizard_health_check))
+        .route("/api/v1/wizard/feed-templates", get(wizard::list_feed_templates))
+        .route("/api/v1/wizard/feed-templates/{id}", get(wizard::get_feed_template_handler))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
