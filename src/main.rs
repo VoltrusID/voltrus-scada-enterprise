@@ -51,6 +51,7 @@ mod timeutil;
 mod video;
 mod vertical_templates;
 mod widget_sdk;
+mod wizard;
 mod ws_manager;
 mod ws_types;
 
