@@ -38,6 +38,7 @@ interface Props {
   saveTwinConnectionsMut: any
   updateSensorMut: any
   fetchOk: any
+  isAdmin: boolean
 }
 
 export function MainContent({
@@ -47,7 +48,7 @@ export function MainContent({
   forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections,
   twinLayouts, twinCamera, twinConnections, sensors,
   saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
-  saveTwinConnectionsMut, updateSensorMut, fetchOk,
+  saveTwinConnectionsMut, updateSensorMut, fetchOk, isAdmin,
 }: Props) {
   const queryClient = useQueryClient()
 
@@ -111,6 +112,7 @@ export function MainContent({
           onSaveEquipment={(items: any[]) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
           onSaveConnections={(items: any[]) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
           onSensorClick={(id: number) => setSelectedSensor(id)}
+          isAdmin={isAdmin}
         />
       </Suspense>
     )

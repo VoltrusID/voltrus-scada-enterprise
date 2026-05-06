@@ -173,7 +173,7 @@ interface Alarm {
 }
 
 interface BrandingSettings { title: string; subtitle: string; logo: string }
-const DEFAULT_BRANDING = { title: 'Voltrus Lite', subtitle: '', logo: '' }
+const DEFAULT_BRANDING = { title: 'Voltrus', subtitle: '', logo: '' }
 
 interface TwinEquipment {
   id: string; type: 'solar_panel' | 'inverter' | 'gateway';

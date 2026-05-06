@@ -514,7 +514,7 @@ fn sensor_card<'a>(
 
 fn status_bar<'a>() -> Element<'a, Message> {
     let left = row![
-        text("Voltrus Lite").size(11).color(theme::CYAN),
+        text("Voltrus").size(11).color(theme::CYAN),
         text("by").size(11).color(theme::TEXT_MUTED),
         text("JoyoDigitama").size(11).color(theme::CYAN),
     ]

@@ -277,7 +277,7 @@ pub fn new() -> (App, Task<Message>) {
         alarms: Vec::new(),
         alarm_panel_open: false,
         branding: models::BrandingSettings {
-            title: "Voltrus Lite".into(),
+            title: "Voltrus".into(),
             subtitle: "Monitoring".into(),
             logo: String::new(),
         },

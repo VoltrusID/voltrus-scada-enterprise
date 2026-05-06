@@ -1,5 +1,5 @@
 [Unit]
-Description=Voltrus Lite Modbus HTTP Service
+Description=Voltrus Modbus HTTP Service
 After=network.target
 
 [Service]

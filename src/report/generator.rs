@@ -258,7 +258,7 @@ pub async fn generate_report_html(
         {alarm_content}
     </div>
     <div class="footer">
-        Voltrus Lite SCADA Monitoring System &middot; Generated {generated_at}
+        Voltrus SCADA Monitoring System &middot; Generated {generated_at}
     </div>
 </div>
 </body>

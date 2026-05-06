@@ -364,3 +364,11 @@ export {
 export type { CompressionStats, DeadbandEntry } from './compression'
 
 export { useVersion } from './version'
+
+export {
+  useSmtpConfig,
+  useUpdateSmtpConfig,
+  useTestSmtpConnection,
+} from './smtp'
+
+export type { SmtpConfigResponse, SmtpConfigUpdate } from './smtp'

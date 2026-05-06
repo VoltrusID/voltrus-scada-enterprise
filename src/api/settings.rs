@@ -18,7 +18,7 @@ pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResp
     // Trial tier cannot use custom branding — return hardcoded defaults
     if !state.license_tier.white_label() {
         return Ok(Json(json!({
-            "title": "Voltrus Lite",
+            "title": "Voltrus",
             "subtitle": "Monitoring Dashboard",
             "logo": "",
             "theme_level": "none",
@@ -30,7 +30,7 @@ pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResp
         .get_settings(&["brand_title", "brand_subtitle", "brand_logo"])
         .await?;
 
-    let mut title = "Voltrus Lite".to_string();
+    let mut title = "Voltrus".to_string();
     let mut subtitle = "Monitoring Dashboard".to_string();
     let mut logo = "".to_string();
 

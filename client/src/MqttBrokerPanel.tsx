@@ -28,13 +28,6 @@ export function MqttBrokerPanel({ onClose, embedded }: { onClose: () => void; em
     }
   }, [status?.config])
 
-  useEffect(() => {
-    if (embedded) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, embedded])
-
   const isRunning = status?.status === 'running'
 
   const handleToggle = () => {
@@ -287,24 +280,16 @@ export function MqttBrokerPanel({ onClose, embedded }: { onClose: () => void; em
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column', padding: 24 }}>
-      <div style={{ maxWidth: 1200, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
-          </button>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>MQTT Broker</h1>
+    <>
+      {isLoading ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+          Loading broker status...
         </div>
-        {isLoading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
-            Loading broker status...
-          </div>
-        ) : (
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            {statusContent}
-          </div>
-        )}
-      </div>
-    </div>
+      ) : (
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {statusContent}
+        </div>
+      )}
+    </>
   )
 }

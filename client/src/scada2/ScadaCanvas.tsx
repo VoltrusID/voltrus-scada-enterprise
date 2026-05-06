@@ -56,7 +56,7 @@ export const ScadaCanvas: React.FC<Props> = ({
       }}
       style={{
         position: 'relative',
-        height: 'calc(100vh - 220px)',
+        height: 'calc(100vh - 180px)',
         border: '1px solid var(--border)',
         borderRadius: 8,
         overflow: 'hidden',

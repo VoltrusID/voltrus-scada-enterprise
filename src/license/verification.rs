@@ -149,7 +149,7 @@ pub async fn resolve_license_status(storage: &Storage) -> LicenseStatus {
         LicenseStatus::TrialExpired {
             started_at,
             message: format!(
-                "Your {}-day trial has expired. Please activate a license to continue using Voltrus Lite.",
+                "Your {}-day trial has expired. Please activate a license to continue using Voltrus.",
                 TRIAL_DURATION_DAYS
             ),
         }

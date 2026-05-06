@@ -30,6 +30,7 @@ interface Props {
   onSaveEquipment: (items: ScadaEquipmentItem[]) => void
   onSaveConnections: (items: ScadaConnectionItem[]) => void
   onSensorClick: (sensorId: number) => void
+  isAdmin: boolean
 }
 
 const initialCanvasState: ScadaCanvasState = {
@@ -72,7 +73,7 @@ function loadLayoutFromAPI(
 
 export const ScadaView: React.FC<Props> = ({
   sensors, activeScreen, scadaEquipment, scadaConnections,
-  onSaveEquipment, onSaveConnections, onSensorClick,
+  onSaveEquipment, onSaveConnections, onSensorClick, isAdmin,
 }) => {
   const currentValues = useDashboardSelector(s => s.currentValues)
   const [layout, dispatch] = useReducer(layoutReducer, { widgets: [], connections: [] })
@@ -231,6 +232,7 @@ export const ScadaView: React.FC<Props> = ({
               }}>Save</button>
             </>
           )}
+          {isAdmin && (
           <button onClick={handleToggleEdit} style={{
             padding: '5px 10px', borderRadius: 6,
             border: `1px solid ${canvasState.editMode ? 'var(--warn)' : 'var(--border)'}`,
@@ -240,6 +242,7 @@ export const ScadaView: React.FC<Props> = ({
           }}>
             {canvasState.editMode ? 'Done' : 'Edit'}
           </button>
+          )}
         </div>
         <ScadaCanvas
           layout={layout}

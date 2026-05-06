@@ -47,7 +47,7 @@ const EdrCompatPanel = lazy(() => import('./EdrCompatPanel').then(m => ({ defaul
 
 function AppInner() {
   const queryClient = useQueryClient()
-  const { t } = useTranslation()
+  const { t, ready: i18nReady } = useTranslation()
 
   // ── License state ────────────────────────────────────────────────
   const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null)
@@ -399,6 +399,7 @@ function AppInner() {
   }, [activeAlarms.count, startAlarm, stopAlarm])
 
   // ── Render gates ─────────────────────────────────────────────────
+  if (!i18nReady) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
   if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('license.checking')}</div>
   const licenseStatus = licenseInfo.status
   const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Trial' || licenseStatus === 'TrialExpired'
@@ -466,6 +467,7 @@ function AppInner() {
         onNodeRedWizardClick={() => setShowNodeRedWizard(true)}
         onMqttPanelClick={() => setShowMqttPanel(true)}
         onEdrPanelClick={() => setShowEdrPanel(true)}
+        onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
       />
       </header>
 
@@ -474,7 +476,6 @@ function AppInner() {
           mode={mode} activeScreen={activeScreen} screens={screens}
           effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
           onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows') setMode('live') }}
-          onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
           onRenameScreen={handleRenameScreen}
           onDeleteScreen={handleDeleteScreen}
           onAddScreen={handleAddScreen}
@@ -544,6 +545,7 @@ function AppInner() {
               saveTwinConnectionsMut={saveTwinConnectionsMut}
               updateSensorMut={updateSensorMut}
               fetchOk={fetchOk}
+              isAdmin={isAdmin}
             />
           )}
         </div>
@@ -592,10 +594,22 @@ function AppInner() {
         {showAuditPanel && (
           <Suspense fallback={null}><AuditLogPanel onClose={() => setShowAuditPanel(false)} /></Suspense>
         )}
-        {showImportWizard && <Suspense fallback={null}><DataImportWizard onClose={() => setShowImportWizard(false)} /></Suspense>}
+        {showImportWizard && (
+          <OverlayScreen title="Import Data" onClose={() => setShowImportWizard(false)}>
+            <Suspense fallback={null}><DataImportWizard /></Suspense>
+          </OverlayScreen>
+        )}
         {showNodeRedWizard && <Suspense fallback={null}><NodeRedImportWizard onClose={() => setShowNodeRedWizard(false)} /></Suspense>}
-        {showMqttPanel && <Suspense fallback={null}><MqttBrokerPanel onClose={() => setShowMqttPanel(false)} /></Suspense>}
-        {showEdrPanel && <Suspense fallback={null}><EdrCompatPanel onClose={() => setShowEdrPanel(false)} /></Suspense>}
+        {showMqttPanel && (
+          <OverlayScreen title="MQTT Broker" onClose={() => setShowMqttPanel(false)}>
+            <Suspense fallback={null}><MqttBrokerPanel onClose={() => setShowMqttPanel(false)} /></Suspense>
+          </OverlayScreen>
+        )}
+        {showEdrPanel && (
+          <OverlayScreen title="EDR Compatibility" onClose={() => setShowEdrPanel(false)}>
+            <Suspense fallback={null}><EdrCompatPanel onClose={() => setShowEdrPanel(false)} /></Suspense>
+          </OverlayScreen>
+        )}
       </main>
 
       <Footer />

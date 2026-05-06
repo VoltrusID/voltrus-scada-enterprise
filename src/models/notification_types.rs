@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ── SMTP notification config ──
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SmtpConfig {
     pub host: String,
     #[serde(default = "default_smtp_port")]
@@ -27,14 +27,14 @@ fn default_smtp_from_address() -> String {
 }
 
 fn default_smtp_from_name() -> String {
-    "Voltrus Lite".to_string()
+    "Voltrus".to_string()
 }
 
 fn default_smtp_encryption() -> SmtpEncryption {
     SmtpEncryption::StartTls
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SmtpEncryption {
     StartTls,

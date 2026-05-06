@@ -121,7 +121,6 @@ export function HistoryRangeBar({ range, onChange, detail, onDetailChange, agg }
         <button title="Aggregated · ~300 points" style={{ ...btnStyle, padding: '6px 8px', fontSize: 11, borderColor: detail === 'auto' ? 'var(--warn)' : 'var(--border)', color: detail === 'auto' ? 'var(--warn)' : 'var(--fg-muted)' }} onClick={() => onDetailChange?.('auto')}>Auto</button>
         <button title="Every second · no data loss" style={{ ...btnStyle, padding: '6px 8px', fontSize: 11, borderColor: detail === 'full' ? 'var(--warn)' : 'var(--border)', color: detail === 'full' ? 'var(--warn)' : 'var(--fg-muted)' }} onClick={() => onDetailChange?.('full')}>Full</button>
       </div>
-      <span style={{ fontSize: 10, color: isFull ? 'var(--warn)' : 'var(--fg-muted)', fontFamily: "'JetBrains Mono',monospace", whiteSpace: 'nowrap', opacity: .7 }}>{label}</span>
       {showCustom && <CustomRangePicker onApply={onChange} onClose={() => setShowCustom(false)} />}
     </div>
   );

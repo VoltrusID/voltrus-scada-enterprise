@@ -127,6 +127,7 @@ interface Props {
   onNodeRedWizardClick: () => void
   onMqttPanelClick: () => void
   onEdrPanelClick: () => void
+  onSystemClick: () => void
 }
 
 /* ── Action Menu (dropdown) ── */
@@ -243,7 +244,7 @@ export function AppHeader({
   turbo, onToggleTurbo,
   onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
   onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onShiftHandoverToggle,
-  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onEdrPanelClick, onAssetsClick,
+  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onEdrPanelClick, onAssetsClick, onSystemClick,
 }: Props) {
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -270,6 +271,7 @@ export function AppHeader({
       { label: 'Tags', icon: Icons.tag, onClick: onTagsClick, active: true, activeColor: 'green' },
       { label: 'Assets', icon: Icons.briefcase, onClick: onAssetsClick, active: true, activeColor: 'purple' },
       { label: 'Flows', icon: Icons.layers, onClick: onFlowsClick, active: true, activeColor: 'amber' },
+      { label: 'System', icon: Icons.settings, onClick: onSystemClick, active: true, activeColor: 'green' },
       { label: 'Import Data', icon: Icons.upload, onClick: onImportWizardClick },
       { label: 'Node-RED Import', icon: Icons.layers, onClick: onNodeRedWizardClick },
       { label: 'MQTT Broker', icon: Icons.mail, onClick: onMqttPanelClick },
@@ -286,44 +288,72 @@ export function AppHeader({
     borderRadius: 0,
   }
 
+  /* ── Shared sub-bar style (mobile mode/toggle strip) ── */
+  const SUB_BAR: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: '6px 12px',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--card)',
+  }
+
   return (
     <>
+      {/* ── Main header bar ── */}
       <nav role="navigation" aria-label="Main navigation" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 20px',
-        height: 52,
+        padding: isMobile ? '0 10px' : '0 20px',
+        height: isMobile ? 48 : 52,
         flexShrink: 0,
         borderBottom: '1px solid var(--border)',
         background: 'var(--card)',
-        gap: 12,
       }}>
         {/* ── Left: Branding ── */}
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: editMode ? 'pointer' : 'default', flexShrink: 0 }}
-          onClick={onBrandingClick}
-        >
-          <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'contain' }} />
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', whiteSpace: 'nowrap', letterSpacing: '-.01em' }}>
-            {branding.title}
-          </span>
-          {!isMobile && branding.subtitle && (
-            <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, whiteSpace: 'nowrap' }}>
-              {branding.subtitle}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: editMode ? 'pointer' : 'default' }}
+            onClick={onBrandingClick}
+          >
+            <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: isMobile ? 20 : 24, height: isMobile ? 20 : 24, borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />
+            <span style={{ fontSize: isMobile ? 14 : 15, fontWeight: 700, color: 'var(--fg)', whiteSpace: 'nowrap', letterSpacing: '-.01em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {branding.title}
             </span>
-          )}
-          {editMode && (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ marginLeft: -2 }}>
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
+            {!isMobile && branding.subtitle && (
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, whiteSpace: 'nowrap' }}>
+                {branding.subtitle}
+              </span>
+            )}
+            {editMode && (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" style={{ marginLeft: -2, flexShrink: 0 }}>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            )}
+          </div>
+          {/* Turbo (desktop only — mobile goes in sub-bar) */}
+          {!isMobile && viewMode !== 'twin' && viewMode !== 'scada' && mode === 'live' && (
+            <button
+              onClick={onToggleTurbo}
+              title={turbo ? 'Turbo ON' : 'Turbo OFF'}
+              style={{
+                ...SEGMENT_BTN,
+                fontWeight: 600,
+                padding: '5px 12px',
+                border: '1px solid ' + (turbo ? 'var(--warn)' : 'var(--border)'),
+                borderRadius: 6,
+                color: turbo ? 'var(--warn)' : 'var(--muted)',
+                background: turbo ? 'rgba(234,179,8,.1)' : 'var(--card)',
+                marginLeft: 12,
+              }}
+            >
+              Turbo
+            </button>
           )}
         </div>
 
-        {/* ── Center: Primary Controls ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center', minWidth: 0 }}>
-          {/* View mode segmented control */}
+        {/* ── Center: View mode (desktop only) ── */}
+        {!isMobile && (
           <div style={SEGMENT_GROUP}>
             <button
               style={viewMode === 'cards' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN}
@@ -346,9 +376,12 @@ export function AppHeader({
               title="2D SCADA diagram"
             >SCADA</button>
           </div>
+        )}
 
-          {/* Live/History toggle */}
-          {viewMode !== 'twin' && viewMode !== 'scada' && (
+        {/* ── Right: actions ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, justifyContent: 'flex-end', flexShrink: 0 }}>
+          {/* Live/History toggle (desktop only) */}
+          {!isMobile && viewMode !== 'twin' && viewMode !== 'scada' && (
             <>
               <div style={SEGMENT_GROUP}>
                 <button
@@ -361,58 +394,41 @@ export function AppHeader({
                 >History</button>
               </div>
 
-              {mode === 'live' && (
-                <button
-                  onClick={onToggleTurbo}
-                  title={turbo ? 'Turbo ON' : 'Turbo OFF'}
-                  style={{
-                    ...SEGMENT_BTN,
-                    fontWeight: 600,
-                    padding: '5px 12px',
-                    border: '1px solid ' + (turbo ? 'var(--warn)' : 'var(--border)'),
-                    borderRadius: 6,
-                    color: turbo ? 'var(--warn)' : 'var(--muted)',
-                    background: turbo ? 'rgba(234,179,8,.1)' : 'var(--card)',
-                  }}
-                >
-                  Turbo
-                </button>
+              {/* History range — appears right of Live/History */}
+              {mode === 'history' && (
+                <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
               )}
             </>
           )}
 
-          {/* History range (inline when in history mode) */}
-          {viewMode !== 'twin' && viewMode !== 'scada' && mode === 'history' && !isMobile && (
-            <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
-          )}
-        </div>
+          {!isMobile && <div style={DIVIDER_V} />}
 
-        {/* ── Right: Status + Actions + User ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {/* Unified bell: alarms + notifications */}
+          {/* Unified bell */}
           <UnifiedBell authed={true} activeAlarmCount={activeAlarmCount} onOpenAlarmPanel={onAlarmPanelToggle} />
 
-          {/* Keyboard shortcuts */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={onToggleShortcutsPanel}
-              aria-label="Keyboard shortcuts"
-              title="Keyboard shortcuts"
-              style={{
-                ...ICON_BTN,
-                color: showShortcutsPanel ? 'var(--cyan)' : 'var(--muted)',
-                borderColor: showShortcutsPanel ? 'var(--cyan)' : 'var(--border)',
-                background: showShortcutsPanel ? 'rgba(34,197,94,.1)' : 'var(--card)',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/></svg>
-            </button>
-            {shortcutsPanel}
-          </div>
+          {/* Keyboard shortcuts (desktop only) */}
+          {!isMobile && (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={onToggleShortcutsPanel}
+                aria-label="Keyboard shortcuts"
+                title="Keyboard shortcuts"
+                style={{
+                  ...ICON_BTN,
+                  color: showShortcutsPanel ? 'var(--cyan)' : 'var(--muted)',
+                  borderColor: showShortcutsPanel ? 'var(--cyan)' : 'var(--border)',
+                  background: showShortcutsPanel ? 'rgba(34,197,94,.1)' : 'var(--card)',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/></svg>
+              </button>
+              {shortcutsPanel}
+            </div>
+          )}
 
-          <div style={DIVIDER_V} />
+          {!isMobile && <div style={DIVIDER_V} />}
 
-          {/* Settings */}
+          {/* Settings (desktop only) */}
           {!isMobile && (
             <button
               onClick={onSettingsClick}
@@ -424,19 +440,21 @@ export function AppHeader({
             </button>
           )}
 
-          {/* Action Menu (dropdown) */}
-          <ActionMenu
-            items={actionItems}
-            trigger={
-              <button
-                aria-label="More actions"
-                title="More actions"
-                style={ICON_BTN}
-              >
-                {Icons.more}
-              </button>
-            }
-          />
+          {/* Action Menu (desktop only) */}
+          {!isMobile && (
+            <ActionMenu
+              items={actionItems}
+              trigger={
+                <button
+                  aria-label="More actions"
+                  title="More actions"
+                  style={ICON_BTN}
+                >
+                  {Icons.more}
+                </button>
+              }
+            />
+          )}
 
           {/* Hamburger (mobile only) */}
           {isMobile && (
@@ -444,7 +462,7 @@ export function AppHeader({
               className="hamburger-menu"
               onClick={() => setDrawerOpen(true)}
               aria-label="Open menu"
-              style={ICON_BTN}
+              style={{ ...ICON_BTN, width: 38, height: 38 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <line x1="3" y1="6" x2="21" y2="6" />
@@ -456,9 +474,71 @@ export function AppHeader({
         </div>
       </nav>
 
-      {/* ── History range bar (mobile, or when header is too crowded) ── */}
+      {/* ── Mobile sub-bar: view mode + Live/History + Turbo ── */}
+      {isMobile && (
+        <div style={SUB_BAR}>
+          {/* View mode */}
+          <div style={{ ...SEGMENT_GROUP, borderRadius: 6 }}>
+            <button
+              style={{ ...(viewMode === 'cards' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
+              onClick={() => onViewModeChange('cards')}
+              title="Grid view"
+            >Grid</button>
+            <button
+              style={{ ...(viewMode === 'canvas' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
+              onClick={() => onViewModeChange('canvas')}
+              title="Canvas view"
+            >Canvas</button>
+            <button
+              style={{ ...(viewMode === 'twin' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
+              onClick={() => onViewModeChange('twin')}
+              title="3D digital twin"
+            >3D</button>
+            <button
+              style={{ ...(viewMode === 'scada' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
+              onClick={() => onViewModeChange('scada')}
+              title="2D SCADA diagram"
+            >SCADA</button>
+          </div>
+
+          {/* Live/History toggle */}
+          {viewMode !== 'twin' && viewMode !== 'scada' && (
+            <div style={{ ...SEGMENT_GROUP, borderRadius: 6 }}>
+              <button
+                style={{ ...(mode === 'live' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
+                onClick={() => onModeChange('live')}
+              >Live</button>
+              <button
+                style={{ ...(mode === 'history' ? SEGMENT_ACTIVE_WARN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
+                onClick={() => onModeChange('history')}
+              >History</button>
+            </div>
+          )}
+
+          {/* Turbo */}
+          {viewMode !== 'twin' && viewMode !== 'scada' && mode === 'live' && (
+            <button
+              onClick={onToggleTurbo}
+              title={turbo ? 'Turbo ON' : 'Turbo OFF'}
+              style={{
+                ...SEGMENT_BTN,
+                fontSize: 11,
+                padding: '4px 10px',
+                border: '1px solid ' + (turbo ? 'var(--warn)' : 'var(--border)'),
+                borderRadius: 6,
+                color: turbo ? 'var(--warn)' : 'var(--muted)',
+                background: turbo ? 'rgba(234,179,8,.1)' : 'var(--card)',
+              }}
+            >
+              ⚡
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── History range bar (mobile) ── */}
       {viewMode !== 'twin' && viewMode !== 'scada' && mode === 'history' && isMobile && (
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--card)', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--card)', display: 'flex', justifyContent: 'center' }}>
           <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
         </div>
       )}
@@ -504,6 +584,10 @@ export function AppHeader({
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
+            <button style={drawerItemStyle} onClick={() => { closeDrawer(); onToggleShortcutsPanel(); }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/></svg>
+              <span>Shortcuts</span>
+            </button>
             <button style={drawerItemStyle} onClick={() => { closeDrawer(); onSettingsClick(); }}>
               {Icons.settings}<span>Settings</span>
             </button>
@@ -529,7 +613,6 @@ export function AppHeader({
             <div style={{ height: 1, background: 'var(--border)', margin: '8px 16px' }} />
             {isAdmin && (
               <>
-                <div style={{ height: 1, background: 'var(--border)', margin: '8px 16px' }} />
                 <button style={drawerItemStyle} onClick={() => { closeDrawer(); onAssetsClick(); }}>
                   {Icons.briefcase}<span>Assets</span>
                 </button>
@@ -538,6 +621,9 @@ export function AppHeader({
                 </button>
                 <button style={drawerItemStyle} onClick={() => { closeDrawer(); onFlowsClick(); }}>
                   {Icons.layers}<span>Flows</span>
+                </button>
+                <button style={drawerItemStyle} onClick={() => { closeDrawer(); onSystemClick(); }}>
+                  {Icons.settings}<span>System</span>
                 </button>
                 <button style={drawerItemStyle} onClick={() => { closeDrawer(); onImportWizardClick(); }}>
                   {Icons.upload}<span>Import Data</span>
