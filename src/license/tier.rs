@@ -193,6 +193,30 @@ impl LicenseTier {
         !matches!(self, LicenseTier::Trial)
     }
 
+    /// FlowEngine automation flows.
+    /// Starter tier and above.
+    pub fn flow_engine(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
+    /// Data retention/compression (hot->warm->cold tiers).
+    /// Starter tier and above. Trial only retains 7 days raw, no compression.
+    pub fn data_compression(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
+    /// Health monitor (watchdog).
+    /// Starter tier and above.
+    pub fn health_monitor(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
+    /// Command queue processor (write commands to devices).
+    /// Starter tier and above.
+    pub fn command_queue(&self) -> bool {
+        !matches!(self, LicenseTier::Trial)
+    }
+
     /// Vertical-specific templates — browse and preview.
     /// Starter tier and above.
     pub fn templates(&self) -> bool {
@@ -241,6 +265,10 @@ impl LicenseTier {
             "bi_connectors": self.bi_connectors(),
             "data_egress": self.data_egress(),
             "outbound_webhooks": self.outbound_webhooks(),
+            "flow_engine": self.flow_engine(),
+            "data_compression": self.data_compression(),
+            "health_monitor": self.health_monitor(),
+            "command_queue": self.command_queue(),
             "templates": self.templates(),
             "templates_write": self.templates_write(),
         })

@@ -53,7 +53,7 @@ export function LicenseActivationScreen() {
         width: '100%',
         boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
       }}>
-        <h1 style={{ margin: '0 0 8px', fontSize: 22, color: 'var(--fg)' }}>Welcome to Voltrus Lite</h1>
+        <h1 style={{ margin: '0 0 8px', fontSize: 22, color: 'var(--fg)' }}>Welcome to Voltrus</h1>
         <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>
           Your license is not activated. Follow the steps below to activate your installation.
         </p>
@@ -72,7 +72,7 @@ export function LicenseActivationScreen() {
               color: 'var(--fg)',
               margin: '6px 0',
               wordBreak: 'break-all',
-            }}>./voltrus-lite --generate-request YOUR_LICENSE_KEY</code>
+            }}>./voltrus --generate-request YOUR_LICENSE_KEY</code>
           </li>
           <li style={{ marginBottom: 8 }}>
             Copy the generated <code style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>license-request.bin</code> to a PC with internet access.
@@ -96,7 +96,7 @@ export function LicenseActivationScreen() {
               color: 'var(--fg)',
               margin: '6px 0',
               wordBreak: 'break-all',
-            }}>./voltrus-lite --import-activation license-activation.bin</code>
+            }}>./voltrus --import-activation license-activation.bin</code>
           </li>
           <li>Refresh this page or click "Check Again" below.</li>
         </ol>

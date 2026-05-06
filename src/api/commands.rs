@@ -17,6 +17,11 @@ pub async fn write_tag(
     Path(tag_id): Path<i64>,
     Json(body): Json<WriteRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.command_queue() {
+        return Err(AppError(anyhow::anyhow!(
+            "Tag write commands require Starter tier or above. Upgrade at https://voltrus.id"
+        )));
+    }
     // 1. Get write policy — also validates that the data source exists
     let policy = state
         .storage

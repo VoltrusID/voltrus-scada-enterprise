@@ -108,7 +108,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
         </div>
         <h2 style={{ fontSize: 18, fontWeight: 600 }}>Multi-Site Hub</h2>
         <p style={{ color: 'var(--muted)', fontSize: 13, maxWidth: 400, textAlign: 'center' }}>
-          Connect and manage multiple Voltrus Lite instances from a single dashboard. Requires Professional tier.
+          Connect and manage multiple Voltrus instances from a single dashboard. Requires Professional tier.
         </p>
         <FeatureBadge tier="Professional" />
       </div>
@@ -171,7 +171,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
-            {sites.length === 0 ? 'No hub sites configured. Click "+ Add Site" to connect a remote Voltrus Lite instance.' : 'No sites match your search.'}
+            {sites.length === 0 ? 'No hub sites configured. Click "+ Add Site" to connect a remote Voltrus instance.' : 'No sites match your search.'}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
