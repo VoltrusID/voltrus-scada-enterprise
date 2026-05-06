@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -10,9 +10,7 @@ const PASSWORD_MASK: &str = "********";
 
 // ── GET /api/v1/settings/smtp ──────────────────────────────────────────
 
-pub async fn get_smtp_config(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+pub async fn get_smtp_config(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let cfg = state.smtp_config.read().await;
     match cfg.as_ref() {
         Some(c) => Ok(Json(json!({
@@ -81,16 +79,12 @@ pub async fn update_smtp_config(
     let password = match &req.password {
         Some(p) if p == PASSWORD_MASK => {
             let cfg = state.smtp_config.read().await;
-            cfg.as_ref()
-                .map(|c| c.password.clone())
-                .unwrap_or_default()
+            cfg.as_ref().map(|c| c.password.clone()).unwrap_or_default()
         }
         Some(p) => p.trim().to_string(),
         None => {
             let cfg = state.smtp_config.read().await;
-            cfg.as_ref()
-                .map(|c| c.password.clone())
-                .unwrap_or_default()
+            cfg.as_ref().map(|c| c.password.clone()).unwrap_or_default()
         }
     };
 
@@ -106,7 +100,9 @@ pub async fn update_smtp_config(
         port: req.port,
         username,
         password,
-        from_address: req.from_address.unwrap_or_else(|| "voltrus@example.com".into()),
+        from_address: req
+            .from_address
+            .unwrap_or_else(|| "voltrus@example.com".into()),
         from_name: req.from_name.unwrap_or_else(|| "Voltrus".into()),
         encryption,
     };
@@ -141,7 +137,8 @@ fn persist_smtp_to_yaml(
     let mut doc: serde_yaml_neo::Value = if content.trim().is_empty() {
         serde_yaml_neo::Value::Mapping(Default::default())
     } else {
-        serde_yaml_neo::from_str(&content).unwrap_or(serde_yaml_neo::Value::Mapping(Default::default()))
+        serde_yaml_neo::from_str(&content)
+            .unwrap_or(serde_yaml_neo::Value::Mapping(Default::default()))
     };
 
     if let serde_yaml_neo::Value::Mapping(ref mut map) = doc {
@@ -189,9 +186,7 @@ pub async fn test_smtp_connection(
         threshold: 0.0,
         message: "This is a test email from Voltrus SMTP configuration.".to_string(),
         unit: "".to_string(),
-        triggered_at: crate::notification::webhook::format_triggered_at(
-            crate::timeutil::now_secs(),
-        ),
+        triggered_at: crate::notification::webhook::format_triggered_at(crate::timeutil::now_secs()),
     };
 
     notifier

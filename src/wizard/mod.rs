@@ -1,10 +1,10 @@
 pub mod feed;
 pub mod health;
 
-use serde::{Deserialize, Serialize};
 use crate::storage::Storage;
 use crate::vertical_templates::definitions::VerticalTemplate;
 use crate::vertical_templates::instantiator::Instantiator;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Combined wizard configuration — what the user provides through the wizard UI
@@ -45,7 +45,9 @@ fn default_instance_counts() -> HashMap<String, u32> {
     m
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WizardDeviceConfig {
@@ -74,7 +76,9 @@ pub struct WizardDeviceConfig {
     pub scan: Option<WizardScanConfig>,
 }
 
-fn default_port() -> u16 { 502 }
+fn default_port() -> u16 {
+    502
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WizardScanConfig {
@@ -145,7 +149,9 @@ pub async fn execute_wizard(
 
         if source == "vertical" {
             // Use v0.37 vertical template instantiator
-            if let Some(template) = crate::vertical_templates::definitions::get_template(template_id) {
+            if let Some(template) =
+                crate::vertical_templates::definitions::get_template(template_id)
+            {
                 let template_name = template.name.clone();
                 let instantiator = Instantiator::new(
                     storage,
@@ -165,7 +171,10 @@ pub async fn execute_wizard(
                     ));
                 }
             } else {
-                warnings.push(format!("Template '{}' not found — skipping template instantiation", template_id));
+                warnings.push(format!(
+                    "Template '{}' not found — skipping template instantiation",
+                    template_id
+                ));
             }
         } else if source == "feed" {
             // FEED templates are design documents, not directly instantiable.
@@ -191,7 +200,9 @@ pub async fn execute_wizard(
             &crate::models::Endianness::Big,
             &scan.register_area,
             scan.scan_delay_ms,
-        ).await {
+        )
+        .await
+        {
             Ok(registers) => {
                 let readable: Vec<_> = registers.iter().filter(|r| r.readable).collect();
                 tags_discovered = readable.len() as u32;
@@ -206,24 +217,27 @@ pub async fn execute_wizard(
                         if existing.iter().any(|ds| ds.key == key) {
                             continue;
                         }
-                        if let Err(e) = storage.create_data_source(
-                            &key,
-                            &tag_name,
-                            "",            // unit
-                            "#3b82f6",      // color
-                            0.0,            // min_val
-                            100.0,          // max_val
-                            0.0,            // warn_val
-                            0.0,            // crit_val
-                            0.0,            // base_val
-                            created as i64, // sort_order
-                            2,              // decimals
-                            "modbus",       // source_type
-                            "{}",          // source_config
-                            &device_id,
-                            None,           // equipment_id
-                            "gauge",        // chart_type
-                        ).await {
+                        if let Err(e) = storage
+                            .create_data_source(
+                                &key,
+                                &tag_name,
+                                "",             // unit
+                                "#3b82f6",      // color
+                                0.0,            // min_val
+                                100.0,          // max_val
+                                0.0,            // warn_val
+                                0.0,            // crit_val
+                                0.0,            // base_val
+                                created as i64, // sort_order
+                                2,              // decimals
+                                "modbus",       // source_type
+                                "{}",           // source_config
+                                &device_id,
+                                None,    // equipment_id
+                                "gauge", // chart_type
+                            )
+                            .await
+                        {
                             warnings.push(format!("Failed to create tag '{}': {}", tag_name, e));
                         } else {
                             created += 1;
@@ -242,7 +256,10 @@ pub async fn execute_wizard(
                 }
             }
             Err(e) => {
-                warnings.push(format!("Auto-scan failed on {}: {}", config.device.address, e));
+                warnings.push(format!(
+                    "Auto-scan failed on {}: {}",
+                    config.device.address, e
+                ));
             }
         }
     } else if config.device.auto_scan && config.device.protocol != "modbus" {
@@ -251,11 +268,17 @@ pub async fn execute_wizard(
 
     // 5. Generate dashboard (basic)
     if config.generate_dashboard && tags_created > 0 {
-        let screen_name = format!("{} Overview", config.industry.as_deref().unwrap_or("Project"));
+        let screen_name = format!(
+            "{} Overview",
+            config.industry.as_deref().unwrap_or("Project")
+        );
         // Screens in Voltrus are referenced by ID, not created explicitly.
         // The screen exists when data sources are assigned to it.
         screens_created = 1;
-        next_steps.push(format!("Dashboard screen '{}' ready. Use the dashboard to arrange widgets for your new tags.", screen_name));
+        next_steps.push(format!(
+            "Dashboard screen '{}' ready. Use the dashboard to arrange widgets for your new tags.",
+            screen_name
+        ));
     }
 
     Ok(WizardResult {

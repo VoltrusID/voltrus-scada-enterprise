@@ -58,11 +58,17 @@ pub fn parse_time(s: &str) -> Option<i64> {
     if let Some(rest) = s.strip_prefix("now-") {
         let now = crate::timeutil::now_secs();
         if let Some(num) = rest.strip_suffix('h') {
-            if let Ok(n) = num.parse::<i64>() { return Some(now - n * 3600); }
+            if let Ok(n) = num.parse::<i64>() {
+                return Some(now - n * 3600);
+            }
         } else if let Some(num) = rest.strip_suffix('m') {
-            if let Ok(n) = num.parse::<i64>() { return Some(now - n * 60); }
+            if let Ok(n) = num.parse::<i64>() {
+                return Some(now - n * 60);
+            }
         } else if let Some(num) = rest.strip_suffix('d') {
-            if let Ok(n) = num.parse::<i64>() { return Some(now - n * 86400); }
+            if let Ok(n) = num.parse::<i64>() {
+                return Some(now - n * 86400);
+            }
         } else if let Ok(n) = rest.parse::<i64>() {
             // Bare number = seconds
             return Some(now - n);
@@ -73,7 +79,11 @@ pub fn parse_time(s: &str) -> Option<i64> {
 
 pub async fn execute_bi_query(storage: &Storage, query: &BiQuery) -> Result<BiResponse> {
     let now = crate::timeutil::now_secs();
-    let from = query.from.as_deref().and_then(parse_time).unwrap_or(now - 3600);
+    let from = query
+        .from
+        .as_deref()
+        .and_then(parse_time)
+        .unwrap_or(now - 3600);
     let to = query.to.as_deref().and_then(parse_time).unwrap_or(now);
     let limit = query.limit.unwrap_or(1000).min(10000);
     let offset = query.offset.unwrap_or(0);
@@ -82,23 +92,38 @@ pub async fn execute_bi_query(storage: &Storage, query: &BiQuery) -> Result<BiRe
     let device_ids: Vec<String> = if let Some(ref devices) = query.devices {
         let filter: std::collections::HashSet<String> =
             devices.split(',').map(|s| s.trim().to_string()).collect();
-        all_configs.iter().filter(|c| filter.contains(&c.id)).map(|c| c.id.clone()).collect()
+        all_configs
+            .iter()
+            .filter(|c| filter.contains(&c.id))
+            .map(|c| c.id.clone())
+            .collect()
     } else {
         all_configs.iter().map(|c| c.id.clone()).collect()
     };
 
-    let metric_filter: Option<std::collections::HashSet<String>> = query.metrics.as_ref()
+    let metric_filter: Option<std::collections::HashSet<String>> = query
+        .metrics
+        .as_ref()
         .map(|m| m.split(',').map(|s| s.trim().to_string()).collect());
 
     let mut all_rows = Vec::new();
     for device_id in &device_ids {
-        let data = storage.query_device_metrics_merged(
-            device_id, from, to, from - 86400, from - 86400 - 7776000, 1,
-        ).await?;
+        let data = storage
+            .query_device_metrics_merged(
+                device_id,
+                from,
+                to,
+                from - 86400,
+                from - 86400 - 7776000,
+                1,
+            )
+            .await?;
         for (ts, metrics) in &data {
             for (metric, value) in metrics {
                 if let Some(ref filter) = metric_filter {
-                    if !filter.contains(metric) { continue; }
+                    if !filter.contains(metric) {
+                        continue;
+                    }
                 }
                 all_rows.push(BiRow {
                     timestamp: *ts,
@@ -114,33 +139,58 @@ pub async fn execute_bi_query(storage: &Storage, query: &BiQuery) -> Result<BiRe
     all_rows.sort_by_key(|r| r.timestamp);
     let total_count = all_rows.len() as u32;
     let has_more = total_count > offset + limit;
-    let data: Vec<BiRow> = all_rows.into_iter().skip(offset as usize).take(limit as usize).collect();
+    let data: Vec<BiRow> = all_rows
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .collect();
 
-    Ok(BiResponse { total_count, limit, offset, has_more, data })
+    Ok(BiResponse {
+        total_count,
+        limit,
+        offset,
+        has_more,
+        data,
+    })
 }
 
-pub async fn execute_grafana_query(storage: &Storage, query: &BiQuery) -> Result<Vec<GrafanaResponse>> {
+pub async fn execute_grafana_query(
+    storage: &Storage,
+    query: &BiQuery,
+) -> Result<Vec<GrafanaResponse>> {
     let bi_result = execute_bi_query(storage, query).await?;
-    let mut targets: std::collections::HashMap<String, Vec<[f64; 2]>> = std::collections::HashMap::new();
+    let mut targets: std::collections::HashMap<String, Vec<[f64; 2]>> =
+        std::collections::HashMap::new();
     for row in &bi_result.data {
         let target = format!("{}:{}", row.device_id, row.metric);
-        targets.entry(target).or_default().push([row.value, (row.timestamp * 1000) as f64]);
+        targets
+            .entry(target)
+            .or_default()
+            .push([row.value, (row.timestamp * 1000) as f64]);
     }
-    Ok(targets.into_iter().map(|(target, datapoints)| GrafanaResponse { target, datapoints }).collect())
+    Ok(targets
+        .into_iter()
+        .map(|(target, datapoints)| GrafanaResponse { target, datapoints })
+        .collect())
 }
 
 pub fn render_bi_csv(data: &[BiRow]) -> String {
     let mut csv = String::with_capacity(data.len() * 64);
     csv.push_str("timestamp,timestamp_iso,device_id,metric,value\n");
     for row in data {
-        csv.push_str(&format!("{},{},{},{},{:.6}\n", row.timestamp, row.timestamp_iso, row.device_id, row.metric, row.value));
+        csv.push_str(&format!(
+            "{},{},{},{},{:.6}\n",
+            row.timestamp, row.timestamp_iso, row.device_id, row.metric, row.value
+        ));
     }
     csv
 }
 
 fn format_timestamp_iso(ts: i64) -> String {
     match time::OffsetDateTime::from_unix_timestamp(ts) {
-        Ok(dt) => dt.format(&time::format_description::well_known::Rfc3339).unwrap_or_else(|_| format!("{}", ts)),
+        Ok(dt) => dt
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| format!("{}", ts)),
         Err(_) => format!("{}", ts),
     }
 }
@@ -180,7 +230,13 @@ mod tests {
     }
     #[test]
     fn test_render_bi_csv() {
-        let rows = vec![BiRow { timestamp: 1710000000, timestamp_iso: "2024-03-09T19:20:00Z".into(), device_id: "plc1".into(), metric: "voltage".into(), value: 220.5 }];
+        let rows = vec![BiRow {
+            timestamp: 1710000000,
+            timestamp_iso: "2024-03-09T19:20:00Z".into(),
+            device_id: "plc1".into(),
+            metric: "voltage".into(),
+            value: 220.5,
+        }];
         let csv = render_bi_csv(&rows);
         assert!(csv.contains("220.500000"));
     }

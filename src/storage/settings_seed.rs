@@ -101,13 +101,94 @@ impl Storage {
         }
 
         // Default display properties for known register names
-        let default_map: std::collections::HashMap<String, (String, String, String, f64, f64, f64, f64, f64, i64)> = [
-            ("voltage".to_string(), ("Voltage".to_string(), "V".to_string(), "#f59e0b".to_string(), 0.0, 450.0, 400.0, 420.0, 380.0, 1i64)),
-            ("current".to_string(), ("Current".to_string(), "A".to_string(), "#06b6d4".to_string(), 0.0, 100.0, 85.0, 95.0, 65.0, 2i64)),
-            ("power".to_string(), ("Power".to_string(), "W".to_string(), "#a855f7".to_string(), 0.0, 50000.0, 40000.0, 45000.0, 24700.0, 0i64)),
-            ("frequency".to_string(), ("Frequency".to_string(), "Hz".to_string(), "#22c55e".to_string(), 45.0, 55.0, 51.0, 52.0, 50.0, 2i64)),
-            ("power_factor".to_string(), ("Power Factor".to_string(), String::new(), "#ef4444".to_string(), 0.0, 1.0, 0.95, 0.98, 0.92, 3i64)),
-            ("energy_total".to_string(), ("Energy Total".to_string(), "kWh".to_string(), "#8b5cf6".to_string(), 0.0, 999999.0, 800000.0, 900000.0, 158732.0, 1i64)),
+        let default_map: std::collections::HashMap<
+            String,
+            (String, String, String, f64, f64, f64, f64, f64, i64),
+        > = [
+            (
+                "voltage".to_string(),
+                (
+                    "Voltage".to_string(),
+                    "V".to_string(),
+                    "#f59e0b".to_string(),
+                    0.0,
+                    450.0,
+                    400.0,
+                    420.0,
+                    380.0,
+                    1i64,
+                ),
+            ),
+            (
+                "current".to_string(),
+                (
+                    "Current".to_string(),
+                    "A".to_string(),
+                    "#06b6d4".to_string(),
+                    0.0,
+                    100.0,
+                    85.0,
+                    95.0,
+                    65.0,
+                    2i64,
+                ),
+            ),
+            (
+                "power".to_string(),
+                (
+                    "Power".to_string(),
+                    "W".to_string(),
+                    "#a855f7".to_string(),
+                    0.0,
+                    50000.0,
+                    40000.0,
+                    45000.0,
+                    24700.0,
+                    0i64,
+                ),
+            ),
+            (
+                "frequency".to_string(),
+                (
+                    "Frequency".to_string(),
+                    "Hz".to_string(),
+                    "#22c55e".to_string(),
+                    45.0,
+                    55.0,
+                    51.0,
+                    52.0,
+                    50.0,
+                    2i64,
+                ),
+            ),
+            (
+                "power_factor".to_string(),
+                (
+                    "Power Factor".to_string(),
+                    String::new(),
+                    "#ef4444".to_string(),
+                    0.0,
+                    1.0,
+                    0.95,
+                    0.98,
+                    0.92,
+                    3i64,
+                ),
+            ),
+            (
+                "energy_total".to_string(),
+                (
+                    "Energy Total".to_string(),
+                    "kWh".to_string(),
+                    "#8b5cf6".to_string(),
+                    0.0,
+                    999999.0,
+                    800000.0,
+                    900000.0,
+                    158732.0,
+                    1i64,
+                ),
+            ),
         ]
         .into_iter()
         .collect();
@@ -170,10 +251,7 @@ impl Storage {
             }
         }
 
-        tracing::info!(
-            "Seeded data sources for {} devices",
-            devices_to_seed.len()
-        );
+        tracing::info!("Seeded data sources for {} devices", devices_to_seed.len());
         Ok(())
     }
 }

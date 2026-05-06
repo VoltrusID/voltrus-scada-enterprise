@@ -147,17 +147,10 @@ pub async fn instantiate_template(
         .instance_counts
         .unwrap_or_else(Instantiator::default_instance_counts);
 
-    let instantiator = Instantiator::new(
-        &state.storage,
-        template,
-        body.name.clone(),
-        instance_counts,
-    );
+    let instantiator =
+        Instantiator::new(&state.storage, template, body.name.clone(), instance_counts);
 
-    let result = instantiator
-        .instantiate()
-        .await
-        .map_err(AppError)?;
+    let result = instantiator.instantiate().await.map_err(AppError)?;
 
     // Log to audit trail
     state.audit_logger.log(crate::security::AuditEvent {
@@ -196,16 +189,24 @@ pub async fn preview_template(
         .unwrap_or_else(Instantiator::default_instance_counts);
 
     // Build a preview without actually creating anything
-    let instantiator = Instantiator::new(&state.storage, template, "preview".into(), instance_counts);
+    let instantiator =
+        Instantiator::new(&state.storage, template, "preview".into(), instance_counts);
     let expanded_tags = instantiator.expand_tag_patterns();
     let expanded_alarms = instantiator.expand_alarm_patterns(&expanded_tags);
 
     let flow_previews: Vec<serde_json::Value> = definitions::get_template(&body.template_id)
-        .map(|t| t.flows.iter().map(|f| serde_json::json!({
-            "name": f.name,
-            "description": f.description,
-            "trigger_type": f.trigger_type,
-        })).collect())
+        .map(|t| {
+            t.flows
+                .iter()
+                .map(|f| {
+                    serde_json::json!({
+                        "name": f.name,
+                        "description": f.description,
+                        "trigger_type": f.trigger_type,
+                    })
+                })
+                .collect()
+        })
         .unwrap_or_default();
 
     Ok(Json(serde_json::json!({

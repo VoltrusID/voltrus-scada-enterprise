@@ -7,8 +7,8 @@ use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
 use crate::dnp3::objects::common_group_variations;
-use crate::models::*;
 use crate::models::Dnp3DeviceConfig;
+use crate::models::*;
 
 // ── Device CRUD ──
 

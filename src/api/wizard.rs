@@ -45,6 +45,9 @@ pub async fn get_feed_template_handler(
 ) -> Result<impl IntoResponse, AppError> {
     match get_feed_template(&id) {
         Some(template) => Ok(Json(template)),
-        None => Err(AppError(anyhow::anyhow!("FEED template '{}' not found", id))),
+        None => Err(AppError(anyhow::anyhow!(
+            "FEED template '{}' not found",
+            id
+        ))),
     }
 }

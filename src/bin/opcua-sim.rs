@@ -94,13 +94,10 @@ fn parse_args() -> (String, u16, u64) {
     while i < args.len() {
         match args[i].as_str() {
             "--host" => {
-                host = args
-                    .get(i + 1)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        eprintln!("Missing host value, using default 127.0.0.1");
-                        "127.0.0.1".to_string()
-                    });
+                host = args.get(i + 1).cloned().unwrap_or_else(|| {
+                    eprintln!("Missing host value, using default 127.0.0.1");
+                    "127.0.0.1".to_string()
+                });
                 i += 2;
             }
             "--port" => {

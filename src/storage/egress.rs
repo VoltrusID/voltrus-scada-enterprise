@@ -1,6 +1,6 @@
 use super::Storage;
-use anyhow::{Context, Result};
 use crate::integration::egress::EgressJob;
+use anyhow::{Context, Result};
 
 impl Storage {
     pub async fn get_enabled_egress_jobs(&self) -> Result<Vec<EgressJob>> {
@@ -60,10 +60,24 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn create_egress_job(&self, name: &str, enabled: bool, schedule: &str, format: &str, destination: &str, device_ids: &str, time_range: &str, compression: bool) -> Result<i64> {
+    pub async fn create_egress_job(
+        &self,
+        name: &str,
+        enabled: bool,
+        schedule: &str,
+        format: &str,
+        destination: &str,
+        device_ids: &str,
+        time_range: &str,
+        compression: bool,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
-        let name = name.to_string(); let schedule = schedule.to_string(); let format = format.to_string();
-        let destination = destination.to_string(); let device_ids = device_ids.to_string(); let time_range = time_range.to_string();
+        let name = name.to_string();
+        let schedule = schedule.to_string();
+        let format = format.to_string();
+        let destination = destination.to_string();
+        let device_ids = device_ids.to_string();
+        let time_range = time_range.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
@@ -76,26 +90,89 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn update_egress_job(&self, id: i64, name: Option<&str>, enabled: Option<bool>, schedule: Option<&str>, format: Option<&str>, destination: Option<&str>, device_ids: Option<&str>, time_range: Option<&str>, compression: Option<bool>) -> Result<()> {
+    pub async fn update_egress_job(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        enabled: Option<bool>,
+        schedule: Option<&str>,
+        format: Option<&str>,
+        destination: Option<&str>,
+        device_ids: Option<&str>,
+        time_range: Option<&str>,
+        compression: Option<bool>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
-        let name = name.map(|s| s.to_string()); let schedule = schedule.map(|s| s.to_string()); let format = format.map(|s| s.to_string());
-        let destination = destination.map(|s| s.to_string()); let device_ids = device_ids.map(|s| s.to_string()); let time_range = time_range.map(|s| s.to_string());
+        let name = name.map(|s| s.to_string());
+        let schedule = schedule.map(|s| s.to_string());
+        let format = format.map(|s| s.to_string());
+        let destination = destination.map(|s| s.to_string());
+        let device_ids = device_ids.map(|s| s.to_string());
+        let time_range = time_range.map(|s| s.to_string());
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
-            if let Some(ref v) = name { conn.execute("UPDATE egress_jobs SET name=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v, now, id])?; }
-            if let Some(v) = enabled { conn.execute("UPDATE egress_jobs SET enabled=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v as i32, now, id])?; }
-            if let Some(ref v) = schedule { conn.execute("UPDATE egress_jobs SET schedule=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v, now, id])?; }
-            if let Some(ref v) = format { conn.execute("UPDATE egress_jobs SET format=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v, now, id])?; }
-            if let Some(ref v) = destination { conn.execute("UPDATE egress_jobs SET destination=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v, now, id])?; }
-            if let Some(ref v) = device_ids { conn.execute("UPDATE egress_jobs SET device_ids=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v, now, id])?; }
-            if let Some(ref v) = time_range { conn.execute("UPDATE egress_jobs SET time_range=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v, now, id])?; }
-            if let Some(v) = compression { conn.execute("UPDATE egress_jobs SET compression=?1, updated_at=?2 WHERE id=?3", rusqlite::params![v as i32, now, id])?; }
+            if let Some(ref v) = name {
+                conn.execute(
+                    "UPDATE egress_jobs SET name=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v, now, id],
+                )?;
+            }
+            if let Some(v) = enabled {
+                conn.execute(
+                    "UPDATE egress_jobs SET enabled=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v as i32, now, id],
+                )?;
+            }
+            if let Some(ref v) = schedule {
+                conn.execute(
+                    "UPDATE egress_jobs SET schedule=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v, now, id],
+                )?;
+            }
+            if let Some(ref v) = format {
+                conn.execute(
+                    "UPDATE egress_jobs SET format=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v, now, id],
+                )?;
+            }
+            if let Some(ref v) = destination {
+                conn.execute(
+                    "UPDATE egress_jobs SET destination=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v, now, id],
+                )?;
+            }
+            if let Some(ref v) = device_ids {
+                conn.execute(
+                    "UPDATE egress_jobs SET device_ids=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v, now, id],
+                )?;
+            }
+            if let Some(ref v) = time_range {
+                conn.execute(
+                    "UPDATE egress_jobs SET time_range=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v, now, id],
+                )?;
+            }
+            if let Some(v) = compression {
+                conn.execute(
+                    "UPDATE egress_jobs SET compression=?1, updated_at=?2 WHERE id=?3",
+                    rusqlite::params![v as i32, now, id],
+                )?;
+            }
             Ok(())
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
-    pub async fn update_egress_job_status(&self, id: i64, last_run: Option<i64>, last_status: Option<String>, last_error: Option<String>) -> Result<()> {
+    pub async fn update_egress_job_status(
+        &self,
+        id: i64,
+        last_run: Option<i64>,
+        last_status: Option<String>,
+        last_error: Option<String>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
@@ -108,20 +185,32 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM egress_jobs WHERE id=?1", rusqlite::params![id]).context("Delete egress job failed").map(|_| ())
-        }).await.context("Task join failed")?
+            conn.execute("DELETE FROM egress_jobs WHERE id=?1", rusqlite::params![id])
+                .context("Delete egress job failed")
+                .map(|_| ())
+        })
+        .await
+        .context("Task join failed")?
     }
 
     pub async fn get_alarm_counts_by_severity(&self) -> Result<Vec<(String, i64)>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            let mut stmt = conn.prepare("SELECT severity, COUNT(*) FROM alarms WHERE resolved_at IS NULL GROUP BY severity")?;
-            let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))?;
+            let mut stmt = conn.prepare(
+                "SELECT severity, COUNT(*) FROM alarms WHERE resolved_at IS NULL GROUP BY severity",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?;
             let mut result = Vec::new();
-            for row in rows { result.push(row?); }
+            for row in rows {
+                result.push(row?);
+            }
             Ok(result)
-        }).await.context("Task join failed")?
+        })
+        .await
+        .context("Task join failed")?
     }
 
     // ── Outbound Webhooks (v0.39.0) ──
@@ -162,10 +251,23 @@ impl Storage {
         }).await.context("Task join failed")?
     }
 
-    pub async fn create_outbound_webhook(&self, name: &str, url: &str, events: &str, device_filter: &str, headers: &str, enabled: bool, retry_count: u32, timeout_ms: u64) -> Result<i64> {
+    pub async fn create_outbound_webhook(
+        &self,
+        name: &str,
+        url: &str,
+        events: &str,
+        device_filter: &str,
+        headers: &str,
+        enabled: bool,
+        retry_count: u32,
+        timeout_ms: u64,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
-        let name = name.to_string(); let url = url.to_string(); let events = events.to_string();
-        let device_filter = device_filter.to_string(); let headers = headers.to_string();
+        let name = name.to_string();
+        let url = url.to_string();
+        let events = events.to_string();
+        let device_filter = device_filter.to_string();
+        let headers = headers.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
@@ -182,27 +284,52 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM outbound_webhooks WHERE id=?1", rusqlite::params![id])
-                .context("Delete outbound webhook failed").map(|_| ())
-        }).await.context("Task join failed")?
+            conn.execute(
+                "DELETE FROM outbound_webhooks WHERE id=?1",
+                rusqlite::params![id],
+            )
+            .context("Delete outbound webhook failed")
+            .map(|_| ())
+        })
+        .await
+        .context("Task join failed")?
     }
 
-    pub async fn update_outbound_webhook_status(&self, id: i64, last_triggered: Option<i64>, last_status: Option<String>) -> Result<()> {
+    pub async fn update_outbound_webhook_status(
+        &self,
+        id: i64,
+        last_triggered: Option<i64>,
+        last_status: Option<String>,
+    ) -> Result<()> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("UPDATE outbound_webhooks SET last_triggered=?1, last_status=?2 WHERE id=?3", rusqlite::params![last_triggered, last_status, id])
-                .context("Update outbound webhook status failed").map(|_| ())
-        }).await.context("Task join failed")?
+            conn.execute(
+                "UPDATE outbound_webhooks SET last_triggered=?1, last_status=?2 WHERE id=?3",
+                rusqlite::params![last_triggered, last_status, id],
+            )
+            .context("Update outbound webhook status failed")
+            .map(|_| ())
+        })
+        .await
+        .context("Task join failed")?
     }
 
-    pub async fn get_outbound_webhooks_for_event(&self, event: &str) -> Result<Vec<serde_json::Value>> {
+    pub async fn get_outbound_webhooks_for_event(
+        &self,
+        event: &str,
+    ) -> Result<Vec<serde_json::Value>> {
         let all = self.list_outbound_webhooks().await?;
-        Ok(all.into_iter().filter(|w| {
-            let enabled = w.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
-            if !enabled { return false; }
-            let events = w.get("events").and_then(|v| v.as_str()).unwrap_or("[]");
-            events.contains(event)
-        }).collect())
+        Ok(all
+            .into_iter()
+            .filter(|w| {
+                let enabled = w.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+                if !enabled {
+                    return false;
+                }
+                let events = w.get("events").and_then(|v| v.as_str()).unwrap_or("[]");
+                events.contains(event)
+            })
+            .collect())
     }
 }

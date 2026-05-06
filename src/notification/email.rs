@@ -42,7 +42,9 @@ impl EmailNotifier {
         let mailer = match config.encryption {
             crate::models::SmtpEncryption::StartTls => {
                 AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.host)
-                    .with_context(|| format!("Failed to create STARTTLS transport for {}", config.host))?
+                    .with_context(|| {
+                        format!("Failed to create STARTTLS transport for {}", config.host)
+                    })?
                     .port(config.port)
                     .credentials(Credentials::new(
                         config.username.clone(),

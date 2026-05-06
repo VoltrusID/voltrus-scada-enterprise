@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::storage::Storage;
+use serde::{Deserialize, Serialize};
 
 /// A health check issue found during project audit
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,19 +62,20 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
     // Screens are referenced by ID in screen_data_sources, not in a separate table.
     // Check if any screen has data sources configured.
     let all_tags = storage.list_data_sources(None).await?;
-    let has_screens = !all_tags.is_empty() && tags.iter().any(|t| {
-        // Screens exist if data sources are assigned to them via screen_data_sources
-        true // We'll check based on tags existence
-    });
+    let has_screens = !all_tags.is_empty()
+        && tags.iter().any(|t| {
+            // Screens exist if data sources are assigned to them via screen_data_sources
+            true // We'll check based on tags existence
+        });
 
     let tag_keys: std::collections::HashSet<String> = tags.iter().map(|t| t.key.clone()).collect();
-    let device_ids: std::collections::HashSet<String> = devices.iter().map(|d| d.id.clone()).collect();
+    let device_ids: std::collections::HashSet<String> =
+        devices.iter().map(|d| d.id.clone()).collect();
 
     // ── Check: Tags without alarms ──
     {
-        let alarm_tag_keys: std::collections::HashSet<String> = alarms.iter()
-            .map(|a| a.source_key.clone())
-            .collect();
+        let alarm_tag_keys: std::collections::HashSet<String> =
+            alarms.iter().map(|a| a.source_key.clone()).collect();
 
         let unalarmed: Vec<String> = tag_keys
             .iter()
@@ -99,7 +100,8 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
 
     // ── Check: Tags without units ──
     {
-        let unitless: Vec<String> = tags.iter()
+        let unitless: Vec<String> = tags
+            .iter()
             .filter(|t| t.unit.is_empty() || t.unit == "-")
             .take(30)
             .map(|t| t.key.clone())
@@ -121,8 +123,11 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
 
     // ── Check: Unnamed/disconnected devices ──
     {
-        let unnamed: Vec<String> = devices.iter()
-            .filter(|d| d.name.is_empty() || d.name == "Unnamed Device" || d.name.contains("modbus_"))
+        let unnamed: Vec<String> = devices
+            .iter()
+            .filter(|d| {
+                d.name.is_empty() || d.name == "Unnamed Device" || d.name.contains("modbus_")
+            })
             .map(|d| d.id.clone())
             .collect();
 
@@ -172,7 +177,8 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
 
     // ── Check: Duplicate tag names ──
     {
-        let mut name_counts: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut name_counts: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         for t in &tags {
             let name = t.name.to_lowercase();
             name_counts.entry(name).or_default().push(t.key.clone());
@@ -201,15 +207,22 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
 
     // ── Check: Non-standard tag names ──
     {
-        let nonstandard: Vec<String> = tags.iter()
+        let nonstandard: Vec<String> = tags
+            .iter()
             .filter(|t| {
                 let name = &t.name;
                 // Check against common patterns
                 let has_underscore = name.contains('_');
-                let all_uppercase = name.chars().all(|c| c.is_uppercase() || c.is_numeric() || c == '_' || c == ':');
+                let all_uppercase = name
+                    .chars()
+                    .all(|c| c.is_uppercase() || c.is_numeric() || c == '_' || c == ':');
                 let has_spaces = name.contains(' ');
                 // Red flags: spaces, mixed case (not all uppercase), no underscores
-                has_spaces || (!all_uppercase && name.len() > 3) || (!has_underscore && name.len() > 5 && name.contains(|c: char| c.is_lowercase()))
+                has_spaces
+                    || (!all_uppercase && name.len() > 3)
+                    || (!has_underscore
+                        && name.len() > 5
+                        && name.contains(|c: char| c.is_lowercase()))
             })
             .take(20)
             .map(|t| format!("{} ({})", t.key, t.name))
@@ -244,8 +257,12 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
     // ── Check: Disabled devices ──
     {
         // Check for devices that have source_config issues or are marked disabled
-        let disabled: Vec<String> = devices.iter()
-            .filter(|d| d.name.to_lowercase().contains("disabled") || d.name.to_lowercase().contains("inactive"))
+        let disabled: Vec<String> = devices
+            .iter()
+            .filter(|d| {
+                d.name.to_lowercase().contains("disabled")
+                    || d.name.to_lowercase().contains("inactive")
+            })
             .map(|d| d.id.clone())
             .collect();
 
@@ -264,15 +281,25 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
     }
 
     // ── Calculate score ──
-    let critical_count = issues.iter().filter(|i| i.severity == HealthSeverity::Critical).count() as u32;
-    let warning_count = issues.iter().filter(|i| i.severity == HealthSeverity::Warning).count() as u32;
-    let info_count = issues.iter().filter(|i| i.severity == HealthSeverity::Info).count() as u32;
+    let critical_count = issues
+        .iter()
+        .filter(|i| i.severity == HealthSeverity::Critical)
+        .count() as u32;
+    let warning_count = issues
+        .iter()
+        .filter(|i| i.severity == HealthSeverity::Warning)
+        .count() as u32;
+    let info_count = issues
+        .iter()
+        .filter(|i| i.severity == HealthSeverity::Info)
+        .count() as u32;
 
     let score = if tags.is_empty() && devices.is_empty() {
         100 // Empty project isn't broken
     } else {
         let base = 100i32;
-        let penalty = (critical_count as i32 * 20) + (warning_count as i32 * 5) + (info_count as i32 * 1);
+        let penalty =
+            (critical_count as i32 * 20) + (warning_count as i32 * 5) + (info_count as i32 * 1);
         (base - penalty).max(0) as u32
     };
 
@@ -286,14 +313,42 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
         critical_issues: critical_count,
         warning_issues: warning_count,
         info_issues: info_count,
-        tags_without_alarms: issues.iter().find(|i| i.title == "Tags without alarm configuration").map(|i| i.count).unwrap_or(0),
-        tags_without_units: issues.iter().find(|i| i.title == "Tags missing units of measurement").map(|i| i.count).unwrap_or(0),
-        unnamed_devices: issues.iter().find(|i| i.title == "Devices with generic or missing names").map(|i| i.count).unwrap_or(0),
-        devices_without_tags: issues.iter().find(|i| i.title == "Devices with no configured tags").map(|i| i.count).unwrap_or(0),
-        duplicate_tag_names: issues.iter().find(|i| i.title == "Duplicate tag names detected").map(|i| i.count).unwrap_or(0),
-        nonstandard_tag_names: issues.iter().find(|i| i.title == "Non-standard tag names detected").map(|i| i.count).unwrap_or(0),
+        tags_without_alarms: issues
+            .iter()
+            .find(|i| i.title == "Tags without alarm configuration")
+            .map(|i| i.count)
+            .unwrap_or(0),
+        tags_without_units: issues
+            .iter()
+            .find(|i| i.title == "Tags missing units of measurement")
+            .map(|i| i.count)
+            .unwrap_or(0),
+        unnamed_devices: issues
+            .iter()
+            .find(|i| i.title == "Devices with generic or missing names")
+            .map(|i| i.count)
+            .unwrap_or(0),
+        devices_without_tags: issues
+            .iter()
+            .find(|i| i.title == "Devices with no configured tags")
+            .map(|i| i.count)
+            .unwrap_or(0),
+        duplicate_tag_names: issues
+            .iter()
+            .find(|i| i.title == "Duplicate tag names detected")
+            .map(|i| i.count)
+            .unwrap_or(0),
+        nonstandard_tag_names: issues
+            .iter()
+            .find(|i| i.title == "Non-standard tag names detected")
+            .map(|i| i.count)
+            .unwrap_or(0),
         missing_dashboards: 0, // Requires screen_data_sources table query
-        disabled_devices: issues.iter().find(|i| i.title == "Disabled devices detected").map(|i| i.count).unwrap_or(0),
+        disabled_devices: issues
+            .iter()
+            .find(|i| i.title == "Disabled devices detected")
+            .map(|i| i.count)
+            .unwrap_or(0),
     };
 
     Ok(HealthReport {

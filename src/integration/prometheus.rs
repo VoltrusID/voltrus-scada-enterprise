@@ -29,7 +29,13 @@ pub async fn render_metrics(cache: &DeviceCache, storage: &Storage) -> String {
             let key = format!("{}:{}", snap.device_id, metric);
             let unit = source_map
                 .get(&key)
-                .map(|(_, u)| if u.is_empty() { String::new() } else { sanitize_label(u) })
+                .map(|(_, u)| {
+                    if u.is_empty() {
+                        String::new()
+                    } else {
+                        sanitize_label(u)
+                    }
+                })
                 .unwrap_or_default();
             let ts_ms = snap.timestamp * 1000;
             if unit.is_empty() {
@@ -51,7 +57,11 @@ pub async fn render_metrics(cache: &DeviceCache, storage: &Storage) -> String {
     buf.push_str("# TYPE voltrus_device_up gauge\n");
     for snap in &snapshots {
         let device = sanitize_label(&snap.device_id);
-        let up = if snap.status == crate::models::DeviceStatus::Online { 1.0 } else { 0.0 };
+        let up = if snap.status == crate::models::DeviceStatus::Online {
+            1.0
+        } else {
+            0.0
+        };
         let ts_ms = snap.timestamp * 1000;
         buf.push_str(&format!(
             "voltrus_device_up{{device=\"{}\"}} {} {}\n",
@@ -75,7 +85,9 @@ pub async fn render_metrics(cache: &DeviceCache, storage: &Storage) -> String {
 }
 
 fn sanitize_label(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 #[cfg(test)]

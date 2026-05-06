@@ -213,19 +213,23 @@ pub async fn dispatch_alarm_notifications(
 
     // ── Outbound webhooks (v0.39.0) ──
     // Fire any configured outbound webhooks that listen for "alarm" events.
-    dispatch_outbound_webhooks(&storage, "alarm", &serde_json::json!({
-        "event": "alarm",
-        "alarm_id": alarm.id,
-        "source_key": alarm.source_key,
-        "source_name": source_name,
-        "severity": alarm.severity,
-        "value": alarm.value,
-        "threshold": alarm.threshold,
-        "message": alarm.message,
-        "device_id": device_id,
-        "triggered_at": alarm.triggered_at,
-        "triggered_at_iso": triggered_at_str,
-    }))
+    dispatch_outbound_webhooks(
+        &storage,
+        "alarm",
+        &serde_json::json!({
+            "event": "alarm",
+            "alarm_id": alarm.id,
+            "source_key": alarm.source_key,
+            "source_name": source_name,
+            "severity": alarm.severity,
+            "value": alarm.value,
+            "threshold": alarm.threshold,
+            "message": alarm.message,
+            "device_id": device_id,
+            "triggered_at": alarm.triggered_at,
+            "triggered_at_iso": triggered_at_str,
+        }),
+    )
     .await;
 }
 
@@ -273,10 +277,7 @@ pub async fn dispatch_outbound_webhooks(
             .and_then(|v| v.as_str())
             .unwrap_or("{}")
             .to_string();
-        let retry_count = wh
-            .get("retry_count")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(3) as u32;
+        let retry_count = wh.get("retry_count").and_then(|v| v.as_u64()).unwrap_or(3) as u32;
         let timeout_ms = wh
             .get("timeout_ms")
             .and_then(|v| v.as_u64())
@@ -287,8 +288,7 @@ pub async fn dispatch_outbound_webhooks(
             let filter_str = device_filter.trim_matches('"');
             let allowed: Vec<String> = if filter_str.starts_with('[') {
                 // JSON array like ["plc1","plc2"]
-                serde_json::from_str::<Vec<String>>(filter_str)
-                    .unwrap_or_default()
+                serde_json::from_str::<Vec<String>>(filter_str).unwrap_or_default()
             } else {
                 filter_str.split(',').map(|s| s.to_string()).collect()
             };
