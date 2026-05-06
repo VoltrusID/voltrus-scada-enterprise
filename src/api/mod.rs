@@ -47,6 +47,7 @@ mod screens;
 mod scripts;
 mod security;
 mod settings;
+mod smtp_settings;
 mod shift_handover;
 mod shortcuts;
 mod simulation;
@@ -103,7 +104,8 @@ pub struct AppState {
     pub license_status: crate::license::LicenseStatus,
     pub license_tier: crate::license::LicenseTier,
     pub feature_flags: serde_json::Value,
-    pub smtp_config: Option<crate::models::SmtpConfig>,
+    pub smtp_config: Arc<tokio::sync::RwLock<Option<crate::models::SmtpConfig>>>,
+    pub config_path: String,
     pub vapid_public_key: Option<String>,
     pub hub_manager: Option<hub::HubManager>,
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
@@ -508,6 +510,14 @@ pub fn create_router(state: AppState) -> Router {
     let admin_protected = Router::new()
         .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
+        .route(
+            "/api/v1/settings/smtp",
+            get(smtp_settings::get_smtp_config).put(smtp_settings::update_smtp_config),
+        )
+        .route(
+            "/api/v1/settings/smtp/test",
+            post(smtp_settings::test_smtp_connection),
+        )
         .route(
             "/api/v1/settings/alarm-cooldown",
             put(settings::update_alarm_cooldown),

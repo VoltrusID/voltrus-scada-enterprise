@@ -48,7 +48,7 @@ async fn try_connect_and_subscribe(config: &OpcUaDeviceConfig, cache: &DeviceCac
 
     // --- Build client ---
     let mut client = ClientBuilder::new()
-        .application_name("Voltrus Lite")
+        .application_name("Voltrus")
         .application_uri("urn:voltrus-lite")
         .trust_server_certs(true)
         .create_sample_keypair(true)

@@ -1,17 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useImportCsv, type CsvImportResult } from './queries';
 import { inputStyle, btnStyle } from './styles';
 
 type WizardStep = 'upload' | 'preview' | 'import' | 'report';
 
-export function DataImportWizard({ onClose }: { onClose: () => void }) {
+export function DataImportWizard() {
   const [step, setStep] = useState<WizardStep>('upload');
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose]);
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const [delimiter, setDelimiter] = useState(',');
@@ -124,7 +118,9 @@ export function DataImportWizard({ onClose }: { onClose: () => void }) {
             onDragLeave={handleDragLeave}
             onClick={() => document.getElementById('csv-upload')?.click()}
           >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
+            <div style={{ fontSize: 32, marginBottom: 8, color: 'var(--muted)' }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
             <div style={{ fontSize: 14, color: 'var(--fg)', fontWeight: 600 }}>Drop CSV file here or click to browse</div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Supports .csv files</div>
             <input id="csv-upload" type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />

@@ -264,7 +264,7 @@ smtp:
         assert_eq!(smtp.port, 587);
         assert_eq!(smtp.encryption, crate::models::SmtpEncryption::StartTls);
         assert_eq!(smtp.from_address, "voltrus@example.com");
-        assert_eq!(smtp.from_name, "Voltrus Lite");
+        assert_eq!(smtp.from_name, "Voltrus");
     }
 
     #[test]

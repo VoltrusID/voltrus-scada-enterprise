@@ -290,7 +290,7 @@ pub async fn browse_device(
 
     // Connect to OPC-UA server (temporary connection for browsing)
     let mut client = ClientBuilder::new()
-        .application_name("Voltrus Lite Browse")
+        .application_name("Voltrus Browse")
         .application_uri("urn:voltrus-lite")
         .trust_server_certs(true)
         .create_sample_keypair(true)

@@ -131,7 +131,7 @@ Trigger node is visually distinct (diamond shape, different border color).
 
 ## Visual Design
 
-### Industrial Theme (matches Voltrus Lite)
+### Industrial Theme (matches Voltrus)
 - Background: `var(--bg)` (#0f172a)
 - Card/Node background: `var(--card)` (#1e293b)
 - Border: `var(--border)` (#334155)

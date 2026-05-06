@@ -3,7 +3,7 @@
 **Date:** 2026-05-01  
 **Status:** Draft  
 **Author:** OpenCode Agent  
-**Scope:** V1 MVP — embedded low-code data pipeline engine for Voltrus Lite
+**Scope:** V1 MVP — embedded low-code data pipeline engine for Voltrus
 
 ---
 
@@ -16,7 +16,7 @@ Users need to transform raw machine/IoT data, integrate with external systems (E
 An embedded, constrained data flow engine that allows users to define data pipelines via JSON config, transform and route data without scripting, and integrate with external systems. It is not a general-purpose automation platform — it is domain-specific to industrial SCADA/IoT workflows.
 
 ### Positioning
-**"Industrial Data Flow Engine"** — not a "low-code platform." Tightly scoped to data transformation, alerting, and integration within the existing Voltrus Lite architecture.
+**"Industrial Data Flow Engine"** — not a "low-code platform." Tightly scoped to data transformation, alerting, and integration within the existing Voltrus architecture.
 
 ---
 

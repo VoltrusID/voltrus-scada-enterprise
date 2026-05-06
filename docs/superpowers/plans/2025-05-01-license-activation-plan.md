@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement an offline-capable license activation system for Voltrus Lite that binds 1 license to 1 server via hardware fingerprinting and Ed25519-signed activation files, with an air-gap bridge flow through a Cloudflare Worker at `activate.voltrus.id`.
+**Goal:** Implement an offline-capable license activation system for Voltrus that binds 1 license to 1 server via hardware fingerprinting and Ed25519-signed activation files, with an air-gap bridge flow through a Cloudflare Worker at `activate.voltrus.id`.
 
 **Architecture:** A new `src/license/` module handles hardware fingerprinting, request/activation file generation, signature verification, and fuzzy fingerprint matching. A license middleware blocks API routes (but not static files or the license status endpoint) when unlicensed. The frontend checks license status on load and shows an activation guide. A Cloudflare Worker validates Polar.sh keys and signs activation tokens, storing bindings in D1.
 
@@ -1305,7 +1305,7 @@ git commit -m "feat(license): add Cloudflare Worker for license activation"
 function LicenseActivationGuide() {
   return (
     <div style={{ padding: 40, maxWidth: 600, margin: '0 auto' }}>
-      <h1>Welcome to Voltrus Lite</h1>
+      <h1>Welcome to Voltrus</h1>
       <p>Your license is not activated.</p>
       <ol>
         <li>Run: <code>./voltrus-lite --generate-request YOUR_LICENSE_KEY</code></li>

@@ -250,7 +250,8 @@ pub async fn test_notification(
                 ),
             };
 
-            match &state.smtp_config {
+            let smtp_cfg = state.smtp_config.read().await;
+            match smtp_cfg.as_ref() {
                 Some(smtp_cfg) => {
                     let notifier = crate::notification::email::EmailNotifier::new(smtp_cfg)?;
                     let mut results = Vec::new();
@@ -267,7 +268,7 @@ pub async fn test_notification(
                     })))
                 }
                 None => Err(AppError(anyhow::anyhow!(
-                    "SMTP is not configured in config.yaml"
+                    "SMTP is not configured"
                 ))),
             }
         }
@@ -325,7 +326,8 @@ pub async fn test_notification(
                 return Err(AppError(anyhow::anyhow!("config array must not be empty")));
             }
 
-            match &state.smtp_config {
+            let smtp_cfg = state.smtp_config.read().await;
+            match smtp_cfg.as_ref() {
                 Some(smtp_cfg) => {
                     let mut results = Vec::new();
                     for target in &sms_targets {
@@ -339,7 +341,7 @@ pub async fn test_notification(
                             smtp_cfg,
                             phone,
                             carrier,
-                            "This is a test alarm notification from Voltrus Lite",
+                            "This is a test alarm notification from Voltrus",
                         ).await {
                             Ok(_) => results.push(json!({"phone": phone, "carrier": carrier, "status": "sent"})),
                             Err(e) => results.push(json!({"phone": phone, "carrier": carrier, "status": "error", "error": e.to_string()})),
@@ -351,7 +353,7 @@ pub async fn test_notification(
                     })))
                 }
                 None => Err(AppError(anyhow::anyhow!(
-                    "SMTP is not configured in config.yaml (required for SMS gateway)"
+                    "SMTP is not configured (required for SMS gateway)"
                 ))),
             }
         }

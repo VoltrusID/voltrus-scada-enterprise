@@ -5,8 +5,9 @@ import { TemplatesPanel } from './TemplatesPanel'
 import { ConfigSnapshotPanel } from './ConfigSnapshotPanel'
 import { ProjectWizard } from './ProjectWizard'
 import { HealthCheckPanel } from './HealthCheckPanel'
+import { SmtpSettingsPanel } from './SmtpSettingsPanel'
 
-type SystemTab = 'overview' | 'docs' | 'templates' | 'config' | 'wizard' | 'health'
+type SystemTab = 'overview' | 'docs' | 'templates' | 'config' | 'wizard' | 'health' | 'smtp'
 
 interface Props {
   systemInfo: SystemInfo | null | undefined
@@ -30,6 +31,7 @@ export function SystemPanel({ systemInfo }: Props) {
         <div style={tabStyle(tab === 'wizard')} onClick={() => setTab('wizard')}>Wizard</div>
         <div style={tabStyle(tab === 'health')} onClick={() => setTab('health')}>Health</div>
         <div style={tabStyle(tab === 'config')} onClick={() => setTab('config')}>Config</div>
+        <div style={tabStyle(tab === 'smtp')} onClick={() => setTab('smtp')}>SMTP</div>
       </div>
 
       {tab === 'overview' && <SystemOverview systemInfo={systemInfo} />}
@@ -38,6 +40,7 @@ export function SystemPanel({ systemInfo }: Props) {
       {tab === 'wizard' && <ProjectWizard />}
       {tab === 'health' && <HealthCheckPanel />}
       {tab === 'config' && <ConfigSnapshotPanel />}
+      {tab === 'smtp' && <SmtpSettingsPanel />}
     </div>
   )
 }

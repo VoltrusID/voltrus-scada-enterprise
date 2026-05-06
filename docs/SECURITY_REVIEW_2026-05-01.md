@@ -1,4 +1,4 @@
-# Voltrus Lite Security Review — v0.17.1
+# Voltrus Security Review — v0.17.1
 **Target:** https://demo.voltrus.id  
 **Date:** 2026-05-01  
 **Scope:** Application, Network, OS (VPS with modbus-sim, no real hardware)  
@@ -113,7 +113,7 @@ No unauthenticated RCE, SQLi, auth bypass, or path traversal to sensitive files.
 
 ## Attacker Kill Chain (What a Bad Actor Would Do)
 
-1. **Recon:** Probe `/api/health`, `/api/settings/branding` → learns it's Voltrus Lite, sees device names.
+1. **Recon:** Probe `/api/health`, `/api/settings/branding` → learns it's Voltrus, sees device names.
 2. **User Enumeration:** Time-based analysis on `/api/auth/login` → discovers `admin` exists.
 3. **Framework Fingerprinting:** Send malformed JSON → confirms Axum + serde backend.
 4. **Distributed Brute Force:** Rotate through username list, 5 attempts each per minute.

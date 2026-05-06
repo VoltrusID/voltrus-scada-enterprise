@@ -136,7 +136,7 @@ async fn main() -> Result<()> {
     let endpoint_rel_path = "/";
 
     let (server, handle) = ServerBuilder::new()
-        .application_name("Voltrus Lite OPC-UA Simulator")
+        .application_name("Voltrus OPC-UA Simulator")
         .application_uri("urn:voltrus-lite-opcua-sim")
         .product_uri("urn:voltrus-lite-opcua-sim")
         .host(host.clone())
@@ -164,7 +164,7 @@ async fn main() -> Result<()> {
         .build_info(BuildInfo {
             product_uri: "urn:voltrus-lite-opcua-sim".into(),
             manufacturer_name: "Voltrus".into(),
-            product_name: "Voltrus Lite OPC-UA Simulator".into(),
+            product_name: "Voltrus OPC-UA Simulator".into(),
             software_version: "0.20.1".into(),
             build_number: "1".into(),
             build_date: DateTime::now(),

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an embedded low-code data pipeline engine for Voltrus Lite that transforms Modbus device data through configurable JSON-defined flows, producing virtual data sources, HTTP webhooks, and alarms.
+**Goal:** Build an embedded low-code data pipeline engine for Voltrus that transforms Modbus device data through configurable JSON-defined flows, producing virtual data sources, HTTP webhooks, and alarms.
 
 **Architecture:** Channel-based event bus where the existing `DeviceCache` publishes `DeviceSnapshot` via `tokio::sync::broadcast`. A `FlowEngine` task subscribes, matches triggers, and spawns lightweight Tokio tasks per flow. Each flow runs nodes sequentially through an enum-based pipeline. Outputs write back to the cache or trigger side effects. All flow definitions and run logs persist to SQLite.
 

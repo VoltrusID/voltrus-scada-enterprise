@@ -1,14 +1,14 @@
 # License Activation System Design
 
 **Date:** 2025-05-01  
-**Project:** Voltrus Lite  
+**Project:** Voltrus  
 **Status:** Approved
 
 ---
 
 ## 1. Goals
 
-- Enforce **1 license = 1 server** for Voltrus Lite deployments.
+- Enforce **1 license = 1 server** for Voltrus deployments.
 - Support **fully air-gapped installations** via an offline file-exchange activation flow.
 - Allow **graceful server moves/upgrades** without requiring manual support intervention.
 - Integrate with **Polar.sh** for license key generation, expiry, and revocation.
@@ -297,7 +297,7 @@ When the license is missing or invalid, the React app renders a full-screen acti
 
 ```
 ┌─────────────────────────────────────────┐
-│  Welcome to Voltrus Lite                │
+│  Welcome to Voltrus                │
 │                                         │
 │  Your license is not activated.         │
 │                                         │

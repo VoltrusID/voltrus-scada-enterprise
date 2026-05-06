@@ -1,4 +1,4 @@
-# Lit Migration Plan — Voltrus Lite Client
+# Lit Migration Plan — Voltrus Client
 
 > **Status:** Development / Experimentation Phase  
 > **Goal:** Evaluate Lit (Web Components) as a React replacement while keeping the existing React client intact.  
@@ -241,7 +241,7 @@ Option B — **Minimal bundler (If we need polyfills or older browser support)**
 
 ## 10. Long-Term Vision
 
-If the Lit migration succeeds, the Voltrus Lite frontend becomes:
+If the Lit migration succeeds, the Voltrus frontend becomes:
 
 - **A set of standard Web Components** that could theoretically be dropped into any HTML page without a build step.
 - **Vendorable in its entirety** — `node_modules` is 2 MB. You can commit it to git without shame.

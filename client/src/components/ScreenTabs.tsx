@@ -20,7 +20,6 @@ interface Props {
   effectiveNavShortcuts: Record<string, string>
   editMode: boolean
   onTabClick: (screenId: string) => void
-  onSystemClick: () => void
   onRenameScreen: (id: string, name: string) => void
   onDeleteScreen: (id: string, name: string) => void
   onAddScreen: () => void
@@ -34,7 +33,7 @@ interface Props {
 
 export function ScreenTabs({
   mode, activeScreen, screens, effectiveNavShortcuts,
-  editMode, onTabClick, onSystemClick,
+  editMode, onTabClick,
   onRenameScreen, onDeleteScreen, onAddScreen,
   isAdmin, onToggleEditMode, editLabel, onAddSource, canAddSource,
   onAutoArrange,
@@ -75,12 +74,6 @@ export function ScreenTabs({
         </div>
       ))}
       {editMode && <button onClick={onAddScreen} style={{ ...tabStyle(false), color: 'var(--green)', flexShrink: isMobile ? 0 : undefined }}>+</button>}
-      <button role="tab" aria-selected={mode === 'system'} style={{
-        ...tabStyle(mode === 'system'),
-        color: mode === 'system' ? '#a78bfa' : 'var(--muted)',
-        borderBottom: mode === 'system' ? '2px solid #a78bfa' : '2px solid transparent',
-        flexShrink: isMobile ? 0 : undefined,
-      }} onClick={onSystemClick}>System{effectiveNavShortcuts['screen:system'] ? <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px', marginLeft: 6, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(effectiveNavShortcuts['screen:system'])}</kbd> : null}</button>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: isMobile ? 0 : undefined }}>
         {isAdmin && (
         <button style={{ ...btnStyle, borderColor: editMode ? 'var(--cyan)' : 'var(--border)', color: editMode ? 'var(--cyan)' : 'var(--fg)' }} onClick={onToggleEditMode}>

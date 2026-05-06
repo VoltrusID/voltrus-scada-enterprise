@@ -69,4 +69,5 @@ export const queryKeys = {
   compressionStats: ['compressionStats'] as const,
   compressionDeadband: ['compressionDeadband'] as const,
   version: ['version'] as const,
+  smtpConfig: ['smtpConfig'] as const,
 }

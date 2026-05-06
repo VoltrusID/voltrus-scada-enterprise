@@ -158,7 +158,7 @@ async fn send_report_email(
         value: _attachment.len() as f64,
         threshold: 0.0,
         message: format!(
-            "{} ({}) report generated successfully ({} bytes). Access the report via the Voltrus Lite dashboard.",
+            "{} ({}) report generated successfully ({} bytes). Access the report via the Voltrus dashboard.",
             report_name,
             schedule_label,
             _attachment.len()

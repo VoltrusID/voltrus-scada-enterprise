@@ -1,4 +1,4 @@
-# Voltrus Lite
+# Voltrus
 
 **Industrial monitoring that doesn't get in your way.**
 
@@ -8,9 +8,9 @@ Built by [JoyoDigitama](https://joyodigitama.com).
 
 ---
 
-## Why Voltrus Lite?
+## Why Voltrus?
 
-Existing industrial monitoring tools are either too heavy ( requiring OPC UA, UNS, and three layers of translation ), too expensive ( cloud-gated SaaS ), or too rigid ( fixed dashboards you can't customize ). Voltrus Lite is the opposite — a single binary, a single config file, and a browser.
+Existing industrial monitoring tools are either too heavy ( requiring OPC UA, UNS, and three layers of translation ), too expensive ( cloud-gated SaaS ), or too rigid ( fixed dashboards you can't customize ). Voltrus is the opposite — a single binary, a single config file, and a browser.
 
 ### It's Fast
 
@@ -217,7 +217,7 @@ devices:
         endian: Big
 ```
 
-## What Voltrus Lite is Not
+## What Voltrus is Not
 
 - Not a cloud platform — it runs on your machine, your network, your terms.
 - Not an OPC UA gateway — it talks Modbus TCP directly because that's what your power meters speak.

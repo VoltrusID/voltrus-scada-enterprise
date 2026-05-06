@@ -123,11 +123,6 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>({sensor.key})</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 5, overflow: 'hidden' }}>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, padding: '3px 8px', fontSize: 11, color: mode === 'live' ? 'var(--cyan)' : 'var(--fg)', background: mode === 'live' ? 'rgba(34,197,94,.1)' : 'var(--card)' }} onClick={() => onModeChange('live')}>Live</button>
-            <button style={{ ...btnStyle, border: 'none', borderRadius: 0, padding: '3px 8px', fontSize: 11, color: mode === 'history' ? 'var(--warn)' : 'var(--fg)', background: mode === 'history' ? 'rgba(234,179,8,.1)' : 'var(--card)' }} onClick={() => onModeChange('history')}>History</button>
-          </div>
-          {mode === 'history' && <HistoryRangeBar range={historyRange} onChange={onRangeChange} detail={historyDetail} onDetailChange={onDetailChange} agg={historyAutoAgg} />}
           <a href={`/api/v1/export/csv?sensor=${sensor.key}&range=${historyRange}`} download style={{ ...btnStyle, textDecoration: 'none', padding: '3px 8px', fontSize: 11 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>CSV
           </a>

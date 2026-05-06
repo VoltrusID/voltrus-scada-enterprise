@@ -64,7 +64,7 @@ function TreeNode({ node, parentPath, selectedPath, onSelect, dragPath, onDragSt
         <div>
           {node.children.map(child => (
             <TreeNode
-              key={child.name}
+              key={`${path}/${child.name}`}
               node={child}
               parentPath={path}
               selectedPath={selectedPath}
@@ -158,9 +158,9 @@ export function TagBrowser({ isAdmin }: { isAdmin: boolean }) {
           ) : tree.length === 0 ? (
             <div style={{ color: 'var(--muted)', fontSize: 13, padding: 12 }}>No tags found.</div>
           ) : (
-            tree.map(node => (
+            tree.map((node, i) => (
               <TreeNode
-                key={node.name}
+                key={`${node.name}-${i}`}
                 node={node}
                 parentPath=""
                 selectedPath={selectedPath}

@@ -41,9 +41,9 @@ impl EmailNotifier {
     pub fn new(config: &SmtpConfig) -> Result<Self> {
         let mailer = match config.encryption {
             crate::models::SmtpEncryption::StartTls => {
-                let addr = format!("{}:{}", config.host, config.port);
-                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&addr)
-                    .with_context(|| format!("Failed to create STARTTLS transport for {}", addr))?
+                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&config.host)
+                    .with_context(|| format!("Failed to create STARTTLS transport for {}", config.host))?
+                    .port(config.port)
                     .credentials(Credentials::new(
                         config.username.clone(),
                         config.password.clone(),
@@ -51,9 +51,9 @@ impl EmailNotifier {
                     .build()
             }
             crate::models::SmtpEncryption::ImplicitTls => {
-                let addr = format!("{}:{}", config.host, config.port);
-                AsyncSmtpTransport::<Tokio1Executor>::relay(&addr)
-                    .with_context(|| format!("Failed to create TLS transport for {}", addr))?
+                AsyncSmtpTransport::<Tokio1Executor>::relay(&config.host)
+                    .with_context(|| format!("Failed to create TLS transport for {}", config.host))?
+                    .port(config.port)
                     .credentials(Credentials::new(
                         config.username.clone(),
                         config.password.clone(),
@@ -155,7 +155,7 @@ fn render_alarm_text(alarm: &AlarmEmailData) -> String {
          Message:   {message}\n\
          Triggered: {triggered_at}\n\
          \n\
-         -- Voltrus Lite Monitoring System",
+         -- Voltrus Monitoring System",
         source_name = alarm.source_name,
         severity_upper = alarm.severity.to_uppercase(),
         value = alarm.value,
@@ -226,7 +226,7 @@ fn render_alarm_html(alarm: &AlarmEmailData) -> String {
     </div>
   </div>
   <div class="footer">
-    Voltrus Lite Monitoring System
+    Voltrus Monitoring System
   </div>
 </div>
 </body>
@@ -319,7 +319,7 @@ password: "pass"
         assert_eq!(config.port, 587);
         assert_eq!(config.encryption, crate::models::SmtpEncryption::StartTls);
         assert_eq!(config.from_address, "voltrus@example.com");
-        assert_eq!(config.from_name, "Voltrus Lite");
+        assert_eq!(config.from_name, "Voltrus");
     }
 
     #[test]
