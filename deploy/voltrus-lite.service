@@ -7,7 +7,7 @@ Type=simple
 User=voltrus
 Group=voltrus
 WorkingDirectory=/opt/voltrus-lite
-ExecStart=/opt/voltrus-lite/voltrus-lite-rust-service config.yaml
+ExecStart=/opt/voltrus-lite/voltrus config.yaml
 Restart=always
 RestartSec=5
 Environment=RUST_LOG=info

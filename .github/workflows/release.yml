@@ -79,30 +79,30 @@ jobs:
 
       - name: Build release binaries
         run: |
-          cargo build --release --target x86_64-unknown-linux-musl --bin voltrus-lite-rust-service
+          cargo build --release --target x86_64-unknown-linux-musl --bin voltrus
           cargo build --release --target x86_64-unknown-linux-musl --bin modbus-sim
 
       - name: Strip binaries
         run: |
-          strip target/x86_64-unknown-linux-musl/release/voltrus-lite-rust-service
+          strip target/x86_64-unknown-linux-musl/release/voltrus
           strip target/x86_64-unknown-linux-musl/release/modbus-sim
 
       - name: Package
         run: |
           mkdir -p dist
-          cp target/x86_64-unknown-linux-musl/release/voltrus-lite-rust-service dist/
+          cp target/x86_64-unknown-linux-musl/release/voltrus dist/
           cp target/x86_64-unknown-linux-musl/release/modbus-sim dist/
           cp config.yaml dist/config.yaml.example
           cp deploy/voltrus-lite.service dist/
           cp -r static dist/static
           mv client-lit-dist dist/client-lit
-          tar -czf voltrus-lite-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz -C dist .
+          tar -czf voltrus-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz -C dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-x86_64
-          path: voltrus-lite-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz
+          path: voltrus-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz
 
   # ── Windows x86_64 (disabled until stable) ──────────────────
   # build-windows:
@@ -208,7 +208,7 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: ${{ env.VERSION }}
           files: |
-            voltrus-lite-${{ env.VERSION }}-linux-x86_64.tar.gz
+            voltrus-${{ env.VERSION }}-linux-x86_64.tar.gz
           generate_release_notes: true
 
       - name: Upload to R2 via Cloudflare API
@@ -229,6 +229,6 @@ jobs:
             echo ""
           }
 
-          upload_file "voltrus-lite-${{ env.VERSION }}-linux-x86_64.tar.gz" "voltrus-lite-${{ env.VERSION }}-linux-x86_64.tar.gz"
+          upload_file "voltrus-${{ env.VERSION }}-linux-x86_64.tar.gz" "voltrus-${{ env.VERSION }}-linux-x86_64.tar.gz"
 
           echo "All files uploaded to R2 successfully."
