@@ -149,8 +149,7 @@ fn generate_raspberry_pi_guide(platform: &PlatformInfo) -> String {
 
 /// Generate industrial PC deployment guide.
 fn generate_industrial_pc_guide(_platform: &PlatformInfo) -> String {
-    format!(
-        "## Industrial PC Deployment\n\n\
+    "## Industrial PC Deployment\n\n\
          ### Step 1: Prepare the OS\n\
          Install a minimal Linux distribution:\n\
          - Debian 12 (Bookworm) minimal — recommended\n\
@@ -216,7 +215,7 @@ fn generate_industrial_pc_guide(_platform: &PlatformInfo) -> String {
          curl http://localhost:8080/api/v1/health\n\
          # Open: http://<IPC_IP_ADDRESS>:8080\n\
          ```\n\n"
-    )
+        .to_string()
 }
 
 /// Generate generic deployment guide.

@@ -120,10 +120,10 @@ pub async fn execute_bi_query(storage: &Storage, query: &BiQuery) -> Result<BiRe
             .await?;
         for (ts, metrics) in &data {
             for (metric, value) in metrics {
-                if let Some(ref filter) = metric_filter {
-                    if !filter.contains(metric) {
-                        continue;
-                    }
+                if let Some(ref filter) = metric_filter
+                    && !filter.contains(metric)
+                {
+                    continue;
                 }
                 all_rows.push(BiRow {
                     timestamp: *ts,

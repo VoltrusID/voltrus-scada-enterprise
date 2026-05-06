@@ -180,7 +180,7 @@ pub fn calculate_write_amplification(snapshot: &IoCountersSnapshot) -> f64 {
     // Amplification = actual writes / ideal writes
     // Ideal: 1 write per batch (batch_size rows)
     // Actual: write_ops
-    let ideal_writes = (total_rows + 499) / 500; // ceil(total/500)
+    let ideal_writes = total_rows.div_ceil(500); // ceil(total/500)
     let actual_writes = snapshot.write_ops;
 
     actual_writes as f64 / ideal_writes.max(1) as f64

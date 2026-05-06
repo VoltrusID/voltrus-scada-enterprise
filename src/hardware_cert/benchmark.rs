@@ -1,8 +1,5 @@
 //! Performance benchmark engine — measures throughput on current hardware.
 
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-
 use std::time::Instant;
 
 use rusqlite::Connection;

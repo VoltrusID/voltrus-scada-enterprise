@@ -132,7 +132,7 @@ impl<'a> Instantiator<'a> {
             let flow_id = format!(
                 "vt_{}_{}",
                 self.template.id,
-                flow.name.to_lowercase().replace(' ', "_").replace('/', "_")
+                flow.name.to_lowercase().replace([' ', '/'], "_")
             );
             // Check if flow already exists
             let existing_flows = self.storage.list_flows().await?;

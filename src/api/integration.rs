@@ -4,7 +4,7 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
 use super::{AppError, AppState};
@@ -148,7 +148,7 @@ pub async fn create_egress_job(
             "destination must be an absolute path, relative path (./), or S3 URL (s3://bucket/prefix/)"
         )));
     }
-    egress::parse_time_range(&req.time_range).map_err(|e| AppError(e))?;
+    egress::parse_time_range(&req.time_range).map_err(AppError)?;
     let id = state
         .storage
         .create_egress_job(
@@ -198,15 +198,16 @@ pub async fn update_egress_job(
     if let Some(ref schedule) = req.schedule {
         validate_schedule(schedule)?;
     }
-    if let Some(ref format) = req.format {
-        if format != "csv" && format != "parquet" {
-            return Err(AppError(anyhow::anyhow!(
-                "format must be 'csv' or 'parquet'"
-            )));
-        }
+    if let Some(ref format) = req.format
+        && format != "csv"
+        && format != "parquet"
+    {
+        return Err(AppError(anyhow::anyhow!(
+            "format must be 'csv' or 'parquet'"
+        )));
     }
     if let Some(ref time_range) = req.time_range {
-        egress::parse_time_range(time_range).map_err(|e| AppError(e))?;
+        egress::parse_time_range(time_range).map_err(AppError)?;
     }
     state
         .storage
@@ -423,13 +424,12 @@ pub async fn test_outbound_webhook(
         .post(&url)
         .json(&test_payload)
         .timeout(std::time::Duration::from_millis(timeout));
-    if !headers_str.is_empty() {
-        if let Ok(headers) =
+    if !headers_str.is_empty()
+        && let Ok(headers) =
             serde_json::from_str::<std::collections::HashMap<String, String>>(&headers_str)
-        {
-            for (k, v) in &headers {
-                request = request.header(k, v);
-            }
+    {
+        for (k, v) in &headers {
+            request = request.header(k, v);
         }
     }
     match request.send().await {

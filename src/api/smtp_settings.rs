@@ -92,7 +92,7 @@ pub async fn update_smtp_config(
 
     let encryption = req
         .encryption
-        .map(|e| SmtpEncryption::from(e))
+        .map(SmtpEncryption::from)
         .unwrap_or(SmtpEncryption::StartTls);
 
     let new_config = SmtpConfig {

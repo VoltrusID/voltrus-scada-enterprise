@@ -141,10 +141,8 @@ fn detect_board_type(cpu_model: &str, arch: &str) -> (String, bool, bool) {
     }
 
     // Generic ARM SBC detection
-    if arch == "aarch64" || arch == "armv7l" {
-        if cpu_lower.contains("cortex") {
-            return ("ARM Single Board Computer".into(), false, false);
-        }
+    if (arch == "aarch64" || arch == "armv7l") && cpu_lower.contains("cortex") {
+        return ("ARM Single Board Computer".into(), false, false);
     }
 
     // Generic x86 industrial detection (fanless, embedded)
@@ -169,10 +167,11 @@ fn read_raspberry_pi_model() -> Option<String> {
     // Fallback: check cpuinfo for Pi-specific hardware
     if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
         for line in cpuinfo.lines() {
-            if line.starts_with("Model") && line.contains("Raspberry Pi") {
-                if let Some(model) = line.split(':').nth(1) {
-                    return Some(model.trim().to_string());
-                }
+            if line.starts_with("Model")
+                && line.contains("Raspberry Pi")
+                && let Some(model) = line.split(':').nth(1)
+            {
+                return Some(model.trim().to_string());
             }
             if line.starts_with("Hardware") && line.contains("BCM") {
                 // Broadcom chip = likely Raspberry Pi
@@ -187,20 +186,19 @@ fn read_raspberry_pi_model() -> Option<String> {
 /// Check if the system is an Advantech industrial PC.
 fn is_advantech_system() -> bool {
     // Check DMI product name for Advantech
-    if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name") {
-        if product.to_lowercase().contains("advantech")
+    if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name")
+        && (product.to_lowercase().contains("advantech")
             || product.to_lowercase().contains("uno")
-            || product.to_lowercase().contains("ipc")
-        {
-            return true;
-        }
+            || product.to_lowercase().contains("ipc"))
+    {
+        return true;
     }
 
     // Check DMI vendor
-    if let Ok(vendor) = std::fs::read_to_string("/sys/class/dmi/id/sys_vendor") {
-        if vendor.to_lowercase().contains("advantech") {
-            return true;
-        }
+    if let Ok(vendor) = std::fs::read_to_string("/sys/class/dmi/id/sys_vendor")
+        && vendor.to_lowercase().contains("advantech")
+    {
+        return true;
     }
 
     false
@@ -208,17 +206,17 @@ fn is_advantech_system() -> bool {
 
 /// Check if the system is a Siemens SIMATIC IPC.
 fn is_siemens_ipc() -> bool {
-    if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name") {
-        if product.to_lowercase().contains("simatic") || product.to_lowercase().contains("siemens")
-        {
-            return true;
-        }
+    if let Ok(product) = std::fs::read_to_string("/sys/class/dmi/id/product_name")
+        && (product.to_lowercase().contains("simatic")
+            || product.to_lowercase().contains("siemens"))
+    {
+        return true;
     }
 
-    if let Ok(vendor) = std::fs::read_to_string("/sys/class/dmi/id/sys_vendor") {
-        if vendor.to_lowercase().contains("siemens") {
-            return true;
-        }
+    if let Ok(vendor) = std::fs::read_to_string("/sys/class/dmi/id/sys_vendor")
+        && vendor.to_lowercase().contains("siemens")
+    {
+        return true;
     }
 
     false
@@ -230,10 +228,10 @@ fn is_fanless_pc() -> bool {
     if let Ok(chassis) = std::fs::read_to_string("/sys/class/dmi/id/chassis_type") {
         // Type 3 = Desktop, Type 13 = All-in-One, Type 35 = Mini PC
         // These are common for fanless industrial PCs
-        if let Ok(t) = chassis.trim().parse::<u32>() {
-            if t == 35 || t == 13 {
-                return true;
-            }
+        if let Ok(t) = chassis.trim().parse::<u32>()
+            && (t == 35 || t == 13)
+        {
+            return true;
         }
     }
 
@@ -263,14 +261,13 @@ fn detect_storage_type(is_raspberry_pi: bool, db_path: &str) -> String {
         // Check if root filesystem is on SD card (mmcblk)
         if let Ok(mounts) = std::fs::read_to_string("/proc/mounts") {
             for line in mounts.lines() {
-                if line.starts_with("/dev/mmcblk") || line.starts_with("/dev/sd") {
-                    if let Some(_fs_type) = line.split_whitespace().nth(2) {
-                        if db_path.starts_with("/") && line.split_whitespace().nth(1) == Some("/") {
-                            if line.contains("mmcblk") {
-                                return "sd_card".into();
-                            }
-                        }
-                    }
+                if (line.starts_with("/dev/mmcblk") || line.starts_with("/dev/sd"))
+                    && let Some(_fs_type) = line.split_whitespace().nth(2)
+                    && db_path.starts_with("/")
+                    && line.split_whitespace().nth(1) == Some("/")
+                    && line.contains("mmcblk")
+                {
+                    return "sd_card".into();
                 }
                 // NVMe HAT on Pi
                 if line.starts_with("/dev/nvme") {
@@ -300,15 +297,14 @@ fn detect_storage_type(is_raspberry_pi: bool, db_path: &str) -> String {
     if let Ok(block_devs) = std::fs::read_dir("/sys/block/") {
         for entry in block_devs.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with("sd") || name.starts_with("vd") || name.starts_with("sata") {
-                if let Ok(rotational) =
+            if (name.starts_with("sd") || name.starts_with("vd") || name.starts_with("sata"))
+                && let Ok(rotational) =
                     std::fs::read_to_string(format!("/sys/block/{}/queue/rotational", name))
-                {
-                    if rotational.trim() == "0" {
-                        return "ssd".into();
-                    } else if rotational.trim() == "1" {
-                        return "hdd".into();
-                    }
+            {
+                if rotational.trim() == "0" {
+                    return "ssd".into();
+                } else if rotational.trim() == "1" {
+                    return "hdd".into();
                 }
             }
         }

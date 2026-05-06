@@ -88,7 +88,7 @@ pub async fn get_topology(
             (
                 "DNP3".into(),
                 format!("{}:{}", d.ip, d.port),
-                d.port as u16,
+                d.port,
                 d.enabled,
             ),
         );
@@ -99,7 +99,7 @@ pub async fn get_topology(
             (
                 "BACnet/IP".into(),
                 format!("{}:{}", d.ip, d.port),
-                d.port as u16,
+                d.port,
                 d.enabled,
             ),
         );
@@ -266,10 +266,8 @@ pub async fn get_tag_xref(
     }
 
     // Alarm lookup by source_key
-    let alarm_map: std::collections::HashMap<String, (&crate::models::Alarm)> = alarms
-        .iter()
-        .filter_map(|a| Some((a.source_key.clone(), a)))
-        .collect();
+    let alarm_map: std::collections::HashMap<String, &crate::models::Alarm> =
+        alarms.iter().map(|a| (a.source_key.clone(), a)).collect();
 
     // Build tag entries
     let mut tags = Vec::new();
@@ -485,7 +483,7 @@ pub async fn get_automation_docs(
 pub async fn export_docs(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
-    Query(query): Query<ExportQuery>,
+    Query(_query): Query<ExportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     require_professional(&state)?;
 
@@ -499,29 +497,26 @@ pub async fn export_docs(
 
     let html = generate_docs_html(&topology, &tag_xref, &automation, &hostname, &generated_at);
 
-    match query.format.as_deref() {
-        // PDF and HTML both return print-friendly HTML — users can Ctrl+P → Save as PDF
-        _ => {
-            let print_html = format!(
-                "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Voltrus System Docs</title>\
-                <style>body{{font-family:system-ui,sans-serif;margin:40px;max-width:1000px;color:#111}}\
-                table{{border-collapse:collapse;width:100%;margin:12px 0}}th,td{{border:1px solid #ccc;padding:6px 10px;text-align:left;font-size:13px}}\
-                th{{background:#f5f5f5;font-size:11px;text-transform:uppercase}}\
-                h1{{font-size:20px}}h2{{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:4px}}h3{{font-size:14px}}\
-                .meta{{color:#666;font-size:12px}}@media print{{body{{margin:0}}}}</style>\
-                </head><body>{}</body></html>",
-                html
-            );
-            Ok(axum::response::Response::builder()
-                .status(200)
-                .header("content-type", "text/html")
-                .header(
-                    "content-disposition",
-                    "attachment; filename=\"voltrus-system-docs.html\"",
-                )
-                .body(axum::body::Body::from(print_html))
-                .unwrap())
-        }
+    {
+        let print_html = format!(
+            "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Voltrus System Docs</title>\
+            <style>body{{font-family:system-ui,sans-serif;margin:40px;max-width:1000px;color:#111}}\
+            table{{border-collapse:collapse;width:100%;margin:12px 0}}th,td{{border:1px solid #ccc;padding:6px 10px;text-align:left;font-size:13px}}\
+            th{{background:#f5f5f5;font-size:11px;text-transform:uppercase}}\
+            h1{{font-size:20px}}h2{{font-size:16px;border-bottom:1px solid #ddd;padding-bottom:4px}}h3{{font-size:14px}}\
+            .meta{{color:#666;font-size:12px}}@media print{{body{{margin:0}}}}</style>\
+            </head><body>{}</body></html>",
+            html
+        );
+        Ok(axum::response::Response::builder()
+            .status(200)
+            .header("content-type", "text/html")
+            .header(
+                "content-disposition",
+                "attachment; filename=\"voltrus-system-docs.html\"",
+            )
+            .body(axum::body::Body::from(print_html))
+            .unwrap())
     }
 }
 
@@ -671,7 +666,7 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
             (
                 "DNP3".into(),
                 format!("{}:{}", d.ip, d.port),
-                d.port as u16,
+                d.port,
                 d.enabled,
             ),
         );
@@ -682,7 +677,7 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
             (
                 "BACnet/IP".into(),
                 format!("{}:{}", d.ip, d.port),
-                d.port as u16,
+                d.port,
                 d.enabled,
             ),
         );
