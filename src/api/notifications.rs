@@ -267,9 +267,7 @@ pub async fn test_notification(
                         "results": results,
                     })))
                 }
-                None => Err(AppError(anyhow::anyhow!(
-                    "SMTP is not configured"
-                ))),
+                None => Err(AppError(anyhow::anyhow!("SMTP is not configured"))),
             }
         }
         "webhook" => {

@@ -63,7 +63,7 @@ pub struct FeedAlarmStrategy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeedAlarmRule {
     pub signal_pattern: String,
-    pub severity: String, // critical, major, warning, info
+    pub severity: String,  // critical, major, warning, info
     pub condition: String, // high, low, high-high, low-low, deviation, rate-of-change
     pub setpoint: String,  // e.g. "90%", "2.0 bar", "60°C"
     pub deadband: String,  // e.g. "2%", "0.1 bar"

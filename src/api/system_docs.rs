@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Extension, Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 
 use crate::api::{AppError, AppState, AuthUser};
@@ -27,36 +27,82 @@ pub async fn get_topology(
     require_professional(&state)?;
 
     let devices = state.storage.list_devices().await.map_err(AppError)?;
-    let data_sources = state.storage.list_data_sources(None).await.map_err(AppError)?;
+    let data_sources = state
+        .storage
+        .list_data_sources(None)
+        .await
+        .map_err(AppError)?;
 
     // Gather protocol devices
-    let modbus_devs = state.storage.list_modbus_devices().await.unwrap_or_default();
+    let modbus_devs = state
+        .storage
+        .list_modbus_devices()
+        .await
+        .unwrap_or_default();
     let opcua_devs = state.storage.list_opcua_devices().await.unwrap_or_default();
     let s7_devs = state.storage.list_s7_devices().await.unwrap_or_default();
     let enip_devs = state.storage.list_enip_devices().await.unwrap_or_default();
     let dnp3_devs = state.storage.list_dnp3_devices().await.unwrap_or_default();
-    let bacnet_devs = state.storage.list_bacnet_devices().await.unwrap_or_default();
+    let bacnet_devs = state
+        .storage
+        .list_bacnet_devices()
+        .await
+        .unwrap_or_default();
 
     // Map device_id → (protocol, address, enabled)
-    let mut proto_map: std::collections::HashMap<String, (String, String, u16, bool)> = std::collections::HashMap::new();
+    let mut proto_map: std::collections::HashMap<String, (String, String, u16, bool)> =
+        std::collections::HashMap::new();
 
     for d in &modbus_devs {
-        proto_map.insert(d.id.clone(), ("Modbus TCP".into(), format!("{}:{}", d.ip, d.port), d.port, d.enabled));
+        proto_map.insert(
+            d.id.clone(),
+            (
+                "Modbus TCP".into(),
+                format!("{}:{}", d.ip, d.port),
+                d.port,
+                d.enabled,
+            ),
+        );
     }
     for d in &opcua_devs {
-        proto_map.insert(format!("opcua_{}", d.id), ("OPC-UA".into(), d.url.clone(), 0, d.enabled));
+        proto_map.insert(
+            format!("opcua_{}", d.id),
+            ("OPC-UA".into(), d.url.clone(), 0, d.enabled),
+        );
     }
     for d in &s7_devs {
-        proto_map.insert(format!("s7_{}", d.id), ("Siemens S7".into(), d.url.clone(), 0, d.enabled));
+        proto_map.insert(
+            format!("s7_{}", d.id),
+            ("Siemens S7".into(), d.url.clone(), 0, d.enabled),
+        );
     }
     for d in &enip_devs {
-        proto_map.insert(format!("enip_{}", d.id), ("EtherNet/IP".into(), d.url.clone(), 0, d.enabled));
+        proto_map.insert(
+            format!("enip_{}", d.id),
+            ("EtherNet/IP".into(), d.url.clone(), 0, d.enabled),
+        );
     }
     for d in &dnp3_devs {
-        proto_map.insert(format!("dnp3_{}", d.id), ("DNP3".into(), format!("{}:{}", d.ip, d.port), d.port as u16, d.enabled));
+        proto_map.insert(
+            format!("dnp3_{}", d.id),
+            (
+                "DNP3".into(),
+                format!("{}:{}", d.ip, d.port),
+                d.port as u16,
+                d.enabled,
+            ),
+        );
     }
     for d in &bacnet_devs {
-        proto_map.insert(format!("bacnet_{}", d.id), ("BACnet/IP".into(), format!("{}:{}", d.ip, d.port), d.port as u16, d.enabled));
+        proto_map.insert(
+            format!("bacnet_{}", d.id),
+            (
+                "BACnet/IP".into(),
+                format!("{}:{}", d.ip, d.port),
+                d.port as u16,
+                d.enabled,
+            ),
+        );
     }
 
     // Count tags per device
@@ -70,13 +116,17 @@ pub async fn get_topology(
     let mut connections = Vec::new();
 
     for dev in &devices {
-        let (protocol, address, port, enabled) = proto_map
-            .get(&dev.id)
-            .cloned()
-            .unwrap_or_else(|| {
+        let (protocol, address, port, enabled) =
+            proto_map.get(&dev.id).cloned().unwrap_or_else(|| {
                 // Generic device — infer protocol from data source source_type
-                let ds_for_dev: Vec<_> = data_sources.iter().filter(|ds| ds.device_id == dev.id).collect();
-                let st = ds_for_dev.first().map(|ds| ds.source_type.as_str()).unwrap_or("unknown");
+                let ds_for_dev: Vec<_> = data_sources
+                    .iter()
+                    .filter(|ds| ds.device_id == dev.id)
+                    .collect();
+                let st = ds_for_dev
+                    .first()
+                    .map(|ds| ds.source_type.as_str())
+                    .unwrap_or("unknown");
                 let proto_name = match st {
                     "modbus" => "Modbus TCP",
                     "opcua" => "OPC-UA",
@@ -115,7 +165,8 @@ pub async fn get_topology(
     }
 
     // Build summary
-    let mut protocol_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+    let mut protocol_counts: std::collections::HashMap<String, (usize, usize)> =
+        std::collections::HashMap::new();
     for td in &topology_devices {
         let entry = protocol_counts.entry(td.protocol.clone()).or_insert((0, 0));
         entry.0 += 1;
@@ -161,8 +212,16 @@ pub async fn get_tag_xref(
     require_professional(&state)?;
 
     let devices = state.storage.list_devices().await.map_err(AppError)?;
-    let data_sources = state.storage.list_data_sources(None).await.map_err(AppError)?;
-    let alarms = state.storage.list_alarms(None, 10000).await.unwrap_or_default();
+    let data_sources = state
+        .storage
+        .list_data_sources(None)
+        .await
+        .map_err(AppError)?;
+    let alarms = state
+        .storage
+        .list_alarms(None, 10000)
+        .await
+        .unwrap_or_default();
 
     // Device lookup
     let device_map: std::collections::HashMap<String, String> = devices
@@ -171,20 +230,40 @@ pub async fn get_tag_xref(
         .collect();
 
     // Protocol lookup per data source
-    let modbus_devs = state.storage.list_modbus_devices().await.unwrap_or_default();
+    let modbus_devs = state
+        .storage
+        .list_modbus_devices()
+        .await
+        .unwrap_or_default();
     let opcua_devs = state.storage.list_opcua_devices().await.unwrap_or_default();
     let s7_devs = state.storage.list_s7_devices().await.unwrap_or_default();
     let enip_devs = state.storage.list_enip_devices().await.unwrap_or_default();
     let dnp3_devs = state.storage.list_dnp3_devices().await.unwrap_or_default();
-    let bacnet_devs = state.storage.list_bacnet_devices().await.unwrap_or_default();
+    let bacnet_devs = state
+        .storage
+        .list_bacnet_devices()
+        .await
+        .unwrap_or_default();
 
     let mut proto_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-    for d in &modbus_devs { proto_map.insert(d.id.clone(), "Modbus TCP".into()); }
-    for d in &opcua_devs { proto_map.insert(format!("opcua_{}", d.id), "OPC-UA".into()); }
-    for d in &s7_devs { proto_map.insert(format!("s7_{}", d.id), "Siemens S7".into()); }
-    for d in &enip_devs { proto_map.insert(format!("enip_{}", d.id), "EtherNet/IP".into()); }
-    for d in &dnp3_devs { proto_map.insert(format!("dnp3_{}", d.id), "DNP3".into()); }
-    for d in &bacnet_devs { proto_map.insert(format!("bacnet_{}", d.id), "BACnet/IP".into()); }
+    for d in &modbus_devs {
+        proto_map.insert(d.id.clone(), "Modbus TCP".into());
+    }
+    for d in &opcua_devs {
+        proto_map.insert(format!("opcua_{}", d.id), "OPC-UA".into());
+    }
+    for d in &s7_devs {
+        proto_map.insert(format!("s7_{}", d.id), "Siemens S7".into());
+    }
+    for d in &enip_devs {
+        proto_map.insert(format!("enip_{}", d.id), "EtherNet/IP".into());
+    }
+    for d in &dnp3_devs {
+        proto_map.insert(format!("dnp3_{}", d.id), "DNP3".into());
+    }
+    for d in &bacnet_devs {
+        proto_map.insert(format!("bacnet_{}", d.id), "BACnet/IP".into());
+    }
 
     // Alarm lookup by source_key
     let alarm_map: std::collections::HashMap<String, (&crate::models::Alarm)> = alarms
@@ -195,9 +274,8 @@ pub async fn get_tag_xref(
     // Build tag entries
     let mut tags = Vec::new();
     for ds in &data_sources {
-        let protocol = proto_map.get(&ds.device_id)
-            .cloned()
-            .unwrap_or_else(|| match ds.source_type.as_str() {
+        let protocol = proto_map.get(&ds.device_id).cloned().unwrap_or_else(|| {
+            match ds.source_type.as_str() {
                 "modbus" => "Modbus TCP".into(),
                 "opcua" => "OPC-UA".into(),
                 "s7" => "Siemens S7".into(),
@@ -207,16 +285,19 @@ pub async fn get_tag_xref(
                 "mqtt" => "MQTT".into(),
                 "random_walk" | "simulated" => "Simulation".into(),
                 o => o.to_string(),
-            });
+            }
+        });
 
         let alarm_info = alarm_map.get(&ds.key);
 
         // Parse source_config for data type / address
         let config: serde_json::Value = serde_json::from_str(&ds.source_config).unwrap_or_default();
-        let data_type = config["data_type"].as_str()
+        let data_type = config["data_type"]
+            .as_str()
             .or_else(|| config["register_type"].as_str())
             .map(String::from);
-        let address = config["address"].as_i64()
+        let address = config["address"]
+            .as_i64()
             .map(|a| a.to_string())
             .or_else(|| config["node_id"].as_str().map(String::from))
             .or_else(|| config["tag_address"].as_str().map(String::from))
@@ -242,7 +323,8 @@ pub async fn get_tag_xref(
     }
 
     // Device summaries
-    let mut device_summaries: std::collections::HashMap<String, (String, String, usize, usize)> = std::collections::HashMap::new();
+    let mut device_summaries: std::collections::HashMap<String, (String, String, usize, usize)> =
+        std::collections::HashMap::new();
     for t in &tags {
         let entry = device_summaries.entry(t.device_id.clone()).or_insert((
             t.device_name.clone(),
@@ -251,11 +333,14 @@ pub async fn get_tag_xref(
             0,
         ));
         entry.2 += 1;
-        if t.has_alarm { entry.3 += 1; }
+        if t.has_alarm {
+            entry.3 += 1;
+        }
     }
 
     // Protocol counts
-    let mut proto_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+    let mut proto_counts: std::collections::HashMap<String, (usize, usize)> =
+        std::collections::HashMap::new();
     for t in &tags {
         let entry = proto_counts.entry(t.protocol.clone()).or_insert((0, 0));
         entry.0 += 1;
@@ -329,7 +414,8 @@ pub async fn get_automation_docs(
     // Build flow docs
     let mut flow_docs = Vec::new();
     for f in &flows {
-        let trigger_config: serde_json::Value = serde_json::from_str(&f.trigger_config).unwrap_or_default();
+        let trigger_config: serde_json::Value =
+            serde_json::from_str(&f.trigger_config).unwrap_or_default();
         let nodes: serde_json::Value = serde_json::from_str(&f.nodes).unwrap_or_default();
 
         let trigger_type = trigger_config["type"].as_str().unwrap_or("tag_threshold");
@@ -429,7 +515,10 @@ pub async fn export_docs(
             Ok(axum::response::Response::builder()
                 .status(200)
                 .header("content-type", "text/html")
-                .header("content-disposition", "attachment; filename=\"voltrus-system-docs.html\"")
+                .header(
+                    "content-disposition",
+                    "attachment; filename=\"voltrus-system-docs.html\"",
+                )
                 .body(axum::body::Body::from(print_html))
                 .unwrap())
         }
@@ -450,14 +539,21 @@ pub async fn get_config_diff(
 ) -> Result<impl IntoResponse, AppError> {
     require_professional(&state)?;
 
-    let from = state.storage.get_config_snapshot(query.from)
-        .await.map_err(AppError)?
+    let from = state
+        .storage
+        .get_config_snapshot(query.from)
+        .await
+        .map_err(AppError)?
         .ok_or_else(|| AppError(anyhow::anyhow!("Snapshot {} not found", query.from)))?;
-    let to = state.storage.get_config_snapshot(query.to)
-        .await.map_err(AppError)?
+    let to = state
+        .storage
+        .get_config_snapshot(query.to)
+        .await
+        .map_err(AppError)?
         .ok_or_else(|| AppError(anyhow::anyhow!("Snapshot {} not found", query.to)))?;
 
-    let from_data: serde_json::Value = serde_json::from_str(&from.snapshot_data).unwrap_or_default();
+    let from_data: serde_json::Value =
+        serde_json::from_str(&from.snapshot_data).unwrap_or_default();
     let to_data: serde_json::Value = serde_json::from_str(&to.snapshot_data).unwrap_or_default();
 
     // Use the existing diff logic from config_snapshots
@@ -479,7 +575,11 @@ pub struct ConfigDiffQuery {
 // ── Helpers ──
 
 fn require_professional(state: &AppState) -> Result<(), AppError> {
-    if !matches!(state.license_tier, crate::license::tier::LicenseTier::Professional | crate::license::tier::LicenseTier::Enterprise) {
+    if !matches!(
+        state.license_tier,
+        crate::license::tier::LicenseTier::Professional
+            | crate::license::tier::LicenseTier::Enterprise
+    ) {
         return Err(AppError(anyhow::anyhow!(
             "System documentation requires Professional tier ($499) or above"
         )));
@@ -498,47 +598,124 @@ impl System {
 
 fn chrono_now_string() -> String {
     let now = time::OffsetDateTime::now_utc();
-    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
-        now.year(), now.month() as u8, now.day(),
-        now.hour(), now.minute(), now.second())
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
+        now.year(),
+        now.month() as u8,
+        now.day(),
+        now.hour(),
+        now.minute(),
+        now.second()
+    )
 }
 
 // ── Internal data builders (shared with export) ──
 
 async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
     let devices = state.storage.list_devices().await.map_err(AppError)?;
-    let data_sources = state.storage.list_data_sources(None).await.map_err(AppError)?;
+    let data_sources = state
+        .storage
+        .list_data_sources(None)
+        .await
+        .map_err(AppError)?;
 
-    let modbus_devs = state.storage.list_modbus_devices().await.unwrap_or_default();
+    let modbus_devs = state
+        .storage
+        .list_modbus_devices()
+        .await
+        .unwrap_or_default();
     let opcua_devs = state.storage.list_opcua_devices().await.unwrap_or_default();
     let s7_devs = state.storage.list_s7_devices().await.unwrap_or_default();
     let enip_devs = state.storage.list_enip_devices().await.unwrap_or_default();
     let dnp3_devs = state.storage.list_dnp3_devices().await.unwrap_or_default();
-    let bacnet_devs = state.storage.list_bacnet_devices().await.unwrap_or_default();
+    let bacnet_devs = state
+        .storage
+        .list_bacnet_devices()
+        .await
+        .unwrap_or_default();
 
-    let mut proto_map: std::collections::HashMap<String, (String, String, u16, bool)> = std::collections::HashMap::new();
-    for d in &modbus_devs { proto_map.insert(d.id.clone(), ("Modbus TCP".into(), format!("{}:{}", d.ip, d.port), d.port, d.enabled)); }
-    for d in &opcua_devs { proto_map.insert(format!("opcua_{}", d.id), ("OPC-UA".into(), d.url.clone(), 0, d.enabled)); }
-    for d in &s7_devs { proto_map.insert(format!("s7_{}", d.id), ("Siemens S7".into(), d.url.clone(), 0, d.enabled)); }
-    for d in &enip_devs { proto_map.insert(format!("enip_{}", d.id), ("EtherNet/IP".into(), d.url.clone(), 0, d.enabled)); }
-    for d in &dnp3_devs { proto_map.insert(format!("dnp3_{}", d.id), ("DNP3".into(), format!("{}:{}", d.ip, d.port), d.port as u16, d.enabled)); }
-    for d in &bacnet_devs { proto_map.insert(format!("bacnet_{}", d.id), ("BACnet/IP".into(), format!("{}:{}", d.ip, d.port), d.port as u16, d.enabled)); }
+    let mut proto_map: std::collections::HashMap<String, (String, String, u16, bool)> =
+        std::collections::HashMap::new();
+    for d in &modbus_devs {
+        proto_map.insert(
+            d.id.clone(),
+            (
+                "Modbus TCP".into(),
+                format!("{}:{}", d.ip, d.port),
+                d.port,
+                d.enabled,
+            ),
+        );
+    }
+    for d in &opcua_devs {
+        proto_map.insert(
+            format!("opcua_{}", d.id),
+            ("OPC-UA".into(), d.url.clone(), 0, d.enabled),
+        );
+    }
+    for d in &s7_devs {
+        proto_map.insert(
+            format!("s7_{}", d.id),
+            ("Siemens S7".into(), d.url.clone(), 0, d.enabled),
+        );
+    }
+    for d in &enip_devs {
+        proto_map.insert(
+            format!("enip_{}", d.id),
+            ("EtherNet/IP".into(), d.url.clone(), 0, d.enabled),
+        );
+    }
+    for d in &dnp3_devs {
+        proto_map.insert(
+            format!("dnp3_{}", d.id),
+            (
+                "DNP3".into(),
+                format!("{}:{}", d.ip, d.port),
+                d.port as u16,
+                d.enabled,
+            ),
+        );
+    }
+    for d in &bacnet_devs {
+        proto_map.insert(
+            format!("bacnet_{}", d.id),
+            (
+                "BACnet/IP".into(),
+                format!("{}:{}", d.ip, d.port),
+                d.port as u16,
+                d.enabled,
+            ),
+        );
+    }
 
     let mut tag_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for ds in &data_sources { *tag_counts.entry(ds.device_id.clone()).or_insert(0) += 1; }
+    for ds in &data_sources {
+        *tag_counts.entry(ds.device_id.clone()).or_insert(0) += 1;
+    }
 
     let mut topology_devices = Vec::new();
     let mut connections = Vec::new();
 
     for dev in &devices {
         let (protocol, address, port, enabled) = proto_map.remove(&dev.id).unwrap_or_else(|| {
-            let ds_for_dev: Vec<_> = data_sources.iter().filter(|ds| ds.device_id == dev.id).collect();
-            let st = ds_for_dev.first().map(|ds| ds.source_type.as_str()).unwrap_or("unknown");
+            let ds_for_dev: Vec<_> = data_sources
+                .iter()
+                .filter(|ds| ds.device_id == dev.id)
+                .collect();
+            let st = ds_for_dev
+                .first()
+                .map(|ds| ds.source_type.as_str())
+                .unwrap_or("unknown");
             let proto_name = match st {
-                "modbus" => "Modbus TCP", "opcua" => "OPC-UA", "s7" => "Siemens S7",
-                "enip" | "ethernet_ip" => "EtherNet/IP", "dnp3" => "DNP3",
-                "bacnet" => "BACnet/IP", "mqtt" => "MQTT",
-                "random_walk" | "simulated" => "Simulation", o => o,
+                "modbus" => "Modbus TCP",
+                "opcua" => "OPC-UA",
+                "s7" => "Siemens S7",
+                "enip" | "ethernet_ip" => "EtherNet/IP",
+                "dnp3" => "DNP3",
+                "bacnet" => "BACnet/IP",
+                "mqtt" => "MQTT",
+                "random_walk" | "simulated" => "Simulation",
+                o => o,
             };
             (proto_name.to_string(), String::new(), 0u16, true)
         });
@@ -546,33 +723,53 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
         let online = state.cache.is_device_online(&dev.id).await;
 
         topology_devices.push(TopologyDevice {
-            id: dev.id.clone(), name: dev.name.clone(), protocol: protocol.clone(),
-            address: address.clone(), enabled, tag_count: *tag_counts.get(&dev.id).unwrap_or(&0), online,
+            id: dev.id.clone(),
+            name: dev.name.clone(),
+            protocol: protocol.clone(),
+            address: address.clone(),
+            enabled,
+            tag_count: *tag_counts.get(&dev.id).unwrap_or(&0),
+            online,
         });
 
         if !address.is_empty() {
             connections.push(TopologyConnection {
-                from: "voltrus".to_string(), to: dev.id.clone(),
-                protocol, address, port,
+                from: "voltrus".to_string(),
+                to: dev.id.clone(),
+                protocol,
+                address,
+                port,
             });
         }
     }
 
-    let mut protocol_counts: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+    let mut protocol_counts: std::collections::HashMap<String, (usize, usize)> =
+        std::collections::HashMap::new();
     for td in &topology_devices {
         let entry = protocol_counts.entry(td.protocol.clone()).or_insert((0, 0));
-        entry.0 += 1; entry.1 += td.tag_count;
+        entry.0 += 1;
+        entry.1 += td.tag_count;
     }
 
     let online_count = topology_devices.iter().filter(|d| d.online).count();
     let total_tags: usize = topology_devices.iter().map(|d| d.tag_count).sum();
 
     Ok(SystemTopology {
-        devices: topology_devices, connections,
+        devices: topology_devices,
+        connections,
         summary: TopologySummary {
-            total_devices: devices.len(), total_tags,
-            protocols: protocol_counts.into_iter().map(|(p, (d, t))| ProtocolCount { protocol: p, device_count: d, tag_count: t }).collect(),
-            online_count, offline_count: devices.len() - online_count,
+            total_devices: devices.len(),
+            total_tags,
+            protocols: protocol_counts
+                .into_iter()
+                .map(|(p, (d, t))| ProtocolCount {
+                    protocol: p,
+                    device_count: d,
+                    tag_count: t,
+                })
+                .collect(),
+            online_count,
+            offline_count: devices.len() - online_count,
         },
     })
 }
@@ -580,22 +777,42 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
 async fn build_tag_xref(state: &AppState) -> Result<TagXrefReport, AppError> {
     // Delegate to simplified version for export
     let devices = state.storage.list_devices().await.map_err(AppError)?;
-    let data_sources = state.storage.list_data_sources(None).await.map_err(AppError)?;
-    let device_map: std::collections::HashMap<String, String> = devices.iter().map(|d| (d.id.clone(), d.name.clone())).collect();
+    let data_sources = state
+        .storage
+        .list_data_sources(None)
+        .await
+        .map_err(AppError)?;
+    let device_map: std::collections::HashMap<String, String> = devices
+        .iter()
+        .map(|d| (d.id.clone(), d.name.clone()))
+        .collect();
 
-    let tags: Vec<TagXrefEntry> = data_sources.iter().map(|ds| {
-        TagXrefEntry {
-            key: ds.key.clone(), name: ds.name.clone(), device_id: ds.device_id.clone(),
+    let tags: Vec<TagXrefEntry> = data_sources
+        .iter()
+        .map(|ds| TagXrefEntry {
+            key: ds.key.clone(),
+            name: ds.name.clone(),
+            device_id: ds.device_id.clone(),
             device_name: device_map.get(&ds.device_id).cloned().unwrap_or_default(),
-            protocol: ds.source_type.clone(), unit: ds.unit.clone(), source_type: ds.source_type.clone(),
-            data_type: None, address: None, has_alarm: false, alarm_severity: None, alarm_threshold: None,
-            warn_val: ds.warn_val, crit_val: ds.crit_val, path: ds.path.clone(),
-        }
-    }).collect();
+            protocol: ds.source_type.clone(),
+            unit: ds.unit.clone(),
+            source_type: ds.source_type.clone(),
+            data_type: None,
+            address: None,
+            has_alarm: false,
+            alarm_severity: None,
+            alarm_threshold: None,
+            warn_val: ds.warn_val,
+            crit_val: ds.crit_val,
+            path: ds.path.clone(),
+        })
+        .collect();
 
     Ok(TagXrefReport {
-        total_tags: tags.len(), tags,
-        by_device: vec![], by_protocol: vec![],
+        total_tags: tags.len(),
+        tags,
+        by_device: vec![],
+        by_protocol: vec![],
     })
 }
 
@@ -603,28 +820,48 @@ async fn build_automation_docs(state: &AppState) -> Result<AutomationDocs, AppEr
     let scripts = state.storage.list_scripts().await.map_err(AppError)?;
     let flows = state.storage.list_flows().await.map_err(AppError)?;
 
-    let script_docs: Vec<ScriptDoc> = scripts.iter().map(|s| ScriptDoc {
-        id: s.id, name: s.name.clone(),
-        source_preview: if s.source.len() > 500 { format!("{}...", &s.source[..500]) } else { s.source.clone() },
-        enabled: s.enabled, syntax_error: s.syntax_error.clone(),
-        cpu_limit_ms: s.cpu_limit_ms, memory_limit_bytes: s.memory_limit_bytes,
-        description: describe_script_source(&s.source), last_execution: None,
-    }).collect();
+    let script_docs: Vec<ScriptDoc> = scripts
+        .iter()
+        .map(|s| ScriptDoc {
+            id: s.id,
+            name: s.name.clone(),
+            source_preview: if s.source.len() > 500 {
+                format!("{}...", &s.source[..500])
+            } else {
+                s.source.clone()
+            },
+            enabled: s.enabled,
+            syntax_error: s.syntax_error.clone(),
+            cpu_limit_ms: s.cpu_limit_ms,
+            memory_limit_bytes: s.memory_limit_bytes,
+            description: describe_script_source(&s.source),
+            last_execution: None,
+        })
+        .collect();
 
-    let flow_docs: Vec<FlowDoc> = flows.iter().map(|f| {
-        let tc: serde_json::Value = serde_json::from_str(&f.trigger_config).unwrap_or_default();
-        let nodes: serde_json::Value = serde_json::from_str(&f.nodes).unwrap_or_default();
-        let trigger_description = describe_trigger(&tc);
-        let node_descriptions = describe_nodes(&nodes);
-        FlowDoc {
-            id: f.id.clone(), name: f.name.clone(), enabled: f.enabled,
-            trigger_description: trigger_description.clone(),
-            node_count: nodes.as_array().map(|a| a.len()).unwrap_or(0),
-            node_descriptions: node_descriptions.clone(),
-            description: format!("{} — Actions: {}", trigger_description, node_descriptions.join(", ")),
-            last_run: None,
-        }
-    }).collect();
+    let flow_docs: Vec<FlowDoc> = flows
+        .iter()
+        .map(|f| {
+            let tc: serde_json::Value = serde_json::from_str(&f.trigger_config).unwrap_or_default();
+            let nodes: serde_json::Value = serde_json::from_str(&f.nodes).unwrap_or_default();
+            let trigger_description = describe_trigger(&tc);
+            let node_descriptions = describe_nodes(&nodes);
+            FlowDoc {
+                id: f.id.clone(),
+                name: f.name.clone(),
+                enabled: f.enabled,
+                trigger_description: trigger_description.clone(),
+                node_count: nodes.as_array().map(|a| a.len()).unwrap_or(0),
+                node_descriptions: node_descriptions.clone(),
+                description: format!(
+                    "{} — Actions: {}",
+                    trigger_description,
+                    node_descriptions.join(", ")
+                ),
+                last_run: None,
+            }
+        })
+        .collect();
 
     let total_scripts = script_docs.len();
     let enabled_scripts = script_docs.iter().filter(|s| s.enabled).count();
@@ -632,7 +869,13 @@ async fn build_automation_docs(state: &AppState) -> Result<AutomationDocs, AppEr
     let enabled_flows = flow_docs.iter().filter(|f| f.enabled).count();
 
     Ok(AutomationDocs {
-        scripts: script_docs, flows: flow_docs,
-        summary: AutomationSummary { total_scripts, enabled_scripts, total_flows, enabled_flows },
+        scripts: script_docs,
+        flows: flow_docs,
+        summary: AutomationSummary {
+            total_scripts,
+            enabled_scripts,
+            total_flows,
+            enabled_flows,
+        },
     })
 }

@@ -25,9 +25,9 @@ mod expression;
 mod flow_engine;
 mod ha;
 mod hardware_cert;
-mod integration;
 mod hub;
 mod import_nodered;
+mod integration;
 mod license;
 mod modbus;
 mod models;
@@ -48,8 +48,8 @@ mod sim_engine;
 mod storage;
 mod system_docs;
 mod timeutil;
-mod video;
 mod vertical_templates;
+mod video;
 mod widget_sdk;
 mod wizard;
 mod ws_manager;
@@ -172,8 +172,7 @@ async fn main() -> anyhow::Result<()> {
 
     // FlowEngine (Starter tier and above, lazy — only spawns when enabled flows exist)
     let flow_engine = if license_tier.flow_engine() {
-        let engine =
-            crate::flow_engine::engine::FlowEngine::new(storage.clone(), cache.clone());
+        let engine = crate::flow_engine::engine::FlowEngine::new(storage.clone(), cache.clone());
         let mut has_enabled_flows = false;
         if let Ok(flows) = storage.list_flows().await {
             for flow in &flows {
@@ -623,7 +622,9 @@ async fn main() -> anyhow::Result<()> {
                 if persist_license_tier.outbound_webhooks() {
                     let storage_wh = storage.clone();
                     for snap in &snapshots {
-                        if snap.status != DeviceStatus::Online { continue; }
+                        if snap.status != DeviceStatus::Online {
+                            continue;
+                        }
                         for (metric, value) in &snap.metrics {
                             let payload = serde_json::json!({
                                 "event": "tag_change",
@@ -634,8 +635,11 @@ async fn main() -> anyhow::Result<()> {
                                 "status": "online",
                             });
                             crate::notification::dispatch_outbound_webhooks(
-                                &storage_wh, "tag_change", &payload,
-                            ).await;
+                                &storage_wh,
+                                "tag_change",
+                                &payload,
+                            )
+                            .await;
                         }
                     }
                 }
@@ -674,7 +678,8 @@ async fn main() -> anyhow::Result<()> {
         let egress_storage = storage.clone();
         let (_egress_shutdown_tx, egress_shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
         tokio::spawn(async move {
-            crate::integration::egress::run_egress_scheduler(egress_storage, egress_shutdown_rx).await;
+            crate::integration::egress::run_egress_scheduler(egress_storage, egress_shutdown_rx)
+                .await;
         });
         tracing::info!("Data egress scheduler started");
     }

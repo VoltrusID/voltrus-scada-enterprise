@@ -1189,7 +1189,10 @@ fn handle_egress_list(args: &[String]) -> bool {
         .unwrap_or_else(|_| "voltrus.db".to_string());
     let storage = match Storage::new(&db_path) {
         Ok(s) => s,
-        Err(e) => { eprintln!("Failed to open database: {e}"); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("Failed to open database: {e}");
+            std::process::exit(1);
+        }
     };
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -1201,21 +1204,40 @@ fn handle_egress_list(args: &[String]) -> bool {
                     println!("=== Data Egress Jobs ===");
                     for job in &jobs {
                         let status = job.last_status.as_deref().unwrap_or("never run");
-                        let last = job.last_run.map(|t| {
-                            time::OffsetDateTime::from_unix_timestamp(t)
-                                .map(|dt| dt.format(&time::format_description::well_known::Rfc3339).unwrap_or_else(|_| t.to_string()))
-                                .unwrap_or_else(|_| t.to_string())
-                        }).unwrap_or_else(|| "never".to_string());
-                        println!("  [{}] {} (id={}) — {} {} → {} ({}) last: {} {}",
+                        let last = job
+                            .last_run
+                            .map(|t| {
+                                time::OffsetDateTime::from_unix_timestamp(t)
+                                    .map(|dt| {
+                                        dt.format(&time::format_description::well_known::Rfc3339)
+                                            .unwrap_or_else(|_| t.to_string())
+                                    })
+                                    .unwrap_or_else(|_| t.to_string())
+                            })
+                            .unwrap_or_else(|| "never".to_string());
+                        println!(
+                            "  [{}] {} (id={}) — {} {} → {} ({}) last: {} {}",
                             if job.enabled { "ON" } else { "OFF" },
-                            job.name, job.id, job.schedule, job.time_range, job.destination, job.format,
+                            job.name,
+                            job.id,
+                            job.schedule,
+                            job.time_range,
+                            job.destination,
+                            job.format,
                             last,
-                            if let Some(ref err) = job.last_error { format!("error: {}", err) } else { status.to_string() }
+                            if let Some(ref err) = job.last_error {
+                                format!("error: {}", err)
+                            } else {
+                                status.to_string()
+                            }
                         );
                     }
                 }
             }
-            Err(e) => { eprintln!("Error: {e}"); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
         }
     });
     true
@@ -1228,14 +1250,20 @@ async fn handle_egress_run(args: &[String]) -> bool {
     }
     let job_id: i64 = match args[3].parse() {
         Ok(id) => id,
-        Err(_) => { eprintln!("Invalid job ID: {}", args[3]); return true; }
+        Err(_) => {
+            eprintln!("Invalid job ID: {}", args[3]);
+            return true;
+        }
     };
     let db_path = config::load_config(&find_config_path(args))
         .map(|c| c.db_path.clone())
         .unwrap_or_else(|_| "voltrus.db".to_string());
     let storage = match Storage::new(&db_path) {
         Ok(s) => s,
-        Err(e) => { eprintln!("Failed to open database: {e}"); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("Failed to open database: {e}");
+            std::process::exit(1);
+        }
     };
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
@@ -1244,11 +1272,19 @@ async fn handle_egress_run(args: &[String]) -> bool {
                 println!("Running egress job '{}' (id={})...", job.name, job.id);
                 match crate::integration::egress::execute_egress_job(&storage, &job).await {
                     Ok(()) => println!("Egress job completed successfully."),
-                    Err(e) => { eprintln!("Egress job failed: {e}"); std::process::exit(1); }
+                    Err(e) => {
+                        eprintln!("Egress job failed: {e}");
+                        std::process::exit(1);
+                    }
                 }
             }
-            Ok(None) => { eprintln!("Egress job {} not found.", job_id); }
-            Err(e) => { eprintln!("Error: {e}"); std::process::exit(1); }
+            Ok(None) => {
+                eprintln!("Egress job {} not found.", job_id);
+            }
+            Err(e) => {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
         }
     });
     true

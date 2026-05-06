@@ -347,7 +347,7 @@ pub(super) fn run_migrations(conn: &Connection) {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_egress_jobs_enabled ON egress_jobs(enabled);"
+        CREATE INDEX IF NOT EXISTS idx_egress_jobs_enabled ON egress_jobs(enabled);",
     );
 
     // Migration: v0.39.0 -- Outbound webhooks for external systems
@@ -366,6 +366,6 @@ pub(super) fn run_migrations(conn: &Connection) {
             last_status TEXT,
             created_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_enabled ON outbound_webhooks(enabled);"
+        CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_enabled ON outbound_webhooks(enabled);",
     );
 }

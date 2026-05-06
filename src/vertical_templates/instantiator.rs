@@ -1,7 +1,5 @@
 use crate::storage::Storage;
-use crate::vertical_templates::definitions::{
-    VerticalTemplate, TemplateTag, TemplateAlarm,
-};
+use crate::vertical_templates::definitions::{TemplateAlarm, TemplateTag, VerticalTemplate};
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::collections::HashMap;
@@ -34,8 +32,8 @@ impl<'a> Instantiator<'a> {
     /// Default instance counts for standard configurations
     pub fn default_instance_counts() -> HashMap<String, u32> {
         let mut counts = HashMap::new();
-        counts.insert("n".into(), 2);      // Default 2 instances for pumps, engines, etc.
-        counts.insert("light".into(), 4);   // 4 navigation lights
+        counts.insert("n".into(), 2); // Default 2 instances for pumps, engines, etc.
+        counts.insert("light".into(), 4); // 4 navigation lights
         counts.insert("{n}".into(), 2);
         counts.insert("{light}".into(), 4);
         counts
@@ -54,10 +52,7 @@ impl<'a> Instantiator<'a> {
             self.storage
                 .create_device(
                     &device_id,
-                    &format!(
-                        "{} — {}",
-                        self.instance_name, self.template.name
-                    ),
+                    &format!("{} — {}", self.instance_name, self.template.name),
                     0,
                 )
                 .await
@@ -91,7 +86,7 @@ impl<'a> Instantiator<'a> {
                     (tag.min_val + tag.max_val) / 2.0, // base_val
                     sort_order,
                     if tag.data_type == "bool" { 0 } else { 1 }, // decimals
-                    "modbus", // Default source type
+                    "modbus",                                    // Default source type
                     &json!({
                         "template_id": self.template.id,
                         "register_area": tag.register_area,
@@ -115,9 +110,15 @@ impl<'a> Instantiator<'a> {
         }
 
         // 3. Create screen and assign data sources
-        let screen_id = format!("{}_{}", &self.template.id, &self.instance_name.to_lowercase().replace(' ', "_"));
+        let screen_id = format!(
+            "{}_{}",
+            &self.template.id,
+            &self.instance_name.to_lowercase().replace(' ', "_")
+        );
         if !self.storage.device_exists(&screen_id).await? {
-            self.storage.create_device(&screen_id, &self.template.dashboard.screen_name, 1).await?;
+            self.storage
+                .create_device(&screen_id, &self.template.dashboard.screen_name, 1)
+                .await?;
             for (i, &ds_id) in created_data_source_ids.iter().enumerate() {
                 self.storage
                     .add_screen_data_source(&screen_id, ds_id, i as i64)
@@ -228,11 +229,7 @@ impl<'a> Instantiator<'a> {
             let pattern = &tag.name_pattern;
             // Check if this tag has expandable patterns
             if pattern.contains("{n}") {
-                let count = self
-                    .instance_counts
-                    .get("n")
-                    .copied()
-                    .unwrap_or(2);
+                let count = self.instance_counts.get("n").copied().unwrap_or(2);
                 for i in 1..=count {
                     let mut expanded = tag.clone();
                     expanded.name_pattern = pattern.replace("{n}", &i.to_string());
@@ -240,11 +237,7 @@ impl<'a> Instantiator<'a> {
                     result.push(expanded);
                 }
             } else if pattern.contains("{light}") {
-                let count = self
-                    .instance_counts
-                    .get("light")
-                    .copied()
-                    .unwrap_or(4);
+                let count = self.instance_counts.get("light").copied().unwrap_or(4);
                 let light_names = ["PORT", "STBD", "BOW", "STERN"];
                 for i in 0..count {
                     let name = light_names.get(i as usize).unwrap_or(&"UNKNOWN");
@@ -266,38 +259,40 @@ impl<'a> Instantiator<'a> {
         for alarm in &self.template.alarms {
             let pattern = &alarm.tag_pattern;
             if pattern.contains("{n}") {
-                let count = self
-                    .instance_counts
-                    .get("n")
-                    .copied()
-                    .unwrap_or(2);
+                let count = self.instance_counts.get("n").copied().unwrap_or(2);
                 for i in 1..=count {
                     let mut expanded = alarm.clone();
                     expanded.tag_pattern = pattern.replace("{n}", &i.to_string());
-                    expanded.message_template = alarm.message_template.replace("{n}", &i.to_string());
+                    expanded.message_template =
+                        alarm.message_template.replace("{n}", &i.to_string());
                     // Only include if the tag actually exists
-                    if expanded_tags.iter().any(|t| t.name_pattern == expanded.tag_pattern) {
+                    if expanded_tags
+                        .iter()
+                        .any(|t| t.name_pattern == expanded.tag_pattern)
+                    {
                         result.push(expanded);
                     }
                 }
             } else if pattern.contains("{light}") {
-                let count = self
-                    .instance_counts
-                    .get("light")
-                    .copied()
-                    .unwrap_or(4);
+                let count = self.instance_counts.get("light").copied().unwrap_or(4);
                 let light_names = ["PORT", "STBD", "BOW", "STERN"];
                 for i in 0..count {
                     let name = light_names.get(i as usize).unwrap_or(&"UNKNOWN");
                     let mut expanded = alarm.clone();
                     expanded.tag_pattern = pattern.replace("{light}", name);
                     expanded.message_template = alarm.message_template.replace("{light}", name);
-                    if expanded_tags.iter().any(|t| t.name_pattern == expanded.tag_pattern) {
+                    if expanded_tags
+                        .iter()
+                        .any(|t| t.name_pattern == expanded.tag_pattern)
+                    {
                         result.push(expanded);
                     }
                 }
             } else {
-                if expanded_tags.iter().any(|t| t.name_pattern == pattern.as_str()) {
+                if expanded_tags
+                    .iter()
+                    .any(|t| t.name_pattern == pattern.as_str())
+                {
                     result.push(alarm.clone());
                 }
             }

@@ -47,18 +47,18 @@ mod screens;
 mod scripts;
 mod security;
 mod settings;
-mod smtp_settings;
 mod shift_handover;
 mod shortcuts;
 mod simulation;
+mod smtp_settings;
 mod snmp_scan;
 pub(crate) mod stream;
-mod system_docs;
 mod system;
+mod system_docs;
 mod tag_tree;
 mod user_notifications;
-mod video;
 mod vertical_templates;
+mod video;
 mod websocket;
 mod wizard;
 
@@ -304,9 +304,15 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/version", get(system::get_version))
         .route("/api/v1/docs/topology", get(system_docs::get_topology))
         .route("/api/v1/docs/tag-xref", get(system_docs::get_tag_xref))
-        .route("/api/v1/docs/automation", get(system_docs::get_automation_docs))
+        .route(
+            "/api/v1/docs/automation",
+            get(system_docs::get_automation_docs),
+        )
         .route("/api/v1/docs/export", get(system_docs::export_docs))
-        .route("/api/v1/docs/config-diff", get(system_docs::get_config_diff))
+        .route(
+            "/api/v1/docs/config-diff",
+            get(system_docs::get_config_diff),
+        )
         .route("/api/v1/auth/change-password", post(auth::change_password))
         .route("/api/v1/data", get(data::get_data))
         .route("/api/v1/data/export", get(data::export_data))
@@ -444,10 +450,22 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/edr/gpo-guide", get(edr_compat::get_gpo_guide))
         // Integration routes (authenticated users)
         .route("/api/v1/integration/bi/query", get(integration::bi_query))
-        .route("/api/v1/integration/grafana/query", get(integration::grafana_query))
-        .route("/api/v1/integration/grafana/search", get(integration::grafana_search))
-        .route("/api/v1/integration/connection-info", get(integration::connection_info))
-        .route("/api/v1/integration/webhooks/outbound", get(integration::list_outbound_webhooks))
+        .route(
+            "/api/v1/integration/grafana/query",
+            get(integration::grafana_query),
+        )
+        .route(
+            "/api/v1/integration/grafana/search",
+            get(integration::grafana_search),
+        )
+        .route(
+            "/api/v1/integration/connection-info",
+            get(integration::connection_info),
+        )
+        .route(
+            "/api/v1/integration/webhooks/outbound",
+            get(integration::list_outbound_webhooks),
+        )
         // Hardware certification routes (any authenticated user can view)
         .route("/api/v1/hw/report", get(hardware_cert::get_hw_report))
         .route(
@@ -496,11 +514,23 @@ pub fn create_router(state: AppState) -> Router {
             post(ai_copilot::generate_from_template),
         )
         .route("/api/v1/templates", get(vertical_templates::list_templates))
-        .route("/api/v1/templates/preview", post(vertical_templates::preview_template))
+        .route(
+            "/api/v1/templates/preview",
+            post(vertical_templates::preview_template),
+        )
         .route("/api/v1/wizard/create", post(wizard::wizard_create))
-        .route("/api/v1/wizard/health-check", get(wizard::wizard_health_check))
-        .route("/api/v1/wizard/feed-templates", get(wizard::list_feed_templates))
-        .route("/api/v1/wizard/feed-templates/{id}", get(wizard::get_feed_template_handler))
+        .route(
+            "/api/v1/wizard/health-check",
+            get(wizard::wizard_health_check),
+        )
+        .route(
+            "/api/v1/wizard/feed-templates",
+            get(wizard::list_feed_templates),
+        )
+        .route(
+            "/api/v1/wizard/feed-templates/{id}",
+            get(wizard::get_feed_template_handler),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             cookie_auth_middleware,
@@ -1056,12 +1086,32 @@ pub fn create_router(state: AppState) -> Router {
         // AI Copilot admin routes
         .route("/api/v1/ai/settings", put(ai_copilot::update_ai_settings))
         // Integration admin routes (admin-only)
-        .route("/api/v1/egress/jobs", get(integration::list_egress_jobs).post(integration::create_egress_job))
-        .route("/api/v1/egress/jobs/{id}", get(integration::get_egress_job).put(integration::update_egress_job).delete(integration::delete_egress_job))
-        .route("/api/v1/egress/jobs/{id}/run", post(integration::run_egress_job))
-        .route("/api/v1/integration/webhooks/outbound", post(integration::create_outbound_webhook))
-        .route("/api/v1/integration/webhooks/outbound/{id}", delete(integration::delete_outbound_webhook))
-        .route("/api/v1/integration/webhooks/outbound/{id}/test", post(integration::test_outbound_webhook))
+        .route(
+            "/api/v1/egress/jobs",
+            get(integration::list_egress_jobs).post(integration::create_egress_job),
+        )
+        .route(
+            "/api/v1/egress/jobs/{id}",
+            get(integration::get_egress_job)
+                .put(integration::update_egress_job)
+                .delete(integration::delete_egress_job),
+        )
+        .route(
+            "/api/v1/egress/jobs/{id}/run",
+            post(integration::run_egress_job),
+        )
+        .route(
+            "/api/v1/integration/webhooks/outbound",
+            post(integration::create_outbound_webhook),
+        )
+        .route(
+            "/api/v1/integration/webhooks/outbound/{id}",
+            delete(integration::delete_outbound_webhook),
+        )
+        .route(
+            "/api/v1/integration/webhooks/outbound/{id}/test",
+            post(integration::test_outbound_webhook),
+        )
         .route(
             "/api/v1/ai/proposals/{id}/approve",
             post(ai_copilot::approve_proposal),
@@ -1074,8 +1124,14 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/ai/proposals/{id}/apply",
             post(ai_copilot::apply_proposal),
         )
-        .route("/api/v1/templates/{id}", get(vertical_templates::get_template))
-        .route("/api/v1/templates/{id}/instantiate", post(vertical_templates::instantiate_template))
+        .route(
+            "/api/v1/templates/{id}",
+            get(vertical_templates::get_template),
+        )
+        .route(
+            "/api/v1/templates/{id}/instantiate",
+            post(vertical_templates::instantiate_template),
+        )
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

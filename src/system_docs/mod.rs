@@ -23,8 +23,8 @@ pub struct TopologyDevice {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TopologyConnection {
-    pub from: String,  // Voltrus server
-    pub to: String,    // Device ID
+    pub from: String, // Voltrus server
+    pub to: String,   // Device ID
     pub protocol: String,
     pub address: String,
     pub port: u16,
@@ -97,12 +97,12 @@ pub struct AutomationDocs {
 pub struct ScriptDoc {
     pub id: i64,
     pub name: String,
-    pub source_preview: String,  // First 500 chars of source
+    pub source_preview: String, // First 500 chars of source
     pub enabled: bool,
     pub syntax_error: Option<String>,
     pub cpu_limit_ms: i64,
     pub memory_limit_bytes: i64,
-    pub description: String,     // Auto-generated plain-English description
+    pub description: String, // Auto-generated plain-English description
     pub last_execution: Option<ScriptExecutionSummary>,
 }
 
@@ -119,10 +119,10 @@ pub struct FlowDoc {
     pub id: String,
     pub name: String,
     pub enabled: bool,
-    pub trigger_description: String,  // Plain-English trigger description
+    pub trigger_description: String, // Plain-English trigger description
     pub node_count: usize,
-    pub node_descriptions: Vec<String>,  // Plain-English node descriptions
-    pub description: String,  // Overall description
+    pub node_descriptions: Vec<String>, // Plain-English node descriptions
+    pub description: String,            // Overall description
     pub last_run: Option<FlowRunSummary>,
 }
 
@@ -221,7 +221,10 @@ pub fn describe_script_source(source: &str) -> String {
     }
 
     if first_line.starts_with("//") || first_line.starts_with('#') {
-        let desc = first_line.trim_start_matches('/').trim_start_matches('#').trim();
+        let desc = first_line
+            .trim_start_matches('/')
+            .trim_start_matches('#')
+            .trim();
         if desc.len() > 200 {
             return format!("{}...", &desc[..200]);
         } else {
