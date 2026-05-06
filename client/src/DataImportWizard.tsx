@@ -4,7 +4,7 @@ import { inputStyle, btnStyle } from './styles';
 
 type WizardStep = 'upload' | 'preview' | 'import' | 'report';
 
-export function DataImportWizard() {
+export function DataImportWizard({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
@@ -95,7 +95,7 @@ export function DataImportWizard() {
     </div>
   );
 
-  return (
+  const content = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 640 }}>
       {/* Steps */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
@@ -242,5 +242,27 @@ export function DataImportWizard() {
         </div>
       )}
     </div>
-  );
+  )
+
+  if (embedded) {
+    return <>{content}</>
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column', padding: 24 }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onClose} aria-label="Close import wizard" style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
+            </button>
+            <h1 style={{ fontSize: 20, fontWeight: 700 }}>Import Data</h1>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {content}
+        </div>
+      </div>
+    </div>
+  )
 }

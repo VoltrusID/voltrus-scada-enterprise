@@ -420,11 +420,13 @@ export function NodeRedImportWizard({ onClose, embedded }: { onClose: () => void
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg)', zIndex: 50, display: 'flex', flexDirection: 'column', padding: 24 }}>
       <div style={{ maxWidth: 1200, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexShrink: 0 }}>
-          <button onClick={onClose} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
-          </button>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>Node-RED Import Wizard</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onClose} aria-label="Close Node-RED import wizard" style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back
+            </button>
+            <h1 style={{ fontSize: 20, fontWeight: 700 }}>Node-RED Import Wizard</h1>
+          </div>
         </div>
         <div style={{ flex: 1, overflow: 'auto' }}>
           {content}

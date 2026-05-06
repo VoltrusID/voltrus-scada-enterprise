@@ -598,17 +598,9 @@ function AppInner() {
         {showAuditPanel && (
           <Suspense fallback={null}><AuditLogPanel onClose={() => setShowAuditPanel(false)} /></Suspense>
         )}
-        {showImportWizard && (
-          <OverlayScreen title="Import Data" onClose={() => setShowImportWizard(false)}>
-            <Suspense fallback={null}><DataImportWizard /></Suspense>
-          </OverlayScreen>
-        )}
+        {showImportWizard && <Suspense fallback={null}><DataImportWizard onClose={() => setShowImportWizard(false)} /></Suspense>}
         {showNodeRedWizard && <Suspense fallback={null}><NodeRedImportWizard onClose={() => setShowNodeRedWizard(false)} /></Suspense>}
-        {showMqttPanel && (
-          <OverlayScreen title="MQTT Broker" onClose={() => setShowMqttPanel(false)}>
-            <Suspense fallback={null}><MqttBrokerPanel onClose={() => setShowMqttPanel(false)} /></Suspense>
-          </OverlayScreen>
-        )}
+        {showMqttPanel && <Suspense fallback={null}><MqttBrokerPanel onClose={() => setShowMqttPanel(false)} /></Suspense>}
         {showEdrPanel && (
           <OverlayScreen title="EDR Compatibility" onClose={() => setShowEdrPanel(false)}>
             <Suspense fallback={null}><EdrCompatPanel onClose={() => setShowEdrPanel(false)} /></Suspense>
