@@ -199,8 +199,7 @@ impl Storage {
 
         for (device_id, register_names) in &devices_to_seed {
             let mut ids = Vec::new();
-            let mut sort = 0i64;
-            for reg_name in register_names {
+            for (sort_idx, reg_name) in register_names.iter().enumerate() {
                 let fallback = (
                     reg_name.clone(),
                     String::new(),
@@ -226,7 +225,7 @@ impl Storage {
                         *warn,
                         *crit,
                         *base,
-                        sort,
+                        sort_idx as i64,
                         *decimals,
                         "modbus",
                         "{}",
@@ -236,7 +235,6 @@ impl Storage {
                     )
                     .await?;
                 ids.push(id);
-                sort += 1;
             }
             all_ds_ids.insert(device_id, ids);
         }

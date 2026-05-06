@@ -112,7 +112,7 @@ async fn generate_and_send(
             &report.name,
             &report.schedule,
             &attachment_bytes,
-            &content_type,
+            content_type,
             &filename,
         )
         .await

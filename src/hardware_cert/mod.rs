@@ -14,9 +14,6 @@ pub mod compat_matrix;
 pub mod edge_deploy;
 pub mod platform;
 
-pub use benchmark::*;
-pub use compat_matrix::*;
-pub use edge_deploy::*;
 pub use platform::*;
 
 use serde::{Deserialize, Serialize};

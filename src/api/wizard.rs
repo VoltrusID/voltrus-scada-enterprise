@@ -3,10 +3,10 @@ use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
 
 use crate::api::{AppError, AppState, AuthUser};
+use crate::wizard::WizardConfig;
 use crate::wizard::feed::feed_summaries;
 use crate::wizard::feed::get_feed_template;
 use crate::wizard::health::run_health_check;
-use crate::wizard::{WizardConfig, WizardResult};
 
 /// POST /api/v1/wizard/create — Run the project creation wizard
 pub async fn wizard_create(

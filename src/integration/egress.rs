@@ -70,12 +70,12 @@ pub fn parse_time_range(range: &str) -> Result<i64> {
     if range.is_empty() {
         anyhow::bail!("empty time range");
     }
-    let (num_str, unit) = if range.ends_with('h') {
-        (&range[..range.len() - 1], 'h')
-    } else if range.ends_with('d') {
-        (&range[..range.len() - 1], 'd')
-    } else if range.ends_with('m') && !range.ends_with("mo") {
-        (&range[..range.len() - 1], 'm')
+    let (num_str, unit) = if let Some(s) = range.strip_suffix('h') {
+        (s, 'h')
+    } else if let Some(s) = range.strip_suffix('d') {
+        (s, 'd')
+    } else if let Some(s) = range.strip_suffix('m') {
+        (s, 'm')
     } else {
         anyhow::bail!("time range must end with 'h', 'd', or 'm': {}", range);
     };
@@ -272,7 +272,6 @@ async fn write_to_s3(url: &str, filename: &str, content: &str, compress: bool) -
     let key = format!("{}/{}", prefix, filename);
 
     let body = if compress {
-        use flate2::read::GzEncoder as _;
         use std::io::Read;
         let mut encoder =
             flate2::read::GzEncoder::new(content.as_bytes(), flate2::Compression::default());

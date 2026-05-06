@@ -62,8 +62,8 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
     // Screens are referenced by ID in screen_data_sources, not in a separate table.
     // Check if any screen has data sources configured.
     let all_tags = storage.list_data_sources(None).await?;
-    let has_screens = !all_tags.is_empty()
-        && tags.iter().any(|t| {
+    let _has_screens = !all_tags.is_empty()
+        && tags.iter().any(|_t| {
             // Screens exist if data sources are assigned to them via screen_data_sources
             true // We'll check based on tags existence
         });
@@ -299,7 +299,7 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
     } else {
         let base = 100i32;
         let penalty =
-            (critical_count as i32 * 20) + (warning_count as i32 * 5) + (info_count as i32 * 1);
+            (critical_count as i32 * 20) + (warning_count as i32 * 5) + (info_count as i32);
         (base - penalty).max(0) as u32
     };
 

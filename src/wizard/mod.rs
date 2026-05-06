@@ -2,7 +2,6 @@ pub mod feed;
 pub mod health;
 
 use crate::storage::Storage;
-use crate::vertical_templates::definitions::VerticalTemplate;
 use crate::vertical_templates::instantiator::Instantiator;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 // ── Topology ──
 
@@ -176,24 +175,24 @@ pub fn describe_nodes(nodes_json: &serde_json::Value) -> Vec<String> {
 
     nodes
         .iter()
-        .filter_map(|node| {
+        .map(|node| {
             let action = node["action"].as_str().unwrap_or("unknown");
             let msg = node["message"].as_str().unwrap_or("");
 
             match action {
-                "log" => Some(format!("Log: {}", msg)),
+                "log" => format!("Log: {}", msg),
                 "email" => {
                     let subject = node["subject"].as_str().unwrap_or("Alert");
-                    Some(format!("Send email: \"{}\" — {}", subject, msg))
+                    format!("Send email: \"{}\" — {}", subject, msg)
                 }
-                "webhook" => Some(format!("Send webhook: {}", msg)),
+                "webhook" => format!("Send webhook: {}", msg),
                 "write" => {
                     let tag = node["tag"].as_str().unwrap_or("tag");
                     let val = node["value"].as_f64().unwrap_or(0.0);
-                    Some(format!("Write {} to tag '{}'", val, tag))
+                    format!("Write {} to tag '{}'", val, tag)
                 }
-                "sms" => Some(format!("Send SMS: {}", msg)),
-                _ => Some(format!("{}: {}", action, msg)),
+                "sms" => format!("Send SMS: {}", msg),
+                _ => format!("{}: {}", action, msg),
             }
         })
         .collect()
