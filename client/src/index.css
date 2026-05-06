@@ -320,6 +320,6 @@ nav[role="navigation"] button:hover {
 /* Mobile main content padding */
 @media (max-width: 480px) {
   .main-content {
-    padding: 0 10px 10px !important;
+    padding: 0 10px 38px !important;
   }
 }

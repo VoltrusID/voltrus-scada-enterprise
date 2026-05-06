@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { btnStyle, displayShortcut } from '../styles'
 import { ShortcutsConfigPanel } from '../ShortcutsConfigPanel'
-import { HistoryRangeBar } from '../CustomRangePicker'
 import type { BrandingSettings } from '../BrandingDialog'
+import type { Screen } from '../types'
 import { UnifiedBell } from './UnifiedBell'
 
 const useIsMobile = () => {
@@ -61,9 +61,9 @@ const ICON_BTN: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 34,
-  height: 34,
-  borderRadius: 8,
+  width: 32,
+  height: 32,
+  borderRadius: 6,
   border: '1px solid var(--border)',
   background: 'var(--card)',
   color: 'var(--muted)',
@@ -74,10 +74,32 @@ const ICON_BTN: React.CSSProperties = {
 
 const DIVIDER_V: React.CSSProperties = {
   width: 1,
-  height: 20,
+  height: 18,
   background: 'var(--border)',
-  margin: '0 6px',
+  margin: '0 4px',
   flexShrink: 0,
+}
+
+const INLINE_TAB: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  border: 'none',
+  borderBottom: '2px solid transparent',
+  color: 'var(--muted)',
+  background: 'transparent',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'color 0.15s, border-color 0.15s',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+}
+
+const INLINE_TAB_ACTIVE: React.CSSProperties = {
+  ...INLINE_TAB,
+  borderBottom: '2px solid var(--cyan)',
+  color: 'var(--cyan)',
 }
 
 interface MenuItem {
@@ -96,20 +118,10 @@ interface Props {
   onBrandingClick: () => void
   activeAlarmCount: number
   effectiveNavShortcuts: Record<string, string>
-  viewMode: 'cards' | 'canvas' | 'twin' | 'scada'
-  onViewModeChange: (mode: 'cards' | 'canvas' | 'twin' | 'scada') => void
   showShortcutsPanel: boolean
   onToggleShortcutsPanel: () => void
   shortcutsPanel: React.ReactNode
   mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
-  onModeChange: (mode: 'live' | 'history') => void
-  historyRange: string
-  onHistoryRangeChange: (range: string) => void
-  historyDetail: 'auto' | 'full'
-  onHistoryDetailChange: (d: 'auto' | 'full') => void
-  historyAutoAgg: string
-  turbo: boolean
-  onToggleTurbo: () => void
   onSettingsClick: () => void
   onDataManagerClick: () => void
   onFlowsClick: () => void
@@ -128,6 +140,18 @@ interface Props {
   onMqttPanelClick: () => void
   onEdrPanelClick: () => void
   onSystemClick: () => void
+  // Screen tabs (new)
+  screens: Screen[]
+  activeScreen: string
+  onTabClick: (screenId: string) => void
+  onRenameScreen: (id: string, name: string) => void
+  onDeleteScreen: (id: string, name: string) => void
+  onAddScreen: () => void
+  onAddSource: () => void
+  canAddSource: boolean
+  onAutoArrange?: () => void
+  editLabel: string
+  onToggleEditMode: () => void
 }
 
 /* ── Action Menu (dropdown) ── */
@@ -226,25 +250,24 @@ const Icons = {
   shield: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   briefcase: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
   pen: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>,
-  tagAlt: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
   clipboard: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
   logout: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
   bolt: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  grid: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
   more: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>,
 }
 
 export function AppHeader({
   branding, editMode, onBrandingClick,
   activeAlarmCount, effectiveNavShortcuts,
-  viewMode, onViewModeChange,
   showShortcutsPanel, onToggleShortcutsPanel, shortcutsPanel,
-  mode, onModeChange,
-  historyRange, onHistoryRangeChange, historyDetail, onHistoryDetailChange, historyAutoAgg,
-  turbo, onToggleTurbo,
-  onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
+  mode, onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
   onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onShiftHandoverToggle,
   onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onEdrPanelClick, onAssetsClick, onSystemClick,
+  // Screen tabs
+  screens, activeScreen, onTabClick,
+  onRenameScreen, onDeleteScreen, onAddScreen,
+  onAddSource, canAddSource, onAutoArrange,
+  editLabel, onToggleEditMode,
 }: Props) {
   const isMobile = useIsMobile()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -288,13 +311,24 @@ export function AppHeader({
     borderRadius: 0,
   }
 
-  /* ── Shared sub-bar style (mobile mode/toggle strip) ── */
-  const SUB_BAR: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    padding: '6px 12px',
-    borderBottom: '1px solid var(--border)',
-    background: 'var(--card)',
-  }
+  /* ── Render screen tab (inline in header) ── */
+  const renderTab = (id: string, label: string, isActive: boolean, shortcut?: string) => (
+    <button
+      key={id}
+      role="tab"
+      aria-selected={isActive}
+      style={isActive ? INLINE_TAB_ACTIVE : INLINE_TAB}
+      onClick={() => onTabClick(id)}
+    >
+      {label}
+      {shortcut && (
+        <kbd style={{
+          fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px',
+          borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)',
+        }}>{displayShortcut(shortcut)}</kbd>
+      )}
+    </button>
+  )
 
   return (
     <>
@@ -303,24 +337,24 @@ export function AppHeader({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: isMobile ? '0 10px' : '0 20px',
-        height: isMobile ? 48 : 52,
+        padding: isMobile ? '0 10px' : '0 16px',
+        height: isMobile ? 48 : 48,
         flexShrink: 0,
         borderBottom: '1px solid var(--border)',
         background: 'var(--card)',
       }}>
-        {/* ── Left: Branding ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+        {/* ── Left: Branding + screen tabs ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, overflow: 'hidden' }}>
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: editMode ? 'pointer' : 'default' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: editMode ? 'pointer' : 'default', flexShrink: 0 }}
             onClick={onBrandingClick}
           >
-            <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: isMobile ? 20 : 24, height: isMobile ? 20 : 24, borderRadius: 4, objectFit: 'contain', flexShrink: 0 }} />
-            <span style={{ fontSize: isMobile ? 14 : 15, fontWeight: 700, color: 'var(--fg)', whiteSpace: 'nowrap', letterSpacing: '-.01em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <img src={branding.logo || '/favicon-32.png'} alt={branding.title} style={{ width: isMobile ? 20 : 22, height: isMobile ? 20 : 22, borderRadius: 4, objectFit: 'contain' }} />
+            <span style={{ fontSize: isMobile ? 14 : 14, fontWeight: 700, color: 'var(--fg)', whiteSpace: 'nowrap', letterSpacing: '-.01em' }}>
               {branding.title}
             </span>
             {!isMobile && branding.subtitle && (
-              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400, whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, whiteSpace: 'nowrap' }}>
                 {branding.subtitle}
               </span>
             )}
@@ -331,74 +365,54 @@ export function AppHeader({
               </svg>
             )}
           </div>
-          {/* Turbo (desktop only — mobile goes in sub-bar) */}
-          {!isMobile && viewMode !== 'twin' && viewMode !== 'scada' && mode === 'live' && (
-            <button
-              onClick={onToggleTurbo}
-              title={turbo ? 'Turbo ON' : 'Turbo OFF'}
-              style={{
-                ...SEGMENT_BTN,
-                fontWeight: 600,
-                padding: '5px 12px',
-                border: '1px solid ' + (turbo ? 'var(--warn)' : 'var(--border)'),
-                borderRadius: 6,
-                color: turbo ? 'var(--warn)' : 'var(--muted)',
-                background: turbo ? 'rgba(234,179,8,.1)' : 'var(--card)',
-                marginLeft: 12,
-              }}
-            >
-              Turbo
-            </button>
+
+          {/* Divider between branding and tabs */}
+          {!isMobile && (
+            <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 8px', flexShrink: 0 }} />
+          )}
+
+          {/* Screen tabs (desktop only) */}
+          {!isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0, overflow: 'hidden' }}>
+              {renderTab('all', 'Overview', activeScreen === 'all', effectiveNavShortcuts['screen:all'])}
+              {screens.map(s => (
+                <div key={s.id} style={{ position: 'relative' }}>
+                  {renderTab(s.id, s.name, activeScreen === s.id, effectiveNavShortcuts[`screen:${s.id}`])}
+                  {editMode && (
+                    <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
+                      <button onClick={e => { e.stopPropagation(); onRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
+                      <button onClick={e => { e.stopPropagation(); onDeleteScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&times;</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <button onClick={onAddScreen} style={{ ...INLINE_TAB, color: 'var(--green)', borderBottom: 'none' }}>+</button>
+              )}
+            </div>
           )}
         </div>
 
-        {/* ── Center: View mode (desktop only) ── */}
-        {!isMobile && (
-          <div style={SEGMENT_GROUP}>
-            <button
-              style={viewMode === 'cards' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN}
-              onClick={() => onViewModeChange('cards')}
-              title="Grid view"
-            >Grid</button>
-            <button
-              style={viewMode === 'canvas' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN}
-              onClick={() => onViewModeChange('canvas')}
-              title="Canvas view"
-            >Canvas</button>
-            <button
-              style={viewMode === 'twin' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN}
-              onClick={() => onViewModeChange('twin')}
-              title="3D digital twin"
-            >3D</button>
-            <button
-              style={viewMode === 'scada' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN}
-              onClick={() => onViewModeChange('scada')}
-              title="2D SCADA diagram"
-            >SCADA</button>
-          </div>
-        )}
-
         {/* ── Right: actions ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 6, justifyContent: 'flex-end', flexShrink: 0 }}>
-          {/* Live/History toggle (desktop only) */}
-          {!isMobile && viewMode !== 'twin' && viewMode !== 'scada' && (
-            <>
-              <div style={SEGMENT_GROUP}>
-                <button
-                  style={mode === 'live' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN}
-                  onClick={() => onModeChange('live')}
-                >Live</button>
-                <button
-                  style={mode === 'history' ? SEGMENT_ACTIVE_WARN : SEGMENT_BTN}
-                  onClick={() => onModeChange('history')}
-                >History</button>
-              </div>
-
-              {/* History range — appears right of Live/History */}
-              {mode === 'history' && (
-                <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
-              )}
-            </>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 4 : 4, justifyContent: 'flex-end', flexShrink: 0 }}>
+          {/* Edit mode controls (desktop only) */}
+          {!isMobile && isAdmin && (
+            <button style={{
+              ...btnStyle,
+              fontSize: 11,
+              padding: '4px 10px',
+              borderColor: editMode ? 'var(--cyan)' : 'var(--border)',
+              color: editMode ? 'var(--cyan)' : 'var(--muted)',
+            }} onClick={onToggleEditMode}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>{editLabel}</span>
+            </button>
+          )}
+          {!isMobile && editMode && canAddSource && (
+            <button style={{ ...btnStyle, fontSize: 11, padding: '4px 10px', borderColor: 'var(--green)', color: 'var(--green)' }} onClick={onAddSource}>+ Source</button>
+          )}
+          {!isMobile && editMode && onAutoArrange && (
+            <button style={{ ...btnStyle, fontSize: 11, padding: '4px 10px', borderColor: '#a78bfa', color: '#a78bfa' }} onClick={onAutoArrange}>Arrange</button>
           )}
 
           {!isMobile && <div style={DIVIDER_V} />}
@@ -436,7 +450,7 @@ export function AppHeader({
               title="Settings"
               style={ICON_BTN}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           )}
 
@@ -462,7 +476,7 @@ export function AppHeader({
               className="hamburger-menu"
               onClick={() => setDrawerOpen(true)}
               aria-label="Open menu"
-              style={{ ...ICON_BTN, width: 38, height: 38 }}
+              style={{ ...ICON_BTN, width: 36, height: 36 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <line x1="3" y1="6" x2="21" y2="6" />
@@ -474,72 +488,29 @@ export function AppHeader({
         </div>
       </nav>
 
-      {/* ── Mobile sub-bar: view mode + Live/History + Turbo ── */}
+      {/* ── Mobile sub-bar: screen tabs + view mode ── */}
       {isMobile && (
-        <div style={SUB_BAR}>
-          {/* View mode */}
-          <div style={{ ...SEGMENT_GROUP, borderRadius: 6 }}>
-            <button
-              style={{ ...(viewMode === 'cards' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
-              onClick={() => onViewModeChange('cards')}
-              title="Grid view"
-            >Grid</button>
-            <button
-              style={{ ...(viewMode === 'canvas' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
-              onClick={() => onViewModeChange('canvas')}
-              title="Canvas view"
-            >Canvas</button>
-            <button
-              style={{ ...(viewMode === 'twin' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
-              onClick={() => onViewModeChange('twin')}
-              title="3D digital twin"
-            >3D</button>
-            <button
-              style={{ ...(viewMode === 'scada' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
-              onClick={() => onViewModeChange('scada')}
-              title="2D SCADA diagram"
-            >SCADA</button>
-          </div>
-
-          {/* Live/History toggle */}
-          {viewMode !== 'twin' && viewMode !== 'scada' && (
-            <div style={{ ...SEGMENT_GROUP, borderRadius: 6 }}>
-              <button
-                style={{ ...(mode === 'live' ? SEGMENT_ACTIVE_CYAN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
-                onClick={() => onModeChange('live')}
-              >Live</button>
-              <button
-                style={{ ...(mode === 'history' ? SEGMENT_ACTIVE_WARN : SEGMENT_BTN), padding: '4px 8px', fontSize: 11 }}
-                onClick={() => onModeChange('history')}
-              >History</button>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 0,
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--card)',
+          overflowX: 'auto',
+          scrollbarWidth: 'none' as const,
+          msOverflowStyle: 'none' as const,
+        }} className="screen-tabs-scroll">
+          {renderTab('all', 'Overview', activeScreen === 'all')}
+          {screens.map(s => (
+            <div key={s.id} style={{ position: 'relative', flexShrink: 0 }}>
+              {renderTab(s.id, s.name, activeScreen === s.id)}
+              {editMode && (
+                <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
+                  <button onClick={e => { e.stopPropagation(); onRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
+                  <button onClick={e => { e.stopPropagation(); onDeleteScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&times;</button>
+                </div>
+              )}
             </div>
-          )}
-
-          {/* Turbo */}
-          {viewMode !== 'twin' && viewMode !== 'scada' && mode === 'live' && (
-            <button
-              onClick={onToggleTurbo}
-              title={turbo ? 'Turbo ON' : 'Turbo OFF'}
-              style={{
-                ...SEGMENT_BTN,
-                fontSize: 11,
-                padding: '4px 10px',
-                border: '1px solid ' + (turbo ? 'var(--warn)' : 'var(--border)'),
-                borderRadius: 6,
-                color: turbo ? 'var(--warn)' : 'var(--muted)',
-                background: turbo ? 'rgba(234,179,8,.1)' : 'var(--card)',
-              }}
-            >
-              ⚡
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── History range bar (mobile) ── */}
-      {viewMode !== 'twin' && viewMode !== 'scada' && mode === 'history' && isMobile && (
-        <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', background: 'var(--card)', display: 'flex', justifyContent: 'center' }}>
-          <HistoryRangeBar range={historyRange} onChange={onHistoryRangeChange} detail={historyDetail} onDetailChange={onHistoryDetailChange} agg={historyAutoAgg} />
+          ))}
+          {editMode && <button onClick={onAddScreen} style={{ ...INLINE_TAB, color: 'var(--green)', borderBottom: 'none', flexShrink: 0 }}>+</button>}
         </div>
       )}
 
