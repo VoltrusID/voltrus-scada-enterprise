@@ -170,34 +170,54 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
-    let flow_engine = crate::flow_engine::engine::FlowEngine::new(storage.clone(), cache.clone());
-    if let Ok(flows) = storage.list_flows().await {
-        for flow in flows {
-            if flow.enabled {
-                match (
-                    serde_json::from_str::<crate::flow_engine::trigger::TriggerConfig>(
-                        &flow.trigger_config,
-                    ),
-                    serde_json::from_str::<Vec<crate::flow_engine::node::NodeConfig>>(&flow.nodes),
-                ) {
-                    (Ok(trigger), Ok(nodes)) => {
-                        let engine_flow = crate::flow_engine::engine::Flow {
-                            id: flow.id,
-                            name: flow.name,
-                            enabled: flow.enabled,
-                            trigger,
-                            nodes,
-                        };
-                        flow_engine.add_flow(engine_flow).await;
-                    }
-                    _ => {
-                        tracing::warn!("Failed to deserialize flow {} config, skipping", flow.id);
+    // FlowEngine (Starter tier and above, lazy — only spawns when enabled flows exist)
+    let flow_engine = if license_tier.flow_engine() {
+        let engine =
+            crate::flow_engine::engine::FlowEngine::new(storage.clone(), cache.clone());
+        let mut has_enabled_flows = false;
+        if let Ok(flows) = storage.list_flows().await {
+            for flow in &flows {
+                if flow.enabled {
+                    match (
+                        serde_json::from_str::<crate::flow_engine::trigger::TriggerConfig>(
+                            &flow.trigger_config,
+                        ),
+                        serde_json::from_str::<Vec<crate::flow_engine::node::NodeConfig>>(
+                            &flow.nodes,
+                        ),
+                    ) {
+                        (Ok(trigger), Ok(nodes)) => {
+                            let engine_flow = crate::flow_engine::engine::Flow {
+                                id: flow.id.clone(),
+                                name: flow.name.clone(),
+                                enabled: flow.enabled,
+                                trigger,
+                                nodes,
+                            };
+                            engine.add_flow(engine_flow).await;
+                            has_enabled_flows = true;
+                        }
+                        _ => {
+                            tracing::warn!(
+                                "Failed to deserialize flow {} config, skipping",
+                                flow.id
+                            );
+                        }
                     }
                 }
             }
         }
-    }
-    flow_engine.spawn().await;
+        if has_enabled_flows {
+            engine.spawn().await;
+            tracing::info!("FlowEngine started with enabled flow(s)");
+        } else {
+            tracing::info!("FlowEngine initialized but no enabled flows — deferring spawn");
+        }
+        Some(Arc::new(engine))
+    } else {
+        tracing::info!("FlowEngine skipped — Trial tier");
+        None
+    };
 
     // Auto-seed on startup if no admin user exists
     storage.seed_database(&app_config.devices).await?;
@@ -353,6 +373,7 @@ async fn main() -> anyhow::Result<()> {
         let email_notifier = email_notifier.clone();
         let push_notifier = push_notifier.clone();
         let alarm_ws_manager = ws_manager.clone();
+        let persist_license_tier = license_tier.clone();
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
@@ -599,7 +620,7 @@ async fn main() -> anyhow::Result<()> {
                 // Dispatch tag_change webhooks for the latest data.
                 // We do this after persistence + alarm evaluation, not on every
                 // tick — outbound webhooks get the latest snapshot values.
-                {
+                if persist_license_tier.outbound_webhooks() {
                     let storage_wh = storage.clone();
                     for snap in &snapshots {
                         if snap.status != DeviceStatus::Online { continue; }
@@ -622,13 +643,16 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    // Spawn retention task
-    {
+    // Spawn retention task (Starter tier and above)
+    if license_tier.data_compression() {
         let storage = storage.clone();
         let retention_config = app_config.retention.clone();
         tokio::spawn(async move {
             retention::run_retention_task(storage, retention_config).await;
         });
+        tracing::info!("Data retention/compression task started");
+    } else {
+        tracing::info!("Data retention/compression skipped — Trial tier");
     }
 
     // Spawn alarm auto-unshelf task
@@ -665,14 +689,16 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("OEE monitor started");
     }
 
-    // Spawn command queue processor
-    {
+    // Spawn command queue processor (Starter tier and above)
+    if license_tier.command_queue() {
         let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone())
             .with_ws_manager(ws_manager.clone());
         tokio::spawn(async move {
             queue.run().await;
         });
         tracing::info!("Command queue processor started");
+    } else {
+        tracing::info!("Command queue processor skipped — Trial tier");
     }
 
     let auth_secret = match &app_config.auth_secret {
@@ -784,12 +810,14 @@ async fn main() -> anyhow::Result<()> {
             .register("storage", Box::new(storage_check))
             .await;
     }
-    if app_config.watchdog.enabled {
+    if app_config.watchdog.enabled && license_tier.health_monitor() {
         health_monitor.start();
         tracing::info!(
             "Health monitor started (interval: {}s)",
             app_config.watchdog.health_check_interval_secs
         );
+    } else if app_config.watchdog.enabled {
+        tracing::info!("Health monitor configured but skipped — Trial tier");
     }
 
     let ha_state = if app_config.ha.enabled {
@@ -816,7 +844,7 @@ async fn main() -> anyhow::Result<()> {
         oidc_config,
         jwks_manager,
         retention_config: app_config.retention.clone(),
-        flow_engine: Some(Arc::new(flow_engine)),
+        flow_engine,
         login_rate_limiter,
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger,
@@ -824,7 +852,8 @@ async fn main() -> anyhow::Result<()> {
         license_status: license_status.clone(),
         license_tier: license_tier.clone(),
         feature_flags: feature_flags.clone(),
-        smtp_config: app_config.smtp.clone(),
+        smtp_config: Arc::new(tokio::sync::RwLock::new(app_config.smtp.clone())),
+        config_path: config_path.to_string(),
         vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
         hub_manager,
         stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
@@ -834,7 +863,11 @@ async fn main() -> anyhow::Result<()> {
         health_monitor,
         ha_state,
         widget_registry: widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
-            "voltrus/widgets",
+            if license_tier == license::LicenseTier::Trial {
+                "/nonexistent"
+            } else {
+                "voltrus/widgets"
+            },
         )),
     };
 

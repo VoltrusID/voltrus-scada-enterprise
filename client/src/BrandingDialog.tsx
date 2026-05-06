@@ -8,7 +8,7 @@ export interface BrandingSettings {
 }
 
 export const DEFAULT_BRANDING: BrandingSettings = {
-  title: 'Voltrus Lite',
+  title: 'Voltrus',
   subtitle: 'Realtime Monitor',
   logo: '',
 };

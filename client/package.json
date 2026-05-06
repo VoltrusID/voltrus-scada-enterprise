@@ -1,5 +1,5 @@
 {
-  "name": "voltrus-lite-client",
+  "name": "voltrus-client",
   "private": true,
   "type": "module",
   "engines": {
