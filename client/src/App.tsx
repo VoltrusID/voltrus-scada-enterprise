@@ -8,7 +8,7 @@ import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
-import { ScreenTabs } from './components/ScreenTabs'
+import { ViewToolbar } from './components/ViewToolbar'
 import { LayoutBreakpointSelector } from './components/LayoutBreakpointSelector'
 import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
@@ -441,15 +441,10 @@ function AppInner() {
         onBrandingClick={() => { if (editMode) setShowBrandingDialog(true) }}
         activeAlarmCount={activeAlarms.count}
         effectiveNavShortcuts={effectiveNavShortcuts}
-        viewMode={viewMode} onViewModeChange={setViewMode}
         showShortcutsPanel={showShortcutsPanel}
         onToggleShortcutsPanel={() => setShowShortcutsPanel(v => !v)}
         shortcutsPanel={showShortcutsPanel ? <ShortcutsConfigPanel effectiveNavShortcuts={effectiveNavShortcuts} navShortcuts={navShortcuts} saveNavShortcutsMut={saveNavShortcutsMut} onClose={() => setShowShortcutsPanel(false)} /> : null}
-        mode={mode} onModeChange={setMode}
-        historyRange={historyRange} onHistoryRangeChange={setHistoryRange}
-        historyDetail={historyDetail} onHistoryDetailChange={setHistoryDetail}
-        historyAutoAgg={dashSettings.historyAutoAgg}
-        turbo={turbo} onToggleTurbo={() => setTurbo(v => !v)}
+        mode={mode}
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => setShowDataManager(true)}
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
@@ -468,26 +463,35 @@ function AppInner() {
         onMqttPanelClick={() => setShowMqttPanel(true)}
         onEdrPanelClick={() => setShowEdrPanel(true)}
         onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
+        screens={screens}
+        activeScreen={activeScreen}
+        onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows' || mode === 'tags' || mode === 'assets') setMode('live') }}
+        onRenameScreen={handleRenameScreen}
+        onDeleteScreen={handleDeleteScreen}
+        onAddScreen={handleAddScreen}
+        onAddSource={() => setShowAddDialog(true)}
+        canAddSource={activeScreen !== 'all'}
+        onAutoArrange={handleAutoArrange}
+        editLabel={editMode ? 'Done' : 'Edit'}
+        onToggleEditMode={handleToggleEditMode}
       />
       </header>
 
-      <main id="main-content" role="main" aria-label="Dashboard" style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px', display: 'flex', flexDirection: 'column', position: 'relative' }} className="main-content">
-        <ScreenTabs
-          mode={mode} activeScreen={activeScreen} screens={screens}
-          effectiveNavShortcuts={effectiveNavShortcuts} editMode={editMode}
-          onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows') setMode('live') }}
-          onRenameScreen={handleRenameScreen}
-          onDeleteScreen={handleDeleteScreen}
-          onAddScreen={handleAddScreen}
-          isAdmin={isAdmin}
-          onToggleEditMode={handleToggleEditMode}
-          editLabel={editMode ? 'Done' : 'Edit'}
-          onAddSource={() => setShowAddDialog(true)}
-          canAddSource={activeScreen !== 'all'}
-          onAutoArrange={handleAutoArrange}
-        />
+      <ViewToolbar
+        viewMode={viewMode} onViewModeChange={setViewMode}
+        mode={mode} onModeChange={setMode}
+        turbo={turbo} onToggleTurbo={() => setTurbo(v => !v)}
+        historyRange={historyRange} onHistoryRangeChange={setHistoryRange}
+        historyDetail={historyDetail} onHistoryDetailChange={setHistoryDetail}
+        historyAutoAgg={dashSettings.historyAutoAgg}
+      />
 
-        {editMode && (
+      <main id="main-content" role="main" aria-label="Dashboard" style={{
+        flex: 1, overflow: 'auto',
+        padding: (viewMode === 'scada' || viewMode === 'canvas' || viewMode === 'twin') ? '0 0 38px 0' : '0 24px 38px',
+        display: 'flex', flexDirection: 'column', position: 'relative',
+      }} className="main-content">
+        {editMode && viewMode === 'cards' && (
           <LayoutBreakpointSelector layoutBreakpoint={layoutBreakpoint} onChange={setLayoutBreakpoint} />
         )}
 
@@ -612,7 +616,7 @@ function AppInner() {
         )}
       </main>
 
-      <Footer />
+      <Footer activeAlarmCount={activeAlarms.count} viewMode={viewMode} activeScreen={activeScreen} screens={screens} />
     </div>
     </LicenseContext.Provider>
   )

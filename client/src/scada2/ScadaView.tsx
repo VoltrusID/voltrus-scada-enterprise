@@ -186,64 +186,68 @@ export const ScadaView: React.FC<Props> = ({
   }, [onSensorClick])
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Inline toolbar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '6px 12px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--card)',
+        flexShrink: 0,
+      }}>
+        {canvasState.editMode && (
+          <>
+            <button onClick={() => handleToolChange('select')} style={{
+              padding: '4px 10px', borderRadius: 6,
+              border: `1px solid ${canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--border)'}`,
+              background: canvasState.activeTool === 'select' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+              color: canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--fg)',
+              cursor: 'pointer', fontSize: 11, fontWeight: 500,
+            }}>Select</button>
+            <button onClick={() => handleToolChange('connect')} style={{
+              padding: '4px 10px', borderRadius: 6,
+              border: `1px solid ${canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--border)'}`,
+              background: canvasState.activeTool === 'connect' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+              color: canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--fg)',
+              cursor: 'pointer', fontSize: 11, fontWeight: 500,
+            }}>Connect</button>
+            <button onClick={() => handleToolChange('delete')} style={{
+              padding: '4px 10px', borderRadius: 6,
+              border: `1px solid ${canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--border)'}`,
+              background: canvasState.activeTool === 'delete' ? 'rgba(34,197,94,.1)' : 'var(--card)',
+              color: canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--fg)',
+              cursor: 'pointer', fontSize: 11, fontWeight: 500,
+            }}>Delete</button>
+            <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
+            <button onClick={handleSave} disabled={!dirtyRef.current} style={{
+              padding: '4px 10px', borderRadius: 6,
+              border: `1px solid ${dirtyRef.current ? 'var(--cyan)' : 'var(--border)'}`,
+              background: dirtyRef.current ? 'var(--cyan)' : 'var(--card)',
+              color: dirtyRef.current ? '#fff' : 'var(--muted)',
+              cursor: dirtyRef.current ? 'pointer' : 'not-allowed',
+              fontSize: 11, fontWeight: 600,
+            }}>Save</button>
+          </>
+        )}
+        {isAdmin && (
+        <button onClick={handleToggleEdit} style={{
+          marginLeft: canvasState.editMode ? 'auto' : 0,
+          padding: '4px 10px', borderRadius: 6,
+          border: `1px solid ${canvasState.editMode ? 'var(--warn)' : 'var(--border)'}`,
+          background: canvasState.editMode ? 'rgba(245,158,11,.1)' : 'var(--card)',
+          color: canvasState.editMode ? 'var(--warn)' : 'var(--fg)',
+          cursor: 'pointer', fontSize: 11, fontWeight: 600,
+        }}>
+          {canvasState.editMode ? 'Done' : 'Edit'}
+        </button>
+        )}
+      </div>
+      <div style={{ flex: 1, position: 'relative' }}>
         <ScadaPalette
           visible={canvasState.editMode}
           sensors={sensors}
           onSelect={handlePaletteSelect}
         />
-        {/* Floating controls — top-right of canvas area */}
-        <div style={{
-          position: 'absolute', top: 8, right: 8, zIndex: 20,
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          {canvasState.editMode && (
-            <>
-              <button onClick={() => handleToolChange('select')} style={{
-                padding: '5px 10px', borderRadius: 6,
-                border: `1px solid ${canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--border)'}`,
-                background: canvasState.activeTool === 'select' ? 'rgba(34,197,94,.1)' : 'var(--card)',
-                color: canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--fg)',
-                cursor: 'pointer', fontSize: 11, fontWeight: 500,
-              }}>Select</button>
-              <button onClick={() => handleToolChange('connect')} style={{
-                padding: '5px 10px', borderRadius: 6,
-                border: `1px solid ${canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--border)'}`,
-                background: canvasState.activeTool === 'connect' ? 'rgba(34,197,94,.1)' : 'var(--card)',
-                color: canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--fg)',
-                cursor: 'pointer', fontSize: 11, fontWeight: 500,
-              }}>Connect</button>
-              <button onClick={() => handleToolChange('delete')} style={{
-                padding: '5px 10px', borderRadius: 6,
-                border: `1px solid ${canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--border)'}`,
-                background: canvasState.activeTool === 'delete' ? 'rgba(34,197,94,.1)' : 'var(--card)',
-                color: canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--fg)',
-                cursor: 'pointer', fontSize: 11, fontWeight: 500,
-              }}>Delete</button>
-              <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-              <button onClick={handleSave} disabled={!dirtyRef.current} style={{
-                padding: '5px 10px', borderRadius: 6,
-                border: `1px solid ${dirtyRef.current ? 'var(--cyan)' : 'var(--border)'}`,
-                background: dirtyRef.current ? 'var(--cyan)' : 'var(--card)',
-                color: dirtyRef.current ? '#fff' : 'var(--muted)',
-                cursor: dirtyRef.current ? 'pointer' : 'not-allowed',
-                fontSize: 11, fontWeight: 600,
-              }}>Save</button>
-            </>
-          )}
-          {isAdmin && (
-          <button onClick={handleToggleEdit} style={{
-            padding: '5px 10px', borderRadius: 6,
-            border: `1px solid ${canvasState.editMode ? 'var(--warn)' : 'var(--border)'}`,
-            background: canvasState.editMode ? 'rgba(245,158,11,.1)' : 'var(--card)',
-            color: canvasState.editMode ? 'var(--warn)' : 'var(--fg)',
-            cursor: 'pointer', fontSize: 11, fontWeight: 600,
-          }}>
-            {canvasState.editMode ? 'Done' : 'Edit'}
-          </button>
-          )}
-        </div>
         <ScadaCanvas
           layout={layout}
           sensors={sensors}
