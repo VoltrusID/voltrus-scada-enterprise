@@ -1,3 +1,4 @@
+use axum::extract::{Path, Query};
 use axum::Json;
 use axum::extract::{Extension, State};
 use axum::response::IntoResponse;
@@ -196,5 +197,127 @@ pub async fn stop_broker(
     Ok(Json(json!({
         "message": "MQTT broker stopped",
         "status": "stopped",
+    })))
+}
+
+/// GET /api/v1/mqtt-broker/topics
+pub async fn get_topics(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthUser>,
+) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.mqtt_broker() {
+        return Err(AppError(anyhow::anyhow!(
+            "Embedded MQTT broker requires Starter tier."
+        )));
+    }
+
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
+        .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
+
+    Ok(Json(mqtt_broker::get_topic_tree(&broker.topic_tracker).await))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TopicMessagesQuery {
+    pub limit: Option<usize>,
+}
+
+/// GET /api/v1/mqtt-broker/topics/:topic/messages
+pub async fn get_topic_messages(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthUser>,
+    Path(topic): Path<String>,
+    Query(_q): Query<TopicMessagesQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.mqtt_broker() {
+        return Err(AppError(anyhow::anyhow!(
+            "Embedded MQTT broker requires Starter tier."
+        )));
+    }
+
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
+        .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
+
+    let messages = broker
+        .topic_tracker
+        .get_topic_messages(&topic)
+        .await;
+
+    Ok(Json(json!({
+        "topic": topic,
+        "messages": messages,
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MessagesQuery {
+    pub limit: Option<usize>,
+}
+
+/// GET /api/v1/mqtt-broker/messages
+pub async fn get_messages(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthUser>,
+    Query(q): Query<MessagesQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.mqtt_broker() {
+        return Err(AppError(anyhow::anyhow!(
+            "Embedded MQTT broker requires Starter tier."
+        )));
+    }
+
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
+        .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
+
+    let messages = broker
+        .topic_tracker
+        .get_recent_messages(q.limit.unwrap_or(100))
+        .await;
+
+    Ok(Json(json!({
+        "messages": messages,
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublishRequest {
+    pub topic: String,
+    pub payload: String,
+}
+
+/// POST /api/v1/mqtt-broker/publish
+pub async fn publish_message(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthUser>,
+    Json(req): Json<PublishRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if !state.license_tier.mqtt_broker() {
+        return Err(AppError(anyhow::anyhow!(
+            "Embedded MQTT broker requires Starter tier."
+        )));
+    }
+
+    let broker = state
+        .mqtt_broker_state
+        .as_ref()
+        .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
+
+    if req.topic.is_empty() {
+        return Err(AppError(anyhow::anyhow!("Topic cannot be empty")));
+    }
+
+    broker
+        .publish_sync(&req.topic, req.payload.as_bytes())
+        .map_err(|e| AppError(anyhow::anyhow!("{}", e)))?;
+
+    Ok(Json(json!({
+        "message": "Published",
+        "topic": req.topic,
     })))
 }

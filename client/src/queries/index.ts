@@ -317,10 +317,11 @@ export type {
 } from './import_nodered'
 
 export {
-  useMqttBrokerStatus, useUpdateMqttConfig, useStartMqttBroker, useStopMqttBroker
+  useMqttBrokerStatus, useUpdateMqttConfig, useStartMqttBroker, useStopMqttBroker,
+  useMqttTopics, useMqttTopicMessages, useMqttMessages, useMqttPublish,
 } from './mqtt_broker'
 
-export type { MqttBrokerStatus, MqttClient, MqttConfigUpdate } from './mqtt_broker'
+export type { MqttBrokerStatus, MqttClient, MqttConfigUpdate, TopicInfo, TopicTree, RecentMessage, MqttTopicsResponse, MqttMessagesResponse, MqttTopicMessagesResponse } from './mqtt_broker'
 
 export {
   useDocsTopology,
