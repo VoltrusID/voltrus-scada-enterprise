@@ -1066,6 +1066,14 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/api/v1/mqtt-broker/start", post(mqtt_broker::start_broker))
         .route("/api/v1/mqtt-broker/stop", post(mqtt_broker::stop_broker))
+        // MQTT explorer (admin-only)
+        .route("/api/v1/mqtt-broker/topics", get(mqtt_broker::get_topics))
+        .route(
+            "/api/v1/mqtt-broker/topics/{topic}/messages",
+            get(mqtt_broker::get_topic_messages),
+        )
+        .route("/api/v1/mqtt-broker/messages", get(mqtt_broker::get_messages))
+        .route("/api/v1/mqtt-broker/publish", post(mqtt_broker::publish_message))
         // Config snapshot routes (admin-only)
         .route(
             "/api/v1/config/snapshots",
