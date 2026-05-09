@@ -1,5 +1,5 @@
 mod poller;
-mod pool;
+pub mod pool;
 mod scanner;
 mod types;
 mod write;

@@ -26,26 +26,26 @@ struct FaultConfig {
 struct DeviceState {
     profile: DeviceProfile,
     values: Vec<f64>, // current values (one per register definition)
+    regs: Vec<u16>,   // raw register image (source of truth for reads)
     load_phase: f32,  // slow sinusoidal load variation
 }
 
 impl DeviceState {
     fn new(profile: DeviceProfile) -> Self {
         let values = profile.initial_values();
+        let regs = profile.to_registers(&values);
         Self {
             profile,
             values,
+            regs,
             load_phase: 0.0,
         }
-    }
-
-    fn to_registers(&self) -> Vec<u16> {
-        self.profile.to_registers(&self.values)
     }
 
     fn tick(&mut self) {
         self.profile
             .tick_values(&mut self.values, &mut self.load_phase);
+        self.regs = self.profile.to_registers(&self.values);
     }
 }
 
@@ -88,7 +88,6 @@ impl Service for MeterService {
         let response = match &req {
             Request::ReadHoldingRegisters(addr, qty) => {
                 let data = self.data.lock().unwrap();
-                let all_regs = data.to_registers();
                 let addr = *addr as usize;
                 let qty = *qty as usize;
 
@@ -97,11 +96,36 @@ impl Service for MeterService {
                     let mut rng = rand::rng();
                     (0..qty).map(|_| rng.random::<u16>()).collect()
                 } else {
-                    let end = std::cmp::min(addr.saturating_add(qty), all_regs.len());
-                    all_regs.get(addr..end).unwrap_or(&[]).to_vec()
+                    let end = std::cmp::min(addr.saturating_add(qty), data.regs.len());
+                    data.regs.get(addr..end).unwrap_or(&[]).to_vec()
                 };
 
                 Response::ReadHoldingRegisters(regs)
+            }
+            Request::WriteSingleRegister(req_addr, word) => {
+                let mut data = self.data.lock().unwrap();
+                let addr = *req_addr as usize;
+                if addr < data.regs.len() {
+                    data.regs[addr] = *word;
+                    tracing::info!("Write FC06: addr={addr} value={word}");
+                    Response::WriteSingleRegister(*req_addr, *word)
+                } else {
+                    tracing::warn!("Write FC06: addr={addr} out of range");
+                    return std::future::ready(Err(ExceptionCode::IllegalDataAddress));
+                }
+            }
+            Request::WriteMultipleRegisters(req_addr, words) => {
+                let mut data = self.data.lock().unwrap();
+                let addr = *req_addr as usize;
+                let end = addr + words.len();
+                if end <= data.regs.len() {
+                    data.regs[addr..end].copy_from_slice(words);
+                    tracing::info!("Write FC16: addr={addr} qty={}", words.len());
+                    Response::WriteMultipleRegisters(*req_addr, words.len() as u16)
+                } else {
+                    tracing::warn!("Write FC16: addr={addr}..{end} out of range (max={})", data.regs.len());
+                    return std::future::ready(Err(ExceptionCode::IllegalDataAddress));
+                }
             }
             _ => {
                 tracing::warn!("Unsupported function code: {req:?}");

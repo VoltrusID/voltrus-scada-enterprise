@@ -1,10 +1,12 @@
 #![allow(dead_code)]
-use super::{
-    DeviceConfig, Endianness, RegisterConfig, RegisterType, default_interval, default_interval_ms,
-    default_modbus_port, default_register_area, default_scale, default_true, default_unit_id,
-};
-// ── DB-persisted Modbus types ──
 
+#[cfg(feature = "modbus")]
+use super::{DeviceConfig, Endianness, RegisterConfig, RegisterType, default_interval, default_modbus_port, default_register_area, default_scale, default_unit_id};
+
+#[cfg(any(feature = "modbus", feature = "opcua", feature = "s7", feature = "ethernet-ip"))]
+use super::{default_interval_ms, default_true};
+
+#[cfg(feature = "modbus")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModbusDevice {
     pub id: String,
@@ -19,6 +21,7 @@ pub struct ModbusDevice {
     pub updated_at: i64,
 }
 
+#[cfg(feature = "modbus")]
 impl ModbusDevice {
     pub fn to_device_config(&self, registers: &[ModbusRegister]) -> DeviceConfig {
         DeviceConfig {
@@ -53,6 +56,7 @@ impl ModbusDevice {
     }
 }
 
+#[cfg(feature = "modbus")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModbusRegister {
     pub id: i64,
@@ -65,6 +69,7 @@ pub struct ModbusRegister {
     pub sort_order: i64,
 }
 
+#[cfg(feature = "modbus")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateModbusDeviceRequest {
     pub id: String,
@@ -81,6 +86,7 @@ pub struct CreateModbusDeviceRequest {
     pub registers: Vec<ModbusRegisterInput>,
 }
 
+#[cfg(feature = "modbus")]
 #[derive(Debug, serde::Deserialize)]
 pub struct ModbusRegisterInput {
     pub name: String,
@@ -93,10 +99,12 @@ pub struct ModbusRegisterInput {
     pub register_area: String,
 }
 
+#[cfg(feature = "modbus")]
 fn default_reg_type_str() -> String {
     "float32".to_string()
 }
 
+#[cfg(feature = "modbus")]
 #[derive(Debug, serde::Deserialize)]
 pub struct ScanRegisterRequest {
     pub ip: String,
@@ -114,14 +122,17 @@ pub struct ScanRegisterRequest {
     pub scan_delay_ms: u64,
 }
 
+#[cfg(feature = "modbus")]
 fn default_scan_delay() -> u64 {
     500
 }
 
+#[cfg(feature = "modbus")]
 fn default_scan_register_area() -> String {
     "holding".to_string()
 }
 
+#[cfg(feature = "modbus")]
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ScannedRegister {
     pub address: u16,
@@ -133,6 +144,7 @@ pub struct ScannedRegister {
     pub interpreted_value: Option<f64>,
 }
 
+#[cfg(feature = "modbus")]
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PollerStatus {
     pub device_id: String,
@@ -142,6 +154,7 @@ pub struct PollerStatus {
 
 // ── OPC-UA config types ──
 
+#[cfg(feature = "opcua")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub enum OpcUaSecurityPolicy {
     #[default]
@@ -150,6 +163,7 @@ pub enum OpcUaSecurityPolicy {
     Basic256Sha256,
 }
 
+#[cfg(feature = "opcua")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 pub enum OpcUaSecurityMode {
     #[default]
@@ -159,6 +173,7 @@ pub enum OpcUaSecurityMode {
     SignAndEncrypt,
 }
 
+#[cfg(feature = "opcua")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpcUaNodeConfig {
     pub node_id: String,
@@ -170,6 +185,7 @@ pub struct OpcUaNodeConfig {
 }
 
 /// Runtime config for an OPC-UA device, used by the poller.
+#[cfg(feature = "opcua")]
 #[derive(Debug, Clone)]
 pub struct OpcUaDeviceConfig {
     pub id: String,
@@ -183,6 +199,7 @@ pub struct OpcUaDeviceConfig {
 }
 
 /// Database row for opcua_devices table.
+#[cfg(feature = "opcua")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpcUaDevice {
     pub id: i64,
@@ -200,6 +217,7 @@ pub struct OpcUaDevice {
 }
 
 /// Database row for opcua_nodes table.
+#[cfg(feature = "opcua")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpcUaNode {
     pub id: i64,
@@ -211,6 +229,7 @@ pub struct OpcUaNode {
     pub created_at: i64,
 }
 
+#[cfg(feature = "opcua")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateOpcUaDeviceRequest {
     pub name: String,
@@ -227,6 +246,7 @@ pub struct CreateOpcUaDeviceRequest {
     pub enabled: bool,
 }
 
+#[cfg(feature = "opcua")]
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateOpcUaDeviceRequest {
     pub name: Option<String>,
@@ -239,6 +259,7 @@ pub struct UpdateOpcUaDeviceRequest {
     pub enabled: Option<bool>,
 }
 
+#[cfg(feature = "opcua")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateOpcUaNodeRequest {
     pub node_id: String,
@@ -252,6 +273,7 @@ pub struct CreateOpcUaNodeRequest {
 // ── S7 (Siemens) device types ──
 
 /// Database row for s7_devices table.
+#[cfg(feature = "s7")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct S7Device {
     pub id: i64,
@@ -268,14 +290,17 @@ pub struct S7Device {
     pub created_at: i64,
 }
 
+#[cfg(feature = "s7")]
 fn default_s7_rack() -> u8 {
     0
 }
+#[cfg(feature = "s7")]
 fn default_s7_slot() -> u8 {
     1
 }
 
 /// Database row for s7_tags table.
+#[cfg(feature = "s7")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct S7TagRow {
     pub id: i64,
@@ -289,6 +314,7 @@ pub struct S7TagRow {
     pub created_at: i64,
 }
 
+#[cfg(feature = "s7")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateS7DeviceRequest {
     pub name: String,
@@ -303,6 +329,7 @@ pub struct CreateS7DeviceRequest {
     pub enabled: bool,
 }
 
+#[cfg(feature = "s7")]
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateS7DeviceRequest {
     pub name: Option<String>,
@@ -313,6 +340,7 @@ pub struct UpdateS7DeviceRequest {
     pub enabled: Option<bool>,
 }
 
+#[cfg(feature = "s7")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateS7TagRequest {
     pub tag_address: String,
@@ -326,6 +354,7 @@ pub struct CreateS7TagRequest {
 // ── EtherNet/IP (Allen-Bradley) device types ──
 
 /// Database row for enip_devices table.
+#[cfg(feature = "ethernet-ip")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EnipDevice {
     pub id: i64,
@@ -340,11 +369,13 @@ pub struct EnipDevice {
     pub created_at: i64,
 }
 
+#[cfg(feature = "ethernet-ip")]
 fn default_enip_slot() -> u8 {
     0
 }
 
 /// Database row for enip_tags table.
+#[cfg(feature = "ethernet-ip")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EnipTag {
     pub id: i64,
@@ -358,6 +389,7 @@ pub struct EnipTag {
     pub created_at: i64,
 }
 
+#[cfg(feature = "ethernet-ip")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateEnipDeviceRequest {
     pub name: String,
@@ -370,6 +402,7 @@ pub struct CreateEnipDeviceRequest {
     pub enabled: bool,
 }
 
+#[cfg(feature = "ethernet-ip")]
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateEnipDeviceRequest {
     pub name: Option<String>,
@@ -379,6 +412,7 @@ pub struct UpdateEnipDeviceRequest {
     pub enabled: Option<bool>,
 }
 
+#[cfg(feature = "ethernet-ip")]
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateEnipTagRequest {
     pub tag_name: String,
@@ -390,6 +424,7 @@ pub struct CreateEnipTagRequest {
 }
 
 /// Runtime config for an EtherNet/IP device, used by the poller.
+#[cfg(feature = "ethernet-ip")]
 #[derive(Debug, Clone)]
 pub struct EnipDeviceConfig {
     pub id: String,

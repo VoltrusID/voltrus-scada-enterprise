@@ -4,9 +4,16 @@ use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use crate::cache::DeviceCache;
-use crate::models::{
-    DeviceConfig, Dnp3DeviceConfig, EnipDeviceConfig, OpcUaDeviceConfig, PollerStatus,
-};
+#[cfg(feature = "modbus")]
+use crate::models::DeviceConfig;
+#[cfg(feature = "opcua")]
+use crate::models::OpcUaDeviceConfig;
+#[cfg(feature = "ethernet-ip")]
+use crate::models::EnipDeviceConfig;
+#[cfg(feature = "dnp3")]
+use crate::models::Dnp3DeviceConfig;
+use crate::models::PollerStatus;
+#[cfg(feature = "s7")]
 use crate::s7::S7DeviceConfig;
 use crate::storage::Storage;
 
@@ -92,6 +99,7 @@ impl PollerManager {
         Some(crate::sim_engine::SimConfig { data_type, params })
     }
 
+    #[cfg(feature = "modbus")]
     pub async fn start(&self, config: DeviceConfig) {
         let device_id = config.id.clone();
         if self.is_running(&device_id).await {
@@ -113,6 +121,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
+    #[cfg(feature = "opcua")]
     pub async fn start_opcua(&self, config: OpcUaDeviceConfig) {
         let device_id = config.id.clone();
         if self.is_running(&device_id).await {
@@ -125,6 +134,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
+    #[cfg(feature = "s7")]
     pub async fn start_s7(&self, config: S7DeviceConfig) {
         let device_id = config.id.clone();
         if self.is_running(&device_id).await {
@@ -137,6 +147,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
+    #[cfg(feature = "ethernet-ip")]
     pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
         let device_id = config.id.clone();
         if self.is_running(&device_id).await {
@@ -159,6 +170,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
+    #[cfg(feature = "dnp3")]
     pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
         let device_id = config.id.clone();
         if self.is_running(&device_id).await {
@@ -171,6 +183,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
+    #[cfg(feature = "bacnet")]
     pub async fn start_bacnet(&self, config: crate::models::BacnetDeviceConfig) {
         let device_id = config.id.clone();
         if self.is_running(&device_id).await {
@@ -189,6 +202,7 @@ impl PollerManager {
         }
     }
 
+    #[cfg(feature = "modbus")]
     pub async fn restart(&self, config: DeviceConfig) {
         self.stop(&config.id).await;
         self.start(config).await;

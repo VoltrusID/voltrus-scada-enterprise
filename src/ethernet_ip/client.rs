@@ -182,7 +182,8 @@ impl EthernetIpClient {
         rr_data.extend_from_slice(&(cip_payload.len() as u16).to_le_bytes());
         rr_data.extend_from_slice(&cip_payload);
 
-        let packet = build_enip_header(CMD_SEND_RR_DATA, self.session_handle, 0, &rr_data);
+        let seq = self.next_sequence();
+        let packet = build_enip_header(CMD_SEND_RR_DATA, self.session_handle, seq as u64, &rr_data);
 
         let stream = self.stream.as_mut().context("Not connected")?;
         stream

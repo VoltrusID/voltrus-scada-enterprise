@@ -70,7 +70,10 @@ async fn probe_outstation(
     };
 
     let frame = build_link_reset_frame(1, 0);
-    let bytes = frame.encode();
+    let bytes = match frame.encode() {
+        Ok(b) => b,
+        Err(_) => return None,
+    };
     if stream.write_all(&bytes).await.is_err() {
         return None;
     }
@@ -86,11 +89,7 @@ async fn probe_outstation(
                     outstation_address: response.source,
                 })
             } else {
-                Some(DiscoveredDnp3Device {
-                    ip: ip.to_string(),
-                    port,
-                    outstation_address: 10,
-                })
+                None
             }
         }
         _ => None,

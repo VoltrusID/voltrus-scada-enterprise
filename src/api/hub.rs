@@ -55,6 +55,7 @@ impl HubManager {
     }
 
     #[allow(dead_code)]
+    // Utility for graceful shutdown; not yet wired to the shutdown handler.
     pub async fn stop_all(&self) {
         let mut handles = self.handles.write().await;
         for (_, handle) in handles.drain() {

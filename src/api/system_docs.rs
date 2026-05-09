@@ -34,15 +34,21 @@ pub async fn get_topology(
         .map_err(AppError)?;
 
     // Gather protocol devices
+    #[cfg(feature = "modbus")]
     let modbus_devs = state
         .storage
         .list_modbus_devices()
         .await
         .unwrap_or_default();
+    #[cfg(feature = "opcua")]
     let opcua_devs = state.storage.list_opcua_devices().await.unwrap_or_default();
+    #[cfg(feature = "s7")]
     let s7_devs = state.storage.list_s7_devices().await.unwrap_or_default();
+    #[cfg(feature = "ethernet-ip")]
     let enip_devs = state.storage.list_enip_devices().await.unwrap_or_default();
+    #[cfg(feature = "dnp3")]
     let dnp3_devs = state.storage.list_dnp3_devices().await.unwrap_or_default();
+    #[cfg(feature = "bacnet")]
     let bacnet_devs = state
         .storage
         .list_bacnet_devices()
@@ -53,6 +59,7 @@ pub async fn get_topology(
     let mut proto_map: std::collections::HashMap<String, (String, String, u16, bool)> =
         std::collections::HashMap::new();
 
+    #[cfg(feature = "modbus")]
     for d in &modbus_devs {
         proto_map.insert(
             d.id.clone(),
@@ -64,24 +71,28 @@ pub async fn get_topology(
             ),
         );
     }
+    #[cfg(feature = "opcua")]
     for d in &opcua_devs {
         proto_map.insert(
             format!("opcua_{}", d.id),
             ("OPC-UA".into(), d.url.clone(), 0, d.enabled),
         );
     }
+    #[cfg(feature = "s7")]
     for d in &s7_devs {
         proto_map.insert(
             format!("s7_{}", d.id),
             ("Siemens S7".into(), d.url.clone(), 0, d.enabled),
         );
     }
+    #[cfg(feature = "ethernet-ip")]
     for d in &enip_devs {
         proto_map.insert(
             format!("enip_{}", d.id),
             ("EtherNet/IP".into(), d.url.clone(), 0, d.enabled),
         );
     }
+    #[cfg(feature = "dnp3")]
     for d in &dnp3_devs {
         proto_map.insert(
             format!("dnp3_{}", d.id),
@@ -93,6 +104,7 @@ pub async fn get_topology(
             ),
         );
     }
+    #[cfg(feature = "bacnet")]
     for d in &bacnet_devs {
         proto_map.insert(
             format!("bacnet_{}", d.id),
@@ -230,15 +242,21 @@ pub async fn get_tag_xref(
         .collect();
 
     // Protocol lookup per data source
+    #[cfg(feature = "modbus")]
     let modbus_devs = state
         .storage
         .list_modbus_devices()
         .await
         .unwrap_or_default();
+    #[cfg(feature = "opcua")]
     let opcua_devs = state.storage.list_opcua_devices().await.unwrap_or_default();
+    #[cfg(feature = "s7")]
     let s7_devs = state.storage.list_s7_devices().await.unwrap_or_default();
+    #[cfg(feature = "ethernet-ip")]
     let enip_devs = state.storage.list_enip_devices().await.unwrap_or_default();
+    #[cfg(feature = "dnp3")]
     let dnp3_devs = state.storage.list_dnp3_devices().await.unwrap_or_default();
+    #[cfg(feature = "bacnet")]
     let bacnet_devs = state
         .storage
         .list_bacnet_devices()
@@ -246,21 +264,27 @@ pub async fn get_tag_xref(
         .unwrap_or_default();
 
     let mut proto_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    #[cfg(feature = "modbus")]
     for d in &modbus_devs {
         proto_map.insert(d.id.clone(), "Modbus TCP".into());
     }
+    #[cfg(feature = "opcua")]
     for d in &opcua_devs {
         proto_map.insert(format!("opcua_{}", d.id), "OPC-UA".into());
     }
+    #[cfg(feature = "s7")]
     for d in &s7_devs {
         proto_map.insert(format!("s7_{}", d.id), "Siemens S7".into());
     }
+    #[cfg(feature = "ethernet-ip")]
     for d in &enip_devs {
         proto_map.insert(format!("enip_{}", d.id), "EtherNet/IP".into());
     }
+    #[cfg(feature = "dnp3")]
     for d in &dnp3_devs {
         proto_map.insert(format!("dnp3_{}", d.id), "DNP3".into());
     }
+    #[cfg(feature = "bacnet")]
     for d in &bacnet_devs {
         proto_map.insert(format!("bacnet_{}", d.id), "BACnet/IP".into());
     }
@@ -614,15 +638,21 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
         .await
         .map_err(AppError)?;
 
+    #[cfg(feature = "modbus")]
     let modbus_devs = state
         .storage
         .list_modbus_devices()
         .await
         .unwrap_or_default();
+    #[cfg(feature = "opcua")]
     let opcua_devs = state.storage.list_opcua_devices().await.unwrap_or_default();
+    #[cfg(feature = "s7")]
     let s7_devs = state.storage.list_s7_devices().await.unwrap_or_default();
+    #[cfg(feature = "ethernet-ip")]
     let enip_devs = state.storage.list_enip_devices().await.unwrap_or_default();
+    #[cfg(feature = "dnp3")]
     let dnp3_devs = state.storage.list_dnp3_devices().await.unwrap_or_default();
+    #[cfg(feature = "bacnet")]
     let bacnet_devs = state
         .storage
         .list_bacnet_devices()
@@ -631,6 +661,7 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
 
     let mut proto_map: std::collections::HashMap<String, (String, String, u16, bool)> =
         std::collections::HashMap::new();
+    #[cfg(feature = "modbus")]
     for d in &modbus_devs {
         proto_map.insert(
             d.id.clone(),
@@ -642,24 +673,28 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
             ),
         );
     }
+    #[cfg(feature = "opcua")]
     for d in &opcua_devs {
         proto_map.insert(
             format!("opcua_{}", d.id),
             ("OPC-UA".into(), d.url.clone(), 0, d.enabled),
         );
     }
+    #[cfg(feature = "s7")]
     for d in &s7_devs {
         proto_map.insert(
             format!("s7_{}", d.id),
             ("Siemens S7".into(), d.url.clone(), 0, d.enabled),
         );
     }
+    #[cfg(feature = "ethernet-ip")]
     for d in &enip_devs {
         proto_map.insert(
             format!("enip_{}", d.id),
             ("EtherNet/IP".into(), d.url.clone(), 0, d.enabled),
         );
     }
+    #[cfg(feature = "dnp3")]
     for d in &dnp3_devs {
         proto_map.insert(
             format!("dnp3_{}", d.id),
@@ -671,6 +706,7 @@ async fn build_topology(state: &AppState) -> Result<SystemTopology, AppError> {
             ),
         );
     }
+    #[cfg(feature = "bacnet")]
     for d in &bacnet_devs {
         proto_map.insert(
             format!("bacnet_{}", d.id),

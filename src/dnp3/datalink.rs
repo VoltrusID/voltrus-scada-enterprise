@@ -36,8 +36,8 @@ pub fn crc_ccitt(data: &[u8]) -> u16 {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControlByte {
     pub master: bool,
-    pub fir: bool,
-    pub fin: bool,
+    pub fcb: bool,
+    pub fcv: bool,
     pub sequence: u8,
 }
 
@@ -45,8 +45,8 @@ impl ControlByte {
     pub fn to_byte(&self) -> u8 {
         let dir = if self.master { 0x80 } else { 0x00 };
         let prm = if self.master { 0x40 } else { 0x00 };
-        let fcb = if self.fir { 0x20 } else { 0x00 };
-        let fcv = if self.fin { 0x10 } else { 0x00 };
+        let fcb = if self.fcb { 0x20 } else { 0x00 };
+        let fcv = if self.fcv { 0x10 } else { 0x00 };
         let func = self.sequence & 0x0F;
         dir | prm | fcb | fcv | func
     }
@@ -54,8 +54,8 @@ impl ControlByte {
     pub fn from_byte(byte: u8) -> Self {
         Self {
             master: byte & 0x80 != 0,
-            fir: byte & 0x20 != 0,
-            fin: byte & 0x10 != 0,
+            fcb: byte & 0x20 != 0,
+            fcv: byte & 0x10 != 0,
             sequence: byte & 0x0F,
         }
     }
@@ -64,8 +64,8 @@ impl ControlByte {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dnp3Frame {
     pub master: bool,
-    pub fir: bool,
-    pub fin: bool,
+    pub fcb: bool,
+    pub fcv: bool,
     pub sequence: u8,
     pub destination: u16,
     pub source: u16,
@@ -73,14 +73,21 @@ pub struct Dnp3Frame {
 }
 
 impl Dnp3Frame {
-    pub fn encode(&self) -> Vec<u8> {
+    pub fn encode(&self) -> Result<Vec<u8>> {
         let ctrl = ControlByte {
             master: self.master,
-            fir: self.fir,
-            fin: self.fin,
+            fcb: self.fcb,
+            fcv: self.fcv,
             sequence: self.sequence,
         };
         let user_data_len = 5 + self.data.len();
+
+        if user_data_len > 255 {
+            anyhow::bail!(
+                "DNP3 data length overflow: {} bytes exceeds maximum of 255",
+                user_data_len
+            );
+        }
 
         let mut raw = Vec::with_capacity(user_data_len + 10);
         raw.push(0x05);
@@ -93,7 +100,7 @@ impl Dnp3Frame {
         raw.push(((self.source >> 8) & 0xFF) as u8);
         raw.extend_from_slice(&self.data);
 
-        insert_crc_blocks(&mut raw)
+        Ok(insert_crc_blocks(&mut raw))
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self> {
@@ -122,8 +129,8 @@ impl Dnp3Frame {
 
         Ok(Self {
             master: ctrl.master,
-            fir: ctrl.fir,
-            fin: ctrl.fin,
+            fcb: ctrl.fcb,
+            fcv: ctrl.fcv,
             sequence: ctrl.sequence,
             destination,
             source,
@@ -209,14 +216,14 @@ mod tests {
     fn test_encode_request_frame() {
         let frame = Dnp3Frame {
             master: true,
-            fir: true,
-            fin: true,
+            fcb: true,
+            fcv: true,
             sequence: 0,
             destination: 10,
             source: 1,
             data: vec![0xC0, 0x01],
         };
-        let bytes = frame.encode();
+        let bytes = frame.encode().unwrap();
         assert_eq!(bytes[0], 0x05);
         assert_eq!(bytes[1], 0x64);
         assert_eq!(bytes[2], (5 + frame.data.len()) as u8);
@@ -226,14 +233,14 @@ mod tests {
     fn test_decode_response_frame() {
         let frame = Dnp3Frame {
             master: false,
-            fir: true,
-            fin: true,
+            fcb: true,
+            fcv: true,
             sequence: 0,
             destination: 1,
             source: 10,
             data: vec![],
         };
-        let bytes = frame.encode();
+        let bytes = frame.encode().unwrap();
         let decoded = Dnp3Frame::decode(&bytes).expect("decode should succeed");
         assert_eq!(decoded.master, false);
         assert_eq!(decoded.source, 10);
@@ -244,8 +251,8 @@ mod tests {
     fn test_control_byte_master_request() {
         let ctrl = ControlByte {
             master: true,
-            fir: true,
-            fin: true,
+            fcb: true,
+            fcv: true,
             sequence: 0,
         };
         let byte = ctrl.to_byte();
@@ -258,15 +265,29 @@ mod tests {
     fn test_crc_roundtrip() {
         let frame = Dnp3Frame {
             master: true,
-            fir: true,
-            fin: true,
+            fcb: true,
+            fcv: true,
             sequence: 3,
             destination: 100,
             source: 1,
             data: vec![0x01, 0x02, 0x03, 0x04, 0x05],
         };
-        let encoded = frame.encode();
+        let encoded = frame.encode().unwrap();
         let decoded = Dnp3Frame::decode(&encoded).expect("roundtrip decode should succeed");
         assert_eq!(decoded, frame);
+    }
+
+    #[test]
+    fn test_data_length_overflow() {
+        let frame = Dnp3Frame {
+            master: true,
+            fcb: false,
+            fcv: false,
+            sequence: 0,
+            destination: 10,
+            source: 1,
+            data: vec![0u8; 251], // 5 + 251 = 256 > 255
+        };
+        assert!(frame.encode().is_err());
     }
 }

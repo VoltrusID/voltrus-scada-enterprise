@@ -39,7 +39,7 @@ pub async fn poll_enip_device(config: EnipDeviceRuntimeConfig, cache: DeviceCach
     let mut backoff = Backoff::new();
 
     loop {
-        match try_poll_cycle(&config, &cache).await {
+        match try_connect_and_poll(&config, &cache).await {
             Ok(()) => {
                 backoff.reset();
             }
@@ -58,36 +58,43 @@ pub async fn poll_enip_device(config: EnipDeviceRuntimeConfig, cache: DeviceCach
     }
 }
 
-/// Attempt one poll cycle: connect, read all tags, update cache.
-async fn try_poll_cycle(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -> Result<()> {
+/// Connect once, then poll in a loop until an error occurs.
+async fn try_connect_and_poll(
+    config: &EnipDeviceRuntimeConfig,
+    cache: &DeviceCache,
+) -> Result<()> {
     let mut client = EthernetIpClient::new(&config.url);
     client
         .connect()
         .await
         .context("EtherNet/IP connect failed")?;
 
-    let mut metrics = HashMap::new();
+    cache
+        .set_status(&config.id, DeviceStatus::Online)
+        .await;
 
-    for tag in &config.tags {
-        match client.read_tag(&tag.tag_name).await {
-            Ok(value) => {
-                if let Some(fv) = value.to_f64() {
-                    metrics.insert(tag.name.clone(), fv);
+    loop {
+        let mut metrics = HashMap::new();
+
+        for tag in &config.tags {
+            match client.read_tag(&tag.tag_name).await {
+                Ok(value) => {
+                    if let Some(fv) = value.to_f64() {
+                        metrics.insert(tag.name.clone(), fv);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("EtherNet/IP tag read '{}' failed: {}", tag.tag_name, e);
                 }
             }
-            Err(e) => {
-                tracing::warn!("EtherNet/IP tag read '{}' failed: {}", tag.tag_name, e);
-            }
         }
+
+        if !metrics.is_empty() {
+            cache.update(&config.id, metrics, false).await;
+        }
+
+        tokio::time::sleep(Duration::from_millis(config.interval_ms)).await;
     }
-
-    client.disconnect().await.ok();
-
-    if !metrics.is_empty() {
-        cache.update(&config.id, metrics, false).await;
-    }
-
-    Ok(())
 }
 
 // ── One-shot write function ──

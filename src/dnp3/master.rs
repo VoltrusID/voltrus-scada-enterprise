@@ -35,8 +35,8 @@ impl SequenceTracker {
 pub fn build_link_reset_frame(master_addr: u16, outstation_addr: u16) -> Dnp3Frame {
     Dnp3Frame {
         master: true,
-        fir: true,
-        fin: true,
+        fcb: false,
+        fcv: false,
         sequence: 0,
         destination: outstation_addr,
         source: master_addr,
@@ -50,6 +50,7 @@ pub struct Dnp3MasterSession {
     master_addr: u16,
     outstation_addr: u16,
     seq: SequenceTracker,
+    fcb: bool,
 }
 
 impl Dnp3MasterSession {
@@ -74,6 +75,7 @@ impl Dnp3MasterSession {
             master_addr,
             outstation_addr,
             seq: SequenceTracker::new(),
+            fcb: false,
         };
 
         session.send_link_reset().await?;
@@ -99,6 +101,7 @@ impl Dnp3MasterSession {
         self.read_response_objects().await
     }
 
+    // DNP3 spec: freeze counter command (not yet wired to poller/API).
     pub async fn freeze_counters(&mut self) -> Result<()> {
         let seq = self.seq.next();
         let asdu = build_freeze_request(seq);
@@ -137,7 +140,7 @@ impl Dnp3MasterSession {
 
     async fn send_link_reset(&mut self) -> Result<()> {
         let frame = build_link_reset_frame(self.master_addr, self.outstation_addr);
-        let bytes = frame.encode();
+        let bytes = frame.encode()?;
         self.stream
             .write_all(&bytes)
             .await
@@ -148,18 +151,19 @@ impl Dnp3MasterSession {
     async fn send_asdu(&mut self, asdu: &[u8]) -> Result<()> {
         let frame = Dnp3Frame {
             master: true,
-            fir: true,
-            fin: true,
+            fcb: self.fcb,
+            fcv: true,
             sequence: 0,
             destination: self.outstation_addr,
             source: self.master_addr,
             data: asdu.to_vec(),
         };
-        let bytes = frame.encode();
+        let bytes = frame.encode()?;
         self.stream
             .write_all(&bytes)
             .await
             .context("Send ASDU failed")?;
+        self.fcb = !self.fcb;
         Ok(())
     }
 
@@ -240,5 +244,7 @@ mod tests {
         assert_eq!(frame.destination, 10);
         assert_eq!(frame.source, 1);
         assert!(!frame.data.is_empty());
+        assert_eq!(frame.fcb, false);
+        assert_eq!(frame.fcv, false);
     }
 }

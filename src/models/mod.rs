@@ -1,9 +1,11 @@
 pub mod alarm_types;
 pub mod analytics;
 pub mod api_types;
+#[cfg(feature = "bacnet")]
 pub mod bacnet_types;
 pub mod command_types;
 pub mod config_types;
+#[cfg(feature = "dnp3")]
 pub mod dnp3_types;
 pub mod notification_types;
 pub mod operations;
@@ -13,9 +15,11 @@ pub mod rbac_types;
 pub use alarm_types::*;
 pub use analytics::*;
 pub use api_types::*;
+#[cfg(feature = "bacnet")]
 pub use bacnet_types::*;
 pub use command_types::*;
 pub use config_types::*;
+#[cfg(feature = "dnp3")]
 pub use dnp3_types::*;
 pub use notification_types::*;
 pub use operations::*;

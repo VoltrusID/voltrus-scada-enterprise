@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(feature = "dnp3")]
 use crate::dnp3::master::Dnp3MasterSession;
 use crate::models::WriteResult;
 
@@ -17,9 +18,13 @@ impl CommandQueue {
         };
 
         match cmd.protocol.as_str() {
+            #[cfg(feature = "modbus")]
             "modbus" => self.execute_modbus_write(cmd, value).await,
+            #[cfg(feature = "s7")]
             "s7" => self.execute_s7_write(cmd, value).await,
+            #[cfg(feature = "opcua")]
             "opcua" => self.execute_opcua_write(cmd, value).await,
+            #[cfg(feature = "ethernet-ip")]
             "ethernet_ip" => self.execute_enip_write(cmd, value).await,
             "mqtt" => WriteResult {
                 success: true,
@@ -27,7 +32,9 @@ impl CommandQueue {
                 error: None,
                 latency_ms: 0,
             },
+            #[cfg(feature = "dnp3")]
             "dnp3" => self.execute_dnp3_write(cmd, value).await,
+            #[cfg(feature = "bacnet")]
             "bacnet" => self.execute_bacnet_write(cmd, value).await,
             _ => WriteResult {
                 success: false,
@@ -37,7 +44,10 @@ impl CommandQueue {
             },
         }
     }
+}
 
+#[cfg(feature = "modbus")]
+impl CommandQueue {
     pub(super) async fn execute_modbus_write(
         &self,
         cmd: &crate::models::Command,
@@ -100,9 +110,12 @@ impl CommandQueue {
             network: None,
         };
 
-        crate::modbus::write_tag(&config, address, value).await
+        crate::modbus::write_tag(&self.modbus_pool, &config, address, value).await
     }
+}
 
+#[cfg(feature = "s7")]
+impl CommandQueue {
     pub(super) async fn execute_s7_write(
         &self,
         cmd: &crate::models::Command,
@@ -149,7 +162,10 @@ impl CommandQueue {
 
         crate::s7::write_tag(&ip, port, &area, db_number, offset, value).await
     }
+}
 
+#[cfg(feature = "opcua")]
+impl CommandQueue {
     pub(super) async fn execute_opcua_write(
         &self,
         cmd: &crate::models::Command,
@@ -193,7 +209,10 @@ impl CommandQueue {
 
         crate::opcua::write_tag(&device.url, &node_id, value).await
     }
+}
 
+#[cfg(feature = "ethernet-ip")]
+impl CommandQueue {
     pub(super) async fn execute_enip_write(
         &self,
         cmd: &crate::models::Command,
@@ -241,7 +260,10 @@ impl CommandQueue {
 
         crate::ethernet_ip::write_tag(&ip, port, &tag_name, value).await
     }
+}
 
+#[cfg(feature = "dnp3")]
+impl CommandQueue {
     pub(super) async fn execute_dnp3_write(
         &self,
         cmd: &crate::models::Command,
@@ -309,7 +331,10 @@ impl CommandQueue {
             },
         }
     }
+}
 
+#[cfg(feature = "bacnet")]
+impl CommandQueue {
     pub(super) async fn execute_bacnet_write(
         &self,
         cmd: &crate::models::Command,

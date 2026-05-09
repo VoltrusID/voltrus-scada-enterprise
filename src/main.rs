@@ -8,6 +8,7 @@ mod api;
 mod asset;
 mod auth;
 mod backup;
+#[cfg(feature = "bacnet")]
 mod bacnet;
 mod cache;
 mod cli;
@@ -17,9 +18,19 @@ mod compression;
 mod config;
 mod config_export;
 mod deadband;
+#[cfg(any(
+    feature = "modbus",
+    feature = "opcua",
+    feature = "bacnet",
+    feature = "dnp3",
+    feature = "ethernet-ip",
+    feature = "s7"
+))]
 mod discovery;
+#[cfg(feature = "dnp3")]
 mod dnp3;
 mod edr_compat;
+#[cfg(feature = "ethernet-ip")]
 mod ethernet_ip;
 mod expression;
 mod flow_engine;
@@ -29,18 +40,22 @@ mod hub;
 mod import_nodered;
 mod integration;
 mod license;
+#[cfg(feature = "modbus")]
 mod modbus;
 mod models;
+#[cfg(feature = "mqtt-broker")]
 mod mqtt_broker;
 mod network;
 mod notification;
 mod oee;
+#[cfg(feature = "opcua")]
 mod opcua;
 mod poller_manager;
 mod recipe;
 mod report;
 mod report_scheduler;
 mod retention;
+#[cfg(feature = "s7")]
 mod s7;
 mod script_engine;
 mod security;
@@ -237,6 +252,7 @@ async fn main() -> anyhow::Result<()> {
         storage.clone(),
         network::NetworkManager::new(app_config.networks.clone()),
     );
+    #[cfg(feature = "modbus")]
     if license_status.is_valid() {
         let device_configs = storage.get_all_device_configs().await?;
         let device_limit = license_tier.max_devices();
@@ -262,6 +278,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Start OPC-UA pollers (Professional tier only)
+    #[cfg(feature = "opcua")]
     {
         if license_tier.opcua_enabled() {
             match storage.get_all_opcua_device_configs().await {
@@ -696,8 +713,19 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn command queue processor (Starter tier and above)
     if license_tier.command_queue() {
-        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone())
-            .with_ws_manager(ws_manager.clone());
+        #[cfg(feature = "modbus")]
+        let queue = command_queue::CommandQueue::new(
+            storage.clone(),
+            cache.clone(),
+            std::sync::Arc::new(crate::modbus::ModbusPool::new()),
+        )
+        .with_ws_manager(ws_manager.clone());
+        #[cfg(not(feature = "modbus"))]
+        let queue = command_queue::CommandQueue::new(
+            storage.clone(),
+            cache.clone(),
+        )
+        .with_ws_manager(ws_manager.clone());
         tokio::spawn(async move {
             queue.run().await;
         });
@@ -768,6 +796,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Initialize MQTT broker (Starter tier and above)
+    #[cfg(feature = "mqtt-broker")]
     let mqtt_broker_state = {
         if license_tier.mqtt_broker() {
             let broker_state = crate::mqtt_broker::MqttBrokerState::new();
@@ -798,6 +827,8 @@ async fn main() -> anyhow::Result<()> {
             None
         }
     };
+    #[cfg(not(feature = "mqtt-broker"))]
+    let mqtt_broker_state: Option<()> = None;
 
     // Initialize health monitor and HA state
     let health_monitor = Arc::new(ha::watchdog::HealthMonitor::new(

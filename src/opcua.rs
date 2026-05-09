@@ -9,6 +9,7 @@ use opcua::types::{
     AttributeId, DataValue, MessageSecurityMode, MonitoringMode, MonitoringParameters, NodeId,
     NumericRange, ReadValueId, TimestampsToReturn, UserTokenPolicy, Variant,
 };
+use tokio::sync::mpsc;
 
 use crate::cache::DeviceCache;
 use crate::models::*;
@@ -116,7 +117,7 @@ async fn try_connect_and_subscribe(config: &OpcUaDeviceConfig, cache: &DeviceCac
     let subscription_id = session
         .create_subscription(
             Duration::from_millis(interval_ms),
-            10,   // lifetime_count
+            90,   // lifetime_count (3x max_keep_alive_count per OPC-UA spec)
             30,   // max_keep_alive_count
             0,    // max_notifications_per_publish
             0,    // priority
@@ -206,6 +207,10 @@ async fn try_connect_and_subscribe(config: &OpcUaDeviceConfig, cache: &DeviceCac
 
 /// Creates a `DataChangeCallback` closure that extracts values from
 /// OPC-UA `DataValue` updates and pushes them into the `DeviceCache`.
+///
+/// Uses an mpsc channel so that high-frequency data changes (100+ tags at
+/// 100 ms) are drained by a single consumer task instead of spawning one
+/// tokio task per value change.
 fn create_data_change_callback(
     device_id: String,
     cache: DeviceCache,
@@ -223,6 +228,41 @@ fn create_data_change_callback(
             .collect(),
     );
 
+    // Bounded channel: 1024 slots is generous for a single device.
+    // If the consumer falls behind, the oldest updates are simply dropped
+    // (the next update will overwrite the same metric anyway).
+    let (tx, mut rx) = mpsc::channel::<(String, f64)>(1024);
+
+    // Single consumer task batches per-value updates into cache writes.
+    {
+        let cache = cache.clone();
+        let device_id = device_id.clone();
+        tokio::spawn(async move {
+            // Accumulate metrics between drain cycles.
+            let mut batch: HashMap<String, f64> = HashMap::new();
+
+            loop {
+                // Block until at least one update arrives.
+                match rx.recv().await {
+                    Some((name, value)) => {
+                        batch.insert(name, value);
+                    }
+                    None => break, // channel closed — subscription gone
+                }
+
+                // Drain everything that is already buffered so we can
+                // collapse multiple updates to the same tag into one
+                // cache write.
+                while let Ok((name, value)) = rx.try_recv() {
+                    batch.insert(name, value);
+                }
+
+                let metrics = std::mem::take(&mut batch);
+                cache.update(&device_id, metrics, false).await;
+            }
+        });
+    }
+
     move |data_value: DataValue, item: &MonitoredItem| {
         let node_id_str = item.item_to_monitor().node_id.to_string();
         let node_name = node_id_to_name
@@ -239,13 +279,9 @@ fn create_data_change_callback(
             None => return,
         };
 
-        let mut metrics = HashMap::new();
-        metrics.insert(node_name, value);
-        let cache = cache.clone();
-        let device_id = device_id.clone();
-        tokio::spawn(async move {
-            cache.update(&device_id, metrics, false).await;
-        });
+        // Non-blocking send; if the channel is full the update is dropped
+        // (the next publish cycle will deliver a fresher value anyway).
+        let _ = tx.try_send((node_name, value));
     }
 }
 

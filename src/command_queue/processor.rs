@@ -4,9 +4,26 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::cache::DeviceCache;
+#[cfg(feature = "modbus")]
+use crate::modbus::ModbusPool;
 use crate::storage::Storage;
 use crate::ws_manager::WsManager;
 
+#[cfg(feature = "modbus")]
+impl CommandQueue {
+    pub fn new(storage: Storage, cache: DeviceCache, modbus_pool: Arc<ModbusPool>) -> Self {
+        Self {
+            storage,
+            cache,
+            in_flight: Arc::new(RwLock::new(HashSet::new())),
+            ws_manager: None,
+            readback_trackers: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            modbus_pool,
+        }
+    }
+}
+
+#[cfg(not(feature = "modbus"))]
 impl CommandQueue {
     pub fn new(storage: Storage, cache: DeviceCache) -> Self {
         Self {
@@ -17,7 +34,9 @@ impl CommandQueue {
             readback_trackers: Arc::new(RwLock::new(std::collections::HashMap::new())),
         }
     }
+}
 
+impl CommandQueue {
     /// Attach a WsManager so that command status changes are broadcast over WebSocket.
     pub fn with_ws_manager(mut self, ws_manager: Arc<WsManager>) -> Self {
         self.ws_manager = Some(ws_manager);

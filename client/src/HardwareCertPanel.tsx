@@ -146,19 +146,19 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
 
   const storageIcon = (type: string) => {
     switch (type) {
-      case 'sd_card': return '💾 SD Card'
-      case 'ssd': return '💿 SSD'
-      case 'nvme': return '⚡ NVMe'
-      case 'hdd': return '📀 HDD'
-      case 'emmc': return '🔧 eMMC'
-      default: return '📦 Unknown'
+      case 'sd_card': return 'SD Card'
+      case 'ssd': return 'SSD'
+      case 'nvme': return 'NVMe'
+      case 'hdd': return 'HDD'
+      case 'emmc': return 'eMMC'
+      default: return 'Unknown'
     }
   }
 
   const boardIcon = (platform: PlatformInfo) => {
-    if (platform.is_raspberry_pi) return '🍓'
-    if (platform.is_industrial_pc) return '🏭'
-    return '🖥️'
+    if (platform.is_raspberry_pi) return 'Raspberry Pi'
+    if (platform.is_industrial_pc) return 'Industrial PC'
+    return 'Desktop'
   }
 
   return (
@@ -181,7 +181,7 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
-              🖥️ Hardware Certification & Edge Deployment
+              Hardware Certification & Edge Deployment
             </h2>
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>
               v0.38.0 — Test, certify, and deploy Voltrus on OT hardware
@@ -208,10 +208,10 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
               borderBottom: tab === t ? '2px solid var(--ok)' : '2px solid transparent',
               color: tab === t ? 'var(--fg)' : 'var(--muted)', fontSize: 13, fontWeight: 500,
             }}>
-              {t === 'report' && '📋 Report'}
-              {t === 'benchmark' && '⚡ Benchmark'}
-              {t === 'matrix' && '📊 Compat Matrix'}
-              {t === 'deploy' && '🚀 Edge Deploy'}
+              {t === 'report' && 'Report'}
+              {t === 'benchmark' && 'Benchmark'}
+              {t === 'matrix' && 'Compatibility'}
+              {t === 'deploy' && 'Edge Deploy'}
             </button>
           ))}
         </div>
@@ -290,7 +290,7 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                       <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
                         <div>↑ {assessment.max_tags.toLocaleString()} tags</div>
                         <div>↑ {assessment.max_poll_rate} Hz poll rate</div>
-                        {assessment.compression_recommended && <div style={{ color: '#f59e0b' }}>⚡ Compression recommended</div>}
+                        {assessment.compression_recommended && <div style={{ color: '#f59e0b' }}>Compression recommended</div>}
                       </div>
                     ) : (
                       <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
@@ -373,7 +373,7 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                     fontSize: 13,
                   }}
                 >
-                  {benchmarkMutation.isPending ? 'Running...' : '⚡ Run Benchmark (~20s)'}
+                  {benchmarkMutation.isPending ? 'Running...' : 'Run Benchmark (~20s)'}
                 </button>
               </div>
 
@@ -490,7 +490,7 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                   textAlign: 'center', padding: 40, color: 'var(--muted)',
                   border: '1px dashed var(--border)', borderRadius: 8,
                 }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>⚡</div>
+                  <div style={{ fontSize: 24, marginBottom: 12, fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted)' }}>[Bench]</div>
                   <div>Click "Run Benchmark" to measure hardware performance.</div>
                   <div style={{ fontSize: 12, marginTop: 6 }}>Tests: tag writes, batch inserts, queries, compression (~20 seconds)</div>
                 </div>
