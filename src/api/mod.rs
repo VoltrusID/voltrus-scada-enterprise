@@ -550,10 +550,6 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/settings/ui-lang",
             get(settings::get_ui_lang).put(settings::update_ui_lang),
         )
-        .route(
-            "/api/v1/settings/ui-lang",
-            get(settings::get_ui_lang).put(settings::update_ui_lang),
-        )
         // EDR compatibility routes (any authenticated user can view)
         .route("/api/v1/edr/report", get(edr_compat::get_edr_report))
         .route(
