@@ -5,13 +5,13 @@ use super::types::*;
 
 // ── Packet construction helpers ──
 
-pub fn build_enip_header(command: u16, session_handle: u32, _options: u32, body: &[u8]) -> Vec<u8> {
+pub fn build_enip_header(command: u16, session_handle: u32, sender_context: u64, body: &[u8]) -> Vec<u8> {
     let mut buf = Vec::with_capacity(ENIP_HEADER_SIZE + body.len());
     buf.extend_from_slice(&command.to_le_bytes());
     buf.extend_from_slice(&(body.len() as u16).to_le_bytes());
     buf.extend_from_slice(&session_handle.to_le_bytes());
     buf.extend_from_slice(&0u32.to_le_bytes()); // status
-    buf.extend_from_slice(&0u64.to_le_bytes()); // sender context
+    buf.extend_from_slice(&sender_context.to_le_bytes());
     buf.extend_from_slice(&0u32.to_le_bytes()); // options
     buf.extend_from_slice(body);
     buf

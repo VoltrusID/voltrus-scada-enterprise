@@ -151,6 +151,7 @@ pub fn extract_role(claims: &OidcClaims, config: &OidcConfig) -> String {
 
 /// Group-to-role mapping configuration.
 /// Maps OIDC group names to local application roles.
+// Planned feature: configurable group-to-role mapping for enterprise OIDC providers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GroupRoleMapping {
     #[serde(default)]
@@ -161,6 +162,7 @@ pub struct GroupRoleMapping {
 
 /// Resolves a user's role based on OIDC groups and a configurable mapping.
 /// Falls back to the default `extract_role` logic if no mapping matches.
+// Planned feature: will be wired when admin UI supports group-role mapping configuration.
 pub fn extract_role_with_mapping(
     claims: &OidcClaims,
     config: &OidcConfig,
@@ -185,6 +187,7 @@ pub fn extract_role_with_mapping(
 }
 
 /// OIDC provider presets for common identity providers.
+// Planned feature: will be exposed via admin API for quick OIDC provider setup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcProviderPreset {
     pub name: String,
@@ -224,6 +227,7 @@ pub fn get_provider_presets() -> Vec<OidcProviderPreset> {
 }
 
 /// JIT (Just-in-Time) user provisioning info extracted from OIDC claims.
+// Planned feature: auto-create local users on first OIDC login.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JitUserInfo {
     pub sub: String,
@@ -233,6 +237,7 @@ pub struct JitUserInfo {
 }
 
 /// Extracts JIT user provisioning info from OIDC claims.
+// Planned feature: will be called during first OIDC login to auto-provision users.
 pub fn extract_jit_user_info(claims: &OidcClaims, config: &OidcConfig) -> JitUserInfo {
     let role = extract_role(claims, config);
 

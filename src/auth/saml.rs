@@ -33,6 +33,7 @@ pub struct SamlAssertion {
 
 /// Generates a SAML 2.0 AuthnRequest XML document.
 /// This is a SP-initiated SSO request sent to the IdP.
+// Planned feature: will be wired when SP-initiated SSO flow is implemented.
 pub fn generate_authn_request(
     sp_entity_id: &str,
     acs_url: &str,

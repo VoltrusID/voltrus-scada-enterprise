@@ -3,6 +3,7 @@ use super::*;
 impl CommandQueue {
     // -- Address parsing helpers --
 
+    #[cfg(feature = "modbus")]
     pub(super) fn parse_modbus_address(source_config: &str) -> Option<u16> {
         let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
         // Try "address" field first
@@ -30,6 +31,7 @@ impl CommandQueue {
         })
     }
 
+    #[cfg(feature = "s7")]
     pub(super) fn parse_s7_address(source_config: &str) -> Option<(String, u32, u16)> {
         let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
         let area = config
@@ -45,6 +47,7 @@ impl CommandQueue {
         Some((area, db_number, offset))
     }
 
+    #[cfg(feature = "opcua")]
     pub(super) fn parse_opcua_node_id(source_config: &str) -> Option<String> {
         let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
         config
@@ -59,6 +62,7 @@ impl CommandQueue {
             })
     }
 
+    #[cfg(feature = "ethernet-ip")]
     pub(super) fn parse_enip_tag_name(source_config: &str) -> Option<String> {
         let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
         config
@@ -88,6 +92,7 @@ impl CommandQueue {
         (ip, port)
     }
 
+    #[cfg(feature = "dnp3")]
     pub(super) fn parse_dnp3_point_index(source_config: &str) -> Option<u16> {
         let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
         config
@@ -102,6 +107,7 @@ impl CommandQueue {
             })
     }
 
+    #[cfg(feature = "bacnet")]
     pub(super) fn parse_bacnet_object_info(source_config: &str) -> Option<(String, u32, String)> {
         let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
         let object_type = config

@@ -2,6 +2,7 @@ mod ai_copilot;
 mod alarm_crud;
 mod alarm_management;
 mod api_keys;
+#[cfg(feature = "bacnet")]
 mod bacnet;
 mod camera;
 mod config_snapshots_storage;
@@ -9,20 +10,25 @@ mod cq_commands;
 mod cq_policies;
 mod device_crud;
 mod device_layouts;
+#[cfg(feature = "dnp3")]
 mod dnp3;
 mod downsampling;
 mod egress;
+#[cfg(feature = "ethernet-ip")]
 mod enip_storage;
 mod flows;
 mod hub;
 mod license_storage;
+#[cfg(feature = "modbus")]
 mod modbus_storage;
 mod notifications;
 mod oee;
+#[cfg(feature = "opcua")]
 mod opcua_storage;
 mod recipes_storage;
 mod reports;
 mod retention;
+#[cfg(feature = "s7")]
 mod s7_storage;
 mod schema;
 mod scripts_storage;

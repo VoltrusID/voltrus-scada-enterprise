@@ -22,6 +22,24 @@ export const DEFAULT_SIZES: Record<ScadaEquipmentType, { width: number; height: 
   contactor: { width: 60, height: 60 },
   relay: { width: 60, height: 60 },
   load: { width: 60, height: 60 },
+  valve: { width: 80, height: 60 },
+  pump: { width: 80, height: 70 },
+  tank: { width: 80, height: 80 },
+  heat_exchanger: { width: 90, height: 70 },
+  compressor: { width: 80, height: 70 },
+  pipe: { width: 100, height: 30 },
+  pipe_elbow: { width: 60, height: 60 },
+  pipe_tee: { width: 100, height: 60 },
+  sensor: { width: 60, height: 60 },
+  transmitter: { width: 80, height: 60 },
+  controller: { width: 60, height: 60 },
+  indicator: { width: 60, height: 60 },
+  analyzer: { width: 60, height: 60 },
+  rectangle: { width: 60, height: 60 },
+  circle: { width: 60, height: 60 },
+  diamond: { width: 60, height: 60 },
+  arrow: { width: 80, height: 40 },
+  label: { width: 80, height: 40 },
 }
 
 export const PORT_POSITIONS: Record<ScadaEquipmentType, PortDef[]> = {
@@ -114,6 +132,94 @@ export const PORT_POSITIONS: Record<ScadaEquipmentType, PortDef[]> = {
   load: [
     { x: 0.5, y: 0, side: 'top' },
     { x: 0.5, y: 1, side: 'bottom' },
+  ],
+  valve: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  pump: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  tank: [
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  heat_exchanger: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  compressor: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  pipe: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  pipe_elbow: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 0.5, y: 1, side: 'bottom' },
+  ],
+  pipe_tee: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+    { x: 0.5, y: 1, side: 'bottom' },
+  ],
+  sensor: [
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+  ],
+  transmitter: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+    { x: 0.5, y: 0, side: 'top' },
+  ],
+  controller: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+  ],
+  indicator: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+  ],
+  analyzer: [
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  rectangle: [
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  circle: [
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  diamond: [
+    { x: 0.5, y: 0, side: 'top' },
+    { x: 0.5, y: 1, side: 'bottom' },
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  arrow: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
+  ],
+  label: [
+    { x: 0, y: 0.5, side: 'left' },
+    { x: 1, y: 0.5, side: 'right' },
   ],
 }
 

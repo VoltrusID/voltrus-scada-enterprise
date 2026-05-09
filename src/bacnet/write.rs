@@ -10,7 +10,6 @@ use bacnet_rs::service::{ConfirmedServiceChoice, WritePropertyRequest};
 
 use super::helpers::{object_type_from_str, property_id_from_str};
 
-#[allow(dead_code)]
 pub async fn write_property(
     ip: &str,
     port: u16,

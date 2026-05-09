@@ -366,7 +366,7 @@ function TopicsTab() {
         ) : (
           <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <div style={{ textAlign: 'center', color: 'var(--muted)' }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>📡</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--cyan)', marginBottom: 8 }}>MQTT</div>
               <div style={{ fontSize: 13 }}>Select a topic to view details</div>
             </div>
           </div>

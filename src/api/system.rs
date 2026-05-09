@@ -142,3 +142,18 @@ pub async fn compute_system_info(state: &AppState) -> Result<SystemResponse, App
 pub async fn get_system(State(state): State<AppState>) -> Result<Json<SystemResponse>, AppError> {
     compute_system_info(&state).await.map(Json)
 }
+
+pub async fn get_active_features() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "protocols": {
+            "modbus": cfg!(feature = "modbus"),
+            "opcua": cfg!(feature = "opcua"),
+            "mqtt_broker": cfg!(feature = "mqtt-broker"),
+            "bacnet": cfg!(feature = "bacnet"),
+            "dnp3": cfg!(feature = "dnp3"),
+            "ethernet_ip": cfg!(feature = "ethernet-ip"),
+            "s7": cfg!(feature = "s7"),
+        },
+        "snmp_scan": cfg!(feature = "snmp_scan"),
+    }))
+}

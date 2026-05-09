@@ -78,7 +78,7 @@ export function HealthCheckPanel() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>
-                {report.overall_score >= 80 ? '✅ Project is healthy' : report.overall_score >= 50 ? '⚠️ Room for improvement' : '🔴 Needs attention'}
+                {report.overall_score >= 80 ? 'Project is healthy' : report.overall_score >= 50 ? 'Room for improvement' : 'Needs attention'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                 {report.summary.total_devices} devices · {report.summary.total_tags} tags · {report.summary.total_alarms} alarms · {report.summary.total_flows} flows
@@ -111,7 +111,7 @@ export function HealthCheckPanel() {
           {/* Issues list */}
           {report.issues.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', color: '#16a34a', fontSize: 14, fontWeight: 600 }}>
-              ✅ No issues found — your project is in great shape!
+              No issues found — your project is in great shape!
             </div>
           ) : (
             <div>
@@ -143,7 +143,7 @@ export function HealthCheckPanel() {
                   {expandedIssues.has(idx) && (
                     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: '12px 16px 16px' }}>
                       <div style={{ fontSize: 12, color: 'var(--fg)', lineHeight: 1.5, marginBottom: 12 }}>{issue.description}</div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#f97316', marginBottom: 4 }}>💡 Suggestion</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#f97316', marginBottom: 4 }}>Suggestion</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>{issue.suggestion}</div>
 
                       {issue.affected_items.length > 0 && (

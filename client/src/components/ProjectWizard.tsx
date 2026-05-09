@@ -217,7 +217,7 @@ export function ProjectWizard() {
                 <div><strong>{feedDetail.equipment_units.length}</strong> equipment units</div>
               </div>
               <div style={{ fontSize: 12, color: '#f97316', marginTop: 8, fontWeight: 600 }}>
-                💡 FEED templates are reference designs. Use the I/O list to guide manual configuration, or switch to a Vertical Template for one-click setup.
+                FEED templates are reference designs. Use the I/O list to guide manual configuration, or switch to a Vertical Template for one-click setup.
               </div>
             </div>
           )}
@@ -332,7 +332,7 @@ export function ProjectWizard() {
           </div>
           <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
             <button onClick={() => autoScan ? setStep('scan') : setStep('device')} style={btn('← Back')}>Back</button>
-            <button onClick={execute} disabled={createM.isPending} style={btn(createM.isPending ? 'Creating…' : '🚀 Create Project', true)}>Create Project</button>
+            <button onClick={execute} disabled={createM.isPending} style={btn(createM.isPending ? 'Creating…' : 'Create Project', true)}>Create Project</button>
           </div>
         </>
       )}
@@ -342,7 +342,7 @@ export function ProjectWizard() {
         <>
           <div style={{ ...cardBase, borderColor: result.success ? '#16a34a' : '#ef4444' }}>
             <div style={{ fontSize: 24, textAlign: 'center', marginBottom: 8 }}>
-              {result.success ? '🎉' : '⚠️'}
+              {result.success ? '' : '!'}
             </div>
             <div style={{ fontSize: 16, fontWeight: 600, textAlign: 'center', color: result.success ? '#16a34a' : '#ef4444' }}>
               {result.success ? 'Project Created!' : 'Wizard Completed with Warnings'}
@@ -369,7 +369,7 @@ export function ProjectWizard() {
 
             {result.warnings.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>⚠ Warnings</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>Warnings</div>
                 {result.warnings.map((w, i) => (
                   <div key={i} style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>• {w}</div>
                 ))}
@@ -378,7 +378,7 @@ export function ProjectWizard() {
 
             {result.next_steps.length > 0 && (
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#3b82f6', marginBottom: 8 }}>📋 Next Steps</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#3b82f6', marginBottom: 8 }}>Next Steps</div>
                 {result.next_steps.map((s, i) => (
                   <div key={i} style={{ fontSize: 12, color: 'var(--muted)', padding: '4px 0' }}>→ {s}</div>
                 ))}

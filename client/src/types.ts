@@ -168,6 +168,9 @@ export type ScadaEquipmentType =
   | 'solar_panel' | 'inverter' | 'gateway' | 'transformer' | 'battery' | 'meter' | 'circuit_breaker'
   | 'busbar' | 'isolator' | 'earth' | 'fuse' | 'capacitor' | 'generator' | 'motor'
   | 'surge_arrester' | 'current_transformer' | 'voltage_transformer' | 'contactor' | 'relay' | 'load'
+  | 'valve' | 'pump' | 'tank' | 'heat_exchanger' | 'compressor' | 'pipe' | 'pipe_elbow' | 'pipe_tee'
+  | 'sensor' | 'transmitter' | 'controller' | 'indicator' | 'analyzer'
+  | 'rectangle' | 'circle' | 'diamond' | 'arrow' | 'label'
 export type ScadaConnectionType = 'power' | 'data' | 'flow'
 
 export const SCADA_EQUIPMENT_TYPES: { value: ScadaEquipmentType; label: string; defaultWidth: number; defaultHeight: number }[] = [
@@ -191,6 +194,24 @@ export const SCADA_EQUIPMENT_TYPES: { value: ScadaEquipmentType; label: string; 
   { value: 'contactor', label: 'Contactor', defaultWidth: 60, defaultHeight: 60 },
   { value: 'relay', label: 'Relay', defaultWidth: 60, defaultHeight: 60 },
   { value: 'load', label: 'Load / Resistor', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'valve', label: 'Valve', defaultWidth: 80, defaultHeight: 60 },
+  { value: 'pump', label: 'Pump', defaultWidth: 80, defaultHeight: 70 },
+  { value: 'tank', label: 'Tank', defaultWidth: 80, defaultHeight: 80 },
+  { value: 'heat_exchanger', label: 'Heat Exchanger', defaultWidth: 90, defaultHeight: 70 },
+  { value: 'compressor', label: 'Compressor', defaultWidth: 80, defaultHeight: 70 },
+  { value: 'pipe', label: 'Pipe', defaultWidth: 100, defaultHeight: 30 },
+  { value: 'pipe_elbow', label: 'Pipe Elbow', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'pipe_tee', label: 'Pipe Tee', defaultWidth: 100, defaultHeight: 60 },
+  { value: 'sensor', label: 'Sensor (ISA)', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'transmitter', label: 'Transmitter (ISA)', defaultWidth: 80, defaultHeight: 60 },
+  { value: 'controller', label: 'Controller (ISA)', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'indicator', label: 'Indicator / Display', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'analyzer', label: 'Analyzer (ISA)', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'rectangle', label: 'Rectangle', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'circle', label: 'Circle', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'diamond', label: 'Diamond', defaultWidth: 60, defaultHeight: 60 },
+  { value: 'arrow', label: 'Arrow', defaultWidth: 80, defaultHeight: 40 },
+  { value: 'label', label: 'Text Label', defaultWidth: 80, defaultHeight: 40 },
 ]
 
 export interface ScadaEquipmentItem {

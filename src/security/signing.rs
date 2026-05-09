@@ -1,4 +1,7 @@
 #![allow(dead_code)]
+// HMAC-SHA256 request signature validation.
+// Prepared for outbound webhook response verification (not yet wired into the API).
+
 use axum::extract::Request;
 
 /// Validate an HMAC-SHA256 signature on a request.

@@ -4,6 +4,8 @@ use tokio::sync::RwLock;
 
 use crate::cache::DeviceCache;
 use crate::ha::readback::ReadbackTracker;
+#[cfg(feature = "modbus")]
+use crate::modbus::ModbusPool;
 use crate::storage::Storage;
 use crate::ws_manager::WsManager;
 
@@ -16,4 +18,6 @@ pub struct CommandQueue {
     pub(super) in_flight: Arc<RwLock<HashSet<i64>>>,
     pub(super) ws_manager: Option<Arc<WsManager>>,
     pub(super) readback_trackers: Arc<RwLock<std::collections::HashMap<String, ReadbackTracker>>>,
+    #[cfg(feature = "modbus")]
+    pub(super) modbus_pool: Arc<ModbusPool>,
 }

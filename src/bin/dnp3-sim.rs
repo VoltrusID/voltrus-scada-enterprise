@@ -52,14 +52,20 @@ async fn main() {
 
                             let response = datalink::Dnp3Frame {
                                 master: false,
-                                fir: true,
-                                fin: true,
+                                fcb: false,
+                                fcv: false,
                                 sequence: frame.sequence,
                                 destination: frame.source,
                                 source: frame.destination,
                                 data: vec![0x81, 0x80, 0x00, 0x00],
                             };
-                            let response_bytes = response.encode();
+                            let response_bytes = match response.encode() {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    tracing::error!("Encode error: {}", e);
+                                    return;
+                                }
+                            };
                             if stream.write_all(&response_bytes).await.is_err() {
                                 return;
                             }

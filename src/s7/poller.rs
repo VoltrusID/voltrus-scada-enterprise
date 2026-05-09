@@ -31,10 +31,10 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
             Ok(()) => {
                 tracing::info!("S7 device {} connected", device_id);
                 backoff_secs = 1;
+                cache.set_status(&device_id, DeviceStatus::Online).await;
 
                 loop {
-                    let tags_to_read: Vec<S7Tag> = config.tags.clone();
-                    match client.read_tags(&tags_to_read).await {
+                    match client.read_tags(&config.tags).await {
                         Ok(values) => {
                             let mut metrics = HashMap::new();
                             for (i, value) in values.iter().enumerate() {

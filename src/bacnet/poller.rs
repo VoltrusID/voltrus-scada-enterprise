@@ -42,6 +42,7 @@ pub async fn poll_bacnet_device(config: BacnetDeviceConfig, cache: DeviceCache) 
         match try_poll_cycle(&config).await {
             Ok(metrics) => {
                 backoff.reset();
+                cache.set_status(&device_id, DeviceStatus::Online).await;
                 if !metrics.is_empty() {
                     cache.update(&device_id, metrics, false).await;
                 }

@@ -1,6 +1,6 @@
 [package]
 name = "voltrus"
-version = "0.43.0"
+version = "0.44.0"
 edition = "2024"
 license = "MIT"
 
@@ -11,36 +11,49 @@ path = "src/main.rs"
 [[bin]]
 name = "modbus-sim"
 path = "src/bin/modbus-sim.rs"
+required-features = ["modbus"]
 
 [[bin]]
 name = "s7-sim"
 path = "src/bin/s7-sim.rs"
+required-features = ["s7"]
 
 [[bin]]
 name = "opcua-sim"
 path = "src/bin/opcua-sim.rs"
+required-features = ["opcua"]
 
 [[bin]]
 name = "mqtt-sim"
 path = "src/bin/mqtt-sim.rs"
+required-features = ["mqtt-broker"]
 
 [[bin]]
 name = "dnp3-sim"
 path = "src/bin/dnp3-sim.rs"
+required-features = ["dnp3"]
 
 [[bin]]
 name = "bacnet-sim"
 path = "src/bin/bacnet-sim.rs"
+required-features = ["bacnet"]
 
 [features]
-default = ["snmp_scan"]
+default = ["snmp_scan", "modbus", "opcua", "mqtt-broker", "bacnet", "dnp3", "ethernet-ip", "s7"]
 openapi = []
 snmp_scan = []
+modbus = ["dep:tokio-modbus"]
+opcua = ["dep:async-opcua"]
+mqtt-broker = ["dep:rumqttd"]
+bacnet = ["dep:bacnet-rs"]
+dnp3 = []
+ethernet-ip = []
+s7 = []
 
 [dependencies]
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
 tokio-stream = { version = "=0.1.18", features = ["sync"] }
-tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp", "tcp-server"] }
+tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp", "tcp-server"], optional = true }
 axum = { version = "=0.8.9", features = ["ws", "multipart"] }
 csv = "1"
 utoipa = { version = "5", features = ["axum_extras"] }
@@ -74,11 +87,11 @@ ed25519-dalek = "=2.1.1"
 web-push = { version = "=0.11.0", default-features = false, features = ["hyper-client"] }
 openssl = { version = "0.10", features = ["vendored"] }
 tempfile = "=3.27.0"
-async-opcua = { version = "=0.18.0", default-features = false, features = ["client", "server"] }
+async-opcua = { version = "=0.18.0", default-features = false, features = ["client", "server"], optional = true }
 rmp-serde = "=1.3.0"
-bacnet-rs = "0.3"
+bacnet-rs = { version = "0.3", optional = true }
 futures-util = "=0.3.31"
-rumqttd = "0.20"
+rumqttd = { version = "0.20", optional = true }
 
 rquickjs = "0.10"
 regex = "1"
