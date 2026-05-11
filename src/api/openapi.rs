@@ -1,5 +1,6 @@
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi};
+use axum::response::Html;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -446,6 +447,29 @@ impl Modify for SecurityAddon {
         }
     }
 }
+
+/// Serve the OpenAPI spec as JSON
+pub async fn openapi_spec() -> axum::Json<utoipa::openapi::OpenApi> {
+    axum::Json(ApiDoc::openapi())
+}
+
+/// Serve Scalar API docs (loaded from CDN)
+pub async fn scalar_docs() -> Html<&'static str> {
+    Html(SCALAR_HTML)
+}
+
+const SCALAR_HTML: &str = r#"<!DOCTYPE html>
+<html>
+<head>
+  <title>Voltrus API Docs</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <script id="api-reference" data-url="/api/v1/openapi.json"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+</body>
+</html>"#;
 
 #[cfg(test)]
 mod tests {

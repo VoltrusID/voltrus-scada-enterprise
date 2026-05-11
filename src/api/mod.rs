@@ -1132,10 +1132,18 @@ pub fn create_router(state: AppState) -> Router {
             crate::security::strip_forwarded_host_middleware,
         ));
 
-    Router::new()
+    let mut router = Router::new()
         .merge(api_router)
-        .merge(static_router)
-        .with_state(state)
+        .merge(static_router);
+
+    #[cfg(feature = "openapi")]
+    {
+        router = router
+            .route("/api/v1/openapi.json", get(openapi::openapi_spec))
+            .route("/api/docs", get(openapi::scalar_docs));
+    }
+
+    router.with_state(state)
 }
 
 // Middleware types re-exported from middleware module
