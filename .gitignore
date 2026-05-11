@@ -24,6 +24,13 @@ voltrus-pre-restore-*.tar.gz
 # License activation binary (sensitive)
 license-activation.bin
 
+# License signing key (NEVER commit)
+.license-private-key
+
+# AI tool artifacts
+.claude/
+.serena/
+
 # Test artifacts
 test-activation.bin
 test-all-protocols.db*
@@ -31,3 +38,9 @@ test-solar-farm.db*
 pki-opcua-sim/
 pki/
 release-artifacts/
+data.db-shm
+data.db-wal
+
+# Config overrides
+config.dev.yaml
+config.dev-2.yaml
