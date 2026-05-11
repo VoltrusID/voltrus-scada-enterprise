@@ -13,7 +13,7 @@ set -euo pipefail
 
 VERSION="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
 TAG="v${VERSION}"
-R2_BUCKET="voltrus-lite-releases"
+R2_BUCKET="voltrus-releases"
 BUILD_DIR="target/release-artifacts"
 FD_LIMIT=65536
 
@@ -100,7 +100,7 @@ build_target() {
   cp "$bin_voltrus" "$pkg_dir/"
   [ -f "$bin_modbus" ] && cp "$bin_modbus" "$pkg_dir/"
   cp config.yaml "$pkg_dir/config.yaml.example"
-  [ -f deploy/voltrus-lite.service ] && cp deploy/voltrus-lite.service "$pkg_dir/"
+  [ -f deploy/voltrus.service ] && cp deploy/voltrus.service "$pkg_dir/"
   cp -r static "$pkg_dir/static"
 
   # Compress

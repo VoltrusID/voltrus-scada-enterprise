@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  R2_BUCKET: voltrus-lite-releases
+  R2_BUCKET: voltrus-releases
 
 jobs:
   check-version:
@@ -76,7 +76,7 @@ jobs:
           cp target/x86_64-unknown-linux-musl/release/voltrus dist/
           cp target/x86_64-unknown-linux-musl/release/modbus-sim dist/
           cp config.yaml dist/config.yaml.example
-          cp deploy/voltrus-lite.service dist/
+          cp deploy/voltrus.service dist/
           cp -r static dist/static
           tar -czf voltrus-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz -C dist .
 
@@ -132,7 +132,7 @@ jobs:
           cp target/aarch64-unknown-linux-musl/release/voltrus dist/
           cp target/aarch64-unknown-linux-musl/release/modbus-sim dist/
           cp config.yaml dist/config.yaml.example
-          cp deploy/voltrus-lite.service dist/
+          cp deploy/voltrus.service dist/
           cp -r static dist/static
           tar -czf voltrus-${{ needs.check-version.outputs.version }}-linux-arm64.tar.gz -C dist .
 

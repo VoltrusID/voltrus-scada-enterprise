@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SPEC_FILE="$SCRIPT_DIR/openapi.json"
-VOLTRUS_BIN="${VOLTRUS_BIN:-cargo run --bin voltrus-lite-rust-service -- --dump-openapi}"
+VOLTRUS_BIN="${VOLTRUS_BIN:-cargo run --bin voltrus -- --dump-openapi}"
 
 echo "Generating OpenAPI spec..."
 $VOLTRUS_BIN > "$SPEC_FILE"

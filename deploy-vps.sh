@@ -22,8 +22,8 @@ TARGET="x86_64-unknown-linux-musl"
 BUILD_DIR="target/release-artifacts/linux-x86_64"
 
 VPS_HOST="vps-voltrus"
-VPS_INSTALL_DIR="/opt/voltrus-lite"
-VPS_SERVICES=(voltrus-lite modbus-sim modbus-sim-1)
+VPS_INSTALL_DIR="/opt/voltrus"
+VPS_SERVICES=(voltrus modbus-sim modbus-sim-1)
 VPS_HEALTH_URL="http://localhost:3000/api/health"
 VPS_HEALTH_TIMEOUT=30
 
@@ -52,7 +52,7 @@ esac
 
 # ── Preflight ──
 if [ "$DEPLOY" = true ]; then
-  ssh -o BatchMode=yes -o ConnectTimeout=5 "$VPS_HOST" "echo ok" >/dev/null 2>&1 \
+  ssh -o ConnectTimeout=10 "$VPS_HOST" "echo ok" >/dev/null 2>&1 \
     || error "Cannot reach VPS via 'ssh $VPS_HOST'. Check SSH config and cloudflared."
   info "VPS SSH connection OK"
 fi
@@ -89,7 +89,7 @@ if [ "$BUILD_RUST" = true ]; then
   cp "target/${TARGET}/release/voltrus" "$BUILD_DIR/"
   cp "target/${TARGET}/release/modbus-sim" "$BUILD_DIR/" 2>/dev/null || warn "modbus-sim not found (may need feature flag)"
   cp config.yaml "$BUILD_DIR/config.yaml.example"
-  [ -f deploy/voltrus-lite.service ] && cp deploy/voltrus-lite.service "$BUILD_DIR/"
+  [ -f deploy/voltrus.service ] && cp deploy/voltrus.service "$BUILD_DIR/"
   cp -r static "$BUILD_DIR/static"
 
   local_size=$(stat -f%z "$BUILD_DIR/voltrus" 2>/dev/null || stat -c%s "$BUILD_DIR/voltrus" 2>/dev/null)
@@ -154,7 +154,7 @@ until curl -sf "\${HEALTH_URL}" > /dev/null 2>&1; do
   ELAPSED=\$((ELAPSED + 1))
   if [ "\$ELAPSED" -ge "\$HEALTH_TIMEOUT" ]; then
     echo "ERROR: Health check failed after \${HEALTH_TIMEOUT}s"
-    sudo systemctl status voltrus-lite --no-pager
+    sudo systemctl status voltrus --no-pager
     exit 1
   fi
 done
