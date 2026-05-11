@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="/opt/voltrus-lite"
-REPO="dzulfikar08/voltrus-lite-rust-service"
-SERVICES=(voltrus-lite modbus-sim modbus-sim-1)
+INSTALL_DIR="/opt/voltrus"
+REPO="dzulfikar08/voltrus"
+SERVICES=(voltrus modbus-sim modbus-sim-1)
 HEALTH_URL="http://localhost:3000/api/health"
 HEALTH_TIMEOUT=30
 
@@ -15,7 +15,7 @@ if [ "$VERSION" = "latest" ]; then
 fi
 
 echo "==> Downloading release ${VERSION}..."
-ARCHIVE="voltrus-lite-${VERSION}-linux-x86_64.tar.gz"
+ARCHIVE="voltrus-${VERSION}-linux-x86_64.tar.gz"
 gh release download "${VERSION}" --repo "${REPO}" --pattern "${ARCHIVE}" --clobber
 
 echo "==> Stopping services..."
@@ -26,7 +26,7 @@ sleep 1
 
 echo "==> Extracting to ${INSTALL_DIR}..."
 sudo tar -xzf "${ARCHIVE}" -C "${INSTALL_DIR}/" --overwrite
-sudo chmod +x "${INSTALL_DIR}/voltrus-lite-rust-service" "${INSTALL_DIR}/modbus-sim"
+sudo chmod +x "${INSTALL_DIR}/voltrus" "${INSTALL_DIR}/modbus-sim"
 
 echo "==> Starting services..."
 for svc in "${SERVICES[@]}"; do
@@ -40,7 +40,7 @@ until curl -sf "${HEALTH_URL}" > /dev/null 2>&1; do
     ELAPSED=$((ELAPSED + 1))
     if [ "$ELAPSED" -ge "$HEALTH_TIMEOUT" ]; then
         echo "ERROR: Health check failed after ${HEALTH_TIMEOUT}s"
-        sudo systemctl status voltrus-lite --no-pager
+        sudo systemctl status voltrus --no-pager
         exit 1
     fi
 done

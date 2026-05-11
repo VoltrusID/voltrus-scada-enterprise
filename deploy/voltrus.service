@@ -1,13 +1,13 @@
 [Unit]
-Description=Voltrus Modbus HTTP Service
+Description=Voltrus Industrial Monitoring Platform
 After=network.target
 
 [Service]
 Type=simple
 User=voltrus
 Group=voltrus
-WorkingDirectory=/opt/voltrus-lite
-ExecStart=/opt/voltrus-lite/voltrus config.yaml
+WorkingDirectory=/opt/voltrus
+ExecStart=/opt/voltrus/voltrus config.yaml
 Restart=always
 RestartSec=5
 Environment=RUST_LOG=info
@@ -19,7 +19,7 @@ TimeoutStopSec=10
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/voltrus-lite
+ReadWritePaths=/opt/voltrus
 PrivateTmp=true
 
 [Install]

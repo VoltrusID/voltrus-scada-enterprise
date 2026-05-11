@@ -46,9 +46,9 @@ jobs:
         run: |
           ssh vps "VERSION=$VERSION bash -s" <<'SCRIPT'
           set -euo pipefail
-          INSTALL_DIR="/opt/voltrus-lite"
+          INSTALL_DIR="/opt/voltrus"
           REPO="dzulfikar08/voltrus"
-          SERVICES=(voltrus-lite modbus-sim modbus-sim-1)
+          SERVICES=(voltrus modbus-sim modbus-sim-1)
           HEALTH_URL="http://localhost:3000/api/health"
           VERSION="${VERSION:-latest}"
 
@@ -80,7 +80,7 @@ jobs:
             ELAPSED=$((ELAPSED + 1))
             if [ "$ELAPSED" -ge 30 ]; then
               echo "ERROR: Health check failed after 30s"
-              sudo systemctl status voltrus-lite --no-pager
+              sudo systemctl status voltrus --no-pager
               exit 1
             fi
           done
