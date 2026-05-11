@@ -50,6 +50,7 @@ mod reports;
 #[cfg(feature = "s7")]
 mod s7_devices;
 mod screens;
+#[cfg(feature = "scripts")]
 mod scripts;
 mod security;
 mod settings;
@@ -292,6 +293,15 @@ fn snmp_scan_admin_routes() -> Router<AppState> {
         .route("/api/v1/snmp/scan/status", get(snmp_scan::get_scan_status))
         .route("/api/v1/snmp/scan/results", get(snmp_scan::list_scan_results))
         .route("/api/v1/snmp/scan/{ip}/import", post(snmp_scan::import_scanned_device))
+}
+
+#[cfg(feature = "scripts")]
+fn scripts_admin_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/v1/scripts", get(scripts::list_scripts).post(scripts::create_script))
+        .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
+        .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
+        .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -956,20 +966,6 @@ pub fn create_router(state: AppState) -> Router {
             post(simulation::toggle_simulation),
         )
         .route("/api/v1/devices/{id}/go-live", post(simulation::go_live))
-        // Script routes (admin-only)
-        .route(
-            "/api/v1/scripts",
-            get(scripts::list_scripts).post(scripts::create_script),
-        )
-        .route(
-            "/api/v1/scripts/{id}",
-            put(scripts::update_script).delete(scripts::delete_script),
-        )
-        .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
-        .route(
-            "/api/v1/scripts/{id}/executions",
-            get(scripts::list_executions),
-        )
         // Node-RED import (admin-only)
         .route(
             "/api/v1/import/node-red",
@@ -1058,6 +1054,8 @@ pub fn create_router(state: AppState) -> Router {
     let admin_protected = admin_protected.merge(mqtt_broker_admin_routes());
     #[cfg(feature = "snmp_scan")]
     let admin_protected = admin_protected.merge(snmp_scan_admin_routes());
+    #[cfg(feature = "scripts")]
+    let admin_protected = admin_protected.merge(scripts_admin_routes());
 
     let admin_protected = admin_protected
         .layer(middleware::from_fn(admin_only_middleware))
