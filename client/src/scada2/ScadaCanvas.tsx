@@ -18,12 +18,13 @@ interface Props {
   onResizeWidget: (id: string, x: number, y: number, width: number, height: number) => void
   onDropSensor: (sensorId: number, x: number, y: number) => void
   onClickEmpty: () => void
+  onWriteValue?: (widgetId: string, sensorId: number, value: number) => void
   children?: React.ReactNode  // for ConnectionLayer overlay
 }
 
 export const ScadaCanvas: React.FC<Props> = ({
   layout, sensors, currentValues, editMode, selectedId,
-  onSelectWidget, onMoveWidget, onResizeWidget, onDropSensor, onClickEmpty, children,
+  onSelectWidget, onMoveWidget, onResizeWidget, onDropSensor, onClickEmpty, onWriteValue, children,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -88,6 +89,11 @@ export const ScadaCanvas: React.FC<Props> = ({
             onSelect={onSelectWidget}
             onMove={onMoveWidget}
             onResize={onResizeWidget}
+            onWriteValue={
+              onWriteValue && w.sensorId != null
+                ? (value: number) => onWriteValue(w.id, w.sensorId!, value)
+                : undefined
+            }
           />
         )
       })}

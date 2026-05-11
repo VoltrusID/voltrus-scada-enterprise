@@ -15,11 +15,12 @@ interface WidgetShellProps {
   onSelect: (id: string) => void
   onMove: (id: string, x: number, y: number) => void
   onResize: (id: string, x: number, y: number, width: number, height: number) => void
+  onWriteValue?: (value: number) => void
 }
 
 export default function WidgetShell({
   instance, sensor, data, sensors, currentValues,
-  editMode, selected, onSelect, onMove, onResize,
+  editMode, selected, onSelect, onMove, onResize, onWriteValue,
 }: WidgetShellProps) {
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -97,6 +98,7 @@ export default function WidgetShell({
             currentValues={currentValues}
             editMode={editMode}
             selected={selected}
+            onWriteValue={onWriteValue}
           />
         </div>
         {editMode && instance.sensorId != null && (

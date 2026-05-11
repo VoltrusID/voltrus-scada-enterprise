@@ -7,6 +7,7 @@ export type ScadaWidgetType =
   | 'gauge' | 'indicator' | 'bar' | 'status_light'
   | 'tank_level' | 'on_off' | 'label' | 'trend'
   | 'big_number' | 'data_table' | 'pipe'
+  | 'slider' | 'number_input' | 'toggle'
 
 // ── Config field schema ──
 
@@ -74,6 +75,7 @@ export interface WidgetProps {
   currentValues: Record<string, SensorData>
   editMode: boolean
   selected: boolean
+  onWriteValue?: (value: number) => void
 }
 
 // ── Registry entry ──
@@ -85,7 +87,7 @@ export interface WidgetRegistryEntry {
 
 // ── Canvas state ──
 
-export type ScadaTool = 'select' | 'connect' | 'label' | 'delete'
+export type ScadaTool = 'select' | 'connect' | 'label' | 'delete' | 'delete_connection'
 
 export interface ScadaCanvasState {
   editMode: boolean
