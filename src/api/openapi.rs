@@ -140,10 +140,6 @@ use axum::response::Html;
         crate::api::notifications::update_notification_setting,
         crate::api::notifications::delete_notification_setting,
         crate::api::notifications::test_notification,
-        // Push
-        crate::api::push::subscribe,
-        crate::api::push::unsubscribe,
-        crate::api::push::vapid_public_key,
         // Stream
         crate::api::stream::stream,
         // Shortcuts
@@ -315,8 +311,6 @@ use axum::response::Html;
         crate::models::CreateNotificationSettingRequest,
         crate::models::UpdateNotificationSettingRequest,
         crate::models::TestNotificationRequest,
-        crate::models::PushSubscription,
-        crate::models::PushSubscribeRequest,
         crate::models::UserNotification,
         // API Key schemas
         crate::api::api_keys::CreateApiKeyRequest,

@@ -1,11 +1,4 @@
-use anyhow::Result;
 use serde::Serialize;
-use web_push::{
-    ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
-    WebPushError, WebPushMessageBuilder,
-};
-
-use crate::models::PushConfig;
 
 /// JSON payload sent to the browser push service, then displayed by the
 /// service worker as a notification.
@@ -15,152 +8,6 @@ pub struct AlarmPayload {
     pub body: String,
     pub severity: String,
     pub source_key: String,
-}
-
-/// Result of sending a push notification.
-#[derive(Debug)]
-pub enum PushSendResult {
-    /// Notification was accepted by the push service.
-    Sent,
-    /// The subscription endpoint is no longer valid (410 Gone or equivalent).
-    /// The caller should remove the subscription from the database.
-    SubscriptionGone,
-    /// A transient server error occurred; the caller may retry later.
-    ServerError,
-    /// Any other error (network, crypto, etc.).
-    Other(String),
-}
-
-/// Web Push notifier backed by the `web-push` crate.
-///
-/// Holds VAPID credentials and an HTTP client for sending push notifications
-/// to browser push subscriptions.
-#[derive(Clone)]
-pub struct PushNotifier {
-    vapid_private_key: String,
-    vapid_public_key: String,
-    vapid_subject: String,
-    client: HyperWebPushClient,
-}
-
-impl PushNotifier {
-    /// Create a new `PushNotifier` from the parsed `PushConfig`.
-    ///
-    /// Validates that the VAPID private key can be parsed by the `web-push` crate.
-    pub fn new(config: &PushConfig) -> Result<Self> {
-        // Validate the private key is usable by building a partial VAPID signature.
-        let _partial = VapidSignatureBuilder::from_base64_no_sub(&config.vapid_private_key)
-            .map_err(|e| anyhow::anyhow!("Invalid VAPID private key: {}", e))?;
-
-        let client = HyperWebPushClient::new();
-
-        Ok(Self {
-            vapid_private_key: config.vapid_private_key.clone(),
-            vapid_public_key: config.vapid_public_key.clone(),
-            vapid_subject: config.vapid_subject.clone(),
-            client,
-        })
-    }
-
-    /// Returns the public VAPID key (for serving to the frontend).
-    pub fn public_key(&self) -> &str {
-        &self.vapid_public_key
-    }
-
-    /// Send an alarm notification to a push subscription.
-    ///
-    /// * `endpoint` — push subscription endpoint URL
-    /// * `p256dh` — client's P-256 ECDH public key (base64url)
-    /// * `auth_key` — client's auth secret (base64url)
-    /// * `alarm` — payload containing title, body, severity, source_key
-    pub async fn send_push_alarm(
-        &self,
-        endpoint: &str,
-        p256dh: &str,
-        auth_key: &str,
-        alarm: &AlarmPayload,
-    ) -> PushSendResult {
-        let subscription = SubscriptionInfo::new(endpoint, p256dh, auth_key);
-
-        // Build VAPID signature
-        let mut sig_builder =
-            match VapidSignatureBuilder::from_base64(&self.vapid_private_key, &subscription) {
-                Ok(b) => b,
-                Err(e) => {
-                    tracing::error!("VAPID signature build failed: {}", e);
-                    return PushSendResult::Other(format!("VAPID signature error: {}", e));
-                }
-            };
-
-        // Set the VAPID subject claim (required by push services)
-        sig_builder.add_claim("sub", self.vapid_subject.as_str());
-
-        let signature = match sig_builder.build() {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::error!("VAPID signature build failed: {}", e);
-                return PushSendResult::Other(format!("VAPID signature error: {}", e));
-            }
-        };
-
-        // Serialize payload
-        let payload_bytes = match serde_json::to_vec(alarm) {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::error!("Failed to serialize push payload: {}", e);
-                return PushSendResult::Other(format!("Serialization error: {}", e));
-            }
-        };
-
-        // Build message
-        let mut builder = WebPushMessageBuilder::new(&subscription);
-        builder.set_payload(ContentEncoding::Aes128Gcm, &payload_bytes);
-        builder.set_vapid_signature(signature);
-        builder.set_ttl(86400); // 24 hours
-
-        // Set urgency based on severity
-        let urgency = match alarm.severity.to_lowercase().as_str() {
-            "critical" => web_push::Urgency::High,
-            _ => web_push::Urgency::Normal,
-        };
-        builder.set_urgency(urgency);
-
-        let message = match builder.build() {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::error!("Failed to build push message: {}", e);
-                return PushSendResult::Other(format!("Message build error: {}", e));
-            }
-        };
-
-        // Send
-        match self.client.send(message).await {
-            Ok(_) => {
-                tracing::info!(
-                    "Push notification sent for {} [{}]",
-                    alarm.source_key,
-                    alarm.severity
-                );
-                PushSendResult::Sent
-            }
-            Err(WebPushError::EndpointNotValid(_)) | Err(WebPushError::EndpointNotFound(_)) => {
-                tracing::warn!("Push subscription endpoint no longer valid: {}", endpoint);
-                PushSendResult::SubscriptionGone
-            }
-            Err(WebPushError::ServerError { .. }) => {
-                tracing::warn!("Push service server error for endpoint: {}", endpoint);
-                PushSendResult::ServerError
-            }
-            Err(WebPushError::Unauthorized(_)) => {
-                tracing::error!("Push notification unauthorized — check VAPID keys and subject");
-                PushSendResult::Other("Unauthorized: check VAPID configuration".to_string())
-            }
-            Err(e) => {
-                tracing::error!("Push notification error: {}", e);
-                PushSendResult::Other(e.to_string())
-            }
-        }
-    }
 }
 
 /// Build an `AlarmPayload` from alarm fields.
@@ -177,8 +24,6 @@ pub fn build_alarm_payload(
         source_key: source_key.to_string(),
     }
 }
-
-// ── Tests ──
 
 #[cfg(test)]
 mod tests {
@@ -230,7 +75,6 @@ mod tests {
         assert!(json.contains("\"source_key\":\"plts_1:voltage\""));
         assert!(json.contains("\"body\":\"Voltage high\""));
 
-        // Verify it can round-trip
         let back: AlarmPayload = serde_json::from_str(&json).unwrap();
         assert_eq!(back.title, payload.title);
         assert_eq!(back.severity, payload.severity);
@@ -250,30 +94,6 @@ mod tests {
         assert_eq!(json["body"], "Body");
         assert_eq!(json["severity"], "critical");
         assert_eq!(json["source_key"], "key");
-        // Verify no extra fields
         assert_eq!(json.as_object().unwrap().len(), 4);
-    }
-
-    #[test]
-    fn test_push_config_defaults() {
-        let yaml = r#"
-vapid_private_key: "test-private"
-vapid_public_key: "test-public"
-"#;
-        let config: PushConfig = serde_yaml_neo::from_str(yaml).unwrap();
-        assert_eq!(config.vapid_private_key, "test-private");
-        assert_eq!(config.vapid_public_key, "test-public");
-        assert_eq!(config.vapid_subject, "mailto:admin@example.com");
-    }
-
-    #[test]
-    fn test_push_config_custom_subject() {
-        let yaml = r#"
-vapid_private_key: "test-private"
-vapid_public_key: "test-public"
-vapid_subject: "mailto:admin@voltrus.id"
-"#;
-        let config: PushConfig = serde_yaml_neo::from_str(yaml).unwrap();
-        assert_eq!(config.vapid_subject, "mailto:admin@voltrus.id");
     }
 }
