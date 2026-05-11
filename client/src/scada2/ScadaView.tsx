@@ -8,6 +8,7 @@ import { layoutReducer, createWidget, createConnection } from './engine/widgetSt
 import type { ScadaLayoutState } from './engine/widgetState'
 import type { SensorConfig, SensorData, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
 import { useDashboardSelector } from '../store/dashboardStore'
+import { writeTag } from '../api/commands'
 
 // Import all widgets to trigger registration
 import './widgets/IndicatorWidget'
@@ -21,6 +22,9 @@ import './widgets/TrendWidget'
 import './widgets/BigNumberWidget'
 import './widgets/DataTableWidget'
 import './widgets/PipeWidget'
+import './widgets/SliderWidget'
+import './widgets/NumberInputWidget'
+import './widgets/ToggleWidget'
 
 interface Props {
   sensors: SensorConfig[]
@@ -153,6 +157,21 @@ export const ScadaView: React.FC<Props> = ({
     setCanvasState(prev => ({ ...prev, pendingSensor: null }))
   }, [])
 
+  // Write value to tag
+  const handleWriteValue = useCallback(async (_widgetId: string, sensorId: number, value: number) => {
+    try {
+      await writeTag(sensorId, value)
+    } catch (err) {
+      console.error('Write failed:', err)
+    }
+  }, [])
+
+  // Delete a connection
+  const handleDeleteConnection = useCallback((id: string) => {
+    dispatch({ type: 'REMOVE_CONNECTION', id })
+    dirtyRef.current = true
+  }, [])
+
   // Save: convert widget layout back to API format
   const handleSave = useCallback(() => {
     const equipment: ScadaEquipmentItem[] = layout.widgets.map(w => ({
@@ -185,6 +204,14 @@ export const ScadaView: React.FC<Props> = ({
     onSensorClick(sensorId)
   }, [onSensorClick])
 
+  const toolBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '4px 10px', borderRadius: 6,
+    border: `1px solid ${active ? 'var(--cyan)' : 'var(--border)'}`,
+    background: active ? 'rgba(34,197,94,.1)' : 'var(--card)',
+    color: active ? 'var(--cyan)' : 'var(--fg)',
+    cursor: 'pointer', fontSize: 11, fontWeight: 500,
+  })
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Inline toolbar */}
@@ -197,27 +224,14 @@ export const ScadaView: React.FC<Props> = ({
       }}>
         {canvasState.editMode && (
           <>
-            <button onClick={() => handleToolChange('select')} style={{
-              padding: '4px 10px', borderRadius: 6,
-              border: `1px solid ${canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--border)'}`,
-              background: canvasState.activeTool === 'select' ? 'rgba(34,197,94,.1)' : 'var(--card)',
-              color: canvasState.activeTool === 'select' ? 'var(--cyan)' : 'var(--fg)',
-              cursor: 'pointer', fontSize: 11, fontWeight: 500,
-            }}>Select</button>
-            <button onClick={() => handleToolChange('connect')} style={{
-              padding: '4px 10px', borderRadius: 6,
-              border: `1px solid ${canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--border)'}`,
-              background: canvasState.activeTool === 'connect' ? 'rgba(34,197,94,.1)' : 'var(--card)',
-              color: canvasState.activeTool === 'connect' ? 'var(--cyan)' : 'var(--fg)',
-              cursor: 'pointer', fontSize: 11, fontWeight: 500,
-            }}>Connect</button>
-            <button onClick={() => handleToolChange('delete')} style={{
-              padding: '4px 10px', borderRadius: 6,
-              border: `1px solid ${canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--border)'}`,
-              background: canvasState.activeTool === 'delete' ? 'rgba(34,197,94,.1)' : 'var(--card)',
-              color: canvasState.activeTool === 'delete' ? 'var(--cyan)' : 'var(--fg)',
-              cursor: 'pointer', fontSize: 11, fontWeight: 500,
-            }}>Delete</button>
+            <button onClick={() => handleToolChange('select')} style={toolBtnStyle(canvasState.activeTool === 'select')}>Select</button>
+            <button onClick={() => handleToolChange('connect')} style={toolBtnStyle(canvasState.activeTool === 'connect')}>Connect</button>
+            <button onClick={() => handleToolChange('delete')} style={toolBtnStyle(canvasState.activeTool === 'delete')}>Delete Widget</button>
+            <button onClick={() => handleToolChange('delete_connection')} style={{
+              ...toolBtnStyle(canvasState.activeTool === 'delete_connection'),
+              borderColor: canvasState.activeTool === 'delete_connection' ? '#ef4444' : 'var(--border)',
+              color: canvasState.activeTool === 'delete_connection' ? '#ef4444' : 'var(--fg)',
+            }}>Delete Line</button>
             <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
             <button onClick={handleSave} disabled={!dirtyRef.current} style={{
               padding: '4px 10px', borderRadius: 6,
@@ -258,12 +272,14 @@ export const ScadaView: React.FC<Props> = ({
           onMoveWidget={handleMoveWidget}
           onResizeWidget={handleResizeWidget}
           onDropSensor={handleDropSensor}
+          onWriteValue={handleWriteValue}
           onClickEmpty={() => setCanvasState(prev => ({ ...prev, selectedId: null }))}
         >
           <ConnectionLayer
             widgets={layout.widgets}
             connections={layout.connections}
             editMode={canvasState.editMode}
+            onDeleteConnection={canvasState.editMode ? handleDeleteConnection : undefined}
           />
         </ScadaCanvas>
         {canvasState.pendingSensor && (

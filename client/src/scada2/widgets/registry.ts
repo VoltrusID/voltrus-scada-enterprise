@@ -163,6 +163,52 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
       { key: 'thickness', label: 'Thickness', type: 'number', default: 8, min: 4, max: 24 },
     ],
   },
+  slider: {
+    type: 'slider',
+    displayName: 'Slider',
+    icon: '◱',
+    defaultWidth: 220,
+    defaultHeight: 80,
+    minBindings: 1,
+    maxBindings: 1,
+    compatibleDataTypes: ['analog'],
+    configSchema: [
+      { key: 'showValue', label: 'Show Value', type: 'boolean', default: true },
+      { key: 'step', label: 'Step', type: 'number', default: 1, min: 0.01, max: 1000 },
+      { key: 'sliderColor', label: 'Slider Color', type: 'color', default: 'var(--cyan)' },
+    ],
+  },
+  number_input: {
+    type: 'number_input',
+    displayName: 'Number Input',
+    icon: '⌨',
+    defaultWidth: 180,
+    defaultHeight: 80,
+    minBindings: 1,
+    maxBindings: 1,
+    compatibleDataTypes: ['analog'],
+    configSchema: [
+      { key: 'showButtons', label: 'Show +/- Buttons', type: 'boolean', default: true },
+      { key: 'step', label: 'Step', type: 'number', default: 1, min: 0.01, max: 1000 },
+    ],
+  },
+  toggle: {
+    type: 'toggle',
+    displayName: 'Toggle',
+    icon: '⏻',
+    defaultWidth: 120,
+    defaultHeight: 80,
+    minBindings: 1,
+    maxBindings: 1,
+    compatibleDataTypes: ['analog', 'digital'],
+    configSchema: [
+      { key: 'onThreshold', label: 'On Threshold', type: 'number', default: 0.5 },
+      { key: 'onValue', label: 'Write On Value', type: 'number', default: 1 },
+      { key: 'offValue', label: 'Write Off Value', type: 'number', default: 0 },
+      { key: 'onLabel', label: 'On Label', type: 'string', default: 'ON' },
+      { key: 'offLabel', label: 'Off Label', type: 'string', default: 'OFF' },
+    ],
+  },
 }
 
 export const WIDGET_MANIFESTS = manifests
