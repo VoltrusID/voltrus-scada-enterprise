@@ -11,16 +11,26 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        passes: 3,
+        pure_funcs: ['Object.defineProperty', 'Object.freeze'],
+      },
+      format: {
+        comments: false,
+      },
+      mangle: {
+        toplevel: true,
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {
-          // Three.js (~730KB) — only loaded when 3D twin view is opened
           'three': ['three'],
-          // React vendor chunk for long-term caching
           'vendor-react': ['react', 'react-dom'],
-          // Fabric.js — only loaded if old SCADA objects are imported
-          // 'fabric': ['fabric'],
-          // TradingView lightweight-charts (~190KB) — only used by TvDetailChart
           'lightweight-charts': ['lightweight-charts'],
         },
       },

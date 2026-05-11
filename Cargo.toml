@@ -57,8 +57,6 @@ tokio-modbus = { version = "=0.16.1", default-features = false, features = ["tcp
 axum = { version = "=0.8.9", features = ["ws", "multipart"] }
 csv = "1"
 utoipa = { version = "5", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
-utoipa-axum = "0.2"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 serde_yaml_neo = "0.11"
