@@ -121,12 +121,13 @@ interface Props {
   showShortcutsPanel: boolean
   onToggleShortcutsPanel: () => void
   shortcutsPanel: React.ReactNode
-  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts'
   onSettingsClick: () => void
   onDataManagerClick: () => void
   onFlowsClick: () => void
   onTagsClick: () => void
   onAssetsClick: () => void
+  onScriptsClick: () => void
   isAdmin: boolean
   onLogout: () => void
   onAlarmPanelToggle: () => void
@@ -254,6 +255,7 @@ const Icons = {
   logout: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
   bolt: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   more: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>,
+  code: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
 }
 
 export function AppHeader({
@@ -262,7 +264,7 @@ export function AppHeader({
   showShortcutsPanel, onToggleShortcutsPanel, shortcutsPanel,
   mode, onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
   onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onShiftHandoverToggle,
-  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onEdrPanelClick, onAssetsClick, onSystemClick,
+  onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onEdrPanelClick, onAssetsClick, onScriptsClick, onSystemClick,
   // Screen tabs
   screens, activeScreen, onTabClick,
   onRenameScreen, onDeleteScreen, onAddScreen,
@@ -294,6 +296,7 @@ export function AppHeader({
       { label: 'Tags', icon: Icons.tag, onClick: onTagsClick, active: true, activeColor: 'green' },
       { label: 'Assets', icon: Icons.briefcase, onClick: onAssetsClick, active: true, activeColor: 'purple' },
       { label: 'Flows', icon: Icons.layers, onClick: onFlowsClick, active: true, activeColor: 'amber' },
+      { label: 'Scripts', icon: Icons.code, onClick: onScriptsClick, active: true, activeColor: 'green' },
       { label: 'System', icon: Icons.settings, onClick: onSystemClick, active: true, activeColor: 'green' },
       { label: 'Import Data', icon: Icons.upload, onClick: onImportWizardClick },
       { label: 'Node-RED Import', icon: Icons.layers, onClick: onNodeRedWizardClick },
@@ -592,6 +595,9 @@ export function AppHeader({
                 </button>
                 <button style={drawerItemStyle} onClick={() => { closeDrawer(); onFlowsClick(); }}>
                   {Icons.layers}<span>Flows</span>
+                </button>
+                <button style={drawerItemStyle} onClick={() => { closeDrawer(); onScriptsClick(); }}>
+                  {Icons.code}<span>Scripts</span>
                 </button>
                 <button style={drawerItemStyle} onClick={() => { closeDrawer(); onSystemClick(); }}>
                   {Icons.settings}<span>System</span>

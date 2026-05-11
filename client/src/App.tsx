@@ -44,6 +44,7 @@ const DataImportWizard = lazy(() => import('./DataImportWizard').then(m => ({ de
 const NodeRedImportWizard = lazy(() => import('./NodeRedImportWizard').then(m => ({ default: m.NodeRedImportWizard })))
 const MqttBrokerPanel = lazy(() => import('./MqttBrokerPanel').then(m => ({ default: m.MqttBrokerPanel })))
 const EdrCompatPanel = lazy(() => import('./EdrCompatPanel').then(m => ({ default: m.EdrCompatPanel })))
+const ScriptEditor = lazy(() => import('./components/ScriptEditor').then(m => ({ default: m.ScriptEditor })))
 
 function AppInner() {
   const queryClient = useQueryClient()
@@ -67,9 +68,9 @@ function AppInner() {
   const [showDashSettings, setShowDashSettings] = useState(false)
   const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
   const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'>(() => {
+  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts'>(() => {
     const m = new URLSearchParams(window.location.search).get('mode')
-    return (m === 'history' || m === 'system' || m === 'flows' || m === 'tags' || m === 'assets') ? m : 'live'
+    return (m === 'history' || m === 'system' || m === 'flows' || m === 'tags' || m === 'assets' || m === 'scripts') ? m : 'live'
   })
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
@@ -463,9 +464,10 @@ function AppInner() {
         onMqttPanelClick={() => setShowMqttPanel(true)}
         onEdrPanelClick={() => setShowEdrPanel(true)}
         onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
+        onScriptsClick={() => { setMode('scripts'); setActiveScreen('all') }}
         screens={screens}
         activeScreen={activeScreen}
-        onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows' || mode === 'tags' || mode === 'assets') setMode('live') }}
+        onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows' || mode === 'tags' || mode === 'assets' || mode === 'scripts') setMode('live') }}
         onRenameScreen={handleRenameScreen}
         onDeleteScreen={handleDeleteScreen}
         onAddScreen={handleAddScreen}
@@ -520,7 +522,12 @@ function AppInner() {
               <Suspense fallback={null}><AssetInventory /></Suspense>
             </OverlayScreen>
           )}
-          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && (
+          {mode === 'scripts' && (
+            <OverlayScreen title="Script Editor" onClose={() => setMode('live')}>
+              <Suspense fallback={null}><ScriptEditor /></Suspense>
+            </OverlayScreen>
+          )}
+          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && mode !== 'scripts' && (
             <MainContent
               viewMode={viewMode} mode={mode}
               screenSensors={screenSensors}

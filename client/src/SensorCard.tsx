@@ -26,7 +26,7 @@ interface Props {
   setEditingId: (id: number | null) => void
   showDragHandle?: boolean
   selected?: boolean
-  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts'
   onClick?: (e: React.MouseEvent) => void
 }
 
