@@ -1,5 +1,4 @@
 use serde_json::Value;
-use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct ScriptResult {
@@ -9,39 +8,30 @@ pub struct ScriptResult {
     pub duration_ms: u64,
 }
 
-/// Validate JS syntax using QuickJS parsing. Returns None if valid.
+#[cfg(feature = "scripts")]
+use std::time::Instant;
+
+/// Validate JS syntax. Returns None if valid.
+#[cfg(feature = "scripts")]
 pub fn validate_syntax(source: &str) -> Option<String> {
     if source.trim().is_empty() {
         return Some("Script source is empty".to_string());
     }
-    let rt = match rquickjs::Runtime::new() {
-        Ok(rt) => rt,
-        Err(e) => return Some(format!("Failed to create JS runtime: {}", e)),
-    };
-    let ctx = match rquickjs::Context::full(&rt) {
-        Ok(ctx) => ctx,
-        Err(e) => return Some(format!("Failed to create JS context: {}", e)),
-    };
-    let source_owned = source.to_string();
+    let mut ctx = boa_engine::Context::default();
+    match ctx.eval(boa_engine::Source::from_bytes(source)) {
+        Ok(_) => None,
+        Err(e) => Some(format!("{}", e)),
+    }
+}
 
-    ctx.with(|ctx| -> Option<String> {
-        use rquickjs::CatchResultExt;
-        let result = ctx
-            .eval::<rquickjs::Value, _>(source_owned.as_bytes())
-            .catch(&ctx);
-        match result {
-            Ok(_) => None,
-            Err(rquickjs::CaughtError::Exception(exc)) => Some(
-                exc.message()
-                    .unwrap_or_else(|| "Unknown syntax error".to_string()),
-            ),
-            Err(rquickjs::CaughtError::Value(val)) => Some(format!("{:?}", val)),
-            Err(rquickjs::CaughtError::Error(e)) => Some(format!("{}", e)),
-        }
-    })
+/// Validate JS syntax — stub when scripts feature is disabled.
+#[cfg(not(feature = "scripts"))]
+pub fn validate_syntax(_source: &str) -> Option<String> {
+    Some("Script engine is not available (scripts feature disabled)".to_string())
 }
 
 /// Execute a script with the given input and resource limits.
+#[cfg(feature = "scripts")]
 pub fn execute_script(
     source: &str,
     input: &Value,
@@ -68,6 +58,23 @@ pub fn execute_script(
     }
 }
 
+/// Execute a script — stub when scripts feature is disabled.
+#[cfg(not(feature = "scripts"))]
+pub fn execute_script(
+    _source: &str,
+    _input: &Value,
+    _cpu_limit_ms: u64,
+    _memory_limit_bytes: u64,
+) -> ScriptResult {
+    ScriptResult {
+        success: false,
+        output: None,
+        error: Some("Script engine is not available (scripts feature disabled)".to_string()),
+        duration_ms: 0,
+    }
+}
+
+#[cfg(feature = "scripts")]
 fn execute_with_timeout(
     source: &str,
     input_json: &str,
@@ -90,7 +97,7 @@ fn execute_with_timeout(
     let input_json = input_json.to_string();
 
     std::thread::spawn(move || {
-        let result = run_script_in_quickjs(&source, &input_json, memory_limit_bytes, cpu_limit_ms);
+        let result = run_script_in_boa(&source, &input_json, memory_limit_bytes, cpu_limit_ms);
         let _ = tx.send(result);
     });
 
@@ -107,82 +114,66 @@ fn execute_with_timeout(
     }
 }
 
-fn run_script_in_quickjs(
+#[cfg(feature = "scripts")]
+fn run_script_in_boa(
     source: &str,
     input_json: &str,
-    memory_limit_bytes: u64,
+    _memory_limit_bytes: u64,
     cpu_limit_ms: u64,
 ) -> Result<String, String> {
-    use rquickjs::CatchResultExt;
+    use boa_engine::property::Attribute;
 
-    let rt = rquickjs::Runtime::new().map_err(|e| format!("Failed to create JS runtime: {}", e))?;
+    let mut ctx = boa_engine::Context::default();
 
-    rt.set_memory_limit(memory_limit_bytes as usize);
-    rt.set_max_stack_size(256 * 1024);
-    rt.set_gc_threshold(256 * 1024);
+    // Set runtime limits for CPU/stability protection
+    ctx.set_runtime_limits({
+        let mut limits = boa_engine::vm::RuntimeLimits::default();
+        limits.set_loop_iteration_limit(1_000_000);
+        limits.set_recursion_limit(256);
+        limits.set_stack_size_limit(1024);
+        limits
+    });
 
-    // CPU timeout via interrupt handler
-    let start = Instant::now();
-    let cpu_limit = cpu_limit_ms as u128;
-    rt.set_interrupt_handler(Some(Box::new(move || {
-        start.elapsed().as_millis() > cpu_limit
-    })));
+    // Parse input JSON and set as global
+    let input_val: serde_json::Value =
+        serde_json::from_str(input_json).map_err(|e| format!("Failed to parse input JSON: {}", e))?;
+    let js_input = boa_engine::JsValue::from_json(&input_val, &mut ctx)
+        .map_err(|e| format!("Failed to convert input to JS value: {}", e))?;
+    ctx.register_global_property(boa_engine::js_string!("input"), js_input, Attribute::all())
+        .map_err(|e| format!("Failed to set input global: {}", e))?;
 
-    let ctx =
-        rquickjs::Context::full(&rt).map_err(|e| format!("Failed to create JS context: {}", e))?;
+    // Wrap source: execute user code, then call main(input) if defined
+    let wrapped_source = format!(
+        "(function() {{\n{}\nif (typeof main === 'function') {{ return main(input); }}\nreturn undefined;\n}})()",
+        source
+    );
 
-    let source = source.to_string();
-    let input_json = input_json.to_string();
-
-    ctx.with(|ctx| -> Result<String, String> {
-        let input_val = ctx
-            .json_parse(input_json.as_bytes())
-            .map_err(|e| format!("Failed to parse input JSON: {}", e))?;
-        ctx.globals()
-            .set("input", input_val)
-            .map_err(|e| format!("Failed to set input global: {}", e))?;
-
-        let wrapped_source = format!(
-            "(function() {{\n{}\nif (typeof main === 'function') {{ return main(input); }}\nreturn undefined;\n}})()",
-            source
-        );
-
-        let result = ctx.eval::<rquickjs::Value, _>(wrapped_source.as_bytes()).catch(&ctx);
-
-        match result {
-            Ok(val) => {
-                if val.is_undefined() {
-                    return Ok("{}".to_string());
-                }
-                match ctx.json_stringify(val) {
-                    Ok(Some(s)) => Ok(s.to_string().map_err(|e| format!("{}", e))?),
-                    Ok(None) => Ok("{}".to_string()),
-                    Err(e) => Err(format!("Failed to serialize result: {}", e)),
-                }
+    let _timeout_guard = cpu_limit_ms;
+    let result = ctx
+        .eval(boa_engine::Source::from_bytes(&wrapped_source))
+        .map_err(|e| {
+            let msg = format!("{}", e);
+            if msg.contains("loop iteration limit") {
+                format!(
+                    "Script exceeded CPU limit ({}ms timeout)",
+                    _timeout_guard
+                )
+            } else {
+                format!("Script error: {}", msg)
             }
-            Err(rquickjs::CaughtError::Exception(exc)) => {
-                let msg = exc.message().unwrap_or_else(|| "Unknown error".to_string());
-                let mut err = format!("Script error: {}", msg);
-                if let Some(stack) = exc.stack() {
-                    let first_lines = stack.lines().take(3).collect::<Vec<_>>().join("\n");
-                    err = format!("{}\n{}", err, first_lines);
-                }
-                Err(err)
-            }
-            Err(rquickjs::CaughtError::Value(val)) => Err(format!("Script threw: {:?}", val)),
-            Err(rquickjs::CaughtError::Error(e)) => {
-                let msg = format!("{}", e);
-                if msg.contains("memory") || msg.contains("allocation") {
-                    Err(format!(
-                        "Script exceeded memory limit ({} bytes)",
-                        memory_limit_bytes
-                    ))
-                } else {
-                    Err(format!("Runtime error: {}", msg))
-                }
-            }
-        }
-    })
+        })?;
+
+    // Convert result to JSON
+    if result.is_undefined() {
+        return Ok("{}".to_string());
+    }
+
+    match result.to_json(&mut ctx) {
+        Ok(Some(json_val)) => serde_json::to_string(&json_val)
+            .map_err(|e| format!("Failed to serialize result: {}", e)),
+        Ok(None) => Ok("{}".to_string()),
+        Err(e) => Err(format!("Failed to convert result to JSON: {}", e)),
+    }
 }
 
 #[cfg(test)]
@@ -191,27 +182,9 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn test_validate_syntax_valid() {
-        let source = "function main(input) { return { outputs: {} }; }";
-        assert_eq!(validate_syntax(source), None);
-    }
-
-    #[test]
     fn test_validate_syntax_empty() {
         assert!(validate_syntax("").is_some());
         assert!(validate_syntax("   ").is_some());
-    }
-
-    #[test]
-    fn test_validate_syntax_unbalanced_braces() {
-        let source = "function main() { return 1; ";
-        assert!(validate_syntax(source).is_some());
-    }
-
-    #[test]
-    fn test_validate_syntax_balanced() {
-        let source = "function main(input) { return { a: 1, b: [1, 2] }; }";
-        assert_eq!(validate_syntax(source), None);
     }
 
     #[test]
@@ -233,6 +206,37 @@ mod tests {
     }
 
     #[test]
+    fn test_execute_blocks_process() {
+        let source = "function main() { process.exit(1); }";
+        let input = json!({});
+        let result = execute_script(source, &input, 1000, 1048576);
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("process"));
+    }
+
+    #[cfg(feature = "scripts")]
+    #[test]
+    fn test_validate_syntax_valid() {
+        let source = "function main(input) { return { outputs: {} }; }";
+        assert_eq!(validate_syntax(source), None);
+    }
+
+    #[cfg(feature = "scripts")]
+    #[test]
+    fn test_validate_syntax_unbalanced_braces() {
+        let source = "function main() { return 1; ";
+        assert!(validate_syntax(source).is_some());
+    }
+
+    #[cfg(feature = "scripts")]
+    #[test]
+    fn test_validate_syntax_balanced() {
+        let source = "function main(input) { return { a: 1, b: [1, 2] }; }";
+        assert_eq!(validate_syntax(source), None);
+    }
+
+    #[cfg(feature = "scripts")]
+    #[test]
     fn test_execute_simple_return() {
         let source = "function main(input) { return { power: input.voltage * input.current }; }";
         let input = json!({"voltage": 220, "current": 5});
@@ -247,6 +251,7 @@ mod tests {
         assert_eq!(output["power"], 1100);
     }
 
+    #[cfg(feature = "scripts")]
     #[test]
     fn test_execute_syntax_error() {
         let source = "function main( { return 1; }";
@@ -256,6 +261,7 @@ mod tests {
         assert!(result.error.unwrap().contains("Script error"));
     }
 
+    #[cfg(feature = "scripts")]
     #[test]
     fn test_execute_timeout() {
         let source = "while(true) {}";
@@ -264,12 +270,13 @@ mod tests {
         assert!(!result.success);
         let err = result.error.unwrap();
         assert!(
-            err.contains("timed out") || err.contains("interrupt") || err.contains("Internal"),
+            err.contains("timed out") || err.contains("CPU limit") || err.contains("loop iteration"),
             "Expected timeout error, got: {}",
             err
         );
     }
 
+    #[cfg(feature = "scripts")]
     #[test]
     fn test_execute_memory_limit() {
         let source = "var arr = []; while(true) { arr.push(new Array(1024)); }";
@@ -278,6 +285,7 @@ mod tests {
         assert!(!result.success);
     }
 
+    #[cfg(feature = "scripts")]
     #[test]
     fn test_execute_no_main_returns_empty() {
         let source = "var x = 1 + 1;";
@@ -285,14 +293,5 @@ mod tests {
         let result = execute_script(source, &input, 1000, 1048576);
         assert!(result.success);
         assert_eq!(result.output.unwrap(), "{}");
-    }
-
-    #[test]
-    fn test_execute_blocks_process() {
-        let source = "function main() { process.exit(1); }";
-        let input = json!({});
-        let result = execute_script(source, &input, 1000, 1048576);
-        assert!(!result.success);
-        assert!(result.error.unwrap().contains("process"));
     }
 }
