@@ -30,3 +30,4 @@ test-all-protocols.db*
 test-solar-farm.db*
 pki-opcua-sim/
 pki/
+release-artifacts/
