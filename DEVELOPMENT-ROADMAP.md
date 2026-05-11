@@ -28,7 +28,6 @@ voltrus/                          # Monorepo root
 │   │   └── ...                   # analytics, compliance, hub, oee, recipes, etc.
 │   ├── client/                  # React frontend (TypeScript + Vite)
 │   │   └── src/                  # Components, views, panels, stores, queries
-│   ├── client-lit/               # Legacy Lit frontend (deprecated, replaced by client/)
 │   ├── static/                   # Static assets served by Rust
 │   ├── config.yaml               # Runtime configuration
 │   └── Cargo.toml                # Rust dependencies
