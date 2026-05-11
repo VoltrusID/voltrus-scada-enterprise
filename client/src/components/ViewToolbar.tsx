@@ -64,7 +64,7 @@ const DIVIDER_V: React.CSSProperties = {
 interface Props {
   viewMode: 'cards' | 'canvas' | 'twin' | 'scada'
   onViewModeChange: (mode: 'cards' | 'canvas' | 'twin' | 'scada') => void
-  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts'
   onModeChange: (mode: 'live' | 'history') => void
   turbo: boolean
   onToggleTurbo: () => void

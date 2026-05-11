@@ -23,7 +23,7 @@ interface Props {
   onDelete: (id: number) => void
   forcedBreakpoint: string | null
   shortcuts: Record<number, string>
-  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets'
+  mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts'
 }
 
 export function SensorGrid({ screenLayouts, screenSensors, editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor, loadSensorsForScreen, onLayoutChange, onSave, onDelete, forcedBreakpoint, shortcuts, mode }: Props) {

@@ -132,7 +132,7 @@ export function ScriptEditor() {
   // New-script form state (used when selectedId is null)
   const [newScript, setNewScript] = useState<NewScript>({
     name: '',
-    source: '// Write your script here\nfunction process(input) {\n  return input;\n}\n',
+    source: '// Write your script here\nfunction main(input) {\n  return input;\n}\n',
     cpu_limit_ms: 5000,
     memory_limit_bytes: 32 * 1024 * 1024,
     enabled: true,
