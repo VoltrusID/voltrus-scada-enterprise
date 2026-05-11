@@ -40,8 +40,6 @@ pub struct AppConfig {
     #[serde(default)]
     pub smtp: Option<super::notification_types::SmtpConfig>,
     #[serde(default)]
-    pub push: Option<super::notification_types::PushConfig>,
-    #[serde(default)]
     pub mqtt_broker: MqttBrokerConfig,
     #[serde(default)]
     pub ha: HaConfig,

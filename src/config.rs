@@ -27,17 +27,6 @@ fn validate(config: &AppConfig) -> Result<()> {
         );
     }
 
-    if let Some(ref push) = config.push {
-        anyhow::ensure!(
-            !push.vapid_private_key.is_empty(),
-            "VAPID private key is required when push is configured"
-        );
-        anyhow::ensure!(
-            !push.vapid_public_key.is_empty(),
-            "VAPID public key is required when push is configured"
-        );
-    }
-
     if config.devices.is_empty() {
         return Ok(());
     }
@@ -276,50 +265,4 @@ smtp:
         assert!(config.smtp.is_none());
     }
 
-    #[test]
-    fn test_push_empty_private_key_fails() {
-        let yaml = r#"
-push:
-  vapid_private_key: ""
-  vapid_public_key: "some-key"
-"#;
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        f.write_all(yaml.as_bytes()).unwrap();
-        let result = load_config(f.path().to_str().unwrap());
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("VAPID private key is required")
-        );
-    }
-
-    #[test]
-    fn test_push_empty_public_key_fails() {
-        let yaml = r#"
-push:
-  vapid_private_key: "some-key"
-  vapid_public_key: ""
-"#;
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        f.write_all(yaml.as_bytes()).unwrap();
-        let result = load_config(f.path().to_str().unwrap());
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("VAPID public key is required")
-        );
-    }
-
-    #[test]
-    fn test_push_optional() {
-        let yaml = "devices: []\n";
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        f.write_all(yaml.as_bytes()).unwrap();
-        let config = load_config(f.path().to_str().unwrap()).unwrap();
-        assert!(config.push.is_none());
-    }
 }

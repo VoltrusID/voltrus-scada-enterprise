@@ -367,27 +367,11 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Build optional push notifier from VAPID config
-    let push_notifier = match &app_config.push {
-        Some(push_cfg) => match notification::push::PushNotifier::new(push_cfg) {
-            Ok(notifier) => {
-                tracing::info!("Push notifier initialized");
-                Some(notifier)
-            }
-            Err(e) => {
-                tracing::warn!("Failed to initialize push notifier: {}", e);
-                None
-            }
-        },
-        None => None,
-    };
-
     // Spawn persistence task
     {
         let cache = cache.clone();
         let storage = storage.clone();
         let email_notifier = email_notifier.clone();
-        let push_notifier = push_notifier.clone();
         let alarm_ws_manager = ws_manager.clone();
         let persist_license_tier = license_tier.clone();
         let interval = app_config.persist_interval_secs;
@@ -502,7 +486,6 @@ async fn main() -> anyhow::Result<()> {
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
-                                        let notif_push = push_notifier.clone();
                                         let alarm = crate::models::Alarm {
                                             id: alarm_id,
                                             source_key: source.key.clone(),
@@ -539,7 +522,6 @@ async fn main() -> anyhow::Result<()> {
                                                 notif_storage,
                                                 &alarm,
                                                 notif_notifier,
-                                                notif_push,
                                             )
                                             .await;
                                         });
@@ -576,7 +558,6 @@ async fn main() -> anyhow::Result<()> {
                                     Ok(alarm_id) => {
                                         let notif_storage = storage.clone();
                                         let notif_notifier = email_notifier.clone();
-                                        let notif_push = push_notifier.clone();
                                         let alarm = crate::models::Alarm {
                                             id: alarm_id,
                                             source_key: source.key.clone(),
@@ -613,7 +594,6 @@ async fn main() -> anyhow::Result<()> {
                                                 notif_storage,
                                                 &alarm,
                                                 notif_notifier,
-                                                notif_push,
                                             )
                                             .await;
                                         });
@@ -890,7 +870,6 @@ async fn main() -> anyhow::Result<()> {
         feature_flags: feature_flags.clone(),
         smtp_config: Arc::new(tokio::sync::RwLock::new(app_config.smtp.clone())),
         config_path: config_path.to_string(),
-        vapid_public_key: app_config.push.as_ref().map(|p| p.vapid_public_key.clone()),
         hub_manager,
         stream_proxy: Some(Arc::new(video::StreamProxy::new("snapshots"))),
         ws_manager: ws_manager.clone(),

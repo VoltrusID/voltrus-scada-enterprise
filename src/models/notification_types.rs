@@ -41,17 +41,3 @@ pub enum SmtpEncryption {
     ImplicitTls,
     None,
 }
-
-// ── Push notification config ──
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct PushConfig {
-    pub vapid_private_key: String,
-    pub vapid_public_key: String,
-    #[serde(default = "default_push_subject")]
-    pub vapid_subject: String,
-}
-
-fn default_push_subject() -> String {
-    "mailto:admin@example.com".to_string()
-}

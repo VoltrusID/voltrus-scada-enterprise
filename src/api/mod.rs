@@ -44,7 +44,6 @@ mod oee;
 mod opcua_devices;
 #[cfg(feature = "openapi")]
 mod openapi;
-mod push;
 mod rbac;
 mod recipes;
 mod reports;
@@ -114,7 +113,6 @@ pub struct AppState {
     pub feature_flags: serde_json::Value,
     pub smtp_config: Arc<tokio::sync::RwLock<Option<crate::models::SmtpConfig>>>,
     pub config_path: String,
-    pub vapid_public_key: Option<String>,
     pub hub_manager: Option<hub::HubManager>,
     pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
     pub ws_manager: Arc<crate::ws_manager::WsManager>,
@@ -156,7 +154,6 @@ async fn license_check_middleware(
     if path == "/api/v1/health"
         || path == "/api/license/status"
         || path == "/api/v1/settings/branding"
-        || path == "/api/v1/push/vapid-key"
         || path.starts_with("/api/v1/auth/")
     {
         let mut resp = next.run(req).await;
@@ -490,11 +487,6 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/alarms/{id}/acknowledge",
             post(alarms::acknowledge_alarm),
         )
-        .route(
-            "/api/v1/push/subscribe",
-            post(push::subscribe).delete(push::unsubscribe),
-        )
-        .route("/api/v1/push/vapid-key", get(push::vapid_public_key))
         .route(
             "/api/v1/notifications/settings",
             get(notifications::list_notification_settings),

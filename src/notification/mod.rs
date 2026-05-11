@@ -6,7 +6,6 @@ pub mod webhook;
 use crate::models::Alarm;
 use crate::storage::Storage;
 use email::{AlarmEmailData, EmailNotifier};
-use push::{PushNotifier, build_alarm_payload};
 use webhook::{WebhookPayload, format_triggered_at, send_webhook_alarm};
 
 /// Dispatch alarm notifications to all configured channels for the given source_key.
@@ -17,7 +16,6 @@ pub async fn dispatch_alarm_notifications(
     storage: Storage,
     alarm: &Alarm,
     email_notifier: Option<EmailNotifier>,
-    push_notifier: Option<PushNotifier>,
 ) {
     let settings = match storage
         .get_notification_settings_by_source(&alarm.source_key)
@@ -108,76 +106,6 @@ pub async fn dispatch_alarm_notifications(
                     if let Err(e) = send_webhook_alarm(url, &payload).await {
                         tracing::error!("Failed to send webhook to {}: {}", url, e);
                     }
-                }
-            }
-            "push" => {
-                if let Some(ref notifier) = push_notifier {
-                    // config is a JSON array of usernames to send push notifications to
-                    let usernames: Vec<String> =
-                        serde_json::from_str(&setting.config).unwrap_or_default();
-                    let payload = build_alarm_payload(
-                        &source_name,
-                        &alarm.severity,
-                        &alarm.message,
-                        &alarm.source_key,
-                    );
-                    for username in &usernames {
-                        match storage.get_push_subscriptions_by_user(username).await {
-                            Ok(subscriptions) => {
-                                for sub in &subscriptions {
-                                    match notifier
-                                        .send_push_alarm(
-                                            &sub.endpoint,
-                                            &sub.p256dh,
-                                            &sub.auth_key,
-                                            &payload,
-                                        )
-                                        .await
-                                    {
-                                        push::PushSendResult::Sent => {}
-                                        push::PushSendResult::SubscriptionGone => {
-                                            tracing::warn!(
-                                                "Push subscription {} for user {} is stale, removing",
-                                                sub.id,
-                                                username
-                                            );
-                                            if let Err(e) =
-                                                storage.delete_push_subscription(sub.id).await
-                                            {
-                                                tracing::error!(
-                                                    "Failed to delete stale push subscription {}: {}",
-                                                    sub.id,
-                                                    e
-                                                );
-                                            }
-                                        }
-                                        push::PushSendResult::ServerError => {
-                                            tracing::warn!(
-                                                "Push service server error for subscription {}",
-                                                sub.id
-                                            );
-                                        }
-                                        push::PushSendResult::Other(err) => {
-                                            tracing::error!(
-                                                "Push notification error for subscription {}: {}",
-                                                sub.id,
-                                                err
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to load push subscriptions for {}: {}",
-                                    username,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    tracing::warn!("Push notification requested but VAPID is not configured");
                 }
             }
             "sms" => {
