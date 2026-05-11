@@ -1115,10 +1115,6 @@ pub fn create_router(state: AppState) -> Router {
 
     // Static file serving WITHOUT CORS headers
     let static_router = Router::new()
-        .nest_service(
-            "/lit",
-            ServeDir::new("client-lit").fallback(ServeFile::new("client-lit/index.html")),
-        )
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
         .layer(middleware::from_fn(
             crate::security::block_source_maps_middleware,
