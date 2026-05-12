@@ -2,12 +2,14 @@ import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } fro
 import { useQueryClient } from '@tanstack/react-query'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
+import { ChangePasswordScreen } from './ChangePasswordScreen'
 import { LicenseActivationScreen } from './LicenseActivationScreen'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
 import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
+import { ToastContainer } from './components/Toast'
 import { ViewToolbar } from './components/ViewToolbar'
 import { LayoutBreakpointSelector } from './components/LayoutBreakpointSelector'
 import { Footer } from './components/Footer'
@@ -57,6 +59,7 @@ function AppInner() {
   // ── Auth state ───────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false)
   const [authRole, setAuthRole] = useState<string>('user')
+  const [authUser, setAuthUser] = useState<string>('')
   const [authLoading, setAuthLoading] = useState(true)
   const [loginError, setLoginError] = useState('')
   const [mustChangePassword, setMustChangePassword] = useState(false)
@@ -243,17 +246,17 @@ function AppInner() {
 
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/v1/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthLoading(false) }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthLoading(false) })
+    fetch('/api/v1/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthUser(d.username || ''); setAuthLoading(false) }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthUser(''); setAuthLoading(false) })
   }, [])
 
   const handleLogin = async (username: string, password: string) => {
     setLoginError('')
     const r = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user'); setMustChangePassword(!!d.must_change_password) }
+    if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || username); setMustChangePassword(!!d.must_change_password) }
     else { const d = await r.json(); setLoginError(d.error || 'Login failed') }
   }
 
-  const handleLogout = async () => { await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user') }
+  const handleLogout = async () => { await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user'); setAuthUser('') }
 
   // ── WebSocket connection ───────────────────────────────────────
   useEffect(() => {
@@ -412,20 +415,10 @@ function AppInner() {
   if (mustChangePassword) {
     const handleChangePassword = async (newPassword: string) => {
       const r = await fetch('/api/v1/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
-      if (r.ok) setMustChangePassword(false)
-      else { const d = await r.json(); alert(d.error || 'Failed to change password') }
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed to change password') }
+      setMustChangePassword(false)
     }
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'Inter,sans-serif' }}>
-        <form onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const pw = fd.get('pw') as string; const pw2 = fd.get('pw2') as string; if (pw !== pw2) { alert('Passwords do not match'); return } if (pw.length < 8) { alert('Password must be at least 8 characters'); return } handleChangePassword(pw) }} style={{ background: 'var(--card)', borderRadius: 12, padding: 32, width: 360, display: 'flex', flexDirection: 'column', gap: 16, border: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: 18, color: 'var(--fg)' }}>Change Your Password</h2>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>You must set a new password before continuing.</p>
-          <input name="pw" type="password" placeholder="New password (min 8 chars)" required minLength={8} style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 14 }} />
-          <input name="pw2" type="password" placeholder="Confirm new password" required style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 14 }} />
-          <button type="submit" style={{ padding: '10px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Change Password</button>
-        </form>
-      </div>
-    )
+    return <ChangePasswordScreen onSubmit={handleChangePassword} />
   }
 
   return (
@@ -452,6 +445,7 @@ function AppInner() {
         onTagsClick={() => { setMode('tags'); setActiveScreen('all') }}
         onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
         isAdmin={isAdmin}
+        username={authUser}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
         onCommandPanelToggle={() => setShowCommandPanel(v => !v)}
@@ -616,6 +610,7 @@ function AppInner() {
       </main>
 
       <Footer activeAlarmCount={activeAlarms.count} viewMode={viewMode} activeScreen={activeScreen} screens={screens} />
+      <ToastContainer />
     </div>
     </LicenseContext.Provider>
   )
