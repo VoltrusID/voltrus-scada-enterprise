@@ -60,6 +60,10 @@ impl CommandQueue {
 
         for cmd in &commands {
             let now = crate::timeutil::now_secs();
+            tracing::info!(
+                "Processing command: id={}, ds={}, device={}, protocol={}, status={}, value={}",
+                cmd.id, cmd.data_source_id, cmd.device_id, cmd.protocol, cmd.status, cmd.value
+            );
 
             // -- Expiry check --
             if cmd.status == "queued" && (cmd.created_at + COMMAND_EXPIRY_SECS) < now {
@@ -92,9 +96,16 @@ impl CommandQueue {
                 }
             }
 
+            // -- Resolve the text device ID from the data source for cache lookups --
+            let ds = self.storage.get_data_source_by_id(cmd.data_source_id).await.ok().flatten();
+            let cache_device_id = ds.as_ref().map(|d| d.device_id.clone()).unwrap_or_else(|| cmd.device_id.to_string());
+
             // -- Device online check --
-            let device_id_str = cmd.device_id.to_string();
-            if !self.cache.is_device_online(&device_id_str).await {
+            if !self.cache.is_device_online(&cache_device_id).await {
+                tracing::warn!(
+                    "Skipping command {}: device '{}' (cache key '{}') is offline or not in cache",
+                    cmd.id, cmd.device_id, cache_device_id
+                );
                 continue;
             }
 
@@ -115,6 +126,12 @@ impl CommandQueue {
             // -- Handle result --
             match result.success {
                 true => {
+                    tracing::info!(
+                        "Command acked: id={}, response={}, latency={}ms",
+                        cmd.id,
+                        result.device_response.as_deref().unwrap_or("OK"),
+                        result.latency_ms
+                    );
                     let response = result
                         .device_response
                         .clone()
@@ -125,15 +142,18 @@ impl CommandQueue {
                         .await?;
 
                     // Update the cache so the new value is visible immediately
-                    if let Ok(Some(ds)) = self.storage.get_data_source_by_id(cmd.data_source_id).await {
-                        let device_id_str = cmd.device_id.to_string();
+                    if let Some(ds) = ds {
                         if let Ok(value) = cmd.value.parse::<f64>() {
-                            self.cache.set_metric_value(&device_id_str, &ds.key, value).await;
+                            self.cache.set_metric_value(&cache_device_id, &ds.key, value).await;
                         }
                     }
                 }
                 false => {
                     let error = result.error.as_deref().unwrap_or("Unknown error");
+                    tracing::warn!(
+                        "Command failed: id={}, error={}, retry={}/{}",
+                        cmd.id, error, cmd.retry_count, cmd.max_retries
+                    );
                     if cmd.retry_count < cmd.max_retries {
                         self.publish_status_event(&cmd.id, "queued", Some(error));
                         self.storage
