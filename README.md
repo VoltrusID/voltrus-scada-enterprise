@@ -132,12 +132,23 @@ cp config.yaml config.yaml
 # Default login: admin / admin (change on first login)
 ```
 
-### Cross-Compilation
+### Cross-Compilation & Release
 
 ```bash
-# Requires: zig, cargo-zigbuild
+# Requires: zig, cargo-zigbuild, bun, wrangler
+
+# Single target
 rustup target add x86_64-unknown-linux-musl
 bash -c 'ulimit -n 65536 && cargo zigbuild --release --target x86_64-unknown-linux-musl'
+
+# Full release (all platforms + R2 upload)
+./scripts/release-local.sh
+
+# Options
+./scripts/release-local.sh --target aarch64       # macOS ARM64 only
+./scripts/release-local.sh --target linux-x86_64   # Linux x86_64 only
+./scripts/release-local.sh --skip-upload          # Build only, skip R2 upload
+NOTARIZE=1 ./scripts/release-local.sh              # With macOS notarization
 ```
 
 ### Deploy to VPS
@@ -156,9 +167,9 @@ bash -c 'ulimit -n 65536 && cargo zigbuild --release --target x86_64-unknown-lin
 
 ```bash
 cd client
-npm ci
-npm run dev        # dev server at localhost:5173, proxies API to :3100
-npm run build      # production build → ../static/
+bun install
+bun run dev        # dev server at localhost:5173, proxies API to :3100
+bun run build      # production build → ../static/
 ```
 
 ---
@@ -208,7 +219,7 @@ devices:
 
 **Backend:** Rust (Axum, Tokio, rusqlite) — single binary, no runtime
 
-**Frontend:** React 19 + TypeScript + Vite + Three.js — inline CSS, zero framework dependency
+**Frontend:** React 19 + TypeScript + Vite 8 (Rolldown) + Three.js — inline CSS, zero framework dependency
 
 **License Server:** Cloudflare Worker + D1
 
@@ -240,7 +251,8 @@ voltrus/                          # Core application (this repo)
 │   └── vite.config.ts
 ├── scenarios/                    # Integration test scenarios
 ├── deploy/                       # Systemd service file
-├── release.sh                    # Cross-compile + R2 upload
+├── scripts/
+│   └── release-local.sh          # Cross-compile + R2 upload
 ├── deploy-vps.sh                 # Build + deploy to VPS
 └── Cargo.toml
 ```
