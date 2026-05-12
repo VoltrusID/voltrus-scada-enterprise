@@ -57,7 +57,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
   const license = useLicense()
   const isMultiSiteEnabled = license?.feature_flags?.multi_site !== false
 
-  const filtered = sites.filter(s =>
+  const filtered = sites.filter((s: any) =>
     s.name.toLowerCase().includes(filter.toLowerCase()) ||
     s.url.toLowerCase().includes(filter.toLowerCase()),
   )
@@ -102,9 +102,9 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16 }}>
         <div style={{
           width: 64, height: 64, borderRadius: 16, background: 'rgba(34,197,94,.08)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {'\uD83C\uDF10'}
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
         </div>
         <h2 style={{ fontSize: 18, fontWeight: 600 }}>Multi-Site Hub</h2>
         <p style={{ color: 'var(--muted)', fontSize: 13, maxWidth: 400, textAlign: 'center' }}>
@@ -186,7 +186,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
               </tr>
             </thead>
             <tbody>
-              {filtered.map(s => {
+              {filtered.map((s: any) => {
                 const status = getSiteStatus(s.id, statuses)
                 const siteStatusEntry = statuses.find(x => x.site_id === s.id)
                 return (

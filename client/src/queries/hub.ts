@@ -21,7 +21,10 @@ export interface HubSiteStatus {
 export function useHubSites() {
   return useQuery({
     queryKey: ['hub-sites'],
-    queryFn: () => fetchJson<HubSite[]>('/api/v1/hub/sites'),
+    queryFn: async () => {
+      const data = await fetchJson<any>('/api/v1/hub/sites')
+      return Array.isArray(data) ? data : (data?.sites ?? [])
+    },
     refetchInterval: 15_000,
   })
 }
@@ -29,7 +32,10 @@ export function useHubSites() {
 export function useHubStatus() {
   return useQuery({
     queryKey: ['hub-status'],
-    queryFn: () => fetchJson<HubSiteStatus[]>('/api/v1/hub/status'),
+    queryFn: async () => {
+      const data = await fetchJson<any>('/api/v1/hub/status')
+      return Array.isArray(data) ? data : []
+    },
     refetchInterval: 10_000,
   })
 }

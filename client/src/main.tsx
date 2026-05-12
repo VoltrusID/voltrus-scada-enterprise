@@ -24,6 +24,10 @@ const queryClient = new QueryClient({
   },
 })
 
+queryClient.getQueryCache().config.onError = (error: any) => {
+  toast.error(error.message || 'Request failed')
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
