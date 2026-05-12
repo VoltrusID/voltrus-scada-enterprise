@@ -62,8 +62,8 @@ build_frontend() {
   info "Building frontend..."
   (
     cd client
-    npm ci --quiet
-    npm run build
+    bun install --frozen-lockfile 2>/dev/null || bun install
+    bun run build
     mkdir -p ../static
     cp -r dist/* ../static/
   )
@@ -110,7 +110,7 @@ build_target() {
     (cd "${BUILD_DIR}" && zip -r -q "$(basename "$archive")" "${name}/")
   else
     archive="${BUILD_DIR}/voltrus-${TAG}-${name}.tar.gz"
-    tar -czf "$archive" -C "$pkg_dir" .
+    COPYFILE_DISABLE=1 tar --no-xattrs -czf "$archive" -C "$pkg_dir" .
   fi
 
   local size

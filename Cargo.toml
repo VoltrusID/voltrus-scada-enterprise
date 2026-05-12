@@ -1,8 +1,9 @@
 [package]
 name = "voltrus"
-version = "0.45.0"
+version = "0.46.0"
 edition = "2024"
 license = "MIT"
+default-run = "voltrus"
 
 [[bin]]
 name = "voltrus"
