@@ -129,6 +129,7 @@ interface Props {
   onAssetsClick: () => void
   onScriptsClick: () => void
   isAdmin: boolean
+  username: string
   onLogout: () => void
   onAlarmPanelToggle: () => void
   onCommandPanelToggle: () => void
@@ -263,7 +264,7 @@ export function AppHeader({
   activeAlarmCount, effectiveNavShortcuts,
   showShortcutsPanel, onToggleShortcutsPanel, shortcutsPanel,
   mode, onSettingsClick, onDataManagerClick, onFlowsClick, onTagsClick, isAdmin,
-  onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onShiftHandoverToggle,
+  username, onLogout, onAlarmPanelToggle, onCommandPanelToggle, onExportClick, onShiftHandoverToggle,
   onSnapshotsClick, onAuditPanelToggle, onImportWizardClick, onNodeRedWizardClick, onMqttPanelClick, onEdrPanelClick, onAssetsClick, onScriptsClick, onSystemClick,
   // Screen tabs
   screens, activeScreen, onTabClick,
@@ -473,6 +474,34 @@ export function AppHeader({
             />
           )}
 
+          {/* User badge + Logout (desktop only) */}
+          {!isMobile && username && (
+            <ActionMenu
+              items={[
+                { label: `Logged in as ${username}`, icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, onClick: () => {} },
+                { label: 'Logout', icon: Icons.logout, onClick: onLogout, danger: true },
+              ]}
+              trigger={
+                <button
+                  aria-label={`User: ${username}`}
+                  title={username}
+                  style={{
+                    ...ICON_BTN,
+                    width: 'auto',
+                    padding: '0 8px',
+                    gap: 5,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--fg)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{username}</span>
+                </button>
+              }
+            />
+          )}
+
           {/* Hamburger (mobile only) */}
           {isMobile && (
             <button
@@ -622,6 +651,12 @@ export function AppHeader({
           </div>
 
           <div style={{ borderTop: '1px solid var(--border)', padding: '4px 0' }}>
+            {username && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', color: 'var(--muted)', fontSize: 12 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>{username}</span>
+              </div>
+            )}
             <button style={{ ...drawerItemStyle, color: 'var(--crit)' }} onClick={() => { closeDrawer(); onLogout(); }}>
               {Icons.logout}<span>Logout</span>
             </button>

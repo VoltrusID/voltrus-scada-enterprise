@@ -62,6 +62,10 @@ if [ "$BUILD_RUST" = true ]; then
   command -v cargo zigbuild >/dev/null 2>&1 || error "cargo-zigbuild not found. Install: cargo install cargo-zigbuild"
 fi
 
+if [ "$BUILD_FRONTEND" = true ]; then
+  command -v bun >/dev/null 2>&1 || error "bun not found. Install: curl -fsSL https://bun.sh/install | bash"
+fi
+
 info "Voltrus ${TAG}"
 
 # ── Build frontend ──
@@ -69,8 +73,8 @@ if [ "$BUILD_FRONTEND" = true ]; then
   step "Building frontend..."
   (
     cd client
-    npm ci --quiet 2>/dev/null || npm install --quiet
-    npm run build
+    bun install --frozen-lockfile 2>/dev/null || bun install
+    bun run build
     mkdir -p ../static
     cp -r dist/* ../static/
   )
@@ -90,6 +94,7 @@ if [ "$BUILD_RUST" = true ]; then
   cp "target/${TARGET}/release/modbus-sim" "$BUILD_DIR/" 2>/dev/null || warn "modbus-sim not found (may need feature flag)"
   cp config.yaml "$BUILD_DIR/config.yaml.example"
   [ -f deploy/voltrus.service ] && cp deploy/voltrus.service "$BUILD_DIR/"
+  rm -rf "$BUILD_DIR/static"
   cp -r static "$BUILD_DIR/static"
 
   local_size=$(stat -f%z "$BUILD_DIR/voltrus" 2>/dev/null || stat -c%s "$BUILD_DIR/voltrus" 2>/dev/null)
@@ -100,18 +105,15 @@ fi
 if [ "$DEPLOY" = true ]; then
   step "Deploying to VPS..."
 
-  # Upload binaries and static files
-  info "Uploading voltrus binary..."
-  scp "$BUILD_DIR/voltrus" "${VPS_HOST}:/tmp/voltrus-new"
+  ARCHIVE="/tmp/voltrus-deploy-${TAG}.tar.gz"
+  info "Packing build artifacts..."
+  COPYFILE_DISABLE=1 tar --no-xattrs -czf "$ARCHIVE" -C "$BUILD_DIR" .
 
-  if [ -f "$BUILD_DIR/modbus-sim" ]; then
-    info "Uploading modbus-sim..."
-    scp "$BUILD_DIR/modbus-sim" "${VPS_HOST}:/tmp/modbus-sim-new"
-  fi
+  ARCHIVE_SIZE=$(stat -f%z "$ARCHIVE" 2>/dev/null || stat -c%s "$ARCHIVE" 2>/dev/null)
+  info "Archive size: $(( ARCHIVE_SIZE / 1048576 )) MB"
 
-  info "Uploading static files..."
-  ssh "$VPS_HOST" "rm -rf /tmp/voltrus-static"
-  scp -r "$BUILD_DIR/static" "${VPS_HOST}:/tmp/voltrus-static"
+  info "Uploading archive..."
+  scp "$ARCHIVE" "${VPS_HOST}:/tmp/voltrus-deploy.tar.gz"
 
   # Execute remote deploy
   info "Running remote deploy..."
@@ -129,18 +131,34 @@ for svc in "\${SERVICES[@]}"; do
 done
 sleep 1
 
+echo "==> Preparing install directory..."
+sudo mkdir -p "\${INSTALL_DIR}"
+
+echo "==> Unpacking archive..."
+rm -rf /tmp/voltrus-deploy
+mkdir -p /tmp/voltrus-deploy
+tar -xzf /tmp/voltrus-deploy.tar.gz -C /tmp/voltrus-deploy 2>/dev/null
+
 echo "==> Installing binary..."
-sudo mv /tmp/voltrus-new "\${INSTALL_DIR}/voltrus"
+sudo mv /tmp/voltrus-deploy/voltrus "\${INSTALL_DIR}/voltrus"
 sudo chmod +x "\${INSTALL_DIR}/voltrus"
 
-if [ -f /tmp/modbus-sim-new ]; then
-  sudo mv /tmp/modbus-sim-new "\${INSTALL_DIR}/modbus-sim"
+if [ -f /tmp/voltrus-deploy/modbus-sim ]; then
+  sudo mv /tmp/voltrus-deploy/modbus-sim "\${INSTALL_DIR}/modbus-sim"
   sudo chmod +x "\${INSTALL_DIR}/modbus-sim"
 fi
 
 echo "==> Installing static files..."
 sudo rm -rf "\${INSTALL_DIR}/static"
-sudo mv /tmp/voltrus-static "\${INSTALL_DIR}/static"
+sudo mv /tmp/voltrus-deploy/static "\${INSTALL_DIR}/static"
+
+echo "==> Fixing ownership..."
+sudo chown -R voltrus:voltrus "\${INSTALL_DIR}/static"
+sudo chown voltrus:voltrus "\${INSTALL_DIR}" "\${INSTALL_DIR}/voltrus" "\${INSTALL_DIR}/modbus-sim"
+sudo chown -R voltrus:voltrus "\${INSTALL_DIR}/data" 2>/dev/null || true
+
+echo "==> Cleaning up temp files..."
+rm -rf /tmp/voltrus-deploy /tmp/voltrus-deploy.tar.gz
 
 echo "==> Starting services..."
 for svc in "\${SERVICES[@]}"; do
@@ -162,6 +180,7 @@ echo "==> Health check passed!"
 
 REMOTE_SCRIPT
 
+  rm -f "$ARCHIVE"
   step "Deploy complete! Voltrus ${TAG} is live on VPS."
 fi
 

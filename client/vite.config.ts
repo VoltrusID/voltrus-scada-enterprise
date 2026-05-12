@@ -11,27 +11,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-        passes: 3,
-        pure_funcs: ['Object.defineProperty', 'Object.freeze'],
-      },
-      format: {
-        comments: false,
-      },
-      mangle: {
-        toplevel: true,
-      },
+    minify: true,
+    rolldown: {
+      drop: ['console', 'debugger'],
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'three': ['three'],
-          'vendor-react': ['react', 'react-dom'],
-          'lightweight-charts': ['lightweight-charts'],
+        manualChunks(id) {
+          if (id.includes('/node_modules/three/')) return 'three'
+          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) return 'vendor-react'
+          if (id.includes('/node_modules/lightweight-charts/')) return 'lightweight-charts'
         },
       },
     },

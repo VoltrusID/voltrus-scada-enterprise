@@ -6,6 +6,7 @@ import './index.css'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import App from './App'
+import { toast } from './components/Toast'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,6 +15,11 @@ const queryClient = new QueryClient({
       gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
+    },
+    mutations: {
+      onError: (err: any) => {
+        toast.error(err.message || 'Request failed')
+      },
     },
   },
 })

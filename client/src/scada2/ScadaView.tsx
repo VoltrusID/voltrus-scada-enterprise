@@ -9,6 +9,7 @@ import type { ScadaLayoutState } from './engine/widgetState'
 import type { SensorConfig, SensorData, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
 import { useDashboardSelector } from '../store/dashboardStore'
 import { writeTag } from '../api/commands'
+import { toast } from '../components/Toast'
 
 // Import all widgets to trigger registration
 import './widgets/IndicatorWidget'
@@ -161,8 +162,8 @@ export const ScadaView: React.FC<Props> = ({
   const handleWriteValue = useCallback(async (_widgetId: string, sensorId: number, value: number) => {
     try {
       await writeTag(sensorId, value)
-    } catch (err) {
-      console.error('Write failed:', err)
+    } catch (err: any) {
+      toast.error(err.message || 'Write failed')
     }
   }, [])
 
