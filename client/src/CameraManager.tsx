@@ -291,9 +291,9 @@ export function CameraManager({ onClose, embedded }: { onClose: () => void; embe
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 16 }}>
         <div style={{
           width: 64, height: 64, borderRadius: 16, background: 'rgba(34,197,94,.08)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {'\uD83D\uDCF9'}
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
         </div>
         <h2 style={{ fontSize: 18, fontWeight: 600 }}>RTSP Video</h2>
         <p style={{ color: 'var(--muted)', fontSize: 13, maxWidth: 400, textAlign: 'center' }}>
