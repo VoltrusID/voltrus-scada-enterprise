@@ -123,6 +123,14 @@ impl CommandQueue {
                     self.storage
                         .update_command_status(&cmd.id, "acked", None, "system", None)
                         .await?;
+
+                    // Update the cache so the new value is visible immediately
+                    if let Ok(Some(ds)) = self.storage.get_data_source_by_id(cmd.data_source_id).await {
+                        let device_id_str = cmd.device_id.to_string();
+                        if let Ok(value) = cmd.value.parse::<f64>() {
+                            self.cache.set_metric_value(&device_id_str, &ds.key, value).await;
+                        }
+                    }
                 }
                 false => {
                     let error = result.error.as_deref().unwrap_or("Unknown error");
