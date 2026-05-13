@@ -24,7 +24,7 @@ pub async fn strip_forwarded_host_middleware(req: Request, next: Next) -> Respon
 }
 
 pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
-    let path = req.uri().path();
+    let path = req.uri().path().to_owned();
     let is_api = path.starts_with("/api/");
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
@@ -51,17 +51,16 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
     );
 
     // Content Security Policy
-    // Note: 'unsafe-inline' is kept for style-src because the Lit frontend uses
-    // inline <style> tags in its index.html. Both frontends load scripts via
-    // external src= attributes, so script-src does not need 'unsafe-inline'.
+    // Cloudflare injects beacon.min.js for analytics when tunneled, and the
+    // frontend loads Google Fonts (Inter, JetBrains Mono) from CDN.
     headers.insert(
         "Content-Security-Policy",
         header::HeaderValue::from_static(
             "default-src 'self'; \
-             script-src 'self'; \
-             style-src 'self' 'unsafe-inline'; \
+             script-src 'self' https://static.cloudflareinsights.com; \
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
              img-src 'self' data: blob:; \
-             font-src 'self'; \
+             font-src 'self' https://fonts.gstatic.com; \
              connect-src 'self'; \
              media-src 'self'; \
              object-src 'none'; \
@@ -85,7 +84,7 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
         header::HeaderValue::from_static("max-age=31536000; includeSubDomains; preload"),
     );
 
-    // Cache control for API routes
+    // Cache control
     if is_api {
         headers.insert(
             "Cache-Control",
@@ -93,6 +92,18 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
         );
         headers.insert("Pragma", header::HeaderValue::from_static("no-cache"));
         headers.insert("Expires", header::HeaderValue::from_static("0"));
+    } else if path == "/" || path == "/index.html" {
+        // Never cache index.html — it contains hashed asset URLs that change on deploy
+        headers.insert(
+            "Cache-Control",
+            header::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+        );
+    } else if path.starts_with("/assets/") {
+        // Hashed assets can be cached forever — filename changes when content changes
+        headers.insert(
+            "Cache-Control",
+            header::HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
     }
 
     response
