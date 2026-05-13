@@ -125,6 +125,8 @@ pub struct AppState {
     pub health_monitor: Arc<crate::ha::watchdog::HealthMonitor>,
     pub ha_state: crate::ha::HaState,
     pub widget_registry: crate::widget_sdk::WidgetRegistry,
+    #[cfg(feature = "modbus")]
+    pub modbus_pool: std::sync::Arc<crate::modbus::ModbusPool>,
 }
 
 #[derive(Debug)]

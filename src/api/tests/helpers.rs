@@ -66,6 +66,7 @@ pub fn test_app() -> Router {
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     create_router(state)
 }
@@ -202,6 +203,7 @@ pub async fn test_app_with_seeded_admin() -> Router {
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     create_router(state)
 }
@@ -251,6 +253,7 @@ pub fn test_app_with_license_status(
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     create_router(state)
 }

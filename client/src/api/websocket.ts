@@ -151,3 +151,23 @@ export class VoltrusWebSocket {
     }, this.reconnectDelay);
   }
 }
+
+// ── Singleton for use outside React tree ──
+
+let _instance: VoltrusWebSocket | null = null;
+
+export function setWsInstance(ws: VoltrusWebSocket | null): void {
+  _instance = ws;
+}
+
+export function getWsInstance(): VoltrusWebSocket | null {
+  return _instance;
+}
+
+export function wsWriteTag(sensorId: number, value: number): boolean {
+  if (_instance) {
+    _instance.writeTag(String(sensorId), value);
+    return true;
+  }
+  return false;
+}
