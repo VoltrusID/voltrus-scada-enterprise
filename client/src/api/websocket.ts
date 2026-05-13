@@ -147,6 +147,10 @@ export class VoltrusWebSocket {
     this.token = '';
   }
 
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
   onTagUpdate(cb: TagUpdateCallback): void { this.tagUpdateCallbacks.push(cb); }
   onTagBatch(cb: TagBatchCallback): void { this.tagBatchCallbacks.push(cb); }
   onCommandAck(cb: CommandAckCallback): void { this.commandAckCallbacks.push(cb); }
@@ -182,9 +186,13 @@ export function getWsInstance(): VoltrusWebSocket | null {
 }
 
 export function wsWriteTag(sensorId: number, value: number): boolean {
-  if (_instance) {
+  if (_instance && _instance.isConnected()) {
     _instance.writeTag(String(sensorId), value);
     return true;
   }
   return false;
+}
+
+export function isWsConnected(): boolean {
+  return _instance?.isConnected() ?? false
 }
