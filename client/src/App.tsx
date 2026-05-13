@@ -106,6 +106,24 @@ function AppInner() {
   // ── WebSocket ──────────────────────────────────────────────────
   const wsRef = useRef<VoltrusWebSocket | null>(null)
 
+  const connectWS = useCallback(() => {
+    if (wsRef.current) return
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const ws = new VoltrusWebSocket()
+    ws.connect(`${protocol}//${window.location.host}/api/v1/ws`)
+    wsRef.current = ws
+    setWsInstance(ws)
+  }, [])
+
+  const disconnectWS = useCallback(() => {
+    wsRef.current?.disconnect()
+    wsRef.current = null
+    setWsInstance(null)
+  }, [])
+
+  // cleanup on unmount only
+  useEffect(() => () => { wsRef.current?.disconnect(); wsRef.current = null; setWsInstance(null) }, [])
+
   // ── URL sync ─────────────────────────────────────────────────────
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
@@ -246,46 +264,20 @@ function AppInner() {
 
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/v1/auth/me').then(r => r.json()).then(d => { setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthUser(d.username || ''); setAuthLoading(false) }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthUser(''); setAuthLoading(false) })
+    fetch('/api/v1/auth/me').then(r => r.json()).then(d => {
+      if (d.authenticated) connectWS()
+      setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthUser(d.username || ''); setAuthLoading(false)
+    }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthUser(''); setAuthLoading(false) })
   }, [])
 
   const handleLogin = async (username: string, password: string) => {
     setLoginError('')
     const r = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    if (r.ok) { const d = await r.json(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || username); setMustChangePassword(!!d.must_change_password) }
+    if (r.ok) { const d = await r.json(); connectWS(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || username); setMustChangePassword(!!d.must_change_password) }
     else { const d = await r.json(); setLoginError(d.error || 'Login failed') }
   }
 
-  const handleLogout = async () => { await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user'); setAuthUser('') }
-
-  // ── WebSocket connection ───────────────────────────────────────
-  useEffect(() => {
-    if (!authed) {
-      wsRef.current?.disconnect()
-      wsRef.current = null
-      return
-    }
-
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('voltrus_token='))
-      ?.split('=')[1]
-
-    if (!token) return
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/ws`
-    const ws = new VoltrusWebSocket()
-    ws.connect(wsUrl, token)
-    wsRef.current = ws
-    setWsInstance(ws)
-
-    return () => {
-      ws.disconnect()
-      if (wsRef.current === ws) wsRef.current = null
-      setWsInstance(null)
-    }
-  }, [authed])
+  const handleLogout = async () => { disconnectWS(); await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user'); setAuthUser('') }
 
   // ── Handlers ─────────────────────────────────────────────────────
 

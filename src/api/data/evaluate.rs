@@ -45,7 +45,11 @@ pub(crate) fn evaluate_data_sources(
                     }
                 }
             } else {
-                generators::generate_value(ds, now)
+                let cached = cache_data
+                    .iter()
+                    .find(|s| s.device_id == ds.device_id && s.status == DeviceStatus::Online)
+                    .and_then(|s| s.metrics.get(&ds.key).copied());
+                cached.unwrap_or_else(|| generators::generate_value(ds, now))
             };
 
             let status = if value.is_nan() {

@@ -96,8 +96,12 @@ pub async fn security_headers_middleware(req: Request, next: Next) -> Response {
         // Never cache index.html — it contains hashed asset URLs that change on deploy
         headers.insert(
             "Cache-Control",
-            header::HeaderValue::from_static("no-cache, no-store, must-revalidate"),
+            header::HeaderValue::from_static("no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate"),
         );
+        headers.insert("Pragma", header::HeaderValue::from_static("no-cache"));
+        headers.insert("Expires", header::HeaderValue::from_static("0"));
+        // Tell Cloudflare explicitly: do not cache
+        headers.insert("CDN-Cache-Control", header::HeaderValue::from_static("no-store"));
     } else if path.starts_with("/assets/") {
         // Hashed assets can be cached forever — filename changes when content changes
         headers.insert(

@@ -6,7 +6,7 @@ interface DashboardState {
   currentValues: Record<string, SensorData>
   historyMap: Record<string, DataPoint[]> | null
   historyReady: boolean
-  sseConnected: boolean
+  wsConnected: boolean
   systemInfo: { hostname: string; os: string; cpu_usage: number; memory_used_mb: number; memory_total_mb: number; memory_percent: number } | null
 }
 
@@ -15,7 +15,7 @@ const initialState: DashboardState = {
   currentValues: {},
   historyMap: null,
   historyReady: false,
-  sseConnected: false,
+  wsConnected: false,
   systemInfo: null,
 }
 
@@ -81,8 +81,8 @@ function createDashboardStore() {
     setState(prev => prev.historyReady === ready ? prev : { ...prev, historyReady: ready })
   }
 
-  const setSseConnected = (connected: boolean) => {
-    setState(prev => prev.sseConnected === connected ? prev : { ...prev, sseConnected: connected })
+  const setWsConnected = (connected: boolean) => {
+    setState(prev => prev.wsConnected === connected ? prev : { ...prev, wsConnected: connected })
   }
 
   const setSystemInfo = (info: DashboardState['systemInfo']) => {
@@ -103,7 +103,7 @@ function createDashboardStore() {
     mergeSensorData,
     setHistoryMap,
     setHistoryReady,
-    setSseConnected,
+    setWsConnected,
     setSystemInfo,
     clearData,
   }
@@ -154,8 +154,8 @@ export function useHistoryReady(): boolean {
   return useDashboardSelector(s => s.historyReady)
 }
 
-export function useSseConnected(): boolean {
-  return useDashboardSelector(s => s.sseConnected)
+export function useWsConnected(): boolean {
+  return useDashboardSelector(s => s.wsConnected)
 }
 
 export function useChartData(sensorId: number | string, mode: 'live' | 'history'): DataPoint[] {
@@ -190,7 +190,7 @@ export function useDashboardStoreActions() {
     mergeSensorData: store.mergeSensorData,
     setHistoryMap: store.setHistoryMap,
     setHistoryReady: store.setHistoryReady,
-    setSseConnected: store.setSseConnected,
+    setWsConnected: store.setWsConnected,
     setSystemInfo: store.setSystemInfo,
     clearData: store.clearData,
     getState: store.getState,

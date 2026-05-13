@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TagUpdateEntry {
+    pub tag_id: String,
+    pub value: f64,
+    pub quality: String,
+    pub ts: i64,
+    pub simulated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
     Auth {
@@ -36,6 +45,10 @@ pub enum ServerMessage {
         quality: String,
         ts: i64,
         simulated: bool,
+    },
+    /// Batch of tag updates sent in a single message to reduce per-message overhead.
+    TagUpdateBatch {
+        updates: Vec<TagUpdateEntry>,
     },
     CommandAck {
         command_id: String,
@@ -145,6 +158,15 @@ mod tests {
                 ts: 0,
                 simulated: false,
             },
+            ServerMessage::TagUpdateBatch {
+                updates: vec![TagUpdateEntry {
+                    tag_id: "t1".to_string(),
+                    value: 2.0,
+                    quality: "normal".to_string(),
+                    ts: 1,
+                    simulated: true,
+                }],
+            },
             ServerMessage::CommandAck {
                 command_id: "c1".to_string(),
                 status: "acked".to_string(),
@@ -170,6 +192,22 @@ mod tests {
             let bytes = rmp_serde::to_vec(msg).unwrap();
             let _: ServerMessage = rmp_serde::from_slice(&bytes).unwrap();
         }
+    }
+
+    #[test]
+    fn test_to_vec_named_produces_map() {
+        let msg = ServerMessage::TagUpdate {
+            tag_id: "PLC01.voltage".to_string(),
+            value: 230.5,
+            quality: "good".to_string(),
+            ts: 1700000000,
+            simulated: false,
+        };
+        let bytes = rmp_serde::to_vec_named(&msg).unwrap();
+        eprintln!("[DEBUG] to_vec_named hex: {}", bytes.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" "));
+        eprintln!("[DEBUG] first byte: 0x{:02x} (0x80-0x8f = fixmap, 0x90-0x9f = fixarray)", bytes[0]);
+        // fixmap: 0x80 | n  where n is number of keys (should be 6)
+        assert!(bytes[0] >= 0x80 && bytes[0] <= 0x8f, "Expected fixmap, got 0x{:02x}", bytes[0]);
     }
 
     #[test]

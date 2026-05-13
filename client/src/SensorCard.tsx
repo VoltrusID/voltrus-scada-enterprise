@@ -100,6 +100,7 @@ export const SensorCard = React.memo(function SensorCard({
           {editMode && activeScreen !== 'all' && (
             <button
               onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }}
+              aria-label={`Remove ${s.name} from screen`}
               style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '4px 8px', fontSize: 10, lineHeight: 1, minWidth: 44, minHeight: 28 }}
             >Remove</button>
           )}
@@ -157,7 +158,7 @@ export const SensorCard = React.memo(function SensorCard({
             }}>{shortcut}</kbd>
           )}
           {editMode && activeScreen !== 'all' && (
-            <button onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
+            <button aria-label={`Remove ${s.name} from screen`} onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
           )}
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, minWidth: 52, textAlign: 'center' as const,
             background: st === 'critical' ? 'rgba(239,68,68,.12)' : st === 'warning' ? 'rgba(234,179,8,.12)' : st === 'offline' ? 'rgba(100,100,100,.12)' : 'rgba(34,197,94,.12)', color: stColor(st) }}>{st}</div>

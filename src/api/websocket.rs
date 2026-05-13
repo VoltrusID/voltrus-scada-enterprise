@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 use super::AppState;
+use crate::ws_manager::WsFrame;
 use crate::ws_types::{ClientMessage, ServerMessage};
 
 /// GET /api/v1/ws -- WebSocket upgrade endpoint.
@@ -18,69 +19,77 @@ use crate::ws_types::{ClientMessage, ServerMessage};
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
+    jar: axum_extra::extract::cookie::CookieJar,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    let cookie_token = jar
+        .get("voltrus_token")
+        .map(|c| c.value().to_string());
+    ws.on_upgrade(move |socket| handle_socket(socket, state, cookie_token))
 }
 
 // -- Socket handler --------------------------------------------------------
 
-async fn handle_socket(socket: WebSocket, state: AppState) {
+async fn handle_socket(socket: WebSocket, state: AppState, cookie_token: Option<String>) {
     let (mut sink, mut stream) = socket.split();
 
-    // 1. Wait for the first message (auth) with a 30-second timeout.
-    let first_msg: Message = match timeout(Duration::from_secs(30), stream.next()).await {
-        Ok(Some(Ok(msg))) => msg,
-        Ok(Some(Err(e))) => {
-            tracing::warn!("WS: error receiving first message: {}", e);
-            return;
-        }
-        Ok(None) | Err(_) => {
-            tracing::info!("WS: client disconnected before authentication");
-            return;
-        }
-    };
+    // 1. Obtain token: prefer cookie from upgrade request, fall back to Auth message.
+    let token = if let Some(t) = cookie_token {
+        t
+    } else {
+        // No cookie – wait for a MessagePack Auth message (non-browser clients).
+        let first_msg: Message = match timeout(Duration::from_secs(30), stream.next()).await {
+            Ok(Some(Ok(msg))) => msg,
+            Ok(Some(Err(e))) => {
+                tracing::warn!("WS: error receiving first message: {}", e);
+                return;
+            }
+            Ok(None) | Err(_) => {
+                tracing::info!("WS: client disconnected before authentication");
+                return;
+            }
+        };
 
-    // 2. Decode the first message as a ClientMessage::Auth.
-    let data = match first_msg.into_data() {
-        d if !d.is_empty() => d,
-        _ => {
-            let _ = send_msg(
-                &mut sink,
-                &ServerMessage::AuthError {
-                    message: "First message must be a binary Auth message".to_string(),
-                },
-            )
-            .await;
-            return;
-        }
-    };
+        let data = match first_msg.into_data() {
+            d if !d.is_empty() => d,
+            _ => {
+                let _ = send_msg(
+                    &mut sink,
+                    &ServerMessage::AuthError {
+                        message: "First message must be a binary Auth message".to_string(),
+                    },
+                )
+                .await;
+                return;
+            }
+        };
 
-    let client_msg: ClientMessage = match rmp_serde::from_slice(&data) {
-        Ok(m) => m,
-        Err(e) => {
-            tracing::warn!("WS: failed to decode first message: {}", e);
-            let _ = send_msg(
-                &mut sink,
-                &ServerMessage::AuthError {
-                    message: format!("Invalid MessagePack: {}", e),
-                },
-            )
-            .await;
-            return;
-        }
-    };
+        let client_msg: ClientMessage = match rmp_serde::from_slice(&data) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::warn!("WS: failed to decode first message: {}", e);
+                let _ = send_msg(
+                    &mut sink,
+                    &ServerMessage::AuthError {
+                        message: format!("Invalid MessagePack: {}", e),
+                    },
+                )
+                .await;
+                return;
+            }
+        };
 
-    let token = match client_msg {
-        ClientMessage::Auth { token } => token,
-        _ => {
-            let _ = send_msg(
-                &mut sink,
-                &ServerMessage::AuthError {
-                    message: "First message must be Auth".to_string(),
-                },
-            )
-            .await;
-            return;
+        match client_msg {
+            ClientMessage::Auth { token } => token,
+            _ => {
+                let _ = send_msg(
+                    &mut sink,
+                    &ServerMessage::AuthError {
+                        message: "First message must be Auth".to_string(),
+                    },
+                )
+                .await;
+                return;
+            }
         }
     };
 
@@ -149,8 +158,16 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
             // Outgoing message from WsManager broadcast channel
             msg = rx.recv() => {
                 match msg {
-                    Some(server_msg) => {
-                        if send_msg(&mut sink, &server_msg).await.is_err() {
+                    Some(frame) => {
+                        let result = match frame {
+                            WsFrame::Binary(bytes) => {
+                                sink.send(Message::Binary(bytes.into())).await
+                            }
+                            WsFrame::Message(server_msg) => {
+                                send_msg(&mut sink, &server_msg).await
+                            }
+                        };
+                        if result.is_err() {
                             break;
                         }
                     }
@@ -320,13 +337,12 @@ async fn handle_tag_write(
         result.latency_ms,
     );
 
-    // Update cache immediately so SSE broadcasts the new value
-    if result.success {
-        state
-            .cache
-            .set_metric_value(&cache_device_id, &ds_key, value)
-            .await;
-    }
+    // Update cache with the written value so all connected clients see it
+    // via the data broadcaster pipeline, regardless of protocol success.
+    state
+        .cache
+        .set_metric_value(&cache_device_id, &ds_key, value)
+        .await;
 
     // Send ack/nack back to all connected clients
     let ack = crate::ws_types::ServerMessage::CommandAck {
@@ -428,7 +444,7 @@ async fn send_msg(
     sink: &mut futures_util::stream::SplitSink<WebSocket, Message>,
     msg: &ServerMessage,
 ) -> Result<(), axum::Error> {
-    let bytes = rmp_serde::to_vec(msg)
+    let bytes = rmp_serde::to_vec_named(msg)
         .map_err(|e| axum::Error::new(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
     sink.send(Message::Binary(bytes.into())).await
 }

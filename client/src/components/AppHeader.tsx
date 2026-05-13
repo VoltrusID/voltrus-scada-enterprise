@@ -179,9 +179,9 @@ function ActionMenu({ items, trigger }: { items: MenuItem[]; trigger: React.Reac
 
   return (
     <div style={{ position: 'relative' }} ref={ref}>
-      <div onClick={() => setOpen(o => !o)}>{trigger}</div>
+      <button onClick={() => setOpen(o => !o)} aria-haspopup="true" aria-expanded={open} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', display: 'contents' }}>{trigger}</button>
       {open && (
-        <div style={{
+        <div role="menu" style={{
           position: 'absolute',
           top: 'calc(100% + 6px)',
           right: 0,
@@ -197,6 +197,7 @@ function ActionMenu({ items, trigger }: { items: MenuItem[]; trigger: React.Reac
           {items.map((item, i) => (
             <button
               key={i}
+              role="menuitem"
               onClick={() => { setOpen(false); item.onClick() }}
               style={{
                 display: 'flex',
@@ -384,8 +385,8 @@ export function AppHeader({
                   {renderTab(s.id, s.name, activeScreen === s.id, effectiveNavShortcuts[`screen:${s.id}`])}
                   {editMode && (
                     <div style={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 2 }}>
-                      <button onClick={e => { e.stopPropagation(); onRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
-                      <button onClick={e => { e.stopPropagation(); onDeleteScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&times;</button>
+                      <button aria-label={`Rename ${s.name}`} onClick={e => { e.stopPropagation(); onRenameScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&#9998;</button>
+                      <button aria-label={`Delete ${s.name}`} onClick={e => { e.stopPropagation(); onDeleteScreen(s.id, s.name); }} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 10, padding: '0 2px', lineHeight: 1 }}>&times;</button>
                     </div>
                   )}
                 </div>

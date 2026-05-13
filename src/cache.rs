@@ -1,19 +1,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast, watch};
-use tokio_stream::wrappers::BroadcastStream;
 
 use crate::models::{DeviceSnapshot, DeviceStatus};
 use crate::ws_manager::WsManager;
 use crate::ws_types::ServerMessage;
 
-const SSE_CHANNEL_CAPACITY: usize = 256;
 const SNAPSHOT_CHANNEL_CAPACITY: usize = 256;
 
 #[derive(Debug, Clone)]
 pub struct DeviceCache {
     devices: Arc<RwLock<HashMap<String, DeviceSnapshot>>>,
-    tx: broadcast::Sender<String>,
     snapshot_tx: broadcast::Sender<DeviceSnapshot>,
     trigger: watch::Sender<bool>,
     ws_manager: Option<Arc<WsManager>>,
@@ -22,12 +19,10 @@ pub struct DeviceCache {
 
 impl DeviceCache {
     pub fn new() -> Self {
-        let (tx, _) = broadcast::channel(SSE_CHANNEL_CAPACITY);
         let (snapshot_tx, _) = broadcast::channel(SNAPSHOT_CHANNEL_CAPACITY);
         let (trigger, _) = watch::channel(false);
         Self {
             devices: Arc::new(RwLock::new(HashMap::new())),
-            tx,
             snapshot_tx,
             trigger,
             ws_manager: None,
@@ -208,14 +203,6 @@ impl DeviceCache {
         let _ = self.trigger.send(true);
     }
 
-    pub fn publish_sse_payload(&self, payload: String) {
-        let _ = self.tx.send(payload);
-    }
-
-    pub fn subscribe_sse(&self) -> BroadcastStream<String> {
-        BroadcastStream::new(self.tx.subscribe())
-    }
-
     pub fn subscribe(&self) -> broadcast::Receiver<DeviceSnapshot> {
         self.snapshot_tx.subscribe()
     }
@@ -224,11 +211,8 @@ impl DeviceCache {
         self.trigger.subscribe()
     }
 
-    /// Broadcast HA status event via SSE and WebSocket.
+    /// Broadcast HA status event via WebSocket.
     pub async fn broadcast_ha_status(&self, status: &crate::ha::HaStatus) {
-        let payload = serde_json::to_string(status).unwrap_or_default();
-        let _ = self.tx.send(payload);
-
         if let Some(ref ws) = self.ws_manager {
             ws.broadcast_ha_status(ServerMessage::HaStatus {
                 role: format!("{:?}", status.role).to_lowercase(),
@@ -326,24 +310,6 @@ mod tests {
 
         let all = cache.get_all().await;
         assert!(all.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_publish_and_receive_sse_payload() {
-        let cache = DeviceCache::new();
-        let mut stream = cache.subscribe_sse();
-
-        cache.publish_sse_payload(r#"{"test":true}"#.to_string());
-
-        use tokio_stream::StreamExt;
-        let msg: String =
-            tokio::time::timeout(std::time::Duration::from_millis(100), stream.next())
-                .await
-                .expect("should receive broadcast")
-                .expect("should be Some")
-                .expect("broadcast should not error");
-
-        assert_eq!(msg, r#"{"test":true}"#);
     }
 
     #[tokio::test]
