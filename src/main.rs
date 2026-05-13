@@ -892,8 +892,7 @@ async fn main() -> anyhow::Result<()> {
         modbus_pool,
     };
 
-    api::stream::spawn_sse_composer(cache.clone(), storage.clone());
-    crate::ws_manager::spawn_ws_broadcaster(cache, ws_manager);
+    api::stream::spawn_data_broadcaster(cache.clone(), storage.clone(), Some(ws_manager.clone()));
     let app = api::create_router(state);
 
     let addr = format!("0.0.0.0:{}", app_config.server_port);

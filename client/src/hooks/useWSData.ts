@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import type { SensorConfig, SensorData } from '../types'
-import { getWsInstance, type TagUpdate } from '../api/websocket'
+import { type TagUpdate, onWsReady } from '../api/websocket'
 import { useDashboardStoreActions } from '../store/dashboardStore'
 
 const LIVE_PTS = 300
@@ -9,6 +9,7 @@ export function useWSData(authed: boolean, sensors: SensorConfig[]) {
   const actions = useDashboardStoreActions()
   const sensorsRef = useRef(sensors)
   sensorsRef.current = sensors
+  const prevKeysRef = useRef<string[]>([])
 
   const handleBatch = useCallback((updates: TagUpdate[]) => {
     const sensorMap = new Map<string, SensorConfig>()
@@ -51,20 +52,30 @@ export function useWSData(authed: boolean, sensors: SensorConfig[]) {
     }
   }, [actions])
 
+  // Subscribe to sensor tag keys via WebSocket
+  useEffect(() => {
+    if (!authed || sensors.length === 0) return
+
+    const keys = sensors.map(s => s.key)
+    const prevKeys = prevKeysRef.current
+    prevKeysRef.current = keys
+
+    return onWsReady(ws => {
+      const removed = prevKeys.filter(k => !keys.includes(k))
+      if (removed.length > 0) ws.unsubscribe(removed)
+      ws.subscribe(keys)
+    })
+  }, [authed, sensors])
+
+  // Register batch handler and mark connected
   useEffect(() => {
     if (!authed) return
 
-    const ws = getWsInstance()
-    if (!ws) {
-      actions.setSseConnected(false)
-      return
-    }
+    return onWsReady(ws => {
+      ws.onTagBatch(handleBatch)
+      actions.setWsConnected(true)
+    })
 
-    ws.onTagBatch(handleBatch)
-    actions.setSseConnected(true)
-
-    return () => {
-      actions.setSseConnected(false)
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- disconnect cleans up; reconnect re-registers
   }, [authed, handleBatch, actions])
 }

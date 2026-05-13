@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSseConnected } from '../store/dashboardStore'
+import { useWsConnected } from '../store/dashboardStore'
 import type { Screen } from '../types'
 
 interface Props {
@@ -17,7 +17,7 @@ const VIEW_LABELS: Record<string, string> = {
 }
 
 export function Footer({ activeAlarmCount, viewMode, activeScreen, screens }: Props) {
-  const sseConnected = useSseConnected()
+  const wsConnected = useWsConnected()
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
@@ -55,11 +55,11 @@ export function Footer({ activeAlarmCount, viewMode, activeScreen, screens }: Pr
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
         <span style={{
           width: 6, height: 6, borderRadius: '50%',
-          background: sseConnected ? 'var(--ok)' : 'var(--warn)',
-          boxShadow: sseConnected ? '0 0 6px rgba(34,197,94,.4)' : '0 0 6px rgba(245,158,11,.4)',
+          background: wsConnected ? 'var(--ok)' : 'var(--warn)',
+          boxShadow: wsConnected ? '0 0 6px rgba(34,197,94,.4)' : '0 0 6px rgba(245,158,11,.4)',
         }} />
-        <span style={{ color: sseConnected ? 'var(--ok)' : 'var(--warn)', fontWeight: 600 }}>
-          {sseConnected ? 'LIVE' : 'CONNECTING'}
+        <span style={{ color: wsConnected ? 'var(--ok)' : 'var(--warn)', fontWeight: 600 }}>
+          {wsConnected ? 'LIVE' : 'CONNECTING'}
         </span>
       </div>
 

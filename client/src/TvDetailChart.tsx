@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   createChart,
   createSeriesMarkers,
@@ -64,6 +64,9 @@ export function TvDetailChart({
   const warnLineRef = useRef<ReturnType<ISeriesApi<'Line'>['createPriceLine']> | null>(null)
   const critLineRef = useRef<ReturnType<ISeriesApi<'Line'>['createPriceLine']> | null>(null)
   const markersPluginRef = useRef<ReturnType<typeof createSeriesMarkers<Time>> | null>(null)
+  const prevLenRef = useRef(0)
+  const initialDataSet = useRef(false)
+  const [userScrolled, setUserScrolled] = useState(false)
 
   const color = toHexColor(rawColor)
 
@@ -148,6 +151,18 @@ export function TvDetailChart({
       },
     })
 
+    // Track when user manually scrolls/pans the time scale
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      // We detect user scroll by checking if they're not at the right edge
+      const vr = chart.timeScale().getVisibleLogicalRange()
+      if (vr) {
+        const barsInfo = series.barsInLogicalRange(vr)
+        if (barsInfo) {
+          setUserScrolled(barsInfo.barsAfter > 3)
+        }
+      }
+    })
+
     const handleResize = () => {
       chart.applyOptions({ width: container.clientWidth, height: container.clientHeight })
     }
@@ -165,39 +180,55 @@ export function TvDetailChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Right-click handler for creating annotations
-  useEffect(() => {
-    const container = containerRef.current
-    const chart = chartRef.current
-    if (!container || !chart || !onAnnotationClick) return
-
-    const handler = (e: MouseEvent) => {
-      e.preventDefault()
-      const rect = container.getBoundingClientRect()
-      const x = e.clientX - rect.left
-
-      const timeScale = chart.timeScale()
-      const coord = timeScale.coordinateToTime(x)
-      if (coord && typeof coord === 'number') {
-        onAnnotationClick(coord as number)
-      }
-    }
-
-    container.addEventListener('contextmenu', handler)
-    return () => container.removeEventListener('contextmenu', handler)
-  }, [onAnnotationClick])
-
-  // Update primary data
+  // Update primary data — incremental update for live, full set only on initial load
   useEffect(() => {
     const series = seriesRef.current
-    if (!series) return
-    const tvData = toTvData(rawData)
-    if (tvData.length === 0) return
-    series.setData(tvData)
+    const chart = chartRef.current
+    if (!series || !chart) return
 
-    const chart = chartRef.current!
+    // Filter out initial zero-valued points (transition from 0)
+    const filtered = rawData.length > 1 && rawData[0].value === 0
+      ? rawData.slice(1)
+      : rawData
+
+    const tvData = toTvData(filtered)
+    if (tvData.length === 0) return
+
+    const prevLen = prevLenRef.current
+    prevLenRef.current = tvData.length
+
+    if (!initialDataSet.current) {
+      // First load — set all data and fit
+      series.setData(tvData)
+      initialDataSet.current = true
+      chart.timeScale().fitContent()
+    } else if (tvData.length > prevLen) {
+      // Live update — only append new points, don't reset view
+      const newPoints = tvData.slice(prevLen)
+      for (const pt of newPoints) {
+        series.update(pt)
+      }
+
+      // Only scroll to latest if user hasn't manually panned
+      if (!userScrolled) {
+        chart.timeScale().scrollToRealTime()
+      }
+    } else if (tvData.length !== prevLen) {
+      // Data was replaced (mode change, history reload) — full reset
+      series.setData(tvData)
+      if (!userScrolled) {
+        chart.timeScale().fitContent()
+      }
+    }
+  }, [rawData, userScrolled])
+
+  // Reset handler
+  const handleReset = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    setUserScrolled(false)
     chart.timeScale().fitContent()
-  }, [rawData])
+  }, [])
 
   // Update overlays
   useEffect(() => {
@@ -275,5 +306,37 @@ export function TvDetailChart({
     }
   }, [warn, crit])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      {userScrolled && (
+        <button
+          onClick={handleReset}
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '4px 12px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'var(--card)',
+            color: 'var(--text)',
+            fontSize: 11,
+            fontWeight: 600,
+            fontFamily: 'Inter, sans-serif',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+          Reset
+        </button>
+      )}
+    </div>
+  )
 }

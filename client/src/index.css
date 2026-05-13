@@ -78,7 +78,6 @@ input, select {
   padding: 6px 10px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 13px;
-  outline: none;
 }
 
 input:focus, select:focus {

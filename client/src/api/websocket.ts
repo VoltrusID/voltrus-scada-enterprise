@@ -8,6 +8,10 @@ export interface TagUpdate {
   simulated: boolean;
 }
 
+export interface TagUpdateBatch {
+  updates: TagUpdate[];
+}
+
 export interface CommandAck {
   command_id: string;
   status: string;
@@ -52,10 +56,11 @@ export class VoltrusWebSocket {
   private token = '';
   private batchBuffer: TagUpdate[] = [];
   private batchTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectCallbacks: (() => void)[] = [];
 
-  connect(url: string, token: string): void {
+  connect(url: string, token?: string): void {
     this.url = url;
-    this.token = token;
+    this.token = token ?? '';
     this.reconnectDelay = 1000;
     this.doConnect();
   }
@@ -69,8 +74,11 @@ export class VoltrusWebSocket {
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1000;
-      const authMsg = encode({ type: 'auth', token: this.token });
-      this.ws?.send(authMsg);
+      if (this.token) {
+        const authMsg = encode({ type: 'auth', token: this.token });
+        this.ws?.send(authMsg);
+      }
+      this.connectCallbacks.forEach(cb => cb());
     };
 
     this.ws.onmessage = (event) => {
@@ -95,7 +103,15 @@ export class VoltrusWebSocket {
 
   private handleMessage(msg: Record<string, unknown>): void {
     switch (msg.type) {
-      case 'tag_update':
+      case 'TagUpdateBatch': {
+        const batch = (msg as unknown as TagUpdateBatch).updates;
+        if (batch.length > 0) {
+          for (const u of batch) this.tagUpdateCallbacks.forEach(cb => cb(u));
+          this.tagBatchCallbacks.forEach(cb => cb(batch));
+        }
+        break;
+      }
+      case 'TagUpdate': {
         const update = msg as unknown as TagUpdate;
         this.tagUpdateCallbacks.forEach(cb => cb(update));
         this.batchBuffer.push(update);
@@ -110,29 +126,30 @@ export class VoltrusWebSocket {
           }, 200);
         }
         break;
-      case 'command_ack':
+      }
+      case 'CommandAck':
         this.commandAckCallbacks.forEach(cb => cb(msg as unknown as CommandAck));
         break;
-      case 'alarm':
+      case 'Alarm':
         this.alarmCallbacks.forEach(cb => cb(msg as unknown as AlarmEvent));
         break;
-      case 'device_status':
+      case 'DeviceStatus':
         this.deviceStatusCallbacks.forEach(cb => cb(msg as unknown as DeviceStatus));
         break;
     }
   }
 
   subscribe(tagIds: string[]): void {
-    this.send({ type: 'subscribe', tag_ids: tagIds });
+    this.send({ type: 'Subscribe', tag_ids: tagIds });
   }
 
   unsubscribe(tagIds: string[]): void {
-    this.send({ type: 'unsubscribe', tag_ids: tagIds });
+    this.send({ type: 'Unsubscribe', tag_ids: tagIds });
   }
 
   writeTag(tagId: string, value: number): string {
     const commandId = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    this.send({ type: 'tag_write', tag_id: tagId, value, command_id: commandId });
+    this.send({ type: 'TagWrite', tag_id: tagId, value, command_id: commandId });
     return commandId;
   }
 
@@ -157,6 +174,7 @@ export class VoltrusWebSocket {
   onAlarm(cb: AlarmCallback): void { this.alarmCallbacks.push(cb); }
   onDeviceStatus(cb: DeviceStatusCallback): void { this.deviceStatusCallbacks.push(cb); }
   onDisconnect(cb: DisconnectCallback): void { this.disconnectCallbacks.push(cb); }
+  onConnect(cb: () => void): void { this.connectCallbacks.push(cb); }
 
   private send(msg: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -176,9 +194,29 @@ export class VoltrusWebSocket {
 // ── Singleton for use outside React tree ──
 
 let _instance: VoltrusWebSocket | null = null;
+type ReadyListener = (ws: VoltrusWebSocket) => void;
+const _readyListeners = new Set<ReadyListener>();
+
+function _notifyReady(ws: VoltrusWebSocket): void {
+  _readyListeners.forEach(fn => fn(ws));
+}
 
 export function setWsInstance(ws: VoltrusWebSocket | null): void {
   _instance = ws;
+  if (ws) {
+    if (ws.isConnected()) _notifyReady(ws);
+    ws.onConnect(() => _notifyReady(ws));
+  }
+}
+
+/**
+ * Register a callback that fires as soon as a WS instance is connected.
+ * If already connected, fires synchronously. Returns an unsubscribe function.
+ */
+export function onWsReady(fn: ReadyListener): () => void {
+  if (_instance?.isConnected()) fn(_instance);
+  _readyListeners.add(fn);
+  return () => { _readyListeners.delete(fn); };
 }
 
 export function getWsInstance(): VoltrusWebSocket | null {

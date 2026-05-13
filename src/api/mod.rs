@@ -423,7 +423,6 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/widgets/{id}/uninstall",
             delete(crate::widget_sdk::widget_api::delete_widget),
         )
-        .route("/api/v1/stream", get(stream::stream))
         .route("/api/v1/system", get(system::get_system))
         .route("/api/v1/system/memory", get(compression::get_system_memory))
         .route(

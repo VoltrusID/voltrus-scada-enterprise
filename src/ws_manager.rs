@@ -1,10 +1,22 @@
 use std::collections::HashSet;
-use std::sync::Arc;
 
+use bytes::Bytes;
 use dashmap::DashMap;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::ws_types::ServerMessage;
+
+const WS_CHANNEL_CAPACITY: usize = 64;
+
+/// Pre-encoded WS frame. Cheap to clone (Arc reference bump).
+#[derive(Clone, Debug)]
+pub enum WsFrame {
+    /// A pre-encoded MessagePack binary frame (zero-copy clone via Bytes).
+    Binary(Bytes),
+    /// A message that needs per-connection filtering (tag subscription check).
+    /// Will be encoded by the WS handler before sending.
+    Message(ServerMessage),
+}
 
 /// Per-connection state.
 struct WsConnection {
@@ -12,7 +24,7 @@ struct WsConnection {
     permissions: Vec<String>,
     subscribed_tags: HashSet<String>,
     subscribe_all: bool,
-    tx: UnboundedSender<ServerMessage>,
+    tx: Sender<WsFrame>,
 }
 
 /// Tracks all active WebSocket connections, their subscriptions, and
@@ -43,8 +55,8 @@ impl WsManager {
         conn_id: String,
         user_id: String,
         permissions: Vec<String>,
-    ) -> UnboundedReceiver<ServerMessage> {
-        let (tx, rx) = mpsc::unbounded_channel();
+    ) -> Receiver<WsFrame> {
+        let (tx, rx) = mpsc::channel(WS_CHANNEL_CAPACITY);
         self.connections.insert(
             conn_id,
             WsConnection {
@@ -97,16 +109,40 @@ impl WsManager {
 
     // ── Broadcast helpers ──────────────────────────────────────────────
 
-    /// Broadcast a tag update to every connection that is subscribed to the
-    /// tag or has `subscribe_all` enabled. Closed senders are removed.
+    /// Encode a message to MessagePack into a reusable buffer, then broadcast
+    /// the shared bytes to all connections.
+    pub fn broadcast_preencoded_with_buf(&self, msg: &ServerMessage, buf: &mut Vec<u8>) {
+        buf.clear();
+        let mut se = rmp_serde::Serializer::new(&mut *buf).with_struct_map();
+        if serde::Serialize::serialize(msg, &mut se).is_err() {
+            return;
+        }
+        let frame = WsFrame::Binary(Bytes::copy_from_slice(buf));
+        self.send_frame_to_all(frame);
+    }
+
+    /// Encode a message to MessagePack once, then broadcast the shared
+    /// bytes to all connections. Zero-copy per connection (Bytes is Arc-backed).
+    pub fn broadcast_preencoded(&self, msg: &ServerMessage) {
+        let mut buf = Vec::new();
+        self.broadcast_preencoded_with_buf(msg, &mut buf);
+    }
+
+    /// Broadcast a single tag update to every connection that is subscribed to the
+    /// tag or has `subscribe_all` enabled.
     pub fn broadcast_tag_update(&self, tag_id: &str, msg: ServerMessage) {
+        let frame = WsFrame::Message(msg);
         let mut stale = Vec::new();
         for mut entry in self.connections.iter_mut() {
             let conn = entry.value_mut();
-            if (conn.subscribe_all || conn.subscribed_tags.contains(tag_id))
-                && conn.tx.send(msg.clone()).is_err()
-            {
-                stale.push(entry.key().clone());
+            if conn.subscribe_all || conn.subscribed_tags.contains(tag_id) {
+                match conn.tx.try_send(frame.clone()) {
+                    Ok(()) => {}
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        stale.push(entry.key().clone());
+                    }
+                    Err(mpsc::error::TrySendError::Full(_)) => {}
+                }
             }
         }
         for id in stale {
@@ -114,24 +150,24 @@ impl WsManager {
         }
     }
 
-    /// Broadcast an alarm message to all connections. Closed senders are removed.
+    /// Broadcast an alarm message to all connections.
     pub fn broadcast_alarm(&self, msg: ServerMessage) {
-        self.broadcast_to_all(msg);
+        self.broadcast_preencoded(&msg);
     }
 
     /// Broadcast HA status to all connected clients.
     pub fn broadcast_ha_status(&self, msg: ServerMessage) {
-        self.broadcast_to_all(msg);
+        self.broadcast_preencoded(&msg);
     }
 
-    /// Broadcast a command acknowledgement to all connections. Closed senders are removed.
+    /// Broadcast a command acknowledgement to all connections.
     pub fn broadcast_command_ack(&self, msg: ServerMessage) {
-        self.broadcast_to_all(msg);
+        self.broadcast_preencoded(&msg);
     }
 
-    /// Broadcast a device-status change to all connections. Closed senders are removed.
+    /// Broadcast a device-status change to all connections.
     pub fn broadcast_device_status(&self, msg: ServerMessage) {
-        self.broadcast_to_all(msg);
+        self.broadcast_preencoded(&msg);
     }
 
     /// Current number of active connections.
@@ -141,11 +177,15 @@ impl WsManager {
 
     // ── Internal ───────────────────────────────────────────────────────
 
-    fn broadcast_to_all(&self, msg: ServerMessage) {
+    fn send_frame_to_all(&self, frame: WsFrame) {
         let mut stale = Vec::new();
         for mut entry in self.connections.iter_mut() {
-            if entry.value_mut().tx.send(msg.clone()).is_err() {
-                stale.push(entry.key().clone());
+            match entry.value_mut().tx.try_send(frame.clone()) {
+                Ok(()) => {}
+                Err(mpsc::error::TrySendError::Closed(_)) => {
+                    stale.push(entry.key().clone());
+                }
+                Err(mpsc::error::TrySendError::Full(_)) => {}
             }
         }
         for id in stale {
@@ -154,67 +194,18 @@ impl WsManager {
     }
 }
 
-// ── SSE bridge ──────────────────────────────────────────────────────────
-
-/// Spawn a background task that listens to the SSE broadcast channel from the
-/// cache, parses each JSON payload, and routes tag updates to the appropriate
-/// WebSocket connections via `WsManager`.
-pub fn spawn_ws_broadcaster(cache: crate::cache::DeviceCache, manager: Arc<WsManager>) {
-    tokio::spawn(async move {
-        let mut stream = cache.subscribe_sse();
-        use tokio_stream::StreamExt;
-        while let Some(result) = stream.next().await {
-            let payload = match result {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
-
-            // Expected shape: {"sensors":[{"key":"...","value":42.0,"status":"normal",...},...]}
-            let parsed: serde_json::Value = match serde_json::from_str(&payload) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-
-            if let Some(sensors) = parsed.get("sensors").and_then(|s| s.as_array()) {
-                for sensor in sensors {
-                    let tag_id = match sensor.get("key").and_then(|k| k.as_str()) {
-                        Some(k) => k.to_string(),
-                        None => continue,
-                    };
-                    let value = sensor.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    let status = sensor
-                        .get("status")
-                        .and_then(|s| s.as_str())
-                        .unwrap_or("unknown")
-                        .to_string();
-
-                    let msg = ServerMessage::TagUpdate {
-                        tag_id: tag_id.clone(),
-                        value,
-                        quality: status,
-                        ts: crate::timeutil::now_secs(),
-                        simulated: false,
-                    };
-                    manager.broadcast_tag_update(&tag_id, msg);
-                }
-            }
-        }
-    });
-}
-
 // ── Tests ───────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::sync::mpsc::error::TryRecvError;
 
     /// Helper: create a WsManager and connect a test connection.
     fn make_manager_and_connect(
         conn_id: &str,
         user_id: &str,
         permissions: Vec<&str>,
-    ) -> (WsManager, UnboundedReceiver<ServerMessage>) {
+    ) -> (WsManager, Receiver<WsFrame>) {
         let mgr = WsManager::new();
         let rx = mgr.connect(
             conn_id.to_string(),
@@ -282,7 +273,7 @@ mod tests {
                 simulated: false,
             },
         );
-        assert!(matches!(rx.try_recv(), Err(TryRecvError::Empty)));
+        assert!(matches!(rx.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
 
         // Enable subscribe_all
         mgr.subscribe_all("c1", true);
@@ -298,7 +289,7 @@ mod tests {
             },
         );
         match rx.try_recv() {
-            Ok(ServerMessage::TagUpdate { value, .. }) => {
+            Ok(WsFrame::Message(ServerMessage::TagUpdate { value, .. })) => {
                 assert!((value - 2.0).abs() < f64::EPSILON)
             }
             other => panic!("expected TagUpdate with value 2.0, got {:?}", other),
@@ -337,8 +328,15 @@ mod tests {
         });
 
         match rx.try_recv() {
-            Ok(ServerMessage::Alarm { alarm_id, .. }) => assert_eq!(alarm_id, 42),
-            other => panic!("expected Alarm, got {:?}", other),
+            Ok(WsFrame::Binary(bytes)) => {
+                // Verify it's valid MessagePack
+                let msg: ServerMessage = rmp_serde::from_slice(&bytes).unwrap();
+                match msg {
+                    ServerMessage::Alarm { alarm_id, .. } => assert_eq!(alarm_id, 42),
+                    _ => panic!("expected Alarm"),
+                }
+            }
+            other => panic!("expected Binary frame, got {:?}", other),
         }
     }
 
@@ -355,15 +353,21 @@ mod tests {
         });
 
         match rx.try_recv() {
-            Ok(ServerMessage::CommandAck {
-                command_id,
-                latency_ms,
-                ..
-            }) => {
-                assert_eq!(command_id, "cmd-001");
-                assert_eq!(latency_ms, Some(12));
+            Ok(WsFrame::Binary(bytes)) => {
+                let msg: ServerMessage = rmp_serde::from_slice(&bytes).unwrap();
+                match msg {
+                    ServerMessage::CommandAck {
+                        command_id,
+                        latency_ms,
+                        ..
+                    } => {
+                        assert_eq!(command_id, "cmd-001");
+                        assert_eq!(latency_ms, Some(12));
+                    }
+                    _ => panic!("expected CommandAck"),
+                }
             }
-            other => panic!("expected CommandAck, got {:?}", other),
+            other => panic!("expected Binary frame, got {:?}", other),
         }
     }
 
@@ -379,13 +383,19 @@ mod tests {
         });
 
         match rx.try_recv() {
-            Ok(ServerMessage::DeviceStatus {
-                device_id, online, ..
-            }) => {
-                assert_eq!(device_id, "plc-01");
-                assert!(online);
+            Ok(WsFrame::Binary(bytes)) => {
+                let msg: ServerMessage = rmp_serde::from_slice(&bytes).unwrap();
+                match msg {
+                    ServerMessage::DeviceStatus {
+                        device_id, online, ..
+                    } => {
+                        assert_eq!(device_id, "plc-01");
+                        assert!(online);
+                    }
+                    _ => panic!("expected DeviceStatus"),
+                }
             }
-            other => panic!("expected DeviceStatus, got {:?}", other),
+            other => panic!("expected Binary frame, got {:?}", other),
         }
     }
 
@@ -402,5 +412,26 @@ mod tests {
 
         mgr.disconnect("c2");
         assert_eq!(mgr.connection_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_preencoded_broadcast_shares_bytes() {
+        let mgr = WsManager::new();
+        let mut rx1 = mgr.connect("c1".to_string(), "user1".to_string(), vec![]);
+        let mut rx2 = mgr.connect("c2".to_string(), "user2".to_string(), vec![]);
+
+        mgr.broadcast_preencoded(&ServerMessage::Pong);
+
+        let frame1 = rx1.try_recv().unwrap();
+        let frame2 = rx2.try_recv().unwrap();
+
+        // Both should be pre-encoded binary frames
+        match (&frame1, &frame2) {
+            (WsFrame::Binary(b1), WsFrame::Binary(b2)) => {
+                // Same underlying bytes
+                assert_eq!(b1.as_ref(), b2.as_ref());
+            }
+            _ => panic!("expected Binary frames"),
+        }
     }
 }
