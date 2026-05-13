@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { SensorConfig, SensorData, DataPoint, LIVE_PTS } from '../types'
 import { expandCompactData } from '../utils'
-import { useSSEData } from '../useSSEData'
+import { useWSData } from './useWSData'
 import { useSystemInfo } from '../queries'
 import { useDashboardStoreActions, useHistoryReady } from '../store/dashboardStore'
 
@@ -27,37 +27,8 @@ export function useDashboardData(
     actions.setSystemInfo(systemInfo ?? null)
   }, [systemInfo, actions])
 
-  // SSE batch callback — stable reference so useSSEData doesn't reconnect
-  const onBatch = useCallback((batch: SensorData[], system: import('../types').SystemInfo | null) => {
-    if (system) actions.setSystemInfo(system)
-    if (!batch || batch.length === 0) return
-
-    const updates: { id: string; points: DataPoint[]; value: SensorData }[] = []
-    const state = actions.getState()
-
-    for (const item of batch) {
-      const k = String(item.id)
-      const isOffline = item.value == null || Number.isNaN(item.value)
-      if (isOffline) {
-        updates.push({ id: k, points: state.dataMap[k] ?? [], value: item })
-        continue
-      }
-      const prevArr = state.dataMap[k] ?? []
-      const newArr = [...prevArr, { value: item.value, ts: Date.now() }]
-      const trimmed = newArr.length > LIVE_PTS ? newArr.slice(-LIVE_PTS) : newArr
-      updates.push({ id: k, points: trimmed, value: item })
-    }
-
-    if (updates.length > 0) {
-      actions.mergeSensorData(updates)
-    }
-  }, [actions])
-
-  const onConnected = useCallback((connected: boolean) => {
-    actions.setSseConnected(connected)
-  }, [actions])
-
-  useSSEData(authed, turbo, onBatch, onConnected)
+  // Real-time data via WebSocket (replaces SSE)
+  useWSData(authed, sensors)
 
   // ── Initial data load ────────────────────────────────────────────
   useEffect(() => {
