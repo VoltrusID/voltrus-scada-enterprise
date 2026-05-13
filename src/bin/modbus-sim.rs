@@ -47,6 +47,32 @@ impl DeviceState {
             .tick_values(&mut self.values, &mut self.load_phase);
         self.regs = self.profile.to_registers(&self.values);
     }
+
+    fn write_register(&mut self, addr: usize, word: u16) -> bool {
+        let mut reg_offset = 0usize;
+        for (idx, def) in self.profile.registers.iter().enumerate() {
+            let width = if def.is_counter { 4 } else { 2 };
+            if addr >= reg_offset && addr < reg_offset + width {
+                self.regs[addr] = word;
+                if def.is_counter {
+                    let v = ((self.regs[reg_offset] as u64) << 48)
+                        | ((self.regs[reg_offset + 1] as u64) << 32)
+                        | ((self.regs[reg_offset + 2] as u64) << 16)
+                        | (self.regs[reg_offset + 3] as u64);
+                    self.values[idx] = v as f64;
+                } else {
+                    let bits = ((self.regs[reg_offset] as u32) << 16)
+                        | (self.regs[reg_offset + 1] as u32);
+                    self.values[idx] = f32::from_bits(bits) as f64;
+                }
+                return true;
+            }
+            reg_offset += width;
+        }
+        // Fallback: just write raw register
+        self.regs[addr] = word;
+        false
+    }
 }
 
 // ── Modbus service ──
@@ -106,8 +132,12 @@ impl Service for MeterService {
                 let mut data = self.data.lock().unwrap();
                 let addr = *req_addr as usize;
                 if addr < data.regs.len() {
-                    data.regs[addr] = *word;
-                    tracing::info!("Write FC06: addr={addr} value={word}");
+                    let mapped = data.write_register(addr, *word);
+                    if mapped {
+                        tracing::info!("Write FC06: addr={addr} value={word} → value updated");
+                    } else {
+                        tracing::info!("Write FC06: addr={addr} value={word} (raw)");
+                    }
                     Response::WriteSingleRegister(*req_addr, *word)
                 } else {
                     tracing::warn!("Write FC06: addr={addr} out of range");
@@ -119,7 +149,9 @@ impl Service for MeterService {
                 let addr = *req_addr as usize;
                 let end = addr + words.len();
                 if end <= data.regs.len() {
-                    data.regs[addr..end].copy_from_slice(words);
+                    for (i, &word) in words.iter().enumerate() {
+                        data.write_register(addr + i, word);
+                    }
                     tracing::info!("Write FC16: addr={addr} qty={}", words.len());
                     Response::WriteMultipleRegisters(*req_addr, words.len() as u16)
                 } else {

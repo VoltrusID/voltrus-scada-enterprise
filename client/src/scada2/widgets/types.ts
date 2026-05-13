@@ -8,6 +8,10 @@ export type ScadaWidgetType =
   | 'tank_level' | 'on_off' | 'label' | 'trend'
   | 'big_number' | 'data_table' | 'pipe'
   | 'slider' | 'number_input' | 'toggle'
+  | 'meter' | 'semicircle_gauge' | 'donut' | 'led_display'
+  | 'motor' | 'valve' | 'pump' | 'push_button'
+  | 'bar_chart' | 'pie_chart' | 'multi_trend'
+  | 'annunciator' | 'pid_faceplate' | 'horizontal_tank' | 'progress_bar'
 
 // ── Config field schema ──
 
