@@ -31,6 +31,7 @@ export interface AlarmEvent {
 }
 
 type TagUpdateCallback = (update: TagUpdate) => void;
+type TagBatchCallback = (updates: TagUpdate[]) => void;
 type CommandAckCallback = (ack: CommandAck) => void;
 type AlarmCallback = (alarm: AlarmEvent) => void;
 type DeviceStatusCallback = (status: DeviceStatus) => void;
@@ -42,12 +43,15 @@ export class VoltrusWebSocket {
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
   private tagUpdateCallbacks: TagUpdateCallback[] = [];
+  private tagBatchCallbacks: TagBatchCallback[] = [];
   private commandAckCallbacks: CommandAckCallback[] = [];
   private alarmCallbacks: AlarmCallback[] = [];
   private deviceStatusCallbacks: DeviceStatusCallback[] = [];
   private disconnectCallbacks: DisconnectCallback[] = [];
   private url = '';
   private token = '';
+  private batchBuffer: TagUpdate[] = [];
+  private batchTimer: ReturnType<typeof setTimeout> | null = null;
 
   connect(url: string, token: string): void {
     this.url = url;
@@ -92,7 +96,19 @@ export class VoltrusWebSocket {
   private handleMessage(msg: Record<string, unknown>): void {
     switch (msg.type) {
       case 'tag_update':
-        this.tagUpdateCallbacks.forEach(cb => cb(msg as unknown as TagUpdate));
+        const update = msg as unknown as TagUpdate;
+        this.tagUpdateCallbacks.forEach(cb => cb(update));
+        this.batchBuffer.push(update);
+        if (!this.batchTimer) {
+          this.batchTimer = setTimeout(() => {
+            const batch = this.batchBuffer;
+            this.batchBuffer = [];
+            this.batchTimer = null;
+            if (batch.length > 0) {
+              this.tagBatchCallbacks.forEach(cb => cb(batch));
+            }
+          }, 200);
+        }
         break;
       case 'command_ack':
         this.commandAckCallbacks.forEach(cb => cb(msg as unknown as CommandAck));
@@ -132,6 +148,7 @@ export class VoltrusWebSocket {
   }
 
   onTagUpdate(cb: TagUpdateCallback): void { this.tagUpdateCallbacks.push(cb); }
+  onTagBatch(cb: TagBatchCallback): void { this.tagBatchCallbacks.push(cb); }
   onCommandAck(cb: CommandAckCallback): void { this.commandAckCallbacks.push(cb); }
   onAlarm(cb: AlarmCallback): void { this.alarmCallbacks.push(cb); }
   onDeviceStatus(cb: DeviceStatusCallback): void { this.deviceStatusCallbacks.push(cb); }
