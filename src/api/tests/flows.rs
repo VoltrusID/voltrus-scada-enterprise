@@ -57,6 +57,7 @@ async fn test_flow_crud() {
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     let app = create_router(state);
 

@@ -691,13 +691,17 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("OEE monitor started");
     }
 
+    // Shared Modbus connection pool (used by both command queue and direct writes)
+    #[cfg(feature = "modbus")]
+    let modbus_pool = std::sync::Arc::new(crate::modbus::ModbusPool::new());
+
     // Spawn command queue processor (Starter tier and above)
     if license_tier.command_queue() {
         #[cfg(feature = "modbus")]
         let queue = command_queue::CommandQueue::new(
             storage.clone(),
             cache.clone(),
-            std::sync::Arc::new(crate::modbus::ModbusPool::new()),
+            modbus_pool.clone(),
         )
         .with_ws_manager(ws_manager.clone());
         #[cfg(not(feature = "modbus"))]
@@ -884,6 +888,8 @@ async fn main() -> anyhow::Result<()> {
                 "voltrus/widgets"
             },
         )),
+        #[cfg(feature = "modbus")]
+        modbus_pool,
     };
 
     api::stream::spawn_sse_composer(cache.clone(), storage.clone());

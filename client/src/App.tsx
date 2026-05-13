@@ -23,7 +23,7 @@ import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { TrialBanner } from './TrialBanner'
 import { HaBanner } from './components/HaBanner'
 import { OverlayScreen } from './components/OverlayScreen'
-import { VoltrusWebSocket } from './api/websocket'
+import { VoltrusWebSocket, setWsInstance } from './api/websocket'
 import { ThemeProvider } from './ThemeContext'
 import { useTranslation } from 'react-i18next'
 
@@ -278,10 +278,12 @@ function AppInner() {
     const ws = new VoltrusWebSocket()
     ws.connect(wsUrl, token)
     wsRef.current = ws
+    setWsInstance(ws)
 
     return () => {
       ws.disconnect()
       if (wsRef.current === ws) wsRef.current = null
+      setWsInstance(null)
     }
   }, [authed])
 

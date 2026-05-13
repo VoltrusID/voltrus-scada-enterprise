@@ -96,6 +96,7 @@ async fn test_login_with_seeded_user() {
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     let app = create_router(state);
 
@@ -181,6 +182,7 @@ async fn test_login_invalid_credentials() {
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     let app = create_router(state);
 
@@ -270,6 +272,7 @@ async fn test_full_auth_flow() {
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
+        modbus_pool: std::sync::Arc::new(crate::modbus::ModbusPool::new()),
     };
     let app = create_router(state);
 

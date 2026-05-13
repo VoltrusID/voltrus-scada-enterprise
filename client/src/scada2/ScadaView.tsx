@@ -8,7 +8,7 @@ import { layoutReducer, createWidget, createConnection } from './engine/widgetSt
 import type { ScadaLayoutState } from './engine/widgetState'
 import type { SensorConfig, SensorData, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
 import { useDashboardSelector } from '../store/dashboardStore'
-import { writeTag } from '../api/commands'
+import { wsWriteTag } from '../api/websocket'
 import { toast } from '../components/Toast'
 
 // Import all widgets to trigger registration
@@ -173,10 +173,13 @@ export const ScadaView: React.FC<Props> = ({
     setCanvasState(prev => ({ ...prev, pendingSensor: null }))
   }, [])
 
-  // Write value to tag
+  // Write value to tag via WebSocket (direct write, no queue)
   const handleWriteValue = useCallback(async (_widgetId: string, sensorId: number, value: number) => {
     try {
-      await writeTag(sensorId, value)
+      const sent = wsWriteTag(sensorId, value)
+      if (!sent) {
+        toast.error('WebSocket not connected')
+      }
     } catch (err: any) {
       toast.error(err.message || 'Write failed')
     }

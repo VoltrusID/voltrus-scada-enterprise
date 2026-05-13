@@ -261,7 +261,7 @@ async fn handle_client_message(
     }
 }
 
-// -- Tag write handling (stub -- full integration in Task 5) ----------------
+// -- Tag write handling: direct write, no queue ----------------------------
 
 async fn handle_tag_write(
     state: &AppState,
@@ -270,94 +270,146 @@ async fn handle_tag_write(
     value: f64,
     command_id: &Option<String>,
 ) {
-    tracing::info!(
-        "WS: user={} tag write {} = {} (cmd_id={:?})",
-        username,
-        tag_id,
-        value,
-        command_id
-    );
+    let cmd_id = command_id
+        .clone()
+        .unwrap_or_else(|| format!("direct-{}", crate::timeutil::now_secs()));
 
-    // Try to parse tag_id as an integer (data_source_id). If not, skip.
     let data_source_id: i64 = match tag_id.parse() {
         Ok(id) => id,
         Err(_) => {
-            tracing::warn!(
-                "WS: tag_id '{}' is not a numeric data_source_id, skipping write",
-                tag_id
-            );
+            tracing::warn!("WS: tag_id '{}' is not numeric, skipping write", tag_id);
             return;
         }
     };
 
-    // Look up write policy and device info
-    let (writable, device_id, protocol) = match state
-        .storage
-        .get_data_source_device_id(data_source_id)
-        .await
-    {
-        Ok(Some((dev_id, proto))) => {
-            let policy_ok = state
-                .storage
-                .get_write_policy(data_source_id)
-                .await
-                .ok()
-                .flatten()
-                .map(|p| p.writable)
-                .unwrap_or(false);
-            (policy_ok, dev_id, proto)
-        }
+    // Look up data source to get device_id and source_config
+    let ds = match state.storage.get_data_source_by_id(data_source_id).await {
+        Ok(Some(ds)) => ds,
         _ => {
-            tracing::warn!("WS: data_source {} not found for tag write", data_source_id);
+            tracing::warn!("WS: data source {} not found", data_source_id);
             return;
         }
     };
+
+    // Check write policy
+    let writable = state
+        .storage
+        .get_write_policy(data_source_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|p| p.writable)
+        .unwrap_or(false);
 
     if !writable {
-        tracing::warn!("WS: data_source {} is not writable", data_source_id);
+        tracing::warn!("WS: data source {} is not writable", data_source_id);
         return;
     }
 
-    // Generate command ID
-    let cmd_id = command_id.clone().unwrap_or_else(|| {
-        use rand::Rng;
-        rand::rng()
-            .sample_iter(&rand::distr::Alphanumeric)
-            .take(21)
-            .map(char::from)
-            .collect::<String>()
-            .to_lowercase()
-    });
+    let cache_device_id = ds.device_id.clone();
+    let ds_key = ds.key.clone();
 
-    let now = crate::timeutil::now_secs();
-    let cmd = crate::models::Command {
-        id: cmd_id.clone(),
-        data_source_id,
-        device_id,
-        protocol,
-        value: value.to_string(),
-        status: crate::models::CommandStatus::Pending.as_str().to_string(),
-        policy: "immediate".to_string(),
-        scheduled_at: None,
-        retry_count: 0,
-        max_retries: 3,
-        error_message: None,
-        created_at: now,
-        sent_at: None,
-        acked_at: None,
-        resolved_at: None,
-        created_by: username.to_string(),
-        readback_status: None,
-        readback_value: None,
-        readback_attempts: 0,
-        readback_ts: None,
+    // Execute the write directly based on protocol
+    let result = execute_direct_write(state, &ds, value).await;
+
+    tracing::info!(
+        "WS: user={} direct write {}={value} → {} ({}ms)",
+        username,
+        ds.name,
+        if result.success { "OK" } else { "FAIL" },
+        result.latency_ms,
+    );
+
+    // Update cache immediately so SSE broadcasts the new value
+    if result.success {
+        state
+            .cache
+            .set_metric_value(&cache_device_id, &ds_key, value)
+            .await;
+    }
+
+    // Send ack/nack back to all connected clients
+    let ack = crate::ws_types::ServerMessage::CommandAck {
+        command_id: cmd_id,
+        status: if result.success {
+            "acked".to_string()
+        } else {
+            "failed".to_string()
+        },
+        device_response: result.device_response.or(result.error),
+        latency_ms: Some(result.latency_ms),
+    };
+    state.ws_manager.broadcast_command_ack(ack);
+}
+
+/// Execute a write directly to the device, bypassing the command queue.
+async fn execute_direct_write(
+    state: &AppState,
+    ds: &crate::models::DataSource,
+    value: f64,
+) -> crate::models::WriteResult {
+    let start = std::time::Instant::now();
+    let fail = |msg: &str| crate::models::WriteResult {
+        success: false,
+        device_response: None,
+        error: Some(msg.to_string()),
+        latency_ms: start.elapsed().as_millis() as u64,
     };
 
-    if let Err(e) = state.storage.insert_command(&cmd).await {
-        tracing::warn!("WS: failed to queue command: {}", e);
-    } else {
-        tracing::info!("WS: queued command {}", cmd_id);
+    match ds.source_type.as_str() {
+        #[cfg(feature = "modbus")]
+        "modbus" => {
+            // Parse register address
+            let address = match parse_modbus_address(&ds.source_config) {
+                Some(a) => a,
+                None => return fail("Could not parse Modbus register address"),
+            };
+
+            // Get device config
+            let device = match state.storage.get_modbus_device(&ds.device_id).await {
+                Ok(Some(d)) => d,
+                _ => return fail("Modbus device not found"),
+            };
+
+            let config = crate::models::DeviceConfig {
+                id: device.id.clone(),
+                ip: device.ip.clone(),
+                port: device.port,
+                unit_id: device.unit_id,
+                interval_ms: device.interval_ms,
+                endianness: match device.endianness.as_str() {
+                    "little" => crate::models::Endianness::Little,
+                    "swapped" => crate::models::Endianness::Swapped,
+                    _ => crate::models::Endianness::Big,
+                },
+                registers: vec![],
+                readback: None,
+                network: None,
+            };
+
+            crate::modbus::write_tag(&state.modbus_pool, &config, address, value).await
+        }
+        _ => fail("Direct write not supported for this protocol"),
     }
+}
+
+/// Parse Modbus register address from source_config JSON.
+#[cfg(feature = "modbus")]
+fn parse_modbus_address(source_config: &str) -> Option<u16> {
+    let config: serde_json::Value = serde_json::from_str(source_config).ok()?;
+    let convert = |addr: u16| -> u16 {
+        if addr >= 40001 {
+            addr - 40001
+        } else if addr >= 30001 {
+            addr - 30001
+        } else {
+            addr
+        }
+    };
+    config
+        .get("address")
+        .and_then(|v| v.as_u64().map(|a| convert(a as u16)))
+        .or_else(|| config.get("register").and_then(|v| v.as_u64().map(|a| convert(a as u16))))
 }
 
 // -- Helpers ----------------------------------------------------------------
