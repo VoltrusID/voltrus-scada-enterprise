@@ -252,6 +252,7 @@ pub enum RegisterType {
     Uint16,
     Int32,
     Float32,
+    Float64,
 }
 
 impl RegisterConfig {
@@ -259,6 +260,7 @@ impl RegisterConfig {
         match self.reg_type {
             RegisterType::Int16 | RegisterType::Uint16 => 1,
             RegisterType::Int32 | RegisterType::Float32 => 2,
+            RegisterType::Float64 => 4,
         }
     }
 

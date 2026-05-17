@@ -55,6 +55,7 @@ impl Storage {
                         crate::models::RegisterType::Uint16 => "uint16",
                         crate::models::RegisterType::Int32 => "int32",
                         crate::models::RegisterType::Float32 => "float32",
+                        crate::models::RegisterType::Float64 => "float64",
                     };
                     tx.execute(
                         "INSERT OR IGNORE INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",

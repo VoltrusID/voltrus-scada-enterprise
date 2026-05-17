@@ -12,6 +12,11 @@ pub fn parse_register(words: &[u16], reg_type: &RegisterType, endianness: &Endia
             let raw = combine_u16(words[0], words[1], endianness);
             f32::from_bits(raw) as f64
         }
+        RegisterType::Float64 => {
+            let hi = combine_u16(words[0], words[1], endianness);
+            let lo = combine_u16(words[2], words[3], endianness);
+            f64::from_bits(((hi as u64) << 32) | (lo as u64))
+        }
     }
 }
 

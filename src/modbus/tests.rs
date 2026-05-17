@@ -69,3 +69,15 @@ fn test_backoff_max() {
     }
     assert_eq!(b.next(), 30_000);
 }
+
+#[test]
+fn test_register_count_float64() {
+    let reg = RegisterConfig {
+        name: "power".into(),
+        address: 0,
+        reg_type: RegisterType::Float64,
+        scale: 1.0,
+        register_area: "holding".into(),
+    };
+    assert_eq!(reg.register_count(), 4);
+}
