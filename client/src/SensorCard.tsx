@@ -4,6 +4,7 @@ import { Chart } from './Chart'
 import { stColor } from './styles'
 import { parseConfig } from './styles'
 import { useSensorCurrentValue, useChartValues } from './store/dashboardStore'
+import { useRemoveSensorFromScreen } from './queries'
 
 const useIsSmallScreen = () => {
   const [small, setSmall] = useState(window.innerWidth <= 480)
@@ -38,6 +39,12 @@ export const SensorCard = React.memo(function SensorCard({
   const cv = useSensorCurrentValue(s.id)
   const chartData = useChartValues(s.id, mode === 'history' ? 'history' : 'live')
   const isSmall = useIsSmallScreen()
+  const removeSensorMut = useRemoveSensorFromScreen()
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    removeSensorMut.mutate({ screenId: activeScreen, sensorId: s.id })
+  }
 
   const st = cv?.status ?? 'normal';
   const ct = s.chart_type || 'sparkline';
@@ -99,7 +106,7 @@ export const SensorCard = React.memo(function SensorCard({
           <span style={{ padding: '1px 5px', borderRadius: 3, background: `${sourceTagColor}18`, color: sourceTagColor, fontWeight: 700, letterSpacing: '.03em' }}>{sourceTag}</span>
           {editMode && activeScreen !== 'all' && (
             <button
-              onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }}
+              onClick={handleRemove}
               aria-label={`Remove ${s.name} from screen`}
               style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '4px 8px', fontSize: 10, lineHeight: 1, minWidth: 44, minHeight: 28 }}
             >Remove</button>
@@ -158,7 +165,7 @@ export const SensorCard = React.memo(function SensorCard({
             }}>{shortcut}</kbd>
           )}
           {editMode && activeScreen !== 'all' && (
-            <button aria-label={`Remove ${s.name} from screen`} onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
+            <button aria-label={`Remove ${s.name} from screen`} onClick={handleRemove} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
           )}
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', padding: '3px 8px', borderRadius: 6, minWidth: 52, textAlign: 'center' as const,
             background: st === 'critical' ? 'rgba(239,68,68,.12)' : st === 'warning' ? 'rgba(234,179,8,.12)' : st === 'offline' ? 'rgba(100,100,100,.12)' : 'rgba(34,197,94,.12)', color: stColor(st) }}>{st}</div>
@@ -174,7 +181,7 @@ export const SensorCard = React.memo(function SensorCard({
             </svg>
             <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{s.name}</span>
           </span>
-          <button onClick={e => { e.stopPropagation(); fetch(`/api/v1/screens/${activeScreen}/data-sources/${s.id}`, { method: 'DELETE' }).then(loadSensorsForScreen); }} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
+          <button onClick={handleRemove} style={{ background: 'var(--bg)', border: '1px solid var(--crit)', borderRadius: 4, color: 'var(--crit)', cursor: 'pointer', padding: '2px 6px', fontSize: 10, lineHeight: 1 }}>Remove</button>
         </div>
       )}
       {!hideStatus && (

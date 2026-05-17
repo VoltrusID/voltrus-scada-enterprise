@@ -1,4 +1,5 @@
 pub mod feed;
+pub mod feed_instantiator;
 pub mod health;
 
 use crate::storage::Storage;
@@ -176,10 +177,37 @@ pub async fn execute_wizard(
                 ));
             }
         } else if source == "feed" {
-            // FEED templates are design documents, not directly instantiable.
-            // They provide the I/O list that the engineer uses to configure manually.
-            warnings.push("FEED templates are reference designs. Use the I/O list to manually configure tags, alarms, and dashboards. Consider using a vertical template (v0.37) for one-click setup.".into());
-            next_steps.push("Review the FEED template I/O list and configure tags manually, or use the 'Day 1 Quickstart' to auto-discover tags from your PLC.".into());
+            // FEED template instantiation — creates tags, alarms, and dashboard from I/O list
+            if let Some(template) = crate::wizard::feed::get_feed_template(template_id) {
+                let template_name = template.name.clone();
+                let instantiator = feed_instantiator::FeedInstantiator::new(
+                    storage,
+                    template,
+                    config.industry.clone().unwrap_or_else(|| "Project".into()),
+                    config.instance_counts.clone(),
+                );
+                let result = instantiator.instantiate().await?;
+                tags_created = result.tags_created as u32;
+                alarms_created = result.alarms_created as u32;
+                screens_created = result.screens_created as u32;
+
+                if tags_created == 0 {
+                    warnings.push(format!(
+                        "FEED template '{}' instantiated but created 0 tags. Tags may already exist.",
+                        template_name
+                    ));
+                }
+                next_steps.push(format!(
+                    "FEED template '{}' created {} tags, {} alarms, {} screen(s), {} equipment blocks, and {} connections. Connect your PLC protocol (Modbus, OPC UA, etc.) to the data sources and adjust register addresses.",
+                    template_name, tags_created, alarms_created, screens_created,
+                    result.equipment_created, result.connections_created
+                ));
+            } else {
+                warnings.push(format!(
+                    "FEED template '{}' not found — skipping template instantiation",
+                    template_id
+                ));
+            }
         }
     } else if !config.device.auto_scan {
         warnings.push("No template selected and auto-scan disabled. Device will be created empty — add tags manually or re-run with a template.".into());

@@ -21,6 +21,7 @@ mod data_sources;
 mod dnp3_devices;
 mod edr_compat;
 mod engineering;
+mod excel_import;
 #[cfg(feature = "ethernet-ip")]
 mod enip_devices;
 mod firmware_catalog;
@@ -1119,10 +1120,11 @@ pub fn create_router(state: AppState) -> Router {
         (StatusCode::NOT_FOUND, Json(json!({"error": "not found"})))
     }
 
-    // CSV import router with increased body limit (admin-only)
+    // CSV/Excel import router with increased body limit (admin-only)
     let import_router = Router::new()
         .route("/api/v1/import/csv", post(csv_import::import_csv))
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB for CSV upload
+        .route("/api/v1/import/excel", post(excel_import::import_excel))
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB for file upload
         .layer(middleware::from_fn(admin_only_middleware))
         .layer(middleware::from_fn_with_state(
             state.clone(),

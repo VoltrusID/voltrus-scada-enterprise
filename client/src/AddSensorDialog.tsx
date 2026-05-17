@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { SensorConfig, SOURCE_CATEGORY, SIMULATE_TYPES } from './types';
 import { inputStyle, monoInputStyle, labelStyle, labelTextStyle, tabStyle } from './styles';
 import { SourceConfigFields } from './SourceConfigFields';
-import { useNamingConvention } from './queries';
+import { useNamingConvention, useAddSensor, useAddSensorToScreen } from './queries';
 
 export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, onDone }: {
   screenId: string; sensors: SensorConfig[]; screenSensorIds: number[];
@@ -14,6 +14,8 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
   const [srcConfig, setSrcConfig] = useState<Record<string, any>>({});
 
   const { data: namingConvention } = useNamingConvention();
+  const addSensorMut = useAddSensor()
+  const addSensorToScreenMut = useAddSensorToScreen()
 
   const nameValidation = useMemo(() => {
     if (!namingConvention || !newForm.name) return null;
@@ -28,7 +30,7 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
   }, [namingConvention, newForm.name]);
 
   const addExisting = async (sensorId: number) => {
-    await fetch(`/api/v1/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: sensorId }) });
+    await addSensorToScreenMut.mutateAsync({ screenId, sensorId });
     onDone();
   };
 
@@ -38,9 +40,8 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
       payload.device_id = srcConfig.modbus_device_id;
       payload.key = srcConfig.modbus_register_name || payload.key;
     }
-    const res = await fetch('/api/v1/data-sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const { id } = await res.json();
-    await fetch(`/api/v1/screens/${screenId}/data-sources`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_source_id: id }) });
+    const { id } = await addSensorMut.mutateAsync(payload as any);
+    await addSensorToScreenMut.mutateAsync({ screenId, sensorId: id });
     onDone();
   };
 

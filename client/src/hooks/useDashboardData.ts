@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback } from 'react'
 import { SensorConfig, SensorData, DataPoint, LIVE_PTS } from '../types'
 import { expandCompactData } from '../utils'
 import { useWSData } from './useWSData'
-import { useSystemInfo } from '../queries'
+import { useSystemInfo, fetchJson } from '../queries'
 import { useDashboardStoreActions, useHistoryReady } from '../store/dashboardStore'
 
 export function useDashboardData(
@@ -34,7 +34,7 @@ export function useDashboardData(
   useEffect(() => {
     if (!authed || sensors.length === 0 || initialLoadDone.current) return
     initialLoadDone.current = true
-    fetch('/api/v1/history?range=30m').then(r => r.json()).then(result => {
+    fetchJson<{ data: Record<string, any> }>('/api/v1/history?range=30m').then(result => {
       if (!result.data) return
       const expanded = expandCompactData(result.data)
       const updates: { id: string; points: DataPoint[]; value: SensorData }[] = []
@@ -66,7 +66,7 @@ export function useDashboardData(
     const dp = activeScreen === 'all' ? '' : `&screen=${activeScreen}`
     const detailParam = historyDetail === 'full' ? '&detail=full' : ''
     const aggParam = historyDetail === 'auto' ? `&agg=${historyAutoAgg}` : ''
-    fetch(`/api/v1/history?range=${historyRange}${dp}${detailParam}${aggParam}`).then(r => r.json()).then(result => {
+    fetchJson<{ data: Record<string, any> }>(`/api/v1/history?range=${historyRange}${dp}${detailParam}${aggParam}`).then(result => {
       if (!result.data) return
       const expanded = expandCompactData(result.data)
       const remapped: Record<string, DataPoint[]> = {}

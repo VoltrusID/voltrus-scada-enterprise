@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useFeedTemplates, useFeedTemplate, useWizardCreate } from '../queries/wizard'
 import type { FeedDetail, WizardResult } from '../queries/wizard'
+import { QuickStartGuide } from '../QuickStartGuide'
+import { useLicense } from '../LicenseContext'
 
 const industries = [
   { id: 'Water/Wastewater', name: 'Water/Wastewater' },
@@ -24,8 +26,13 @@ const protocols = [
 
 type Step = 'industry' | 'template' | 'device' | 'scan' | 'review' | 'result'
 
-export function ProjectWizard() {
+export function ProjectWizard({ onClose }: { onClose?: () => void } = {}) {
+  const [mode, setMode] = useState<'quickstart' | 'wizard'>('quickstart')
   const [step, setStep] = useState<Step>('industry')
+
+  // License tier check
+  const licenseInfo = useLicense()
+  const isPro = licenseInfo?.tier === 'professional' || licenseInfo?.tier === 'enterprise'
 
   // Step 1: Industry
   const [industry, setIndustry] = useState('')
@@ -119,8 +126,33 @@ export function ProjectWizard() {
   const loading = feedTemplatesQ.isLoading || feedDetailQ.isLoading || createM.isPending
   const error = feedTemplatesQ.error?.message || feedDetailQ.error?.message || createM.error?.message
 
+  const tabBtn = (label: string, active: boolean): React.CSSProperties => ({
+    padding: '8px 16px',
+    borderRadius: 6,
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: active ? 600 : 400,
+    background: active ? '#f97316' : 'var(--border)',
+    color: active ? '#fff' : 'var(--fg)',
+  })
+
   return (
     <div style={{ padding: 16, maxWidth: 900, margin: '0 auto' }}>
+      {/* Mode Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        <button onClick={() => setMode('quickstart')} style={tabBtn('Quick Start', mode === 'quickstart')}>
+          Quick Start
+        </button>
+        <button onClick={() => setMode('wizard')} style={tabBtn('Full Wizard', mode === 'wizard')}>
+          Full Wizard
+        </button>
+      </div>
+
+      {mode === 'quickstart' ? (
+        <QuickStartGuide onComplete={onClose ?? (() => window.location.reload())} />
+      ) : (
+      <>
       <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 4px' }}>Project Creation Wizard</h2>
       <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 20px' }}>
         Set up a new project in minutes. Select your industry and equipment type, configure your devices, and Voltrus generates everything.
@@ -169,13 +201,25 @@ export function ProjectWizard() {
             <button onClick={() => setTemplateSource('vertical')} style={btn('Vertical Templates (v0.37)', templateSource === 'vertical')}>
               Vertical Templates
             </button>
-            <button onClick={() => setTemplateSource('feed')} style={btn('FEED Templates', templateSource === 'feed')}>
-              FEED Templates
-            </button>
+            {isPro ? (
+              <button onClick={() => setTemplateSource('feed')} style={btn('FEED Templates', templateSource === 'feed')}>
+                FEED Templates
+              </button>
+            ) : (
+              <button disabled style={{ ...btn('FEED Templates', false), opacity: 0.5, cursor: 'not-allowed', position: 'relative' }} title="Requires Professional tier or higher">
+                FEED Templates (Pro)
+              </button>
+            )}
             <button onClick={() => { setSelectedTemplate(null); setStep('device') }} style={btn('Skip — Manual Setup')}>
               Skip
             </button>
           </div>
+
+          {!isPro && (
+            <div style={{ background: 'rgba(249,115,22,.08)', border: '1px solid rgba(249,115,22,.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#f97316' }}>
+              FEED templates (Front-End Engineering Design) are available on Professional and Enterprise tiers. Upgrade to unlock industry-specific I/O lists, alarm strategies, and equipment unit templates.
+            </div>
+          )}
 
           {templateSource === 'feed' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
@@ -391,6 +435,8 @@ export function ProjectWizard() {
             <button onClick={() => window.location.reload()} style={btn('Go to Dashboard →', true)}>Go to Dashboard</button>
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   )

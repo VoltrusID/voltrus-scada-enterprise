@@ -37,6 +37,29 @@ impl Storage {
         .context("Task join failed")?
     }
 
+    /// Upsert a single SCADA equipment item (INSERT OR REPLACE).
+    /// Used by FEED instantiator to add equipment without wiping existing items.
+    pub async fn upsert_scada_equipment(
+        &self,
+        item: &ScadaEquipment,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let item = item.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO scada_equipment (screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                rusqlite::params![item.screen_id, item.equipment_id, item.equipment_type, item.equipment_name,
+                                  item.x, item.y, item.width, item.height, item.rotation, item.sensor_bindings],
+            )
+            .context("Upsert scada equipment failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn save_scada_equipment(
         &self,
         screen_id: &str,
@@ -92,6 +115,29 @@ impl Storage {
                 .context("Query failed")?;
             rows.collect::<Result<Vec<_>, _>>()
                 .context("Row mapping failed")
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Upsert a single SCADA connection (INSERT OR REPLACE).
+    /// Used by FEED instantiator to add connections without wiping existing ones.
+    pub async fn upsert_scada_connection(
+        &self,
+        c: &ScadaConnection,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let c = c.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            conn.execute(
+                "INSERT OR REPLACE INTO scada_connections (screen_id, connection_id, from_equipment, to_equipment, waypoints, connection_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![c.screen_id, c.connection_id, c.from_equipment, c.to_equipment,
+                                  c.waypoints, c.connection_type],
+            )
+            .context("Upsert scada connection failed")?;
+            Ok(())
         })
         .await
         .context("Task join failed")?

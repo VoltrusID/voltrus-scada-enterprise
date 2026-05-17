@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { fetchJson, fetchOk } from './queries'
 
 interface PlatformInfo {
   hostname: string
@@ -82,15 +83,11 @@ interface CompatEntry {
 }
 
 const fetchHwReport = async (): Promise<HwCertReport> => {
-  const res = await fetch('/api/v1/hw/report', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch hardware report')
-  return res.json()
+  return fetchJson<HwCertReport>('/api/v1/hw/report')
 }
 
 const fetchCompatMatrix = async (): Promise<{ matrix: CompatEntry[] }> => {
-  const res = await fetch('/api/v1/hw/compatibility-matrix', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch compatibility matrix')
-  return res.json()
+  return fetchJson<{ matrix: CompatEntry[] }>('/api/v1/hw/compatibility-matrix')
 }
 
 export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -110,22 +107,16 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
 
   const benchmarkMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/v1/hw/benchmark?duration=5', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (!res.ok) throw new Error('Benchmark failed')
+      const res = await fetchOk('/api/v1/hw/benchmark?duration=5', { method: 'POST' })
       return res.json() as Promise<BenchmarkResults>
     },
   })
 
   const loadEdgeGuide = async () => {
     if (edgeGuide) return
-    const res = await fetch('/api/v1/hw/edge-deploy', { credentials: 'include' })
-    if (res.ok) {
-      const text = await res.text()
-      setEdgeGuide(text)
-    }
+    const res = await fetchOk('/api/v1/hw/edge-deploy')
+    const text = await res.text()
+    setEdgeGuide(text)
   }
 
   const formatThroughput = (n: number) => {

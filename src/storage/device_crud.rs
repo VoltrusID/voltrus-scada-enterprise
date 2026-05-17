@@ -588,6 +588,24 @@ impl Storage {
 
     // ── Screen Data Sources (continued) ──
 
+    /// Count how many distinct screens have data sources assigned.
+    pub async fn count_screen_data_sources(&self) -> Result<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(DISTINCT screen_id) FROM screen_data_sources",
+                    [],
+                    |row| row.get(0),
+                )
+                .context("Count screen data sources failed")?;
+            Ok(count)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
     pub async fn get_screen_data_sources(&self, screen_id: &str) -> Result<Vec<ScreenDataSource>> {
         let conn = self.conn.clone();
         let screen_id = screen_id.to_string();
