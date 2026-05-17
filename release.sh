@@ -2,20 +2,24 @@
 set -euo pipefail
 
 # ── Voltrus cross-compile release script ──
-# Builds all targets via cargo-zigbuild and uploads to Cloudflare R2.
+# Builds all targets via cargo-zigbuild and uploads to Cloudflare R2 + D1.
 #
 # Usage:
 #   ./release.sh                  # build all + upload
 #   ./release.sh --build-only     # build only, skip upload
 #   ./release.sh --upload-only    # skip build, upload existing artifacts
 #
-# Requires: zig, cargo-zigbuild, rustup targets, CF_API_TOKEN + CF_ACCOUNT_ID env vars
+# Requires: zig, cargo-zigbuild, rustup targets
+# Upload requires: wrangler (via voltrus-cloudflare-worker/node_modules)
 
 VERSION="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
 TAG="v${VERSION}"
 R2_BUCKET="voltrus-releases"
 BUILD_DIR="target/release-artifacts"
 FD_LIMIT=65536
+BUILD_NUMBER="${BUILD_NUMBER:-1}"
+DESCRIPTION="${DESCRIPTION:-Bug fixes and improvements.}"
+WORKER_DIR="$(cd "$(dirname "$0")/.." && pwd)/voltrus-cloudflare-worker"
 
 # Targets: name, rust target, binary extension
 TARGETS=(
@@ -28,11 +32,13 @@ TARGETS=(
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
-error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+info()  { echo -e "${BLUE}[*]${NC} $*"; }
+ok()    { echo -e "${GREEN}[✓]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
+error() { echo -e "${RED}[✗]${NC} $*" >&2; exit 1; }
 
 # ── Parse args ──
 BUILD=true
@@ -47,12 +53,16 @@ esac
 # ── Preflight ──
 if [ "$BUILD" = true ]; then
   command -v zig >/dev/null 2>&1 || error "zig not found. Install: brew install zig"
-  command -v cargo zigbuild >/dev/null 2>&1 || error "cargo-zigbuild not found. Install: cargo install cargo-zigbuild"
+  command -v cargo >/dev/null 2>&1 || error "cargo not found"
+  command cargo zigbuild --help >/dev/null 2>&1 || error "cargo-zigbuild not found. Install: cargo install cargo-zigbuild"
 fi
 
 if [ "$UPLOAD" = true ]; then
-  [ -z "${CF_API_TOKEN:-}" ] && error "CF_API_TOKEN env var not set"
-  [ -z "${CF_ACCOUNT_ID:-}" ] && error "CF_ACCOUNT_ID env var not set"
+  if [ ! -d "$WORKER_DIR/node_modules" ]; then
+    info "Installing wrangler dependencies..."
+    (cd "$WORKER_DIR" && npm install)
+  fi
+  ok "Wrangler ready"
 fi
 
 info "Voltrus ${TAG}"
@@ -115,27 +125,47 @@ build_target() {
 
   local size
   size=$(stat -f%z "$archive" 2>/dev/null || stat -c%s "$archive" 2>/dev/null)
-  info "  -> $(basename "$archive") ($(( size / 1048576 )) MB)"
+  ok "  -> $(basename "$archive") ($(( size / 1048576 )) MB)"
 }
 
-# ── Upload to R2 ──
+# ── Upload to R2 via wrangler ──
 upload_to_r2() {
   local file="$1"
   local key="$2"
   info "Uploading $(basename "$file") to R2..."
+  (cd "$WORKER_DIR" && npx wrangler r2 object put "${R2_BUCKET}/${key}" --file="$file" --remote 2>&1) | tail -3
+  ok "  -> Uploaded: $key"
+}
 
-  local http_code
-  http_code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-    "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/objects/${key}" \
-    -H "Authorization: Bearer ${CF_API_TOKEN}" \
-    -H "Content-Type: application/octet-stream" \
-    --data-binary @"$file")
+# ── Insert release record into D1 ──
+insert_d1_release() {
+  local platform="$1"
+  local filename="$2"
+  local r2_key="$3"
+  local size="$4"
 
-  if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-    info "  -> OK (${http_code})"
-  else
-    error "  -> FAILED (HTTP ${http_code})"
-  fi
+  info "Inserting $platform into D1..."
+  cd "$WORKER_DIR"
+  npx wrangler d1 execute voltrus-releases-db --remote --command \
+    "INSERT OR REPLACE INTO release_files (version, platform, filename, r2_key, size) VALUES ($BUILD_NUMBER, '$platform', '$filename', '$r2_key', $size);" 2>&1 | tail -1
+  ok "  -> D1 record: $platform"
+  cd - > /dev/null
+}
+
+insert_d1_release_meta() {
+  local filename="$1"
+  local size="$2"
+  local pub_date
+  pub_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+  local title="Voltrus ${VERSION}"
+  local desc_esc="${DESCRIPTION//\'/\'\'}"
+
+  info "Updating D1 releases table..."
+  cd "$WORKER_DIR"
+  npx wrangler d1 execute voltrus-releases-db --remote --command \
+    "INSERT OR REPLACE INTO releases (version, short_version_string, title, description, length, pub_date) VALUES ($BUILD_NUMBER, '$VERSION', '$title', '$desc_esc', $size, '$pub_date');" 2>&1 | tail -1
+  ok "  -> D1 releases record updated"
+  cd - > /dev/null
 }
 
 # ── Main ──
@@ -151,7 +181,7 @@ if [ "$BUILD" = true ]; then
 fi
 
 if [ "$UPLOAD" = true ]; then
-  info "Uploading to R2..."
+  step "Uploading to R2 & D1..."
 
   for entry in "${TARGETS[@]}"; do
     IFS='|' read -r name target ext <<< "$entry"
@@ -164,13 +194,33 @@ if [ "$UPLOAD" = true ]; then
 
     [ -f "$archive" ] || error "Archive not found: $archive"
 
-    upload_to_r2 "$archive" "voltrus-${TAG}/${name}/$(basename "$archive")"
-    upload_to_r2 "$archive" "voltrus-latest/${name}/$(basename "$archive")"
+    local_filename="$(basename "$archive")"
+    file_size=$(stat -f%z "$archive" 2>/dev/null || stat -c%s "$archive" 2>/dev/null)
+
+    # Upload versioned + latest to R2
+    upload_to_r2 "$archive" "voltrus-${TAG}/${name}/${local_filename}"
+    upload_to_r2 "$archive" "voltrus-latest/${name}/${local_filename}"
+
+    # Insert D1 record
+    insert_d1_release "$name" "$local_filename" "voltrus-latest/${name}/${local_filename}" "$file_size"
   done
 
-  info "All uploads complete!"
+  # Update main releases table
+  first_archive="${BUILD_DIR}/voltrus-${TAG}-macos-arm64.tar.gz"
+  if [ -f "$first_archive" ]; then
+    first_size=$(stat -f%z "$first_archive" 2>/dev/null || stat -c%s "$first_archive" 2>/dev/null)
+    insert_d1_release_meta "$(basename "$first_archive")" "$first_size"
+  fi
+
+  ok "All uploads complete!"
 fi
 
 echo ""
 info "Done! Artifacts in ${BUILD_DIR}/:"
 ls -lh "${BUILD_DIR}"/*.tar.gz "${BUILD_DIR}"/*.zip 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}'
+
+if [ "$UPLOAD" = true ]; then
+  echo ""
+  echo -e "  ${YELLOW}Deploy worker if updated:${NC}"
+  echo -e "    cd $WORKER_DIR && npx wrangler deploy"
+fi
