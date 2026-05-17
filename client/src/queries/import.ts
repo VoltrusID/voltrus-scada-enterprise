@@ -43,3 +43,41 @@ export function useImportCsv() {
     },
   })
 }
+
+export interface ExcelImportParams {
+  file: File
+  dryRun?: boolean
+  mode?: 'merge' | 'replace'
+  sheet?: string
+}
+
+export interface ExcelImportResult extends CsvImportResult {
+  sheet: string
+  available_sheets: string[]
+}
+
+export function useImportExcel() {
+  return useMutation({
+    mutationFn: async ({ file, dryRun, mode, sheet }: ExcelImportParams) => {
+      const sp = new URLSearchParams()
+      if (dryRun) sp.set('dry_run', 'true')
+      if (mode) sp.set('mode', mode)
+      if (sheet) sp.set('sheet', sheet)
+      const qs = sp.toString()
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch(`/api/v1/import/excel${qs ? '?' + qs : ''}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Import failed: ${res.status}`)
+      }
+      return res.json() as Promise<ExcelImportResult>
+    },
+  })
+}

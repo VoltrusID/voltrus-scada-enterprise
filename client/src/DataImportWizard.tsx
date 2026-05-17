@@ -1,26 +1,44 @@
 import { useState, useCallback } from 'react';
-import { useImportCsv, type CsvImportResult } from './queries';
+import { useImportCsv, useImportExcel, type CsvImportResult } from './queries';
 import { inputStyle, btnStyle } from './styles';
+import { ImportColumnMapper, type ColumnMapping } from './ImportColumnMapper';
 
-type WizardStep = 'upload' | 'preview' | 'import' | 'report';
+type WizardStep = 'upload' | 'mapping' | 'preview' | 'import' | 'report';
+
+type FileType = 'csv' | 'excel';
+
+function detectFileType(f: File): FileType | null {
+  const name = f.name.toLowerCase();
+  if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.xlsm') || name.endsWith('.xlsb')) return 'excel';
+  if (f.type === 'text/csv' || name.endsWith('.csv')) return 'csv';
+  return null;
+}
 
 export function DataImportWizard({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
+  const [fileType, setFileType] = useState<FileType | null>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
   const [delimiter, setDelimiter] = useState(',');
+  const [sheet, setSheet] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [previewResult, setPreviewResult] = useState<CsvImportResult | null>(null);
   const [reportResult, setReportResult] = useState<CsvImportResult | null>(null);
+  const [fileHeaders, setFileHeaders] = useState<string[]>([]);
 
-  const importMut = useImportCsv();
+  const importCsvMut = useImportCsv();
+  const importExcelMut = useImportExcel();
+
+  const importMut = fileType === 'excel' ? importExcelMut : importCsvMut;
 
   const handleFile = useCallback((f: File) => {
-    if (f.type !== 'text/csv' && !f.name.endsWith('.csv')) {
-      alert('Please select a CSV file.');
+    const detected = detectFileType(f);
+    if (!detected) {
+      alert('Please select a CSV or Excel file (.csv, .xlsx, .xls).');
       return;
     }
     setFile(f);
+    setFileType(detected);
     setPreviewResult(null);
     setReportResult(null);
   }, []);
@@ -42,33 +60,62 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
   }, []);
 
   const runPreview = () => {
-    if (!file) return;
-    importMut.mutate({ file, dryRun: true, mode, delimiter: delimiter || ',' }, {
-      onSuccess: (res) => {
-        setPreviewResult(res);
-        setStep('preview');
-      },
-    });
+    if (!file || !fileType) return;
+    if (fileType === 'excel') {
+      importExcelMut.mutate({ file, dryRun: true, mode, sheet: sheet || undefined }, {
+        onSuccess: (res) => {
+          setPreviewResult(res);
+          const hdrs = Object.entries(res.column_mapping)
+            .sort(([, a], [, b]) => a - b)
+            .map(([name]) => name);
+          setFileHeaders(hdrs);
+          setStep('preview');
+        },
+      });
+    } else {
+      importCsvMut.mutate({ file, dryRun: true, mode, delimiter: delimiter || ',' }, {
+        onSuccess: (res) => {
+          setPreviewResult(res);
+          const hdrs = Object.entries(res.column_mapping)
+            .sort(([, a], [, b]) => a - b)
+            .map(([name]) => name);
+          setFileHeaders(hdrs);
+          setStep('preview');
+        },
+      });
+    }
   };
 
   const runImport = () => {
-    if (!file) return;
+    if (!file || !fileType) return;
     setStep('import');
-    importMut.mutate({ file, dryRun: false, mode, delimiter: delimiter || ',' }, {
-      onSuccess: (res) => {
-        setReportResult(res);
-        setStep('report');
-      },
-    });
+    if (fileType === 'excel') {
+      importExcelMut.mutate({ file, dryRun: false, mode, sheet: sheet || undefined }, {
+        onSuccess: (res) => {
+          setReportResult(res);
+          setStep('report');
+        },
+      });
+    } else {
+      importCsvMut.mutate({ file, dryRun: false, mode, delimiter: delimiter || ',' }, {
+        onSuccess: (res) => {
+          setReportResult(res);
+          setStep('report');
+        },
+      });
+    }
   };
 
   const reset = () => {
     setStep('upload');
     setFile(null);
+    setFileType(null);
     setPreviewResult(null);
     setReportResult(null);
+    setFileHeaders([]);
     setMode('merge');
     setDelimiter(',');
+    setSheet('');
   };
 
   const dropStyle: React.CSSProperties = {
@@ -89,7 +136,7 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
         background: completed ? 'var(--green)' : active ? 'var(--cyan)' : 'var(--border)',
         color: completed || active ? '#fff' : 'var(--muted)',
       }}>
-        {completed ? '✓' : s === 'upload' ? '1' : s === 'preview' ? '2' : s === 'import' ? '3' : '4'}
+        {completed ? '✓' : s === 'upload' ? '1' : s === 'mapping' ? '2' : s === 'preview' ? '3' : s === 'import' ? '4' : '5'}
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, color: active ? 'var(--cyan)' : 'var(--fg)' }}>{label}</span>
     </div>
@@ -100,6 +147,8 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
       {/* Steps */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
         {stepIndicator('Upload', 'upload', step === 'upload', step !== 'upload')}
+        <span style={{ color: 'var(--border)' }}>→</span>
+        {stepIndicator('Mapping', 'mapping', step === 'mapping', ['preview', 'import', 'report'].includes(step))}
         <span style={{ color: 'var(--border)' }}>→</span>
         {stepIndicator('Preview', 'preview', step === 'preview', step === 'import' || step === 'report')}
         <span style={{ color: 'var(--border)' }}>→</span>
@@ -121,9 +170,9 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
             <div style={{ fontSize: 32, marginBottom: 8, color: 'var(--muted)' }}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
-            <div style={{ fontSize: 14, color: 'var(--fg)', fontWeight: 600 }}>Drop CSV file here or click to browse</div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Supports .csv files</div>
-            <input id="csv-upload" type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <div style={{ fontSize: 14, color: 'var(--fg)', fontWeight: 600 }}>Drop CSV or Excel file here or click to browse</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Supports .csv, .xlsx, .xls, .xlsm files</div>
+            <input id="csv-upload" type="file" accept=".csv,.xlsx,.xls,.xlsm,.xlsb" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
           </div>
           {file && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6 }}>
@@ -139,10 +188,17 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
                 <option value="replace">Replace (clear existing first)</option>
               </select>
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Delimiter</label>
-              <input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="," style={inputStyle} />
-            </div>
+            {fileType === 'csv' ? (
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Delimiter</label>
+                <input value={delimiter} onChange={e => setDelimiter(e.target.value)} placeholder="," style={inputStyle} />
+              </div>
+            ) : fileType === 'excel' ? (
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Sheet (blank = first)</label>
+                <input value={sheet} onChange={e => setSheet(e.target.value)} placeholder="Sheet1" style={inputStyle} />
+              </div>
+            ) : null}
           </div>
           <button onClick={runPreview} disabled={!file || importMut.isPending} style={{ ...btnStyle, alignSelf: 'flex-start', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}>
             {importMut.isPending ? 'Previewing...' : 'Preview Import'}
@@ -184,11 +240,29 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setStep('upload')} style={btnStyle}>Back</button>
+            <button onClick={() => setStep('mapping')} style={{ ...btnStyle, borderColor: 'var(--cyan)', color: 'var(--cyan)' }}>
+              Edit Column Mapping
+            </button>
             <button onClick={runImport} disabled={importMut.isPending} style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }}>
               {importMut.isPending ? 'Importing...' : 'Confirm Import'}
             </button>
           </div>
         </div>
+      )}
+
+      {/* Mapping step */}
+      {step === 'mapping' && previewResult && (
+        <ImportColumnMapper
+          headers={fileHeaders}
+          detectedMapping={previewResult.column_mapping}
+          onConfirm={(_mapping: ColumnMapping) => {
+            // For now the backend doesn't accept manual overrides,
+            // so we just return to preview. The user has seen the mapping
+            // and knows if tag_name is missing they need to fix their file.
+            setStep('preview');
+          }}
+          onCancel={() => setStep('preview')}
+        />
       )}
 
       {/* Import step */}

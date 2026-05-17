@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { fetchJson, fetchOk } from './queries'
 
 interface EdrProduct {
   name: string
@@ -35,9 +36,7 @@ interface EdrReport {
 }
 
 const fetchEdrReport = async (): Promise<EdrReport> => {
-  const res = await fetch('/api/v1/edr/report', { credentials: 'include' })
-  if (!res.ok) throw new Error('Failed to fetch EDR report')
-  return res.json()
+  return fetchJson<EdrReport>('/api/v1/edr/report')
 }
 
 const copyToClipboard = (text: string) => {
@@ -98,16 +97,16 @@ export const EdrCompatPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =
   // Lazy-load PS1 script and GPO guide
   React.useEffect(() => {
     if (tab === 'exclusions' && !ps1Script) {
-      fetch('/api/v1/edr/exclusions/ps1', { credentials: 'include' })
-        .then(r => r.ok ? r.text() : '')
+      fetchOk('/api/v1/edr/exclusions/ps1')
+        .then(r => r.text())
         .then(setPs1Script)
-        .catch(() => {})
+        .catch(() => setPs1Script(''))
     }
     if (tab === 'guide' && !gpoGuide) {
-      fetch('/api/v1/edr/gpo-guide', { credentials: 'include' })
-        .then(r => r.ok ? r.text() : '')
+      fetchOk('/api/v1/edr/gpo-guide')
+        .then(r => r.text())
         .then(setGpoGuide)
-        .catch(() => {})
+        .catch(() => setGpoGuide(''))
     }
   }, [tab])
 

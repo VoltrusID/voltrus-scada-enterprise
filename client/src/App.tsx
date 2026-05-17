@@ -19,7 +19,7 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
 import { useKioskMode } from './hooks/useKioskMode'
 import { useDashboardSystemInfo } from './store/dashboardStore'
 import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk, fetchJson } from './queries'
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
 import { EngineeringBanner } from './EngineeringBanner'
 import { HaBanner } from './components/HaBanner'
@@ -260,15 +260,14 @@ function AppInner() {
 
   // ── License check ────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/license/status')
-      .then(r => r.json())
+    fetchJson<any>('/api/license/status')
       .then(d => { setLicenseInfo(d) })
       .catch(() => { setLicenseInfo({ status: 'Valid', tier: 'professional', feature_flags: {} }) })
   }, [])
 
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/v1/auth/me').then(r => r.json()).then(d => {
+    fetchJson<any>('/api/v1/auth/me').then(d => {
       if (d.authenticated) connectWS()
       setAuthed(d.authenticated === true); setAuthRole(d.role || 'user'); setAuthUser(d.username || ''); setAuthLoading(false)
     }).catch(() => { setAuthed(false); setAuthRole('user'); setAuthUser(''); setAuthLoading(false) })
@@ -276,12 +275,13 @@ function AppInner() {
 
   const handleLogin = async (username: string, password: string) => {
     setLoginError('')
-    const r = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    if (r.ok) { const d = await r.json(); connectWS(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || username); setMustChangePassword(!!d.must_change_password) }
-    else { const d = await r.json(); setLoginError(d.error || 'Login failed') }
+    try {
+      const r = await fetchOk('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
+      const d = await r.json(); connectWS(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || username); setMustChangePassword(!!d.must_change_password)
+    } catch (e: any) { setLoginError(e.message || 'Login failed') }
   }
 
-  const handleLogout = async () => { disconnectWS(); await fetch('/api/v1/auth/logout', { method: 'POST' }); setAuthed(false); setAuthRole('user'); setAuthUser('') }
+  const handleLogout = async () => { disconnectWS(); await fetchOk('/api/v1/auth/logout', { method: 'POST' }).catch(() => {}); setAuthed(false); setAuthRole('user'); setAuthUser('') }
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -415,8 +415,7 @@ function AppInner() {
 
   if (mustChangePassword) {
     const handleChangePassword = async (newPassword: string) => {
-      const r = await fetch('/api/v1/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
-      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Failed to change password') }
+      await fetchOk('/api/v1/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
       setMustChangePassword(false)
     }
     return <ChangePasswordScreen onSubmit={handleChangePassword} />

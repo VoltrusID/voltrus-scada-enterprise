@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { fetchJson } from './queries'
 
 interface LicenseStatus {
   status: string
@@ -65,8 +66,7 @@ export function LicenseActivationScreen() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/license/status')
-      const data = await res.json()
+      const data = await fetchJson<LicenseStatus>('/api/license/status')
       setStatus(data)
       if (data.status === 'Valid') {
         window.location.reload()

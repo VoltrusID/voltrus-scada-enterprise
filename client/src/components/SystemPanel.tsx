@@ -37,7 +37,7 @@ export function SystemPanel({ systemInfo }: Props) {
       {tab === 'overview' && <SystemOverview systemInfo={systemInfo} />}
       {tab === 'docs' && <DocsPanel />}
       {tab === 'templates' && <TemplatesPanel />}
-      {tab === 'wizard' && <ProjectWizard />}
+      {tab === 'wizard' && <ProjectWizard onClose={() => setTab('overview')} />}
       {tab === 'health' && <HealthCheckPanel />}
       {tab === 'config' && <ConfigSnapshotPanel />}
       {tab === 'smtp' && <SmtpSettingsPanel />}

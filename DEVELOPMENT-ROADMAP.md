@@ -564,7 +564,7 @@ Core Voltrus remains lifetime license with no recurring fees. AI Copilot is an o
 
 ---
 
-### v0.40.0 — Project Wizards & FEED Templates (BACKLOG — 3-4 weeks)
+### v0.40.0 — Project Wizards & FEED Templates (COMPLETE)
 
 **Goal:** Reduce time-to-value with guided project setup. No more blank-page syndrome.
 

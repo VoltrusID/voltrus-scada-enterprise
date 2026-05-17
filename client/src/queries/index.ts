@@ -304,9 +304,10 @@ export type { AuditLogEntry, AuditLogResponse, AuditQueryParams } from './audit'
 
 export {
   useImportCsv,
+  useImportExcel,
 } from './import'
 
-export type { CsvImportResult, CsvImportParams } from './import'
+export type { CsvImportResult, CsvImportParams, ExcelImportParams, ExcelImportResult } from './import'
 
 export { useImportNodeRed } from './import_nodered'
 

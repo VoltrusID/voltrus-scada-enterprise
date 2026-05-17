@@ -59,15 +59,6 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
     let tags = storage.list_data_sources(None).await?;
     let alarms = storage.list_alarms(None, 99999).await?;
     let flows = storage.list_flows().await?;
-    // Screens are referenced by ID in screen_data_sources, not in a separate table.
-    // Check if any screen has data sources configured.
-    let all_tags = storage.list_data_sources(None).await?;
-    let _has_screens = !all_tags.is_empty()
-        && tags.iter().any(|_t| {
-            // Screens exist if data sources are assigned to them via screen_data_sources
-            true // We'll check based on tags existence
-        });
-
     let tag_keys: std::collections::HashSet<String> = tags.iter().map(|t| t.key.clone()).collect();
     let device_ids: std::collections::HashSet<String> =
         devices.iter().map(|d| d.id.clone()).collect();
@@ -244,37 +235,54 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
 
     // ── Check: Missing dashboards/screens ──
     {
-        // Screens in Voltrus don't have a dedicated table — they exist as references.
-        // We check if data exists (tags are configured) but no screen_data_sources exist.
-        // Simplified: if there are tags but no flow rules or layouts, flag it.
-        let has_data = !tags.is_empty();
-        if has_data && flows.is_empty() {
-            // This is a weak heuristic — real check would query screen_data_sources table
+        let has_any_screen = storage.count_screen_data_sources().await.unwrap_or(0) > 0;
+
+        if !tags.is_empty() && !has_any_screen && !devices.is_empty() {
+            issues.push(HealthIssue {
+                severity: HealthSeverity::Warning,
+                category: "Dashboards".into(),
+                title: "No dashboards configured".into(),
+                description: "Tags and devices exist but no dashboard screens have been created. Operators need visual dashboards to monitor the process.".into(),
+                suggestion: "Use the Project Wizard to auto-generate dashboards, or manually create screens and assign data sources.".into(),
+                affected_items: vec![],
+                count: 1,
+            });
         }
-        // Skip this check for now; it requires database-level query
     }
 
     // ── Check: Disabled devices ──
     {
-        // Check for devices that have source_config issues or are marked disabled
-        let disabled: Vec<String> = devices
-            .iter()
-            .filter(|d| {
-                d.name.to_lowercase().contains("disabled")
-                    || d.name.to_lowercase().contains("inactive")
-            })
-            .map(|d| d.id.clone())
-            .collect();
+        let mut disabled_list: Vec<String> = Vec::new();
 
-        if !disabled.is_empty() {
-            let n = disabled.len() as u32;
+        // Check Modbus devices with enabled=false
+        if let Ok(modbus_devs) = storage.list_modbus_devices().await {
+            for d in &modbus_devs {
+                if !d.enabled {
+                    disabled_list.push(format!("{} ({})", d.name, d.ip));
+                }
+            }
+        }
+
+        // Also check devices with "disabled" in name (legacy heuristic)
+        for d in &devices {
+            let name_lower = d.name.to_lowercase();
+            if (name_lower.contains("disabled") || name_lower.contains("inactive"))
+                && !disabled_list.iter().any(|item| item.contains(&d.id))
+            {
+                disabled_list.push(d.id.clone());
+            }
+        }
+
+        disabled_list.truncate(20);
+        if !disabled_list.is_empty() {
+            let n = disabled_list.len() as u32;
             issues.push(HealthIssue {
                 severity: HealthSeverity::Info,
                 category: "Device Status".into(),
                 title: "Disabled devices detected".into(),
-                description: format!("{} devices appear to be disabled. They won't collect data.", n),
-                suggestion: "Review disabled devices. Either fix connectivity issues or remove them from the configuration if they're permanently decommissioned.".into(),
-                affected_items: disabled,
+                description: format!("{} devices are disabled and won't collect data.", n),
+                suggestion: "Review disabled devices. Either fix connectivity or remove them if decommissioned.".into(),
+                affected_items: disabled_list,
                 count: n,
             });
         }
@@ -309,7 +317,7 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
         total_tags: tags.len() as u32,
         total_alarms: alarms.len() as u32,
         total_flows: flows.len() as u32,
-        total_screens: 0, // Not tracked in separate table
+        total_screens: storage.count_screen_data_sources().await.unwrap_or(0) as u32,
         critical_issues: critical_count,
         warning_issues: warning_count,
         info_issues: info_count,
@@ -343,7 +351,11 @@ pub async fn run_health_check(storage: &Storage) -> Result<HealthReport, anyhow:
             .find(|i| i.title == "Non-standard tag names detected")
             .map(|i| i.count)
             .unwrap_or(0),
-        missing_dashboards: 0, // Requires screen_data_sources table query
+        missing_dashboards: issues
+            .iter()
+            .find(|i| i.title == "No dashboards configured")
+            .map(|i| i.count)
+            .unwrap_or(0),
         disabled_devices: issues
             .iter()
             .find(|i| i.title == "Disabled devices detected")

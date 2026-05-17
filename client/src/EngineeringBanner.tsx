@@ -1,3 +1,5 @@
+import { useMutation } from '@tanstack/react-query'
+import { fetchOk } from './queries'
 import { type LicenseInfo } from './LicenseContext';
 
 interface EngineeringBannerProps {
@@ -37,6 +39,17 @@ const pollingButtonStyle: React.CSSProperties = {
 };
 
 export function EngineeringBanner({ licenseInfo, onActivate }: EngineeringBannerProps) {
+  const startPollingMut = useMutation({
+    mutationFn: () => fetchOk('/api/v1/engineering/polling/start', { method: 'POST' }),
+    onSuccess: () => window.location.reload(),
+    onError: (e) => console.error('Failed to start polling', e),
+  })
+
+  const stopPollingMut = useMutation({
+    mutationFn: () => fetchOk('/api/v1/engineering/polling/stop', { method: 'POST' }),
+    onSuccess: () => window.location.reload(),
+    onError: (e) => console.error('Failed to stop polling', e),
+  })
   if (licenseInfo.status === 'Engineering') {
     const dailyBudget = licenseInfo.daily_budget_secs ?? 14400;
     const dailyUsed = licenseInfo.daily_used_secs ?? 0;
@@ -46,26 +59,9 @@ export function EngineeringBanner({ licenseInfo, onActivate }: EngineeringBanner
     const isActive = licenseInfo.polling_active === true;
     const isLow = remainingSecs > 0 && remainingSecs < 30 * 60;
 
-    const handleStart = async () => {
-      try {
-        const res = await fetch('/api/v1/engineering/polling/start', { method: 'POST', credentials: 'include' });
-        if (!res.ok) console.error('Failed to start polling');
-        // Reload to refresh license state
-        window.location.reload();
-      } catch (e) {
-        console.error('Failed to start polling', e);
-      }
-    };
+    const handleStart = () => startPollingMut.mutate();
 
-    const handleStop = async () => {
-      try {
-        const res = await fetch('/api/v1/engineering/polling/stop', { method: 'POST', credentials: 'include' });
-        if (!res.ok) console.error('Failed to stop polling');
-        window.location.reload();
-      } catch (e) {
-        console.error('Failed to stop polling', e);
-      }
-    };
+    const handleStop = () => stopPollingMut.mutate();
 
     return (
       <div style={{

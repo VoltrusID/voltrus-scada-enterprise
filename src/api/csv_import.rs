@@ -272,3 +272,12 @@ pub async fn import_csv(
     )
         .into_response())
 }
+
+// Public wrappers for reuse by excel_import
+pub fn auto_detect_columns_pub(headers: &[String]) -> HashMap<String, usize> {
+    auto_detect_columns(headers)
+}
+
+pub fn parse_timestamp_pub(s: &str) -> Result<i64, String> {
+    parse_timestamp(s)
+}

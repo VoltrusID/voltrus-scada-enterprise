@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchJson } from '../queries'
 import { queryKeys } from '../queries/keys'
+import { useLicense } from '../LicenseContext'
 
 interface HealthIssue {
   severity: 'critical' | 'warning' | 'info' | 'pass'
@@ -38,6 +39,26 @@ const severityBg: Record<string, string> = {
 
 export function HealthCheckPanel() {
   const [expandedIssues, setExpandedIssues] = useState<Set<number>>(new Set())
+
+  // License tier check
+  const licenseInfo = useLicense()
+  const isPro = licenseInfo?.tier === 'professional' || licenseInfo?.tier === 'enterprise'
+
+  if (!isPro) {
+    return (
+      <div style={{ padding: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Project Health Check</h2>
+            <p style={{ color: 'var(--muted)', fontSize: 13, margin: '4px 0 0' }}>Audit your configuration for common issues and best practices.</p>
+          </div>
+        </div>
+        <div style={{ background: 'rgba(249,115,22,.08)', border: '1px solid rgba(249,115,22,.25)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#f97316' }}>
+          Health Check is available on Professional and Enterprise tiers. Upgrade to audit your project configuration, detect missing alarms, unnamed devices, and other common issues.
+        </div>
+      </div>
+    )
+  }
 
   const { data: report, isLoading: loading, error: queryError, refetch: runCheck } = useQuery({
     queryKey: queryKeys.wizardHealthCheck,

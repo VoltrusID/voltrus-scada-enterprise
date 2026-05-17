@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useModbusDevices, useModbusPollerStatus, useCreateModbusDevice, useUpdateModbusDevice, useDeleteModbusDevice, useRestartModbusPoller } from './queries'
+import { useModbusDevices, useModbusPollerStatus, useCreateModbusDevice, useUpdateModbusDevice, useDeleteModbusDevice, useRestartModbusPoller, fetchJson } from './queries'
 import { inputStyle, btnStyle } from './styles'
 import { ModbusDeviceForm } from './ModbusDeviceForm'
 import { SimControls } from './components/SimControls'
@@ -36,12 +36,9 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const tdStyle: React.CSSProperties = { padding: '8px 12px', fontSize: 13, borderBottom: '1px solid var(--border)' };
 
   const handleDup = async (d: ModbusDevice) => {
-    const res = await fetch(`/api/v1/modbus-devices/${d.id}`)
-    if (res.ok) {
-      const data = await res.json()
-      setDupDevice({ ...d, registers: data.registers })
-      setShowForm(true)
-    }
+    const data = await fetchJson<{ registers: ModbusRegister[] }>(`/api/v1/modbus-devices/${d.id}`)
+    setDupDevice({ ...d, registers: data.registers })
+    setShowForm(true)
   }
 
   const handleCreate = (data: any) => {
@@ -61,11 +58,8 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   }
 
   const handleEdit = async (d: ModbusDevice) => {
-    const res = await fetch(`/api/v1/modbus-devices/${d.id}`)
-    if (res.ok) {
-      const data = await res.json()
-      setEditDevice({ ...d, registers: data.registers })
-    }
+    const data = await fetchJson<{ registers: ModbusRegister[] }>(`/api/v1/modbus-devices/${d.id}`)
+    setEditDevice({ ...d, registers: data.registers })
   }
 
   const tableContent = (
@@ -122,7 +116,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
                   <button
                     onClick={() => {
                       // Fetch current sim state then open controls
-                      fetch(`/api/v1/devices/${d.id}/simulate`, { method: 'GET' }).then(r => r.json()).then(data => {
+                      fetchJson<any>(`/api/v1/devices/${d.id}/simulate`).then(data => {
                         setSimStates(prev => ({ ...prev, [d.id]: { simulation_mode: data.simulation_mode ?? false, sim_profile_id: data.sim_profile_id ?? null, sim_config: data.sim_config ?? null } }))
                         setSimDevice(d)
                       }).catch(() => {
@@ -171,7 +165,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
           simConfig={state.sim_config}
           onUpdate={() => {
             // Refresh sim state
-            fetch(`/api/v1/devices/${simDevice.id}/simulate`, { method: 'GET' }).then(r => r.json()).then(data => {
+            fetchJson<any>(`/api/v1/devices/${simDevice.id}/simulate`).then(data => {
               setSimStates(prev => ({ ...prev, [simDevice.id]: { simulation_mode: data.simulation_mode ?? false, sim_profile_id: data.sim_profile_id ?? null, sim_config: data.sim_config ?? null } }))
             }).catch(() => {})
           }}
