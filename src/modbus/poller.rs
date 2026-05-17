@@ -70,39 +70,77 @@ async fn try_poll(
 
         let mut metrics = HashMap::new();
 
-        for reg in &config.registers {
-            let addr = reg.protocol_address();
-            let count = reg.register_count();
+        // Sort registers by area then address for optimal grouping
+        let mut sorted_regs: Vec<&RegisterConfig> = config.registers.iter().collect();
+        sorted_regs.sort_by_key(|r| (r.register_area.clone(), r.protocol_address()));
 
-            let read_result = if reg.register_area == "input" {
+        let mut i = 0;
+        while i < sorted_regs.len() {
+            let first = &sorted_regs[i];
+            let area = &first.register_area;
+            let start_addr = first.protocol_address();
+            let mut end_addr = start_addr + first.register_count();
+
+            let mut group_end = i + 1;
+            while group_end < sorted_regs.len()
+                && sorted_regs[group_end].register_area == *area
+                && sorted_regs[group_end].protocol_address() <= end_addr
+            {
+                let t = &sorted_regs[group_end];
+                let t_end = t.protocol_address() + t.register_count();
+                if t_end > end_addr {
+                    end_addr = t_end;
+                }
+                group_end += 1;
+            }
+
+            let total = (end_addr - start_addr) as u16;
+
+            let read_result = if area == "input" {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
-                    ctx.read_input_registers(addr, count),
+                    ctx.read_input_registers(start_addr, total),
                 )
                 .await
             } else {
                 tokio::time::timeout(
                     std::time::Duration::from_secs(5),
-                    ctx.read_holding_registers(addr, count),
+                    ctx.read_holding_registers(start_addr, total),
                 )
                 .await
             };
 
-            let response = read_result
-                .context("Modbus read timeout")?
-                .context("Modbus read failed")?
-                .map_err(|code| anyhow::anyhow!("Modbus exception: {code:?}"))?;
+            let response = match read_result {
+                Ok(Ok(Ok(words))) => words,
+                Ok(Ok(Err(code))) => {
+                    tracing::warn!("Device {} Modbus exception at addr {}: {:?}", config.id, start_addr, code);
+                    for j in i..group_end {
+                        metrics.insert(sorted_regs[j].name.clone(), f64::NAN);
+                    }
+                    i = group_end;
+                    continue;
+                }
+                Ok(Err(e)) => {
+                    anyhow::bail!("Modbus read failed for group starting at {}: {}", start_addr, e);
+                }
+                Err(_) => {
+                    anyhow::bail!("Modbus read timeout for group starting at {}", start_addr);
+                }
+            };
 
-            if response.len() < count as usize {
-                anyhow::bail!(
-                    "Short read for register {}: expected {count}, got {}",
-                    reg.name,
-                    response.len()
-                );
+            for j in i..group_end {
+                let reg = &sorted_regs[j];
+                let offset = (reg.protocol_address() - start_addr) as usize;
+                let count = reg.register_count() as usize;
+                if offset + count > response.len() {
+                    metrics.insert(reg.name.clone(), f64::NAN);
+                    continue;
+                }
+                let value = parse_register(&response[offset..offset + count], &reg.reg_type, &config.endianness) * reg.scale;
+                metrics.insert(reg.name.clone(), value);
             }
 
-            let value = parse_register(&response, &reg.reg_type, &config.endianness) * reg.scale;
-            metrics.insert(reg.name.clone(), value);
+            i = group_end;
         }
 
         cache.update(&config.id, metrics, false).await;
