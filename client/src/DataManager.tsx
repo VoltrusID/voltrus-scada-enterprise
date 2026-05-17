@@ -30,6 +30,7 @@ interface NavItem {
   label: string
   icon: React.ReactNode
   admin?: boolean
+  strictAdmin?: boolean
   badge?: React.ReactNode
 }
 
@@ -72,12 +73,12 @@ const GROUPS: NavGroup[] = [
   {
     label: 'Admin',
     items: [
-      { id: 'users', label: 'Users', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-      { id: 'roles', label: 'Roles', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+      { id: 'users', label: 'Users', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+      { id: 'roles', label: 'Roles', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
       { id: 'notifications', label: 'Notifications', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
-      { id: 'api-keys', label: 'API Keys', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> },
-      { id: 'security', label: 'Security', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> },
-      { id: 'compliance', label: 'Compliance', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> },
+      { id: 'api-keys', label: 'API Keys', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> },
+      { id: 'security', label: 'Security', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> },
+      { id: 'compliance', label: 'Compliance', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> },
     ],
   },
 ]
@@ -105,7 +106,7 @@ const GROUP_LABEL: React.CSSProperties = {
   color: 'var(--text-muted)', padding: '4px 12px', marginTop: 12, marginBottom: 2,
 }
 
-export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin }: {
+export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onClose, shortcuts, isAdmin, isStrictAdmin }: {
   sensors: SensorConfig[];
   onSave: (s: SensorConfig, shortcut?: string | null) => void;
   onDelete: (id: number) => void;
@@ -114,6 +115,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   onClose: () => void;
   shortcuts: Record<number, string>;
   isAdmin?: boolean;
+  isStrictAdmin?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('sources');
   const modalRef = useRef<HTMLDivElement>(null);
@@ -223,7 +225,11 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           padding: '8px 8px',
         }}>
           {GROUPS.map(group => {
-            const visibleItems = group.items.filter(i => !i.admin || isAdmin)
+            const visibleItems = group.items.filter(i => {
+              if (i.strictAdmin && !isStrictAdmin) return false
+              if (i.admin && !isAdmin) return false
+              return true
+            })
             if (visibleItems.length === 0) return null
             return (
               <div key={group.label}>
@@ -258,7 +264,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           {tab === 'modbus' && (
             <ModbusDeviceManager onClose={onClose} embedded />
           )}
-          {tab === 'users' && isAdmin && (
+          {tab === 'users' && isStrictAdmin && (
             <UserManager onClose={onClose} embedded />
           )}
           {tab === 'notifications' && isAdmin && (
@@ -267,7 +273,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
               <NotificationSettingsPanel onClose={onClose} embedded />
             </>
           )}
-          {tab === 'api-keys' && isAdmin && (
+          {tab === 'api-keys' && isStrictAdmin && (
             <ApiKeyManager onClose={onClose} embedded />
           )}
           {tab === 'opcua' && isAdmin && (
@@ -303,13 +309,13 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           {tab === 'bacnet' && isAdmin && (
             <BacnetDeviceManager onClose={onClose} embedded />
           )}
-          {tab === 'security' && isAdmin && (
+          {tab === 'security' && isStrictAdmin && (
             <SecurityAuditPanel onClose={onClose} embedded />
           )}
-          {tab === 'compliance' && isAdmin && (
+          {tab === 'compliance' && isStrictAdmin && (
             <CompliancePanel onClose={onClose} embedded />
           )}
-          {tab === 'roles' && isAdmin && (
+          {tab === 'roles' && isStrictAdmin && (
             <RoleManager onClose={onClose} embedded />
           )}
         </div>

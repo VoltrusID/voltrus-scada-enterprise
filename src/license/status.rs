@@ -13,15 +13,20 @@ pub enum LicenseStatus {
         tier: Option<String>,
         device_limit: Option<u32>,
     },
-    Trial {
+    Engineering {
         started_at: i64,
-        expires_at: i64,
-        days_remaining: i64,
+        polling_elapsed_secs: i64,
+        polling_remaining_secs: i64,
+        daily_budget_secs: i64,
+        daily_used_secs: i64,
+        polling_active: bool,
         tier: LicenseTier,
         feature_flags: serde_json::Value,
     },
-    TrialExpired {
+    EngineeringPollingStopped {
         started_at: i64,
+        daily_budget_secs: i64,
+        daily_used_secs: i64,
         message: String,
     },
     Unactivated {
@@ -48,27 +53,30 @@ impl LicenseStatus {
     pub fn is_valid(&self) -> bool {
         matches!(
             self,
-            LicenseStatus::Valid { .. } | LicenseStatus::Trial { .. }
+            LicenseStatus::Valid { .. }
+                | LicenseStatus::Engineering { .. }
+                | LicenseStatus::EngineeringPollingStopped { .. }
         )
     }
 
-    /// Extracts the LicenseTier from Valid or Trial status.
-    /// Defaults to Trial for all other statuses.
+    /// Extracts the LicenseTier from Valid or Engineering status.
+    /// Defaults to Engineering for all other statuses.
     pub fn tier(&self) -> LicenseTier {
         match self {
             LicenseStatus::Valid { tier, .. } => LicenseTier::from_tier_str(tier.as_deref()),
-            LicenseStatus::Trial { tier, .. } => tier.clone(),
-            _ => LicenseTier::Trial,
+            LicenseStatus::Engineering { tier, .. } => tier.clone(),
+            LicenseStatus::EngineeringPollingStopped { .. } => LicenseTier::Engineering,
+            _ => LicenseTier::Engineering,
         }
     }
 
-    /// Returns feature flags for Valid or Trial status, empty object otherwise.
+    /// Returns feature flags for Valid or Engineering status, empty object otherwise.
     pub fn feature_flags(&self) -> serde_json::Value {
         match self {
             LicenseStatus::Valid { tier, .. } => {
                 LicenseTier::from_tier_str(tier.as_deref()).to_feature_flags()
             }
-            LicenseStatus::Trial { feature_flags, .. } => feature_flags.clone(),
+            LicenseStatus::Engineering { feature_flags, .. } => feature_flags.clone(),
             _ => serde_json::json!({}),
         }
     }

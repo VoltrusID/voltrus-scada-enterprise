@@ -110,7 +110,7 @@ async fn test_resolve_active_alarms_with_deadband() {
     let storage = Storage::new_in_memory().unwrap();
 
     // Create alarm with deadband of 5.0 (threshold 100)
-    let id = storage
+    let _id = storage
         .create_alarm("tag1", "critical", 110.0, 100.0, "Over threshold", 5.0)
         .await
         .unwrap();

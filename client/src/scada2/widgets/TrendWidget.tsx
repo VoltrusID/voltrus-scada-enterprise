@@ -11,7 +11,6 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const bufferRef = useRef<number[]>([])
 
-  // Resolve CSS variable to actual color for canvas
   const resolveColor = (color: string): string => {
     if (color.startsWith('var(')) {
       const varName = color.slice(4, -1)
@@ -24,7 +23,6 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
   }
 
   useEffect(() => {
-    // Push current value into buffer
     const val = data?.value
     if (val !== undefined && val !== null) {
       bufferRef.current.push(val)
@@ -51,102 +49,153 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
     canvas.width = w * dpr
     canvas.height = h * dpr
     ctx.scale(dpr, dpr)
-
-    // Clear
     ctx.clearRect(0, 0, w, h)
 
+    const resolvedLineColor = resolveColor(lineColor)
+    const resolvedMuted = resolveColor('var(--muted)')
+    const resolvedBorder = resolveColor('var(--border)')
+    const resolvedFg = resolveColor('var(--fg)')
+
     const buf = bufferRef.current
+
+    // Always draw grid
+    const pad = { top: 8, right: 8, bottom: 14, left: 32 }
+    const plotW = w - pad.left - pad.right
+    const plotH = h - pad.top - pad.bottom
+
+    // Determine y range
+    let yMin: number, yMax: number
     if (buf.length < 2) {
-      // Not enough data - draw placeholder
-      ctx.strokeStyle = 'var(--muted)'
+      const sMin = sensor?.min_val ?? 0
+      const sMax = sensor?.max_val ?? 100
+      yMin = sMin
+      yMax = sMax
+    } else {
+      yMin = Infinity
+      yMax = -Infinity
+      for (const v of buf) {
+        if (v < yMin) yMin = v
+        if (v > yMax) yMax = v
+      }
+      const yRange = yMax - yMin || 1
+      yMin -= yRange * 0.05
+      yMax += yRange * 0.05
+    }
+    const totalRange = yMax - yMin || 1
+
+    // Grid lines (4 horizontal)
+    ctx.font = `${9 * 1}px Inter, sans-serif`
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'middle'
+    for (let i = 0; i <= 4; i++) {
+      const p = i / 4
+      const y = pad.top + plotH * (1 - p)
+      const val = yMin + totalRange * p
+
+      ctx.strokeStyle = resolvedBorder
+      ctx.lineWidth = 0.5
+      ctx.setLineDash([3, 3])
+      ctx.beginPath()
+      ctx.moveTo(pad.left, y)
+      ctx.lineTo(pad.left + plotW, y)
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      ctx.fillStyle = resolvedMuted
+      ctx.globalAlpha = 0.6
+      ctx.fillText(val.toFixed(val % 1 === 0 ? 0 : 1), pad.left - 4, y)
+      ctx.globalAlpha = 1
+    }
+
+    if (buf.length < 2) {
+      // Placeholder dashed line at center
+      ctx.strokeStyle = resolvedMuted
       ctx.lineWidth = 1
       ctx.setLineDash([4, 4])
       ctx.beginPath()
-      ctx.moveTo(0, h / 2)
-      ctx.lineTo(w, h / 2)
+      ctx.moveTo(pad.left, pad.top + plotH / 2)
+      ctx.lineTo(pad.left + plotW, pad.top + plotH / 2)
       ctx.stroke()
       ctx.setLineDash([])
       return
     }
 
-    const resolvedLineColor = resolveColor(lineColor)
-
-    // Determine y range from buffer
-    let yMin = Infinity
-    let yMax = -Infinity
-    for (const v of buf) {
-      if (v < yMin) yMin = v
-      if (v > yMax) yMax = v
-    }
-    // Add padding to range
-    const yRange = yMax - yMin || 1
-    yMin -= yRange * 0.05
-    yMax += yRange * 0.05
-    const totalRange = yMax - yMin || 1
-
-    const pad = 4
-    const plotW = w - pad * 2
-    const plotH = h - pad * 2
-
     // Map data points to canvas coordinates
     const points = buf.map((v, i) => ({
-      x: pad + (i / (buf.length - 1)) * plotW,
-      y: pad + plotH - ((v - yMin) / totalRange) * plotH,
+      x: pad.left + (i / (buf.length - 1)) * plotW,
+      y: pad.top + plotH - ((v - yMin) / totalRange) * plotH,
     }))
 
     // Gradient fill under line
-    const gradient = ctx.createLinearGradient(0, pad, 0, pad + plotH)
-    gradient.addColorStop(0, resolvedLineColor + '40')
+    const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH)
+    gradient.addColorStop(0, resolvedLineColor + '30')
     gradient.addColorStop(1, resolvedLineColor + '05')
 
-    ctx.beginPath()
-    ctx.moveTo(points[0].x, points[0].y)
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y)
+    // Smooth curve helper (cardinal spline)
+    const drawSmoothLine = (pts: { x: number; y: number }[]) => {
+      ctx.beginPath()
+      ctx.moveTo(pts[0].x, pts[0].y)
+      if (pts.length === 2) {
+        ctx.lineTo(pts[1].x, pts[1].y)
+        return
+      }
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)]
+        const p1 = pts[i]
+        const p2 = pts[i + 1]
+        const p3 = pts[Math.min(pts.length - 1, i + 2)]
+        const tension = 0.3
+        const cp1x = p1.x + (p2.x - p0.x) * tension
+        const cp1y = p1.y + (p2.y - p0.y) * tension
+        const cp2x = p2.x - (p3.x - p1.x) * tension
+        const cp2y = p2.y - (p3.y - p1.y) * tension
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+      }
     }
-    // Close path for fill
-    ctx.lineTo(points[points.length - 1].x, pad + plotH)
-    ctx.lineTo(points[0].x, pad + plotH)
+
+    // Fill area
+    drawSmoothLine(points)
+    ctx.lineTo(points[points.length - 1].x, pad.top + plotH)
+    ctx.lineTo(points[0].x, pad.top + plotH)
     ctx.closePath()
     ctx.fillStyle = gradient
     ctx.fill()
 
     // Draw line
-    ctx.beginPath()
-    ctx.moveTo(points[0].x, points[0].y)
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y)
-    }
+    drawSmoothLine(points)
     ctx.strokeStyle = resolvedLineColor
     ctx.lineWidth = 1.5
     ctx.lineJoin = 'round'
     ctx.stroke()
 
-    // Draw current value dot
+    // Current value dot
     const last = points[points.length - 1]
     ctx.beginPath()
     ctx.arc(last.x, last.y, 3, 0, Math.PI * 2)
     ctx.fillStyle = resolvedLineColor
     ctx.fill()
+    ctx.beginPath()
+    ctx.arc(last.x, last.y, 5, 0, Math.PI * 2)
+    ctx.strokeStyle = resolvedLineColor + '40'
+    ctx.lineWidth = 1
+    ctx.stroke()
 
-  }, [data?.value, lineColor, pointsCount])
+    // Current value label (top-right)
+    const currentVal = buf[buf.length - 1]
+    const decimals = sensor?.decimals ?? 1
+    const unit = sensor?.unit ?? ''
+    const valText = `${currentVal.toFixed(decimals)}${unit ? ' ' + unit : ''}`
+    ctx.font = 'bold 10px Inter, sans-serif'
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = resolvedFg
+    ctx.fillText(valText, pad.left + plotW, 2)
 
-  const containerStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    position: 'relative',
-    overflow: 'hidden',
-  }
-
-  const canvasStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    display: 'block',
-  }
+  }, [data?.value, lineColor, pointsCount, sensor])
 
   return (
-    <div style={containerStyle}>
-      <canvas ref={canvasRef} style={canvasStyle} />
+    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
     </div>
   )
 }

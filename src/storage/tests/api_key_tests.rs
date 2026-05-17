@@ -31,7 +31,7 @@ async fn test_api_key_list_and_revoke() {
         .create_api_key("key-one", "admin", None, "[]")
         .await
         .unwrap();
-    let (id2, _) = storage
+    let (_id2, _) = storage
         .create_api_key("key-two", "admin", None, "[\"data:read\"]")
         .await
         .unwrap();
@@ -75,7 +75,7 @@ async fn test_api_key_expiry() {
 async fn test_api_key_last_used_at_updated() {
     let storage = Storage::new_in_memory().unwrap();
 
-    let (id, plain_key) = storage
+    let (_id, plain_key) = storage
         .create_api_key("usage-key", "admin", None, "[]")
         .await
         .unwrap();

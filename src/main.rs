@@ -51,6 +51,7 @@ mod oee;
 #[cfg(feature = "opcua")]
 mod opcua;
 mod poller_manager;
+mod project_export;
 mod recipe;
 mod report;
 mod report_scheduler;
@@ -175,15 +176,31 @@ async fn main() -> anyhow::Result<()> {
     let storage =
         Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())?;
     let cache = cache.with_storage(storage.clone());
-    let license_status = license::resolve_license_status(&storage).await;
-    let license_tier = license_status.tier();
-    let feature_flags = license_status.feature_flags();
+    let license_status = {
+        let status = license::resolve_license_status(&storage).await;
+        Arc::new(std::sync::RwLock::new(status))
+    };
+    let license_tier = license_status.read().unwrap().tier();
+    let feature_flags = license_status.read().unwrap().feature_flags();
 
-    if !license_status.is_valid() {
+    if !license_status.read().unwrap().is_valid() {
         tracing::warn!(
             "License status: {:?} — skipping Modbus polling",
-            license_status
+            license_status.read().unwrap()
         );
+    }
+
+    // Log engineering mode status at startup
+    {
+        let ls = license_status.read().unwrap();
+        if let license::LicenseStatus::Engineering { polling_active, daily_budget_secs, daily_used_secs, polling_remaining_secs, .. } = &*ls {
+            tracing::info!(
+                "Engineering mode: {}/{}s used, {}s remaining, polling_active={}",
+                daily_used_secs, daily_budget_secs, polling_remaining_secs, polling_active
+            );
+        } else if let license::LicenseStatus::EngineeringPollingStopped { message, .. } = &*ls {
+            tracing::warn!("Engineering mode: {}", message);
+        }
     }
 
     // FlowEngine (Starter tier and above, lazy — only spawns when enabled flows exist)
@@ -230,7 +247,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Arc::new(engine))
     } else {
-        tracing::info!("FlowEngine skipped — Trial tier");
+        tracing::info!("FlowEngine skipped — Engineering tier");
         None
     };
 
@@ -254,25 +271,40 @@ async fn main() -> anyhow::Result<()> {
         network::NetworkManager::new(app_config.networks.clone()),
     );
     #[cfg(feature = "modbus")]
-    if license_status.is_valid() {
-        let device_configs = storage.get_all_device_configs().await?;
-        let device_limit = license_tier.max_devices();
-        let mut started_count: u32 = 0;
-        for config in &device_configs {
-            if let Some(limit) = device_limit
-                && started_count >= limit
-            {
-                tracing::warn!(
-                    "Device '{}' skipped — {} tier limit of {} devices reached. Upgrade at https://voltrus.id",
-                    config.id,
-                    serde_json::to_string(&license_tier).unwrap_or_else(|_| "unknown".to_string()),
-                    limit
-                );
-                continue;
+    if license_status.read().unwrap().is_valid() {
+        // For Engineering mode, do NOT auto-start pollers.
+        // Polling starts paused; user must use the start endpoint to begin.
+        // For paid licenses (Valid status), auto-start pollers as usual.
+        let is_engineering = {
+            let ls = license_status.read().unwrap();
+            matches!(&*ls, license::LicenseStatus::Engineering { .. })
+                | matches!(&*ls, license::LicenseStatus::EngineeringPollingStopped { .. })
+        };
+
+        if is_engineering {
+            tracing::info!(
+                "Engineering mode: pollers NOT auto-started. Use POST /api/v1/engineering/polling/start to begin."
+            );
+        } else {
+            let device_configs = storage.get_all_device_configs().await?;
+            let device_limit = license_tier.max_devices();
+            let mut started_count: u32 = 0;
+            for config in &device_configs {
+                if let Some(limit) = device_limit
+                    && started_count >= limit
+                {
+                    tracing::warn!(
+                        "Device '{}' skipped — {} tier limit of {} devices reached. Upgrade at https://voltrus.id",
+                        config.id,
+                        serde_json::to_string(&license_tier).unwrap_or_else(|_| "unknown".to_string()),
+                        limit
+                    );
+                    continue;
+                }
+                poller_manager.start(config.clone()).await;
+                tracing::info!("Started poller for device {}", config.id);
+                started_count += 1;
             }
-            poller_manager.start(config.clone()).await;
-            tracing::info!("Started poller for device {}", config.id);
-            started_count += 1;
         }
     } else {
         tracing::warn!("No valid license — Modbus polling disabled");
@@ -303,6 +335,56 @@ async fn main() -> anyhow::Result<()> {
                 "OPC-UA devices configured but Professional tier required. Upgrade at https://voltrus.id"
             );
         }
+    }
+
+    // ── Engineering polling enforcement: background checker ──
+    // Every 60 seconds, accumulate daily usage if polling is active, and
+    // check if the daily budget is exhausted. If so, stop all pollers.
+    {
+        let bg_license_status = license_status.clone();
+        let bg_poller_manager = poller_manager.clone();
+        let bg_storage = storage.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                license::ENGINEERING_POLLING_TICK_SECS as u64,
+            ));
+            loop {
+                interval.tick().await;
+                let needs_update = {
+                    let ls = bg_license_status.read().unwrap();
+                    matches!(&*ls, license::LicenseStatus::Engineering { .. })
+                };
+                if needs_update {
+                    // Clone the status so we can drop the read lock before the await
+                    let status_snapshot = {
+                        let ls = bg_license_status.read().unwrap();
+                        ls.clone()
+                    };
+                    let updated = license::update_engineering_polling_daily(
+                        &status_snapshot,
+                        &bg_storage,
+                        license::ENGINEERING_POLLING_TICK_SECS,
+                    )
+                    .await;
+                    let is_stopped = matches!(
+                        &updated,
+                        license::LicenseStatus::EngineeringPollingStopped { .. }
+                    );
+                    {
+                        let mut ls = bg_license_status.write().unwrap();
+                        *ls = updated;
+                    }
+                    if is_stopped {
+                        tracing::warn!(
+                            "Engineering daily polling budget exhausted — stopping all pollers"
+                        );
+                        bg_poller_manager.stop_all().await;
+                        tracing::info!("All pollers stopped due to engineering daily budget limit");
+                    }
+                }
+            }
+        });
+        tracing::info!("Engineering daily polling budget checker started (60s tick)");
     }
 
     // Start hub site connectors (Professional tier only)
@@ -654,7 +736,7 @@ async fn main() -> anyhow::Result<()> {
         });
         tracing::info!("Data retention/compression task started");
     } else {
-        tracing::info!("Data retention/compression skipped — Trial tier");
+        tracing::info!("Data retention/compression skipped — Engineering tier");
     }
 
     // Spawn alarm auto-unshelf task
@@ -716,7 +798,7 @@ async fn main() -> anyhow::Result<()> {
         });
         tracing::info!("Command queue processor started");
     } else {
-        tracing::info!("Command queue processor skipped — Trial tier");
+        tracing::info!("Command queue processor skipped — Engineering tier");
     }
 
     let auth_secret = match &app_config.auth_secret {
@@ -838,7 +920,7 @@ async fn main() -> anyhow::Result<()> {
             app_config.watchdog.health_check_interval_secs
         );
     } else if app_config.watchdog.enabled {
-        tracing::info!("Health monitor configured but skipped — Trial tier");
+        tracing::info!("Health monitor configured but skipped — Engineering tier");
     }
 
     let ha_state = if app_config.ha.enabled {
@@ -870,7 +952,7 @@ async fn main() -> anyhow::Result<()> {
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger,
         intrusion_detector,
-        license_status: license_status.clone(),
+        license_status,
         license_tier: license_tier.clone(),
         feature_flags: feature_flags.clone(),
         smtp_config: Arc::new(tokio::sync::RwLock::new(app_config.smtp.clone())),
@@ -883,7 +965,7 @@ async fn main() -> anyhow::Result<()> {
         health_monitor,
         ha_state,
         widget_registry: widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
-            if license_tier == license::LicenseTier::Trial {
+            if license_tier == license::LicenseTier::Engineering {
                 "/nonexistent"
             } else {
                 "voltrus/widgets"

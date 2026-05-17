@@ -73,6 +73,7 @@ interface Props {
   historyDetail: 'auto' | 'full'
   onHistoryDetailChange: (d: 'auto' | 'full') => void
   historyAutoAgg: string
+  scadaToolbarSlot?: React.ReactNode
 }
 
 export function ViewToolbar({
@@ -82,6 +83,7 @@ export function ViewToolbar({
   historyRange, onHistoryRangeChange,
   historyDetail, onHistoryDetailChange,
   historyAutoAgg,
+  scadaToolbarSlot,
 }: Props) {
   const isMobile = useIsMobile()
 
@@ -122,6 +124,8 @@ export function ViewToolbar({
             }}
           >Turbo</button>
         )}
+
+        {viewMode === 'scada' && scadaToolbarSlot}
       </div>
     )
   }
@@ -176,6 +180,8 @@ export function ViewToolbar({
           )}
         </>
       )}
+
+      {viewMode === 'scada' && scadaToolbarSlot}
     </div>
   )
 }

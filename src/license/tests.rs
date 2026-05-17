@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn test_license_tier_max_devices() {
-    assert_eq!(LicenseTier::Trial.max_devices(), Some(5));
+    assert_eq!(LicenseTier::Engineering.max_devices(), Some(5));
     assert_eq!(LicenseTier::Starter.max_devices(), Some(50));
     assert_eq!(LicenseTier::Professional.max_devices(), None);
     assert_eq!(LicenseTier::Enterprise.max_devices(), None);
@@ -12,30 +12,30 @@ fn test_license_tier_max_devices() {
 
 #[test]
 fn test_license_tier_feature_flags() {
-    // Trial tier: limited features
-    let trial = LicenseTier::Trial;
-    assert_eq!(trial.max_devices(), Some(5));
-    assert_eq!(trial.data_retention_days(), 7);
-    assert!(!trial.opcua_enabled());
-    assert!(!trial.email_notifications());
-    assert!(!trial.webhook_notifications());
-    assert!(!trial.push_notifications());
-    assert!(!trial.sms_notifications());
-    assert!(!trial.rest_api_export());
-    assert!(trial.csv_export()); // always true
-    assert!(!trial.analytics());
-    assert!(!trial.oee());
-    assert!(!trial.pdf_reporting());
-    assert!(!trial.backup_restore());
-    assert!(!trial.white_label());
-    assert!(!trial.rbac());
-    assert!(!trial.multi_site());
-    assert!(!trial.recipes());
-    assert!(!trial.sso());
-    assert!(!trial.sso_saml());
-    assert!(!trial.cfr_part_11());
-    assert!(!trial.ethernet_ip());
-    assert!(!trial.s7_protocol());
+    // Engineering tier: limited features
+    let engineering = LicenseTier::Engineering;
+    assert_eq!(engineering.max_devices(), Some(5));
+    assert_eq!(engineering.data_retention_days(), 7);
+    assert!(!engineering.opcua_enabled());
+    assert!(!engineering.email_notifications());
+    assert!(!engineering.webhook_notifications());
+    assert!(!engineering.push_notifications());
+    assert!(!engineering.sms_notifications());
+    assert!(!engineering.rest_api_export());
+    assert!(engineering.csv_export()); // always true
+    assert!(!engineering.analytics());
+    assert!(!engineering.oee());
+    assert!(!engineering.pdf_reporting());
+    assert!(!engineering.backup_restore());
+    assert!(!engineering.white_label());
+    assert!(!engineering.rbac());
+    assert!(!engineering.multi_site());
+    assert!(!engineering.recipes());
+    assert!(!engineering.sso());
+    assert!(!engineering.sso_saml());
+    assert!(!engineering.cfr_part_11());
+    assert!(!engineering.ethernet_ip());
+    assert!(!engineering.s7_protocol());
 
     // Starter tier: many features enabled
     let starter = LicenseTier::Starter;
@@ -111,12 +111,15 @@ fn test_license_tier_feature_flags() {
 }
 
 #[test]
-fn test_trial_status_is_valid() {
-    let tier = LicenseTier::Trial;
-    let status = LicenseStatus::Trial {
+fn test_engineering_status_is_valid() {
+    let tier = LicenseTier::Engineering;
+    let status = LicenseStatus::Engineering {
         started_at: 1000,
-        expires_at: 1000 + 30 * 86400,
-        days_remaining: 30,
+        polling_elapsed_secs: 0,
+        polling_remaining_secs: 14400,
+        daily_budget_secs: 14400,
+        daily_used_secs: 0,
+        polling_active: false,
         tier: tier.clone(),
         feature_flags: tier.to_feature_flags(),
     };
@@ -124,21 +127,23 @@ fn test_trial_status_is_valid() {
 }
 
 #[test]
-fn test_trial_expired_is_not_valid() {
-    let status = LicenseStatus::TrialExpired {
+fn test_engineering_polling_stopped_is_valid() {
+    let status = LicenseStatus::EngineeringPollingStopped {
         started_at: 1000,
-        message: "Trial expired".to_string(),
+        daily_budget_secs: 14400,
+        daily_used_secs: 14400,
+        message: "Polling stopped".to_string(),
     };
-    assert!(!status.is_valid());
+    assert!(status.is_valid());
 }
 
 #[test]
 fn test_from_tier_str() {
-    assert_eq!(LicenseTier::from_tier_str(None), LicenseTier::Trial);
-    assert_eq!(LicenseTier::from_tier_str(Some("")), LicenseTier::Trial);
+    assert_eq!(LicenseTier::from_tier_str(None), LicenseTier::Engineering);
+    assert_eq!(LicenseTier::from_tier_str(Some("")), LicenseTier::Engineering);
     assert_eq!(
         LicenseTier::from_tier_str(Some("unknown")),
-        LicenseTier::Trial
+        LicenseTier::Engineering
     );
     assert_eq!(
         LicenseTier::from_tier_str(Some("starter")),
@@ -176,7 +181,7 @@ fn test_from_tier_str() {
 
 #[test]
 fn test_to_feature_flags_json_structure() {
-    let flags = LicenseTier::Trial.to_feature_flags();
+    let flags = LicenseTier::Engineering.to_feature_flags();
     assert_eq!(flags["max_devices"], 5);
     assert_eq!(flags["data_retention_days"], 7);
     assert_eq!(flags["csv_export"], true);
@@ -195,7 +200,7 @@ fn test_to_feature_flags_json_structure() {
 
 #[test]
 fn test_ethernet_ip_enterprise_only() {
-    assert!(!LicenseTier::Trial.ethernet_ip());
+    assert!(!LicenseTier::Engineering.ethernet_ip());
     assert!(!LicenseTier::Starter.ethernet_ip());
     assert!(!LicenseTier::Professional.ethernet_ip());
     assert!(LicenseTier::Enterprise.ethernet_ip());
@@ -203,7 +208,7 @@ fn test_ethernet_ip_enterprise_only() {
 
 #[test]
 fn test_s7_protocol_enterprise_only() {
-    assert!(!LicenseTier::Trial.s7_protocol());
+    assert!(!LicenseTier::Engineering.s7_protocol());
     assert!(!LicenseTier::Starter.s7_protocol());
     assert!(!LicenseTier::Professional.s7_protocol());
     assert!(LicenseTier::Enterprise.s7_protocol());
@@ -211,7 +216,7 @@ fn test_s7_protocol_enterprise_only() {
 
 #[test]
 fn test_rtsp_video_enterprise_only() {
-    assert!(!LicenseTier::Trial.rtsp_video());
+    assert!(!LicenseTier::Engineering.rtsp_video());
     assert!(!LicenseTier::Starter.rtsp_video());
     assert!(!LicenseTier::Professional.rtsp_video());
     assert!(LicenseTier::Enterprise.rtsp_video());
@@ -219,7 +224,7 @@ fn test_rtsp_video_enterprise_only() {
 
 #[test]
 fn test_theme_full_professional_and_above() {
-    assert!(!LicenseTier::Trial.theme_full());
+    assert!(!LicenseTier::Engineering.theme_full());
     assert!(!LicenseTier::Starter.theme_full());
     assert!(LicenseTier::Professional.theme_full());
     assert!(LicenseTier::Enterprise.theme_full());
@@ -227,7 +232,7 @@ fn test_theme_full_professional_and_above() {
 
 #[test]
 fn test_per_user_layouts_professional_and_above() {
-    assert!(!LicenseTier::Trial.per_user_layouts());
+    assert!(!LicenseTier::Engineering.per_user_layouts());
     assert!(!LicenseTier::Starter.per_user_layouts());
     assert!(LicenseTier::Professional.per_user_layouts());
     assert!(LicenseTier::Enterprise.per_user_layouts());
@@ -235,32 +240,37 @@ fn test_per_user_layouts_professional_and_above() {
 
 #[test]
 fn test_white_label_starter_and_above() {
-    assert!(!LicenseTier::Trial.white_label());
+    assert!(!LicenseTier::Engineering.white_label());
     assert!(LicenseTier::Starter.white_label());
     assert!(LicenseTier::Professional.white_label());
     assert!(LicenseTier::Enterprise.white_label());
 }
 
 #[test]
-fn test_trial_status_tier_returns_trial() {
-    let tier = LicenseTier::Trial;
-    let status = LicenseStatus::Trial {
+fn test_engineering_status_tier_returns_engineering() {
+    let tier = LicenseTier::Engineering;
+    let status = LicenseStatus::Engineering {
         started_at: 1000,
-        expires_at: 1000 + 30 * 86400,
-        days_remaining: 30,
+        polling_elapsed_secs: 0,
+        polling_remaining_secs: 14400,
+        daily_budget_secs: 14400,
+        daily_used_secs: 0,
+        polling_active: false,
         tier: tier.clone(),
         feature_flags: tier.to_feature_flags(),
     };
-    assert_eq!(status.tier(), LicenseTier::Trial);
+    assert_eq!(status.tier(), LicenseTier::Engineering);
 }
 
 #[test]
-fn test_trial_expired_status_tier_returns_trial() {
-    let status = LicenseStatus::TrialExpired {
+fn test_engineering_polling_stopped_status_tier_returns_engineering() {
+    let status = LicenseStatus::EngineeringPollingStopped {
         started_at: 1000,
-        message: "Trial expired".to_string(),
+        daily_budget_secs: 14400,
+        daily_used_secs: 14400,
+        message: "Polling stopped".to_string(),
     };
-    assert_eq!(status.tier(), LicenseTier::Trial);
+    assert_eq!(status.tier(), LicenseTier::Engineering);
 }
 
 #[test]
@@ -288,7 +298,7 @@ fn test_license_status_tier_and_feature_flags() {
     assert_eq!(valid.tier(), LicenseTier::Professional);
     assert_eq!(valid.feature_flags()["opcua_enabled"], true);
 
-    // Valid status without tier defaults to Trial
+    // Valid status without tier defaults to Engineering
     let valid_no_tier = LicenseStatus::Valid {
         license_key: "key".to_string(),
         expires_at: None,
@@ -296,30 +306,33 @@ fn test_license_status_tier_and_feature_flags() {
         tier: None,
         device_limit: None,
     };
-    assert_eq!(valid_no_tier.tier(), LicenseTier::Trial);
+    assert_eq!(valid_no_tier.tier(), LicenseTier::Engineering);
 
-    // Trial status
-    let trial = LicenseStatus::Trial {
+    // Engineering status
+    let engineering = LicenseStatus::Engineering {
         started_at: 1000,
-        expires_at: 1000 + 30 * 86400,
-        days_remaining: 30,
-        tier: LicenseTier::Trial,
-        feature_flags: LicenseTier::Trial.to_feature_flags(),
+        polling_elapsed_secs: 0,
+        polling_remaining_secs: 14400,
+        daily_budget_secs: 14400,
+        daily_used_secs: 0,
+        polling_active: false,
+        tier: LicenseTier::Engineering,
+        feature_flags: LicenseTier::Engineering.to_feature_flags(),
     };
-    assert_eq!(trial.tier(), LicenseTier::Trial);
-    assert_eq!(trial.feature_flags()["csv_export"], true);
+    assert_eq!(engineering.tier(), LicenseTier::Engineering);
+    assert_eq!(engineering.feature_flags()["csv_export"], true);
 
-    // Other statuses default to Trial
+    // Other statuses default to Engineering
     let unactivated = LicenseStatus::Unactivated {
         message: "msg".to_string(),
     };
-    assert_eq!(unactivated.tier(), LicenseTier::Trial);
+    assert_eq!(unactivated.tier(), LicenseTier::Engineering);
     assert_eq!(unactivated.feature_flags(), serde_json::json!({}));
 }
 
 #[test]
 fn test_sso_saml_enterprise_only() {
-    assert!(!LicenseTier::Trial.sso_saml());
+    assert!(!LicenseTier::Engineering.sso_saml());
     assert!(!LicenseTier::Starter.sso_saml());
     assert!(!LicenseTier::Professional.sso_saml());
     assert!(LicenseTier::Enterprise.sso_saml());
@@ -330,9 +343,34 @@ fn test_sso_saml_in_feature_flags() {
     let flags = LicenseTier::Enterprise.to_feature_flags();
     assert_eq!(flags["sso_saml"], true);
 
-    let flags = LicenseTier::Trial.to_feature_flags();
+    let flags = LicenseTier::Engineering.to_feature_flags();
     assert_eq!(flags["sso_saml"], false);
 
     let flags = LicenseTier::Professional.to_feature_flags();
     assert_eq!(flags["sso_saml"], false);
+}
+
+#[test]
+fn test_hmac_sign_and_verify() {
+    let date = "2026-05-17";
+    let used_secs: i64 = 3600;
+
+    // Sign and verify should succeed
+    let sig = super::verification::sign_polling_state(date, used_secs);
+    assert!(super::verification::verify_polling_hmac(date, used_secs, &sig));
+
+    // Wrong used_secs should fail
+    assert!(!super::verification::verify_polling_hmac(date, 3601, &sig));
+
+    // Wrong date should fail
+    assert!(!super::verification::verify_polling_hmac("2026-05-18", used_secs, &sig));
+
+    // Garbage HMAC should fail
+    assert!(!super::verification::verify_polling_hmac(date, used_secs, "deadbeef"));
+}
+
+#[test]
+fn test_daily_budget_constants() {
+    assert_eq!(super::verification::ENGINEERING_DAILY_BUDGET_SECS, 14400); // 4 hours
+    assert_eq!(super::verification::ENGINEERING_POLLING_TICK_SECS, 60);
 }

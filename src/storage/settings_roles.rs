@@ -165,6 +165,12 @@ impl Storage {
                 .await;
             let _ = self
                 .create_role(
+                    "Demo",
+                    &serde_json::to_string(crate::models::DEMO_PERMISSIONS).unwrap(),
+                )
+                .await;
+            let _ = self
+                .create_role(
                     "Operator",
                     &serde_json::to_string(crate::models::OPERATOR_PERMISSIONS).unwrap(),
                 )

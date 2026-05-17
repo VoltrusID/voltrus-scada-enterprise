@@ -39,6 +39,7 @@ interface Props {
   updateSensorMut: any
   fetchOk: any
   isAdmin: boolean
+  scadaToolbarSlotSetter?: (slot: React.ReactNode) => void
 }
 
 export function MainContent({
@@ -49,6 +50,7 @@ export function MainContent({
   twinLayouts, twinCamera, twinConnections, sensors,
   saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
   saveTwinConnectionsMut, updateSensorMut, fetchOk, isAdmin,
+  scadaToolbarSlotSetter,
 }: Props) {
   const queryClient = useQueryClient()
 
@@ -113,6 +115,7 @@ export function MainContent({
           onSaveConnections={(items: any[]) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
           onSensorClick={(id: number) => setSelectedSensor(id)}
           isAdmin={isAdmin}
+          toolbarSlotSetter={scadaToolbarSlotSetter}
         />
       </Suspense>
     )

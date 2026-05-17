@@ -37,7 +37,7 @@ interface StorageAssessment {
 interface HwCertReport {
   platform: PlatformInfo
   compatibility: {
-    free_trial: TierAssessment
+    engineering: TierAssessment
     starter: TierAssessment
     professional: TierAssessment
     enterprise: TierAssessment
@@ -136,7 +136,7 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
 
   const tierLabel = (tier: string) => {
     switch (tier) {
-      case 'free_trial': return 'Free Trial'
+      case 'engineering': return 'Engineering'
       case 'starter': return 'Starter ($249)'
       case 'professional': return 'Professional ($499)'
       case 'enterprise': return 'Enterprise ($999)'

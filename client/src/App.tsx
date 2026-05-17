@@ -16,11 +16,12 @@ import { Footer } from './components/Footer'
 import { MainContent } from './components/MainContent'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
+import { useKioskMode } from './hooks/useKioskMode'
 import { useDashboardSystemInfo } from './store/dashboardStore'
 import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk } from './queries'
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
-import { TrialBanner } from './TrialBanner'
+import { EngineeringBanner } from './EngineeringBanner'
 import { HaBanner } from './components/HaBanner'
 import { OverlayScreen } from './components/OverlayScreen'
 import { VoltrusWebSocket, setWsInstance } from './api/websocket'
@@ -87,6 +88,7 @@ function AppInner() {
     const v = new URLSearchParams(window.location.search).get('view')
     return (v === 'canvas' || v === 'twin' || v === 'scada') ? v : 'cards'
   })
+  const [scadaToolbarSlot, setScadaToolbarSlot] = useState<React.ReactNode>(null)
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null)
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
@@ -178,6 +180,8 @@ function AppInner() {
 
   // ── Derived values ───────────────────────────────────────────────
   const isAdmin = authRole === 'admin'
+  const isDemo = authRole === 'demo'
+  const isAdminOrDemo = isAdmin || isDemo
 
   const effectiveNavShortcuts = useMemo(() => {
     const defaults: Record<string, string> = {
@@ -390,6 +394,9 @@ function AppInner() {
     setSelectedSensor, setActiveScreen, setViewMode, setMode, setShowAlarmPanel, mode,
   })
 
+  // ── Kiosk mode ──────────────────────────────────────────
+  const kiosk = useKioskMode()
+
   // ── Alarm audio ──────────────────────────────────────────────────
   const { startAlarm, stopAlarm, toggleMute } = useAlarmAudio()
   useEffect(() => {
@@ -400,7 +407,7 @@ function AppInner() {
   if (!i18nReady) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
   if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('license.checking')}</div>
   const licenseStatus = licenseInfo.status
-  const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Trial' || licenseStatus === 'TrialExpired'
+  const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Engineering' || licenseStatus === 'EngineeringPollingStopped'
   if (!isLicensed) return <LicenseActivationScreen />
   if (showLicenseActivation) return <LicenseActivationScreen />
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('common.loading')}</div>
@@ -419,8 +426,8 @@ function AppInner() {
     <LicenseContext.Provider value={licenseInfo}>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <a href="#main-content" className="skip-to-content">Skip to content</a>
-      {(licenseStatus === 'Trial' || licenseStatus === 'TrialExpired') && (
-        <TrialBanner licenseInfo={licenseInfo} onActivate={() => setShowLicenseActivation(true)} />
+      {(licenseStatus === 'Engineering' || licenseStatus === 'EngineeringPollingStopped') && (
+        <EngineeringBanner licenseInfo={licenseInfo} onActivate={() => setShowLicenseActivation(true)} />
       )}
       <HaBanner />
       <header role="banner">
@@ -438,7 +445,7 @@ function AppInner() {
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
         onTagsClick={() => { setMode('tags'); setActiveScreen('all') }}
         onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
-        isAdmin={isAdmin}
+        isAdmin={isAdminOrDemo}
         username={authUser}
         onLogout={handleLogout}
         onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
@@ -474,6 +481,7 @@ function AppInner() {
         historyRange={historyRange} onHistoryRangeChange={setHistoryRange}
         historyDetail={historyDetail} onHistoryDetailChange={setHistoryDetail}
         historyAutoAgg={dashSettings.historyAutoAgg}
+        scadaToolbarSlot={viewMode === 'scada' ? scadaToolbarSlot : null}
       />
 
       <main id="main-content" role="main" aria-label="Dashboard" style={{
@@ -497,12 +505,12 @@ function AppInner() {
           )}
           {mode === 'flows' && (
             <OverlayScreen title="Flow Manager" onClose={() => setMode('live')}>
-              <Suspense fallback={null}><FlowManager isAdmin={isAdmin} /></Suspense>
+              <Suspense fallback={null}><FlowManager isAdmin={isAdminOrDemo} /></Suspense>
             </OverlayScreen>
           )}
           {mode === 'tags' && (
             <OverlayScreen title="Tag Browser" onClose={() => setMode('live')}>
-              <Suspense fallback={null}><TagBrowser isAdmin={isAdmin} /></Suspense>
+              <Suspense fallback={null}><TagBrowser isAdmin={isAdminOrDemo} /></Suspense>
             </OverlayScreen>
           )}
           {mode === 'assets' && (
@@ -539,12 +547,13 @@ function AppInner() {
               twinConnections={twinConnections}
               sensors={sensors}
               saveScadaEquipmentMut={saveScadaEquipmentMut}
+              scadaToolbarSlotSetter={setScadaToolbarSlot}
               saveScadaConnectionsMut={saveScadaConnectionsMut}
               saveTwinLayoutMut={saveTwinLayoutMut}
               saveTwinConnectionsMut={saveTwinConnectionsMut}
               updateSensorMut={updateSensorMut}
               fetchOk={fetchOk}
-              isAdmin={isAdmin}
+              isAdmin={isAdminOrDemo}
             />
           )}
         </div>
@@ -566,15 +575,15 @@ function AppInner() {
           }}>
             {(() => {
               const s = sensors.find(x => x.id === selectedSensor)
-              return s ? <Suspense fallback={null}><SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} isAdmin={isAdmin} /></Suspense> : null
+              return s ? <Suspense fallback={null}><SensorDetail sensor={s} onBack={() => setSelectedSensor(null)} historyRange={historyRange} onRangeChange={setHistoryRange} historyDetail={historyDetail} onDetailChange={setHistoryDetail} historyAutoAgg={dashSettings.historyAutoAgg} shortcuts={shortcuts} mode={mode === 'history' ? 'history' : 'live'} onModeChange={setMode} allSensors={sensors} isAdmin={isAdminOrDemo} /></Suspense> : null
             })()}
           </div>
         )}
 
 
 
-        {showDashSettings && <Suspense fallback={null}><DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted) }} /></Suspense>}
-        {showDataManager && <Suspense fallback={null}><DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdmin} /></Suspense>}
+        {showDashSettings && <Suspense fallback={null}><DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted) }} kioskMode={kiosk.enabled} onToggleKiosk={kiosk.toggle} /></Suspense>}
+        {showDataManager && <Suspense fallback={null}><DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdminOrDemo} isStrictAdmin={isAdmin} /></Suspense>}
         {showAddDialog && activeScreen !== 'all' && (
           <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => { setShowAddDialog(false); queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] }); queryClient.invalidateQueries({ queryKey: ['sensors'] }) }} />
         )}
@@ -582,7 +591,7 @@ function AppInner() {
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
         {showAlarmPanel && <Suspense fallback={null}><AlarmPanel onClose={() => setShowAlarmPanel(false)} /></Suspense>}
-        {showCommandPanel && <Suspense fallback={null}><CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdmin} /></Suspense>}
+        {showCommandPanel && <Suspense fallback={null}><CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdminOrDemo} /></Suspense>}
         {showExportPanel && <Suspense fallback={null}><DataExportPanel onClose={() => setShowExportPanel(false)} /></Suspense>}
         {showShiftHandover && <Suspense fallback={null}><ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} /></Suspense>}
         {showSnapshotPanel && (

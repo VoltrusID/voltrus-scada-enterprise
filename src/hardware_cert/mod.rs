@@ -41,8 +41,8 @@ pub struct HardwareCertReport {
 /// Compatibility assessment across all license tiers.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TierCompatibility {
-    /// Free Trial compatibility
-    pub free_trial: TierAssessment,
+    /// Engineering compatibility
+    pub engineering: TierAssessment,
     /// Starter ($249) compatibility
     pub starter: TierAssessment,
     /// Professional ($499) compatibility
@@ -157,7 +157,7 @@ mod tests {
         let report = HardwareCertReport {
             platform: PlatformInfo::default(),
             compatibility: TierCompatibility {
-                free_trial: TierAssessment {
+                engineering: TierAssessment {
                     compatible: true,
                     max_tags: 50,
                     max_poll_rate: 1,
@@ -195,7 +195,7 @@ mod tests {
                 storage_recommendations: vec!["Enable compression to reduce SD card writes".into()],
             },
             certified: true,
-            certified_tiers: vec!["free_trial".into(), "starter".into()],
+            certified_tiers: vec!["engineering".into(), "starter".into()],
             warnings: vec![],
             recommendations: vec!["Consider SSD upgrade for Professional tier".into()],
         };
@@ -238,7 +238,7 @@ mod tests {
             cpu: "Broadcom BCM2712 (4-core ARM Cortex-A76 @ 2.4GHz)".into(),
             ram_mb: 8192,
             storage: "MicroSD (A2 recommended) or NVMe HAT".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 5000,
             max_poll_rate: 1,
             notes: "Use A2-rated SD card or NVMe HAT for best performance. Enable compression for long-term storage.".into(),

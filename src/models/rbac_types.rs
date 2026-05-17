@@ -89,6 +89,34 @@ pub const VIEWER_PERMISSIONS: &[&str] = &[
     PERM_SETTINGS_READ,
 ];
 
+/// Near-admin permissions for the Demo role.
+/// Can do almost everything except manage users, roles, API keys, security, and compliance.
+pub const DEMO_PERMISSIONS: &[&str] = &[
+    PERM_SCREENS_READ,
+    PERM_SCREENS_WRITE,
+    PERM_DEVICES_READ,
+    PERM_DEVICES_WRITE,
+    PERM_ALARMS_READ,
+    PERM_ALARMS_ACK,
+    PERM_SETTINGS_READ,
+    PERM_SETTINGS_WRITE,
+    PERM_FLOWS_MANAGE,
+    PERM_NOTIFICATIONS_MANAGE,
+    PERM_HUB_MANAGE,
+    PERM_REPORTS_MANAGE,
+    PERM_RECIPES_MANAGE,
+    PERM_COMMANDS_WRITE,
+    PERM_COMMANDS_READ,
+    PERM_COMMANDS_CANCEL,
+    PERM_TAGS_WRITE_POLICY,
+    PERM_SIM_READ,
+    PERM_SIM_WRITE,
+    PERM_SCRIPTS_READ,
+    PERM_SCRIPTS_WRITE,
+    PERM_CONFIG_READ,
+    PERM_CONFIG_WRITE,
+];
+
 /// Read + ack permissions for the Operator role.
 pub const OPERATOR_PERMISSIONS: &[&str] = &[
     PERM_SCREENS_READ,

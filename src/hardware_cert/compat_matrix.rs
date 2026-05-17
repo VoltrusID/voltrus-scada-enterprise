@@ -4,19 +4,19 @@ use super::platform::PlatformInfo;
 use super::{StorageAssessment, TierAssessment, TierCompatibility};
 
 /// Minimum RAM (MB) per tier.
-const MIN_RAM_FREE_TRIAL: u64 = 256;
+const MIN_RAM_ENGINEERING: u64 = 256;
 const MIN_RAM_STARTER: u64 = 512;
 const MIN_RAM_PROFESSIONAL: u64 = 1024;
 const MIN_RAM_ENTERPRISE: u64 = 2048;
 
 /// Minimum CPU cores per tier.
-const MIN_CORES_FREE_TRIAL: u32 = 1;
+const MIN_CORES_ENGINEERING: u32 = 1;
 const MIN_CORES_STARTER: u32 = 1;
 const MIN_CORES_PROFESSIONAL: u32 = 2;
 const MIN_CORES_ENTERPRISE: u32 = 4;
 
 /// Minimum available disk (GB) per tier.
-const MIN_DISK_FREE_TRIAL: f64 = 1.0;
+const MIN_DISK_ENGINEERING: f64 = 1.0;
 const MIN_DISK_STARTER: f64 = 5.0;
 const MIN_DISK_PROFESSIONAL: f64 = 20.0;
 const MIN_DISK_ENTERPRISE: f64 = 50.0;
@@ -102,12 +102,12 @@ fn assess_tier(
 /// Generate full tier compatibility assessment.
 pub fn assess_compatibility(platform: &PlatformInfo) -> TierCompatibility {
     TierCompatibility {
-        free_trial: assess_tier(
-            "Free Trial",
+        engineering: assess_tier(
+            "Engineering",
             platform,
-            MIN_RAM_FREE_TRIAL,
-            MIN_CORES_FREE_TRIAL,
-            MIN_DISK_FREE_TRIAL,
+            MIN_RAM_ENGINEERING,
+            MIN_CORES_ENGINEERING,
+            MIN_DISK_ENGINEERING,
         ),
         starter: assess_tier(
             "Starter",
@@ -195,7 +195,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Broadcom BCM2711 (4-core ARM Cortex-A72 @ 1.5GHz)".into(),
             ram_mb: 4096,
             storage: "MicroSD (A2 recommended)".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into()],
             max_tags: 1000,
             max_poll_rate: 1,
             notes: "Suitable for small deployments. Enable compression. Use A2 SD card. Consider USB SSD for better performance.".into(),
@@ -205,7 +205,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Broadcom BCM2711 (4-core ARM Cortex-A72 @ 1.5GHz)".into(),
             ram_mb: 8192,
             storage: "MicroSD (A2) or USB SSD".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 3000,
             max_poll_rate: 1,
             notes: "Good for professional tier with USB SSD. Enable compression for long-term storage on SD card.".into(),
@@ -215,7 +215,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Broadcom BCM2712 (4-core ARM Cortex-A76 @ 2.4GHz)".into(),
             ram_mb: 4096,
             storage: "MicroSD (A2) or NVMe HAT".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 5000,
             max_poll_rate: 1,
             notes: "NVMe HAT recommended for production. 2-3x faster than Pi 4.".into(),
@@ -225,7 +225,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Broadcom BCM2712 (4-core ARM Cortex-A76 @ 2.4GHz)".into(),
             ram_mb: 8192,
             storage: "NVMe HAT recommended, MicroSD (A2) OK for small deployments".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 5000,
             max_poll_rate: 5,
             notes: "Best edge device for the price. NVMe HAT eliminates SD card bottleneck. Supports professional tier fully.".into(),
@@ -235,7 +235,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Intel Core i7-8665UE (4-core @ 1.7GHz, turbo 4.4GHz)".into(),
             ram_mb: 8192,
             storage: "M.2 SATA SSD or eMMC".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 8000,
             max_poll_rate: 5,
             notes: "Industrial-grade, wide temperature range (-20°C to 60°C). Common in SCADA deployments. Excellent reliability.".into(),
@@ -245,7 +245,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Intel Celeron J41 (2-core @ 2.0GHz)".into(),
             ram_mb: 4096,
             storage: "eMMC or mSATA SSD".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into()],
             max_tags: 2000,
             max_poll_rate: 1,
             notes: "Entry-level industrial PC. Fanless, compact. Good for small SCADA deployments.".into(),
@@ -255,7 +255,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Intel Atom x6427FE (4-core @ 1.9GHz)".into(),
             ram_mb: 8192,
             storage: "M.2 SSD".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 5000,
             max_poll_rate: 5,
             notes: "Siemens entry-level IPC. Designed for SCADA/HMI. Native S7 protocol support in Voltrus makes this a natural fit.".into(),
@@ -265,7 +265,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Intel Core i3-1115G4 (2-core @ 3.0GHz, turbo 4.1GHz)".into(),
             ram_mb: 16384,
             storage: "NVMe SSD".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into(), "enterprise".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into(), "enterprise".into()],
             max_tags: 10000,
             max_poll_rate: 10,
             notes: "Enterprise-grade IPC. Full enterprise tier support. Ideal for multi-protocol deployments with S7 + OPC-UA.".into(),
@@ -275,7 +275,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Intel Core i3/i5 (2-4 cores @ 2.0-3.5GHz)".into(),
             ram_mb: 8192,
             storage: "NVMe SSD".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into()],
             max_tags: 8000,
             max_poll_rate: 5,
             notes: "Common choice for cost-effective SCADA. Ensure industrial temperature rating for OT environments.".into(),
@@ -285,7 +285,7 @@ pub fn get_compatibility_matrix() -> Vec<super::HardwareCompatibilityEntry> {
             cpu: "Modern x86_64 (4+ cores @ 2.5GHz+)".into(),
             ram_mb: 16384,
             storage: "SSD or NVMe".into(),
-            supported_tiers: vec!["free_trial".into(), "starter".into(), "professional".into(), "enterprise".into()],
+            supported_tiers: vec!["engineering".into(), "starter".into(), "professional".into(), "enterprise".into()],
             max_tags: 10000,
             max_poll_rate: 10,
             notes: "Full feature support. Recommended for enterprise deployments with all protocols enabled.".into(),
@@ -318,7 +318,7 @@ mod tests {
         };
 
         let compat = assess_compatibility(&platform);
-        assert!(compat.free_trial.compatible);
+        assert!(compat.engineering.compatible);
         assert!(compat.starter.compatible);
         assert!(compat.professional.compatible); // 4GB RAM is enough for professional
         assert!(!compat.enterprise.compatible); // Need 2GB RAM minimum but 4 cores only
@@ -344,7 +344,7 @@ mod tests {
         };
 
         let compat = assess_compatibility(&platform);
-        assert!(compat.free_trial.compatible);
+        assert!(compat.engineering.compatible);
         assert!(compat.starter.compatible);
         assert!(compat.professional.compatible);
         assert!(compat.enterprise.compatible);
@@ -370,7 +370,7 @@ mod tests {
         };
 
         let compat = assess_compatibility(&platform);
-        assert!(compat.free_trial.compatible);
+        assert!(compat.engineering.compatible);
         assert!(compat.starter.compatible);
         assert!(!compat.professional.compatible); // Only 512MB RAM
         assert!(!compat.enterprise.compatible);

@@ -3,7 +3,9 @@ use axum::{Json, extract::State};
 use crate::api::AppState;
 
 pub async fn get_license_status(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let mut status = serde_json::to_value(&state.license_status).unwrap();
+    let license_status = state.license_status.read().unwrap();
+    let mut status = serde_json::to_value(&*license_status).unwrap();
+    drop(license_status);
     status["tier"] = serde_json::to_value(&state.license_tier).unwrap();
     status["feature_flags"] = state.feature_flags.clone();
     Json(status)

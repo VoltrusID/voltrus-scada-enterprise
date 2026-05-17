@@ -38,6 +38,8 @@ USAGE:
     voltrus discover --range <CIDR>    Scan subnet for Modbus TCP devices
     voltrus egress list [CONFIG]         List scheduled data egress jobs
     voltrus egress run <ID> [CONFIG]     Manually trigger a data egress job
+    voltrus export [OPTIONS]            Export project to .voltrus-scada archive
+    voltrus import <FILE> [OPTIONS]     Import project from .voltrus-scada archive
 
 BACKUP OPTIONS:
     --output <PATH>    Output archive path (default: voltrus-backup-YYYYMMDD-HHMMSS.tar.gz)
@@ -52,6 +54,16 @@ DISCOVER OPTIONS:
     --range <CIDR>     Subnet to scan (e.g., 192.168.1.0/24)
     --port <PORT>      Modbus TCP port (default: 502)
     --config <PATH>    Config file path (default: config.yaml)
+
+EXPORT OPTIONS:
+    --output <PATH>    Output archive path (default: project-export.voltrus-scada)
+    --config <PATH>    Config file path for db_path lookup (default: config.yaml)
+
+IMPORT OPTIONS:
+    <FILE>             Path to the .voltrus-scada archive to import
+    --config <PATH>    Config file path for db_path lookup (default: config.yaml)
+    --dry-run          Validate archive without writing to database
+    --force            Skip tier compatibility checks
 
 OPTIONS:
     --help                        Show this help message
@@ -77,6 +89,11 @@ EXAMPLES:
     voltrus config import ./my-config    # Import config from directory
     voltrus config validate ./my-config  # Validate config files
     voltrus discover --range 192.168.1.0/24 --port 502
+    voltrus export                           # Export project to archive
+    voltrus export --output /tmp/project.voltrus-scada
+    voltrus import project.voltrus-scada     # Import project from archive
+    voltrus import project.voltrus-scada --dry-run  # Validate without importing
+    voltrus import project.voltrus-scada --force     # Skip tier checks
 ";
 
 /// Handle CLI subcommands. Returns true if a subcommand was handled (should exit).
@@ -103,6 +120,8 @@ pub async fn handle_cli(args: &[String]) -> bool {
         "factory-reset" => handle_factory_reset(args),
         "db" => handle_db(args),
         "egress" => handle_egress(args).await,
+        "export" => handle_export(args),
+        "import" => handle_import(args),
         "--dump-openapi" => handle_dump_openapi(),
         "--license-status" => handle_license_status(args).await,
         other if other.starts_with('-') => {
@@ -430,7 +449,7 @@ fn handle_hw_report(args: &[String]) -> bool {
 
     println!("Tier Compatibility:");
     let tiers = [
-        ("Free Trial", &compatibility.free_trial),
+        ("Engineering", &compatibility.engineering),
         ("Starter ($249)", &compatibility.starter),
         ("Professional ($499)", &compatibility.professional),
         ("Enterprise ($999)", &compatibility.enterprise),
@@ -1288,4 +1307,173 @@ async fn handle_egress_run(args: &[String]) -> bool {
         }
     });
     true
+}
+
+fn handle_export(args: &[String]) -> bool {
+    let mut config_path = "config.yaml".to_string();
+    let mut output_path = "project-export.voltrus-scada".to_string();
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--config" => {
+                if i + 1 >= args.len() {
+                    eprintln!("Error: --config requires a path argument");
+                    std::process::exit(1);
+                }
+                config_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--output" => {
+                if i + 1 >= args.len() {
+                    eprintln!("Error: --output requires a path argument");
+                    std::process::exit(1);
+                }
+                output_path = args[i + 1].clone();
+                i += 2;
+            }
+            flag if flag.starts_with('-') => {
+                eprintln!("Unknown export option: {}", flag);
+                eprintln!(
+                    "Usage: {} export [--config <PATH>] [--output <PATH>]",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+            _ => {
+                eprintln!("Unexpected argument: {}", args[i]);
+                eprintln!(
+                    "Usage: {} export [--config <PATH>] [--output <PATH>]",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+    let app_config = config::load_config(&config_path).unwrap_or_else(|e| {
+        eprintln!("Config error: {e}");
+        std::process::exit(1);
+    });
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("DB error: {e}");
+                std::process::exit(1);
+            });
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let status = rt.block_on(crate::license::verify_license(&storage));
+    if !status.is_valid() {
+        eprintln!("Project export requires a valid license.");
+        std::process::exit(1);
+    }
+    let tier = status.tier();
+    match crate::project_export::export_project(&app_config.db_path, &output_path, &tier) {
+        Ok(manifest) => {
+            println!("Project exported to: {}", output_path);
+            println!("  Devices: {}", manifest.device_count);
+            println!("  Tags:    {}", manifest.tag_count);
+            println!("  Screens: {}", manifest.screen_count);
+            println!("  Tier:    {}", manifest.tier_at_export);
+            true
+        }
+        Err(e) => {
+            eprintln!("Export failed: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn handle_import(args: &[String]) -> bool {
+    let mut config_path = "config.yaml".to_string();
+    let mut input_path: Option<String> = None;
+    let mut dry_run = false;
+    let mut force = false;
+    let mut i = 2;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--config" => {
+                if i + 1 >= args.len() {
+                    eprintln!("Error: --config requires a path argument");
+                    std::process::exit(1);
+                }
+                config_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--dry-run" => {
+                dry_run = true;
+                i += 1;
+            }
+            "--force" => {
+                force = true;
+                i += 1;
+            }
+            flag if flag.starts_with('-') => {
+                eprintln!("Unknown import option: {}", flag);
+                eprintln!(
+                    "Usage: {} import <FILE> [--config <PATH>] [--dry-run] [--force]",
+                    args[0]
+                );
+                std::process::exit(1);
+            }
+            arg => {
+                if input_path.is_some() {
+                    eprintln!("Unexpected argument: {}", arg);
+                    eprintln!(
+                        "Usage: {} import <FILE> [--config <PATH>] [--dry-run] [--force]",
+                        args[0]
+                    );
+                    std::process::exit(1);
+                }
+                input_path = Some(arg.to_string());
+                i += 1;
+            }
+        }
+    }
+    let input_path = match input_path {
+        Some(p) => p,
+        None => {
+            eprintln!(
+                "Usage: {} import <FILE> [--config <PATH>] [--dry-run] [--force]",
+                args[0]
+            );
+            std::process::exit(1);
+        }
+    };
+    let app_config = config::load_config(&config_path).unwrap_or_else(|e| {
+        eprintln!("Config error: {e}");
+        std::process::exit(1);
+    });
+    let storage =
+        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
+            .unwrap_or_else(|e| {
+                eprintln!("DB error: {e}");
+                std::process::exit(1);
+            });
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let status = rt.block_on(crate::license::verify_license(&storage));
+    if !status.is_valid() {
+        eprintln!("Project import requires a valid license.");
+        std::process::exit(1);
+    }
+    let tier = status.tier();
+    match crate::project_export::import_project(&app_config.db_path, &input_path, dry_run, force, &tier) {
+        Ok(manifest) => {
+            if dry_run {
+                println!("Dry-run validation passed for: {}", input_path);
+            } else {
+                println!("Project imported from: {}", input_path);
+            }
+            println!("  Devices: {}", manifest.device_count);
+            println!("  Tags:    {}", manifest.tag_count);
+            println!("  Screens: {}", manifest.screen_count);
+            println!("  Tier:    {}", manifest.tier_at_export);
+            if dry_run {
+                println!("  (no data was written — use without --dry-run to import)");
+            }
+            true
+        }
+        Err(e) => {
+            eprintln!("Import failed: {e}");
+            std::process::exit(1);
+        }
+    }
 }

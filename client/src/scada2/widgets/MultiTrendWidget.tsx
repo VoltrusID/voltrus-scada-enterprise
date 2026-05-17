@@ -64,16 +64,12 @@ const MultiTrendWidget: React.FC<WidgetProps> = (props) => {
     ctx.scale(dpr, dpr)
     ctx.clearRect(0, 0, w, h)
 
-    if (displaySensors.length === 0) {
-      ctx.strokeStyle = 'var(--muted)'
-      ctx.lineWidth = 1
-      ctx.setLineDash([4, 4])
-      ctx.beginPath()
-      ctx.moveTo(0, h / 2)
-      ctx.lineTo(w, h / 2)
-      ctx.stroke()
-      return
-    }
+    const resolvedBorder = resolveColor('var(--border)')
+    const resolvedMuted = resolveColor('var(--muted)')
+
+    const pad = { top: 8, right: 8, bottom: 18, left: 32 }
+    const plotW = w - pad.left - pad.right
+    const plotH = h - pad.top - pad.bottom
 
     let yMin = Infinity
     let yMax = -Infinity
@@ -84,16 +80,71 @@ const MultiTrendWidget: React.FC<WidgetProps> = (props) => {
         if (v > yMax) yMax = v
       }
     }
-    if (yMin === Infinity) return
 
-    const yRange = yMax - yMin || 1
-    yMin -= yRange * 0.05
-    yMax += yRange * 0.05
+    // Grid lines
+    ctx.font = '9px Inter, sans-serif'
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'middle'
+    if (yMin !== Infinity) {
+      const yRange = yMax - yMin || 1
+      yMin -= yRange * 0.05
+      yMax += yRange * 0.05
+      const totalRange = yMax - yMin || 1
+
+      for (let i = 0; i <= 4; i++) {
+        const p = i / 4
+        const y = pad.top + plotH * (1 - p)
+        const val = yMin + totalRange * p
+        ctx.strokeStyle = resolvedBorder
+        ctx.lineWidth = 0.5
+        ctx.setLineDash([3, 3])
+        ctx.beginPath()
+        ctx.moveTo(pad.left, y)
+        ctx.lineTo(pad.left + plotW, y)
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle = resolvedMuted
+        ctx.globalAlpha = 0.6
+        ctx.fillText(val.toFixed(val % 1 === 0 ? 0 : 1), pad.left - 4, y)
+        ctx.globalAlpha = 1
+      }
+    }
+
+    if (yMin === Infinity) {
+      ctx.strokeStyle = resolvedMuted
+      ctx.lineWidth = 1
+      ctx.setLineDash([4, 4])
+      ctx.beginPath()
+      ctx.moveTo(pad.left, h / 2)
+      ctx.lineTo(pad.left + plotW, h / 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+      return
+    }
+
     const totalRange = yMax - yMin || 1
 
-    const pad = 4
-    const plotW = w - pad * 2
-    const plotH = h - pad * 2
+    // Smooth curve helper
+    const drawSmoothLine = (pts: { x: number; y: number }[]) => {
+      ctx.beginPath()
+      ctx.moveTo(pts[0].x, pts[0].y)
+      if (pts.length === 2) {
+        ctx.lineTo(pts[1].x, pts[1].y)
+        return
+      }
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)]
+        const p1 = pts[i]
+        const p2 = pts[i + 1]
+        const p3 = pts[Math.min(pts.length - 1, i + 2)]
+        const tension = 0.3
+        const cp1x = p1.x + (p2.x - p0.x) * tension
+        const cp1y = p1.y + (p2.y - p0.y) * tension
+        const cp2x = p2.x - (p3.x - p1.x) * tension
+        const cp2y = p2.y - (p3.y - p1.y) * tension
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+      }
+    }
 
     for (let si = 0; si < displaySensors.length; si++) {
       const sensor = displaySensors[si]
@@ -103,15 +154,23 @@ const MultiTrendWidget: React.FC<WidgetProps> = (props) => {
       const color = resolveColor(palette[si % palette.length])
 
       const points = buf.map((v, i) => ({
-        x: pad + (i / (buf.length - 1)) * plotW,
-        y: pad + plotH - ((v - yMin) / totalRange) * plotH,
+        x: pad.left + (i / (buf.length - 1)) * plotW,
+        y: pad.top + plotH - ((v - yMin) / totalRange) * plotH,
       }))
 
-      ctx.beginPath()
-      ctx.moveTo(points[0].x, points[0].y)
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x, points[i].y)
-      }
+      // Gradient fill
+      const gradient = ctx.createLinearGradient(0, pad.top, 0, pad.top + plotH)
+      gradient.addColorStop(0, color + '20')
+      gradient.addColorStop(1, color + '03')
+
+      drawSmoothLine(points)
+      ctx.lineTo(points[points.length - 1].x, pad.top + plotH)
+      ctx.lineTo(points[0].x, pad.top + plotH)
+      ctx.closePath()
+      ctx.fillStyle = gradient
+      ctx.fill()
+
+      drawSmoothLine(points)
       ctx.strokeStyle = color
       ctx.lineWidth = 1.5
       ctx.lineJoin = 'round'
@@ -124,21 +183,26 @@ const MultiTrendWidget: React.FC<WidgetProps> = (props) => {
       ctx.fill()
     }
 
-    const legendY = h - 8
-    let legendX = 4
-    ctx.font = '9px sans-serif'
+    // Legend at bottom
+    const legendY = h - 4
+    let legendX = pad.left
+    ctx.font = '9px Inter, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
     for (let si = 0; si < displaySensors.length; si++) {
       const color = resolveColor(palette[si % palette.length])
-      const name = displaySensors[si].name.length > 8
-        ? displaySensors[si].name.slice(0, 7) + '..'
+      const name = displaySensors[si].name.length > 10
+        ? displaySensors[si].name.slice(0, 9) + '..'
         : displaySensors[si].name
 
       ctx.fillStyle = color
-      ctx.fillRect(legendX, legendY - 6, 8, 8)
+      ctx.beginPath()
+      ctx.arc(legendX + 4, legendY, 3, 0, Math.PI * 2)
+      ctx.fill()
       legendX += 10
-      ctx.fillStyle = 'var(--muted)'
-      ctx.fillText(name, legendX, legendY + 1)
-      legendX += ctx.measureText(name).width + 8
+      ctx.fillStyle = resolvedMuted
+      ctx.fillText(name, legendX, legendY)
+      legendX += ctx.measureText(name).width + 12
     }
   }, [currentValues, displaySensors, pointsCount])
 

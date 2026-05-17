@@ -15,7 +15,7 @@ use super::{AppError, AppState, AuthUser};
     tag = "Settings"
 )]
 pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    // Trial tier cannot use custom branding — return hardcoded defaults
+    // Engineering tier cannot use custom branding — return hardcoded defaults
     if !state.license_tier.white_label() {
         return Ok(Json(json!({
             "title": "Voltrus",
