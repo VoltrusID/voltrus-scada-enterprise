@@ -44,6 +44,7 @@ impl ModbusDevice {
                         "int16" => RegisterType::Int16,
                         "uint16" => RegisterType::Uint16,
                         "int32" => RegisterType::Int32,
+                        "float64" => RegisterType::Float64,
                         _ => RegisterType::Float32,
                     },
                     scale: r.scale,
