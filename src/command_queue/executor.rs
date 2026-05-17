@@ -110,7 +110,14 @@ impl CommandQueue {
             network: None,
         };
 
-        crate::modbus::write_tag(&self.modbus_pool, &config, address, value).await
+        let register = crate::models::RegisterConfig {
+            name: "command".into(),
+            address,
+            reg_type: crate::models::RegisterType::Uint16,
+            scale: 1.0,
+            register_area: "holding".into(),
+        };
+        crate::modbus::write_tag(&self.modbus_pool, &config, &register, value).await
     }
 }
 

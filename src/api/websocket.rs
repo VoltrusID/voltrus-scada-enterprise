@@ -403,7 +403,14 @@ async fn execute_direct_write(
                 network: None,
             };
 
-            crate::modbus::write_tag(&state.modbus_pool, &config, address, value).await
+            let register = crate::models::RegisterConfig {
+                name: "unknown".into(),
+                address,
+                reg_type: crate::models::RegisterType::Uint16,
+                scale: 1.0,
+                register_area: "holding".into(),
+            };
+            crate::modbus::write_tag(&state.modbus_pool, &config, &register, value).await
         }
         _ => fail("Direct write not supported for this protocol"),
     }
