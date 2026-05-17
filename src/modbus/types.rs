@@ -32,6 +32,39 @@ pub(crate) fn combine_u16(high: u16, low: u16, endianness: &Endianness) -> u32 {
     }
 }
 
+pub(crate) fn value_to_words(value: f64, reg_type: &RegisterType, endianness: &Endianness) -> Vec<u16> {
+    match reg_type {
+        RegisterType::Uint16 => vec![value as u16],
+        RegisterType::Int16 => vec![(value as i16) as u16],
+        RegisterType::Int32 => {
+            let raw = (value as i32) as u32;
+            split_u32(raw, endianness)
+        }
+        RegisterType::Float32 => {
+            let raw = (value as f32).to_bits();
+            split_u32(raw, endianness)
+        }
+        RegisterType::Float64 => {
+            let raw = value.to_bits();
+            let hi = split_u32((raw >> 32) as u32, endianness);
+            let lo = split_u32((raw & 0xFFFFFFFF) as u32, endianness);
+            [hi, lo].concat()
+        }
+    }
+}
+
+fn split_u32(raw: u32, endianness: &Endianness) -> Vec<u16> {
+    match endianness {
+        Endianness::Big => vec![(raw >> 16) as u16, raw as u16],
+        Endianness::Little => vec![raw as u16, (raw >> 16) as u16],
+        Endianness::Swapped => {
+            let h = (raw >> 16) as u16;
+            let l = raw as u16;
+            vec![h.swap_bytes(), l.swap_bytes()]
+        }
+    }
+}
+
 pub(crate) struct Backoff {
     pub(crate) attempt: u32,
     pub(crate) max_delay_ms: u64,
