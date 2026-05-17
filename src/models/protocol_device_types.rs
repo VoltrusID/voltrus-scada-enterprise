@@ -434,3 +434,35 @@ pub struct EnipDeviceConfig {
     pub interval_ms: u64,
     pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
 }
+
+// ── Voltrus PLC Runtime device types ──
+
+fn default_voltrus_transport() -> String {
+    "grpc".to_string()
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VoltrusPlcDevice {
+    pub id: i64,
+    pub name: String,
+    pub url: String,
+    #[serde(default = "default_voltrus_transport")]
+    pub transport: String,
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct VoltrusPlcTag {
+    pub id: i64,
+    pub device_id: i64,
+    pub variable_name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub data_type: String,
+    pub created_at: i64,
+}

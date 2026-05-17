@@ -305,6 +305,25 @@ pub(super) fn create_tables(conn: &Connection) -> Result<()> {
             UNIQUE(device_id, tag_name)
         );
         CREATE INDEX IF NOT EXISTS idx_enip_tags_device ON enip_tags(device_id);
+        CREATE TABLE IF NOT EXISTS voltrus_plc_devices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            transport TEXT NOT NULL DEFAULT 'grpc',
+            interval_ms INTEGER NOT NULL DEFAULT 1000,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS voltrus_plc_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id INTEGER NOT NULL REFERENCES voltrus_plc_devices(id) ON DELETE CASCADE,
+            variable_name TEXT NOT NULL,
+            display_name TEXT NOT NULL DEFAULT '',
+            data_type TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL,
+            UNIQUE(device_id, variable_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_voltrus_plc_tags_device ON voltrus_plc_tags(device_id);
         CREATE TABLE IF NOT EXISTS hub_sites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,

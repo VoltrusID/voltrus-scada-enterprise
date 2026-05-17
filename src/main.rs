@@ -65,6 +65,7 @@ mod system_docs;
 mod timeutil;
 mod vertical_templates;
 mod video;
+mod voltrus_plc;
 mod widget_sdk;
 mod wizard;
 mod ws_manager;
