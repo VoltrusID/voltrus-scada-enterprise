@@ -16,6 +16,7 @@ use crate::models::PollerStatus;
 #[cfg(feature = "s7")]
 use crate::s7::S7DeviceConfig;
 use crate::storage::Storage;
+use crate::voltrus_plc::VoltrusPlcDeviceConfig;
 
 #[derive(Clone)]
 pub struct PollerManager {
@@ -192,6 +193,18 @@ impl PollerManager {
         let cache = self.cache.clone();
         let handle = tokio::spawn(async move {
             crate::bacnet::poll_bacnet_device(config, cache).await;
+        });
+        self.handles.write().await.insert(device_id, handle);
+    }
+
+    pub async fn start_voltrus_plc(&self, config: VoltrusPlcDeviceConfig) {
+        let device_id = config.id.clone();
+        if self.is_running(&device_id).await {
+            self.stop(&device_id).await;
+        }
+        let cache = self.cache.clone();
+        let handle = tokio::spawn(async move {
+            crate::voltrus_plc::poll_voltrus_plc_device(config, cache).await;
         });
         self.handles.write().await.insert(device_id, handle);
     }

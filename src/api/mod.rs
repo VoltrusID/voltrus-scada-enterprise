@@ -67,6 +67,7 @@ mod tag_tree;
 mod user_notifications;
 mod vertical_templates;
 mod video;
+mod voltrus_plc_devices;
 mod websocket;
 mod wizard;
 
@@ -240,6 +241,24 @@ fn enip_admin_routes() -> Router<AppState> {
         .route("/api/v1/enip/devices/{id}/browse", post(enip_devices::browse_device))
         .route("/api/v1/enip/devices/{id}/start", post(enip_devices::start_device))
         .route("/api/v1/enip/devices/{id}/stop", post(enip_devices::stop_device))
+}
+
+fn voltrus_plc_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/v1/voltrus-plc/devices", get(voltrus_plc_devices::list_devices))
+        .route("/api/v1/voltrus-plc/devices/{id}", get(voltrus_plc_devices::get_device))
+}
+
+fn voltrus_plc_admin_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/v1/voltrus-plc/devices", post(voltrus_plc_devices::create_device))
+        .route("/api/v1/voltrus-plc/devices/{id}", put(voltrus_plc_devices::update_device).delete(voltrus_plc_devices::delete_device))
+        .route("/api/v1/voltrus-plc/devices/{id}/tags", get(voltrus_plc_devices::list_tags).post(voltrus_plc_devices::create_tag))
+        .route("/api/v1/voltrus-plc/devices/{id}/tags/{tag_id}", delete(voltrus_plc_devices::delete_tag))
+        .route("/api/v1/voltrus-plc/devices/{id}/start", post(voltrus_plc_devices::start_device))
+        .route("/api/v1/voltrus-plc/devices/{id}/stop", post(voltrus_plc_devices::stop_device))
+        .route("/api/v1/voltrus-plc/devices/{id}/restart", post(voltrus_plc_devices::restart_device))
+        .route("/api/v1/voltrus-plc/devices/{id}/write", post(voltrus_plc_devices::write_variable))
 }
 
 #[cfg(feature = "dnp3")]
@@ -649,6 +668,7 @@ pub fn create_router(state: AppState) -> Router {
     let protected = protected.merge(modbus_routes());
     #[cfg(feature = "mqtt-broker")]
     let protected = protected.merge(mqtt_broker_routes());
+    let protected = protected.merge(voltrus_plc_routes());
 
     let protected = protected
         .layer(middleware::from_fn_with_state(
@@ -656,8 +676,9 @@ pub fn create_router(state: AppState) -> Router {
             cookie_auth_middleware,
         ));
 
-    // Admin-only routes (authenticated + admin role required)
-    let admin_protected = Router::new()
+    // Demo-allowed routes (authenticated + admin or demo role required)
+    // These are operational routes that demo users should be able to use.
+    let demo_protected = Router::new()
         .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
         .route(
@@ -736,14 +757,6 @@ pub fn create_router(state: AppState) -> Router {
             put(data_sources::update_data_source).delete(data_sources::delete_data_source),
         )
         .route(
-            "/api/v1/users",
-            get(auth::list_users).post(auth::create_user_handler),
-        )
-        .route(
-            "/api/v1/users/{id}",
-            put(auth::update_user_handler).delete(auth::delete_user_handler),
-        )
-        .route(
             "/api/v1/flows",
             get(flows::list_flows).post(flows::create_flow),
         )
@@ -771,11 +784,6 @@ pub fn create_router(state: AppState) -> Router {
             post(notifications::test_notification),
         )
         .route(
-            "/api/v1/api-keys",
-            post(api_keys::create_api_key).get(api_keys::list_api_keys),
-        )
-        .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key))
-        .route(
             "/api/v1/edr/exclusions/ps1",
             get(edr_compat::get_defender_ps1),
         )
@@ -784,7 +792,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/hw/benchmark",
             post(hardware_cert::run_hw_benchmark),
         )
-        // RTSP Video / Camera routes (admin-only, Enterprise-gated)
+        // RTSP Video / Camera routes
         .route(
             "/api/v1/cameras",
             get(video::list_cameras).post(video::create_camera),
@@ -847,43 +855,7 @@ pub fn create_router(state: AppState) -> Router {
                 .delete(recipes::delete_recipe),
         )
         .route("/api/v1/recipes/{id}/load", post(recipes::load_recipe))
-        // RBAC routes (admin-only, license-gated)
-        .route(
-            "/api/v1/roles",
-            get(rbac::list_roles).post(rbac::create_role),
-        )
-        .route(
-            "/api/v1/roles/{id}",
-            put(rbac::update_role).delete(rbac::delete_role),
-        )
-        .route("/api/v1/users/{id}/role", put(rbac::assign_user_role))
-        // Compliance routes (admin-only, license-gated)
-        .route(
-            "/api/v1/compliance/config",
-            get(compliance::get_compliance_config).put(compliance::update_compliance_config),
-        )
-        .route(
-            "/api/v1/compliance/sign",
-            post(compliance::create_electronic_signature),
-        )
-        .route(
-            "/api/v1/compliance/signatures",
-            get(compliance::list_electronic_signatures),
-        )
-        // Security audit routes (admin-only, Enterprise-gated)
-        .route(
-            "/api/v1/security/events",
-            get(security::list_security_events),
-        )
-        .route(
-            "/api/v1/security/events/export",
-            get(security::export_security_csv),
-        )
-        .route(
-            "/api/v1/security/thresholds",
-            get(security::get_security_thresholds).put(security::update_security_thresholds),
-        )
-        // OT Asset Inventory routes (admin-only, Professional-gated)
+        // OT Asset Inventory routes
         .route(
             "/api/v1/assets",
             get(assets::list_assets).post(assets::create_asset),
@@ -915,10 +887,10 @@ pub fn create_router(state: AppState) -> Router {
             patch(firmware_catalog::update_firmware_catalog)
                 .delete(firmware_catalog::delete_firmware_catalog),
         )
-        // Audit log routes (admin-only)
+        // Audit log routes
         .route("/api/v1/audit", get(audit_log::list_audit_logs))
         .route("/api/v1/audit/export", get(audit_log::export_audit_csv))
-        // Annotation routes (admin-only, Professional-gated)
+        // Annotation routes
         .route(
             "/api/v1/annotations",
             get(annotations::list_annotations).post(annotations::create_annotation),
@@ -929,7 +901,7 @@ pub fn create_router(state: AppState) -> Router {
                 .put(annotations::update_annotation)
                 .delete(annotations::delete_annotation),
         )
-        // Shift Handover routes (admin-only, Professional-gated)
+        // Shift Handover routes
         .route(
             "/api/v1/shift-handover",
             get(shift_handover::list_shift_handovers).post(shift_handover::create_shift_handover),
@@ -942,7 +914,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/shift-handover/{id}",
             get(shift_handover::get_shift_handover),
         )
-        // Command write/cancel routes (admin-only)
+        // Command write/cancel routes
         .route("/api/v1/tags/{id}/write", post(commands::write_tag))
         .route("/api/v1/tags/{id}/path", put(tag_tree::update_tag_path))
         .route(
@@ -953,7 +925,7 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/data-sources/{id}/write-policy",
             patch(commands::update_write_policy),
         )
-        // Simulation routes (admin-only)
+        // Simulation routes
         .route(
             "/api/v1/sim-profiles",
             get(simulation::list_sim_profiles).post(simulation::create_sim_profile),
@@ -967,12 +939,12 @@ pub fn create_router(state: AppState) -> Router {
             post(simulation::toggle_simulation),
         )
         .route("/api/v1/devices/{id}/go-live", post(simulation::go_live))
-        // Node-RED import (admin-only)
+        // Node-RED import
         .route(
             "/api/v1/import/node-red",
             post(import_nodered::import_node_red),
         )
-        // Config snapshot routes (admin-only)
+        // Config snapshot routes
         .route(
             "/api/v1/config/snapshots",
             get(config_snapshots::list_snapshots).post(config_snapshots::create_snapshot),
@@ -991,7 +963,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         // AI Copilot admin routes
         .route("/api/v1/ai/settings", put(ai_copilot::update_ai_settings))
-        // Integration admin routes (admin-only)
+        // Integration admin routes
         .route(
             "/api/v1/egress/jobs",
             get(integration::list_egress_jobs).post(integration::create_egress_job),
@@ -1038,25 +1010,87 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/templates/{id}/instantiate",
             post(vertical_templates::instantiate_template),
         );
-    // Merge protocol-specific admin routes
+    // Merge protocol-specific demo-allowed routes
     #[cfg(feature = "modbus")]
-    let admin_protected = admin_protected.merge(modbus_admin_routes());
+    let demo_protected = demo_protected.merge(modbus_admin_routes());
     #[cfg(feature = "opcua")]
-    let admin_protected = admin_protected.merge(opcua_admin_routes());
+    let demo_protected = demo_protected.merge(opcua_admin_routes());
     #[cfg(feature = "s7")]
-    let admin_protected = admin_protected.merge(s7_admin_routes());
+    let demo_protected = demo_protected.merge(s7_admin_routes());
     #[cfg(feature = "ethernet-ip")]
-    let admin_protected = admin_protected.merge(enip_admin_routes());
+    let demo_protected = demo_protected.merge(enip_admin_routes());
     #[cfg(feature = "dnp3")]
-    let admin_protected = admin_protected.merge(dnp3_admin_routes());
+    let demo_protected = demo_protected.merge(dnp3_admin_routes());
     #[cfg(feature = "bacnet")]
-    let admin_protected = admin_protected.merge(bacnet_admin_routes());
+    let demo_protected = demo_protected.merge(bacnet_admin_routes());
     #[cfg(feature = "mqtt-broker")]
-    let admin_protected = admin_protected.merge(mqtt_broker_admin_routes());
+    let demo_protected = demo_protected.merge(mqtt_broker_admin_routes());
     #[cfg(feature = "snmp_scan")]
-    let admin_protected = admin_protected.merge(snmp_scan_admin_routes());
+    let demo_protected = demo_protected.merge(snmp_scan_admin_routes());
     #[cfg(feature = "scripts")]
-    let admin_protected = admin_protected.merge(scripts_admin_routes());
+    let demo_protected = demo_protected.merge(scripts_admin_routes());
+    let demo_protected = demo_protected.merge(voltrus_plc_admin_routes());
+
+    let demo_protected = demo_protected
+        .layer(middleware::from_fn(demo_allowed_middleware))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            cookie_auth_middleware,
+        ));
+
+    // Strictly admin-only routes (users, roles, API keys, security, compliance)
+    // Demo users CANNOT access these.
+    let admin_protected = Router::new()
+        .route(
+            "/api/v1/users",
+            get(auth::list_users).post(auth::create_user_handler),
+        )
+        .route(
+            "/api/v1/users/{id}",
+            put(auth::update_user_handler).delete(auth::delete_user_handler),
+        )
+        // RBAC routes (admin-only, license-gated)
+        .route(
+            "/api/v1/roles",
+            get(rbac::list_roles).post(rbac::create_role),
+        )
+        .route(
+            "/api/v1/roles/{id}",
+            put(rbac::update_role).delete(rbac::delete_role),
+        )
+        .route("/api/v1/users/{id}/role", put(rbac::assign_user_role))
+        // API keys (admin-only)
+        .route(
+            "/api/v1/api-keys",
+            post(api_keys::create_api_key).get(api_keys::list_api_keys),
+        )
+        .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key))
+        // Compliance routes (admin-only, license-gated)
+        .route(
+            "/api/v1/compliance/config",
+            get(compliance::get_compliance_config).put(compliance::update_compliance_config),
+        )
+        .route(
+            "/api/v1/compliance/sign",
+            post(compliance::create_electronic_signature),
+        )
+        .route(
+            "/api/v1/compliance/signatures",
+            get(compliance::list_electronic_signatures),
+        )
+        // Security audit routes (admin-only, Enterprise-gated)
+        .route(
+            "/api/v1/security/events",
+            get(security::list_security_events),
+        )
+        .route(
+            "/api/v1/security/events/export",
+            get(security::export_security_csv),
+        )
+        .route(
+            "/api/v1/security/thresholds",
+            get(security::get_security_thresholds).put(security::update_security_thresholds),
+        );
 
     let admin_protected = admin_protected
         .layer(middleware::from_fn(admin_only_middleware))
@@ -1083,6 +1117,7 @@ pub fn create_router(state: AppState) -> Router {
     let api_router = Router::new()
         .merge(public)
         .merge(protected)
+        .merge(demo_protected)
         .merge(admin_protected)
         .merge(import_router)
         .route("/api/v1/{*path}", get(api_not_found))
@@ -1138,7 +1173,7 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 // Middleware types re-exported from middleware module
-pub(super) use auth_middleware::{AuthUser, admin_only_middleware, cookie_auth_middleware};
+pub(super) use auth_middleware::{AuthUser, admin_only_middleware, cookie_auth_middleware, demo_allowed_middleware};
 
 #[cfg(test)]
 mod tests;
