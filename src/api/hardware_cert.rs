@@ -52,7 +52,7 @@ pub async fn get_hw_report(State(state): State<AppState>) -> Result<impl IntoRes
 
     // Determine certified tiers
     let certified_tiers = vec![
-        ("free_trial".into(), compatibility.free_trial.compatible),
+        ("engineering".into(), compatibility.engineering.compatible),
         ("starter".into(), compatibility.starter.compatible),
         ("professional".into(), compatibility.professional.compatible),
         ("enterprise".into(), compatibility.enterprise.compatible),

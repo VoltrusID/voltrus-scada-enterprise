@@ -316,7 +316,7 @@ async fn test_stream_proxy_add_remove_camera() {
 #[test]
 fn test_rtsp_video_enterprise_only() {
     use crate::license::LicenseTier;
-    assert!(!LicenseTier::Trial.rtsp_video());
+    assert!(!LicenseTier::Engineering.rtsp_video());
     assert!(!LicenseTier::Starter.rtsp_video());
     assert!(!LicenseTier::Professional.rtsp_video());
     assert!(LicenseTier::Enterprise.rtsp_video());

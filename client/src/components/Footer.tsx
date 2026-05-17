@@ -97,7 +97,7 @@ export function Footer({ activeAlarmCount, viewMode, activeScreen, screens }: Pr
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <span style={{ color: 'var(--text-dim)' }}>{dateStr} {timeStr}</span>
         <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
-        <span style={{ opacity: 0.5 }}>Voltrus v0.44.0</span>
+        <span style={{ opacity: 0.5 }}>Voltrus v0.47.0</span>
       </div>
     </div>
   )

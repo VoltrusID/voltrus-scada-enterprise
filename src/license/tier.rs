@@ -3,7 +3,7 @@
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum LicenseTier {
-    Trial,
+    Engineering,
     Starter,
     Professional,
     Enterprise,
@@ -11,20 +11,21 @@ pub enum LicenseTier {
 
 impl LicenseTier {
     /// Maps an activation tier string to a LicenseTier enum.
-    /// Returns Trial when the input is None or unrecognized.
+    /// Returns Engineering when the input is None or unrecognized.
     pub fn from_tier_str(s: Option<&str>) -> Self {
         match s.map(|t| t.to_lowercase()) {
+            Some(ref t) if t == "engineering" => LicenseTier::Engineering,
             Some(ref t) if t == "starter" => LicenseTier::Starter,
             Some(ref t) if t == "professional" || t == "pro" => LicenseTier::Professional,
             Some(ref t) if t == "enterprise" => LicenseTier::Enterprise,
-            _ => LicenseTier::Trial,
+            _ => LicenseTier::Engineering,
         }
     }
 
     /// Maximum number of devices allowed. None means unlimited.
     pub fn max_devices(&self) -> Option<u32> {
         match self {
-            LicenseTier::Trial => Some(5),
+            LicenseTier::Engineering => Some(5),
             LicenseTier::Starter => Some(50),
             LicenseTier::Professional => None,
             LicenseTier::Enterprise => None,
@@ -34,7 +35,7 @@ impl LicenseTier {
     /// Number of days telemetry data is retained.
     pub fn data_retention_days(&self) -> u32 {
         match self {
-            LicenseTier::Trial => 7,
+            LicenseTier::Engineering => 7,
             LicenseTier::Starter | LicenseTier::Professional | LicenseTier::Enterprise => 365,
         }
     }
@@ -44,15 +45,15 @@ impl LicenseTier {
     }
 
     pub fn email_notifications(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn webhook_notifications(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn push_notifications(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn sms_notifications(&self) -> bool {
@@ -60,7 +61,7 @@ impl LicenseTier {
     }
 
     pub fn rest_api_export(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn csv_export(&self) -> bool {
@@ -68,11 +69,11 @@ impl LicenseTier {
     }
 
     pub fn analytics(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn oee(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn pdf_reporting(&self) -> bool {
@@ -80,15 +81,15 @@ impl LicenseTier {
     }
 
     pub fn backup_restore(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn auto_discovery(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     pub fn white_label(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Full theme editor (colors, fonts, layouts).
@@ -160,13 +161,13 @@ impl LicenseTier {
     /// AI Copilot assistant.
     /// Starter tier and above.
     pub fn ai_copilot(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Embedded MQTT broker.
     /// Starter tier and above.
     pub fn mqtt_broker(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Prometheus exporter endpoint.
@@ -190,37 +191,37 @@ impl LicenseTier {
     /// Outbound webhooks for external systems.
     /// Starter tier and above.
     pub fn outbound_webhooks(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// FlowEngine automation flows.
     /// Starter tier and above.
     pub fn flow_engine(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Data retention/compression (hot->warm->cold tiers).
-    /// Starter tier and above. Trial only retains 7 days raw, no compression.
+    /// Starter tier and above. Engineering only retains 7 days raw, no compression.
     pub fn data_compression(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Health monitor (watchdog).
     /// Starter tier and above.
     pub fn health_monitor(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Command queue processor (write commands to devices).
     /// Starter tier and above.
     pub fn command_queue(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Vertical-specific templates — browse and preview.
     /// Starter tier and above.
     pub fn templates(&self) -> bool {
-        !matches!(self, LicenseTier::Trial)
+        !matches!(self, LicenseTier::Engineering)
     }
 
     /// Vertical-specific templates — instantiate (create tags, devices, flows).

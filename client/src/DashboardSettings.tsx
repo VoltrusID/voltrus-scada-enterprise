@@ -11,7 +11,7 @@ const aggOptions = [
 
 export type HistoryAutoAgg = typeof aggOptions[number]['value'];
 
-export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onToggleMute }: { settings: { gap: number; refreshInterval: number; historyAutoAgg: HistoryAutoAgg }; onChange: (s: any) => void; onClose: () => void; alarmMuted: boolean; onToggleMute: () => void }) {
+export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onToggleMute, kioskMode, onToggleKiosk }: { settings: { gap: number; refreshInterval: number; historyAutoAgg: HistoryAutoAgg }; onChange: (s: any) => void; onClose: () => void; alarmMuted: boolean; onToggleMute: () => void; kioskMode: boolean; onToggleKiosk: () => void }) {
   const { data: cooldownSecs = 300 } = useAlarmCooldown()
   const updateCooldown = useUpdateAlarmCooldown()
 
@@ -101,6 +101,24 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             )}
             {alarmMuted ? 'Muted' : 'Active'}
+          </button>
+        </div>
+
+        {/* ── Operator Console ── */}
+        <div style={sectionTitle}>Operator Console</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0' }}>
+          <div>
+            <span style={{ fontSize: 13, color: 'var(--fg)' }}>Kiosk Mode</span>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.4 }}>
+              Block right-click, Alt-Tab, and browser shortcuts
+            </div>
+          </div>
+          <button onClick={onToggleKiosk} style={{
+            padding: '5px 10px', borderRadius: 6, border: `1px solid ${kioskMode ? 'var(--accent)' : 'var(--border)'}`,
+            background: kioskMode ? 'rgba(0,230,118,.1)' : 'transparent', color: kioskMode ? 'var(--accent)' : 'var(--fg)',
+            cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            {kioskMode ? 'Active' : 'Off'}
           </button>
         </div>
       </div>

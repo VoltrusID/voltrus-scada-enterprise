@@ -23,6 +23,24 @@ pub async fn admin_only_middleware(
     next.run(req).await
 }
 
+/// Allows admin AND demo roles. Used for routes that demo users can access
+/// (device config, screens, layouts, commands, flows, etc.) but not truly
+/// admin-only routes (user management, roles, API keys, security, compliance).
+pub async fn demo_allowed_middleware(
+    Extension(auth): Extension<AuthUser>,
+    req: Request,
+    next: Next,
+) -> impl IntoResponse {
+    if auth.role != "admin" && auth.role != "demo" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "admin access required"})),
+        )
+            .into_response();
+    }
+    next.run(req).await
+}
+
 #[derive(Clone)]
 pub struct AuthUser {
     pub username: String,

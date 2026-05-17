@@ -20,6 +20,7 @@ mod data_sources;
 #[cfg(feature = "dnp3")]
 mod dnp3_devices;
 mod edr_compat;
+mod engineering;
 #[cfg(feature = "ethernet-ip")]
 mod enip_devices;
 mod firmware_catalog;
@@ -110,7 +111,7 @@ pub struct AppState {
     pub global_rate_limiter: crate::security::GlobalRateLimiter,
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
-    pub license_status: crate::license::LicenseStatus,
+    pub license_status: Arc<std::sync::RwLock<crate::license::LicenseStatus>>,
     pub license_tier: crate::license::LicenseTier,
     pub feature_flags: serde_json::Value,
     pub smtp_config: Arc<tokio::sync::RwLock<Option<crate::models::SmtpConfig>>>,
@@ -164,16 +165,28 @@ async fn license_check_middleware(
         let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
         resp.headers_mut().insert(
             HeaderName::from_static("x-license-tier"),
-            HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+            HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("engineering")),
         );
         return resp;
     }
 
-    if !state.license_status.is_valid() {
-        let body = match serde_json::to_value(&state.license_status) {
-            Ok(v) => v,
-            Err(_) => serde_json::json!({"status": "error", "message": "license invalid"}),
+    // Read license status in a sync block so the RwLockReadGuard is dropped
+    // before any .await point, keeping the future Send.
+    let license_check = {
+        let ls = state.license_status.read().unwrap();
+        let is_valid = ls.is_valid();
+        let body = if !is_valid {
+            Some(match serde_json::to_value(&*ls) {
+                Ok(v) => v,
+                Err(_) => serde_json::json!({"status": "error", "message": "license invalid"}),
+            })
+        } else {
+            None
         };
+        (is_valid, body)
+    };
+
+    if let Some(body) = license_check.1 {
         return (StatusCode::FORBIDDEN, Json(body)).into_response();
     }
 
@@ -181,7 +194,7 @@ async fn license_check_middleware(
     let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
     resp.headers_mut().insert(
         HeaderName::from_static("x-license-tier"),
-        HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("trial")),
+        HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("engineering")),
     );
     resp
 }
@@ -662,7 +675,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/v1/wizard/feed-templates/{id}",
             get(wizard::get_feed_template_handler),
-        );
+        )
+        // Engineering polling control (start/stop)
+        .route("/api/v1/engineering/polling/start", post(engineering::start_polling))
+        .route("/api/v1/engineering/polling/stop", post(engineering::stop_polling));
     // Merge protocol-specific protected routes
     #[cfg(feature = "modbus")]
     let protected = protected.merge(modbus_routes());
@@ -1158,7 +1174,7 @@ pub fn create_router(state: AppState) -> Router {
             crate::security::strip_forwarded_host_middleware,
         ));
 
-    let mut router = Router::new()
+    let router = Router::new()
         .merge(api_router)
         .merge(static_router);
 

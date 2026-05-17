@@ -234,7 +234,7 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
 }) {
   const isEdit = !!setting
   const license = useLicense()
-  const isTrialNotificationsDisabled = license?.tier === 'trial' && license.feature_flags?.email_notifications === false
+  const isEngineeringNotificationsDisabled = license?.tier === 'engineering' && license.feature_flags?.email_notifications === false
   const smsEnabled = license?.feature_flags?.sms_notifications === true
   const [sourceKey, setSourceKey] = useState(setting?.source_key || '')
   const [channelType, setChannelType] = useState<'email' | 'webhook' | 'push' | 'sms'>(setting?.channel_type || 'email')
@@ -301,7 +301,7 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
           <div>
             <label style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
               Channel Type
-              {isTrialNotificationsDisabled && <FeatureBadge tier="Starter" />}
+              {isEngineeringNotificationsDisabled && <FeatureBadge tier="Starter" />}
             </label>
             <select value={channelType} onChange={e => setChannelType(e.target.value as 'email' | 'webhook' | 'push' | 'sms')} style={inputStyle}>
               <option value="email">Email</option>

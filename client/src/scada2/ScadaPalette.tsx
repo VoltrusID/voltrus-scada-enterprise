@@ -40,7 +40,7 @@ export const ScadaPalette: React.FC<Props> = ({ visible, sensors, onSelect }) =>
         }}
       />
       <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-        Drag a tag to the canvas
+        Click to select chart
       </div>
       {filtered.map(s => (
         <div

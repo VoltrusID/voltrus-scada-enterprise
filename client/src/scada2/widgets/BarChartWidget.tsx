@@ -40,60 +40,83 @@ const BarChartWidget: React.FC<WidgetProps> = (props) => {
   })
   const range = globalMax - globalMin || 1
 
-  const padLeft = 10
-  const padRight = 10
-  const padTop = 8
-  const padBottom = 24
+  // Ensure 0 is in the range for proper bar alignment
+  if (globalMin > 0) globalMin = 0
+  const adjRange = globalMax - globalMin || 1
+
+  const padLeft = 28
+  const padRight = 8
+  const padTop = 10
+  const padBottom = 22
   const chartW = 200 - padLeft - padRight
   const chartH = 120 - padTop - padBottom
-  const barGap = 4
+  const barGap = Math.max(2, Math.min(6, chartW / items.length * 0.15))
   const barW = Math.max(8, (chartW - barGap * (items.length + 1)) / items.length)
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <svg viewBox="0 0 200 120" style={{ width: '100%', height: '100%' }} preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id={`barchart-bar-${instance.id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--cyan)" stopOpacity={0.95} />
+            <stop offset="100%" stopColor="var(--cyan)" stopOpacity={0.7} />
+          </linearGradient>
+        </defs>
+
+        {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((p, i) => {
           const y = padTop + chartH * (1 - p)
-          const label = (globalMin + range * p).toFixed(0)
+          const label = (globalMin + adjRange * p).toFixed(0)
           return (
             <g key={i}>
               <line x1={padLeft} y1={y} x2={padLeft + chartW} y2={y}
-                stroke="var(--border)" strokeWidth={0.5} strokeDasharray="2 2" />
-              <text x={padLeft - 3} y={y + 3} textAnchor="end" fontSize="6" fill="var(--muted)">
+                stroke="var(--border)" strokeWidth={0.4} strokeDasharray="2 2" opacity={0.6} />
+              <text x={padLeft - 4} y={y + 3} textAnchor="end" fontSize="6" fill="var(--muted)" opacity={0.7}>
                 {label}
               </text>
             </g>
           )
         })}
 
+        {/* Bars */}
         {items.map((item, i) => {
-          const pct = Math.max(0, Math.min(1, (item.value - globalMin) / range))
+          const pct = Math.max(0, Math.min(1, (item.value - globalMin) / adjRange))
           const barH = chartH * pct
           const x = padLeft + barGap + i * (barW + barGap)
           const y = padTop + chartH - barH
 
           const statusColor = item.status === 'crit' ? 'var(--crit)'
             : item.status === 'warn' ? 'var(--warn)' : 'var(--ok)'
-
           const barColor = item.status ? statusColor : 'var(--cyan)'
 
           const label = item.sensor.name.length > 6
-            ? item.sensor.name.slice(0, 5) + '...'
+            ? item.sensor.name.slice(0, 5) + '..'
             : item.sensor.name
 
           return (
             <g key={i}>
+              {/* Bar background */}
               <rect x={x} y={padTop} width={barW} height={chartH}
-                fill="var(--border)" opacity={0.15} rx={2} />
-              <rect x={x} y={y} width={barW} height={barH}
-                fill={barColor} rx={2}
-                style={{ transition: 'height 0.4s ease, y 0.4s ease' }} />
-              {showValues && (
-                <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize="6" fill="var(--fg)">
+                fill="var(--border)" opacity={0.08} rx={2} />
+
+              {/* Bar fill with rounded top */}
+              {barH > 0 && (
+                <>
+                  <rect x={x} y={y} width={barW} height={barH}
+                    fill={barColor} rx={2} opacity={0.85}
+                    style={{ transition: 'height 0.4s ease, y 0.4s ease' }} />
+                  {/* Subtle top highlight */}
+                  <rect x={x + 1} y={y} width={barW - 2} height={Math.min(3, barH)}
+                    fill="white" opacity={0.15} rx={1} />
+                </>
+              )}
+
+              {showValues && barH > 0 && (
+                <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize="6" fontWeight="600" fill="var(--fg)">
                   {item.value.toFixed(1)}
                 </text>
               )}
-              <text x={x + barW / 2} y={padTop + chartH + 12} textAnchor="middle" fontSize="6" fill="var(--muted)">
+              <text x={x + barW / 2} y={padTop + chartH + 11} textAnchor="middle" fontSize="5.5" fill="var(--muted)">
                 {label}
               </text>
             </g>

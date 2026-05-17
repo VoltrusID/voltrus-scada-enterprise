@@ -73,13 +73,13 @@ async fn test_login_with_seeded_user() {
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
-        license_status: crate::license::LicenseStatus::Valid {
+        license_status: std::sync::Arc::new(std::sync::RwLock::new(crate::license::LicenseStatus::Valid {
             license_key: "polar_test_key".to_string(),
             expires_at: None,
             days_remaining: None,
             tier: Some("professional".to_string()),
             device_limit: None,
-        },
+        })),
         license_tier: crate::license::LicenseTier::Professional,
         feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -159,13 +159,13 @@ async fn test_login_invalid_credentials() {
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
-        license_status: crate::license::LicenseStatus::Valid {
+        license_status: std::sync::Arc::new(std::sync::RwLock::new(crate::license::LicenseStatus::Valid {
             license_key: "polar_test_key".to_string(),
             expires_at: None,
             days_remaining: None,
             tier: Some("professional".to_string()),
             device_limit: None,
-        },
+        })),
         license_tier: crate::license::LicenseTier::Professional,
         feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -249,13 +249,13 @@ async fn test_full_auth_flow() {
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
-        license_status: crate::license::LicenseStatus::Valid {
+        license_status: std::sync::Arc::new(std::sync::RwLock::new(crate::license::LicenseStatus::Valid {
             license_key: "polar_test_key".to_string(),
             expires_at: None,
             days_remaining: None,
             tier: Some("professional".to_string()),
             device_limit: None,
-        },
+        })),
         license_tier: crate::license::LicenseTier::Professional,
         feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),

@@ -9,6 +9,7 @@ type Action =
   | { type: 'ADD_WIDGET'; widget: WidgetInstance }
   | { type: 'REMOVE_WIDGET'; id: string }
   | { type: 'UPDATE_WIDGET'; id: string; updates: Partial<WidgetInstance> }
+  | { type: 'UPDATE_WIDGET_CONFIG'; id: string; config: Record<string, any> }
   | { type: 'MOVE_WIDGET'; id: string; x: number; y: number }
   | { type: 'RESIZE_WIDGET'; id: string; x: number; y: number; width: number; height: number }
   | { type: 'ADD_CONNECTION'; connection: ConnectionInstance }
@@ -34,6 +35,14 @@ export function layoutReducer(state: ScadaLayoutState, action: Action): ScadaLay
         ...state,
         widgets: state.widgets.map(w =>
           w.id === action.id ? { ...w, ...action.updates } : w,
+        ),
+      }
+
+    case 'UPDATE_WIDGET_CONFIG':
+      return {
+        ...state,
+        widgets: state.widgets.map(w =>
+          w.id === action.id ? { ...w, config: { ...w.config, ...action.config } } : w,
         ),
       }
 

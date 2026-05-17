@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from './queries'
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useRoles } from './queries'
 import { inputStyle, btnStyle } from './styles'
 import type { UserItem } from './types'
 
+const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
+  admin: { bg: 'rgba(168,85,247,.15)', color: '#a855f7' },
+  demo: { bg: 'rgba(59,130,246,.15)', color: '#3b82f6' },
+  operator: { bg: 'rgba(34,197,94,.1)', color: 'var(--green)' },
+  viewer: { bg: 'rgba(156,163,175,.1)', color: 'var(--muted)' },
+}
+
 export function UserManager({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
   const { data: users = [], isLoading } = useUsers(true)
+  const { data: roles = [] } = useRoles()
   const createMut = useCreateUser()
   const updateMut = useUpdateUser()
   const deleteMut = useDeleteUser()
@@ -64,8 +72,9 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
                 <td style={tdStyle}>
                   <span style={{
                     display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                    background: u.role === 'admin' ? 'rgba(168,85,247,.15)' : 'rgba(34,197,94,.1)',
-                    color: u.role === 'admin' ? '#a855f7' : 'var(--green)',
+                    ...(ROLE_COLORS[u.role] || { bg: 'rgba(34,197,94,.1)', color: 'var(--green)' }),
+                    background: (ROLE_COLORS[u.role] || { bg: 'rgba(34,197,94,.1)' }).bg,
+                    color: (ROLE_COLORS[u.role] || { color: 'var(--green)' }).color,
                   }}>
                     {u.role}
                   </span>
@@ -83,8 +92,8 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
         )}
       </div>
 
-      {showAdd && <AddUserDialog onSave={handleCreate} onClose={() => setShowAdd(false)} error={createMut.error?.message} />}
-      {editUser && <EditUserDialog user={editUser} onSave={handleUpdate} onClose={() => setEditUser(null)} error={updateMut.error?.message} />}
+      {showAdd && <AddUserDialog onSave={handleCreate} onClose={() => setShowAdd(false)} error={createMut.error?.message} roles={roles} />}
+      {editUser && <EditUserDialog user={editUser} onSave={handleUpdate} onClose={() => setEditUser(null)} error={updateMut.error?.message} roles={roles} />}
       {confirmDelete && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 400, width: '90%' }}>
@@ -118,10 +127,10 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
   )
 }
 
-function AddUserDialog({ onSave, onClose, error }: { onSave: (d: { username: string; password: string; role: string }) => void; onClose: () => void; error?: string }) {
+function AddUserDialog({ onSave, onClose, error, roles }: { onSave: (d: { username: string; password: string; role: string }) => void; onClose: () => void; error?: string; roles: { id: number; name: string }[] }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('user')
+  const [role, setRole] = useState(roles.length > 0 ? roles[0].name.toLowerCase() : 'viewer')
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -131,8 +140,9 @@ function AddUserDialog({ onSave, onClose, error }: { onSave: (d: { username: str
           <input placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} style={inputStyle} autoFocus />
           <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />
           <select value={role} onChange={e => setRole(e.target.value)} style={inputStyle}>
-            <option value="user">User (read-only)</option>
-            <option value="admin">Admin (full access)</option>
+            {roles.map(r => (
+              <option key={r.id} value={r.name.toLowerCase()}>{r.name}</option>
+            ))}
           </select>
           {error && <p style={{ fontSize: 12, color: 'var(--crit)' }}>{error}</p>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -145,7 +155,7 @@ function AddUserDialog({ onSave, onClose, error }: { onSave: (d: { username: str
   )
 }
 
-function EditUserDialog({ user, onSave, onClose, error }: { user: UserItem; onSave: (id: number, d: { role?: string; password?: string }) => void; onClose: () => void; error?: string }) {
+function EditUserDialog({ user, onSave, onClose, error, roles }: { user: UserItem; onSave: (id: number, d: { role?: string; password?: string }) => void; onClose: () => void; error?: string; roles: { id: number; name: string }[] }) {
   const [role, setRole] = useState(user.role)
   const [password, setPassword] = useState('')
 
@@ -156,8 +166,9 @@ function EditUserDialog({ user, onSave, onClose, error }: { user: UserItem; onSa
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <label style={{ fontSize: 12, color: 'var(--muted)' }}>Role</label>
           <select value={role} onChange={e => setRole(e.target.value)} style={inputStyle}>
-            <option value="user">User (read-only)</option>
-            <option value="admin">Admin (full access)</option>
+            {roles.map(r => (
+              <option key={r.id} value={r.name.toLowerCase()}>{r.name}</option>
+            ))}
           </select>
           <label style={{ fontSize: 12, color: 'var(--muted)' }}>New Password (leave blank to keep current)</label>
           <input placeholder="New password" type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle} />

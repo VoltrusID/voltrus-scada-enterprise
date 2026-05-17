@@ -4,13 +4,16 @@ use http::{Request, StatusCode};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn test_trial_middleware_allows_access() {
-    let tier = crate::license::LicenseTier::Trial;
+async fn test_engineering_middleware_allows_access() {
+    let tier = crate::license::LicenseTier::Engineering;
     let app = test_app_with_license_status(
-        crate::license::LicenseStatus::Trial {
+        crate::license::LicenseStatus::Engineering {
             started_at: 0,
-            expires_at: 2592000,
-            days_remaining: 25,
+            polling_elapsed_secs: 0,
+            polling_remaining_secs: 2592000,
+            daily_budget_secs: 14400,
+            daily_used_secs: 0,
+            polling_active: false,
             tier: tier.clone(),
             feature_flags: tier.to_feature_flags(),
         },
@@ -31,20 +34,24 @@ async fn test_trial_middleware_allows_access() {
 }
 
 #[tokio::test]
-async fn test_trial_expired_middleware_blocks_access() {
-    // Verify that TrialExpired reports is_valid() == false
-    let status = crate::license::LicenseStatus::TrialExpired {
+async fn test_engineering_polling_stopped_middleware_allows_access() {
+    // Verify that EngineeringPollingStopped reports is_valid() == true
+    let status = crate::license::LicenseStatus::EngineeringPollingStopped {
         started_at: 0,
-        message: "expired".to_string(),
+        daily_budget_secs: 14400,
+        daily_used_secs: 14400,
+        message: "polling stopped".to_string(),
     };
-    assert!(!status.is_valid());
+    assert!(status.is_valid());
 
-    // Health endpoint is always allowed even for expired licenses
-    let tier = crate::license::LicenseTier::Trial;
+    // Health endpoint is always allowed even for stopped-polling licenses
+    let tier = crate::license::LicenseTier::Engineering;
     let app = test_app_with_license_status(
-        crate::license::LicenseStatus::TrialExpired {
+        crate::license::LicenseStatus::EngineeringPollingStopped {
             started_at: 0,
-            message: "expired".to_string(),
+            daily_budget_secs: 14400,
+            daily_used_secs: 14400,
+            message: "polling stopped".to_string(),
         },
         tier,
     );
@@ -70,20 +77,23 @@ async fn test_trial_expired_middleware_blocks_access() {
 // on most endpoints, so we expect either 200/401/403 depending on endpoint.
 
 #[tokio::test]
-async fn test_tier_trial_feature_gates() {
-    let tier = crate::license::LicenseTier::Trial;
+async fn test_tier_engineering_feature_gates() {
+    let tier = crate::license::LicenseTier::Engineering;
     let app = test_app_with_license_status(
-        crate::license::LicenseStatus::Trial {
+        crate::license::LicenseStatus::Engineering {
             started_at: 0,
-            expires_at: 2592000,
-            days_remaining: 30,
+            polling_elapsed_secs: 0,
+            polling_remaining_secs: 2592000,
+            daily_budget_secs: 14400,
+            daily_used_secs: 0,
+            polling_active: false,
             tier: tier.clone(),
             feature_flags: tier.to_feature_flags(),
         },
         tier.clone(),
     );
 
-    // SHOULD ALLOW (Trial) — health and branding are open
+    // SHOULD ALLOW (Engineering) — health and branding are open
     let resp = app
         .clone()
         .oneshot(
@@ -96,7 +106,7 @@ async fn test_tier_trial_feature_gates() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    // Branding returns defaults for trial (theme_level=none)
+    // Branding returns defaults for engineering (theme_level=none)
     let resp = app
         .clone()
         .oneshot(
@@ -114,7 +124,7 @@ async fn test_tier_trial_feature_gates() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["theme_level"], "none");
 
-    // Feature flags should reflect Trial
+    // Feature flags should reflect Engineering
     let flags = tier.to_feature_flags();
     assert_eq!(flags["opcua_enabled"], false);
     assert_eq!(flags["email_notifications"], false);
@@ -274,16 +284,19 @@ async fn test_tier_enterprise_feature_gates() {
 
 #[tokio::test]
 async fn test_branding_theme_levels_per_tier() {
-    // Trial: branding returns defaults with theme_level=none
+    // Engineering: branding returns defaults with theme_level=none
     let app = test_app_with_license_status(
-        crate::license::LicenseStatus::Trial {
+        crate::license::LicenseStatus::Engineering {
             started_at: 0,
-            expires_at: 2592000,
-            days_remaining: 30,
-            tier: crate::license::LicenseTier::Trial,
-            feature_flags: crate::license::LicenseTier::Trial.to_feature_flags(),
+            polling_elapsed_secs: 0,
+            polling_remaining_secs: 2592000,
+            daily_budget_secs: 14400,
+            daily_used_secs: 0,
+            polling_active: false,
+            tier: crate::license::LicenseTier::Engineering,
+            feature_flags: crate::license::LicenseTier::Engineering.to_feature_flags(),
         },
-        crate::license::LicenseTier::Trial,
+        crate::license::LicenseTier::Engineering,
     );
     let resp = app
         .oneshot(
