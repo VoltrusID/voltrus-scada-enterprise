@@ -22,7 +22,7 @@ pub struct S7DeviceConfig {
 /// Poll an S7 device in a loop. Intended to be spawned as a tokio task.
 pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
     let device_id = config.id.clone();
-    let mut backoff_secs: u64 = 1;
+    let mut backoff = crate::modbus::types::Backoff::new();
 
     loop {
         let mut client = S7Client::new(&config.url, config.rack, config.slot);
@@ -30,7 +30,7 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
         match client.connect().await {
             Ok(()) => {
                 tracing::info!("S7 device {} connected", device_id);
-                backoff_secs = 1;
+                backoff.reset();
                 cache.set_status(&device_id, DeviceStatus::Online).await;
 
                 loop {
@@ -64,19 +64,20 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
                 }
             }
             Err(e) => {
+                let delay = backoff.next();
                 tracing::warn!(
-                    "S7 device {} connection failed: {}, retrying in {}s",
+                    "S7 device {} connection failed: {}, retrying in {}ms",
                     device_id,
                     e,
-                    backoff_secs
+                    delay
                 );
                 cache.set_status(&device_id, DeviceStatus::Offline).await;
             }
         }
 
         let _ = client.disconnect().await;
-        tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)).await;
-        backoff_secs = (backoff_secs * 2).min(60);
+        let delay = backoff.next();
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
     }
 }
 
@@ -85,10 +86,13 @@ pub async fn poll_s7_device(config: S7DeviceConfig, cache: DeviceCache) {
 /// Write a single f64 value to an S7 PLC tag.
 ///
 /// Connects to the PLC at `ip:port`, resolves the area string to an S7 area,
-/// writes the value as a REAL (4-byte float), and returns a `WriteResult`.
+/// writes the value using the specified data type (defaults to REAL), and returns a `WriteResult`.
 ///
 /// The `area` parameter accepts strings like "DB", "Input", "Output", "Marker",
 /// "Timer", or "Counter".
+///
+/// The `data_type` parameter accepts strings like "bool", "byte", "word", "dword",
+/// "real", "string". Defaults to "real" when None.
 pub async fn write_tag(
     ip: &str,
     port: u16,
@@ -96,6 +100,7 @@ pub async fn write_tag(
     db_number: u32,
     offset: u16,
     value: f64,
+    data_type: Option<&str>,
 ) -> WriteResult {
     let start = std::time::Instant::now();
     let url = format!("{}:{}", ip, port);
@@ -113,18 +118,29 @@ pub async fn write_tag(
         }
     };
 
-    // Build an S7Tag for a REAL (f32) write at the given offset
+    // Resolve data type (defaults to Real for backward compatibility)
+    let s7_data_type = data_type
+        .and_then(S7DataType::from_str_name)
+        .unwrap_or(S7DataType::Real);
+
     let tag = S7Tag {
         area: s7_area,
         db_number: db_number as u16,
         offset,
         bit_offset: 0,
-        data_type: S7DataType::Real,
-        length: 1,
+        data_type: s7_data_type.clone(),
+        length: if s7_data_type == S7DataType::String { 254 } else { 1 },
         name: None,
     };
 
-    let s7_value = S7Value::Real(value as f32);
+    let s7_value = match s7_data_type {
+        S7DataType::Bool => S7Value::Bool(value != 0.0),
+        S7DataType::Byte => S7Value::Byte(value as u8),
+        S7DataType::Word => S7Value::Word(value as u16),
+        S7DataType::DWord => S7Value::DWord(value as u32),
+        S7DataType::Real => S7Value::Real(value as f32),
+        S7DataType::String => S7Value::String(format!("{}", value)),
+    };
 
     // Connect with timeout
     let mut client = S7Client::new(&url, 0, 1);
@@ -164,8 +180,8 @@ pub async fn write_tag(
         Ok(Ok(())) => WriteResult {
             success: true,
             device_response: Some(format!(
-                "Wrote {} {} offset {} = {} (REAL)",
-                area, db_number, offset, value
+                "Wrote {} {} offset {} = {} ({:?})",
+                area, db_number, offset, value, s7_data_type
             )),
             error: None,
             latency_ms: start.elapsed().as_millis() as u64,

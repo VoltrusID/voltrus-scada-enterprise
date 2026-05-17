@@ -1,7 +1,7 @@
 mod poller;
 pub mod pool;
 mod scanner;
-mod types;
+pub mod types;
 mod write;
 
 pub use poller::poll_device;

@@ -167,7 +167,7 @@ impl CommandQueue {
         // Parse ip:port from device URL
         let (ip, port) = Self::parse_ip_port(&device.url, 102);
 
-        crate::s7::write_tag(&ip, port, &area, db_number, offset, value).await
+        crate::s7::write_tag(&ip, port, &area, db_number, offset, value, None).await
     }
 }
 
