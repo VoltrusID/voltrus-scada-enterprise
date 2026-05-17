@@ -1,6 +1,6 @@
 use crate::models::*;
 
-use super::types::{Backoff, combine_u16, parse_register};
+use super::types::{Backoff, combine_u16, parse_register, value_to_words};
 
 #[test]
 fn test_parse_uint16() {
@@ -80,4 +80,28 @@ fn test_register_count_float64() {
         register_area: "holding".into(),
     };
     assert_eq!(reg.register_count(), 4);
+}
+
+#[test]
+fn test_value_to_words_uint16() {
+    let words = value_to_words(42.0, &RegisterType::Uint16, &Endianness::Big);
+    assert_eq!(words, vec![42]);
+}
+
+#[test]
+fn test_value_to_words_float32() {
+    let words = value_to_words(220.5, &RegisterType::Float32, &Endianness::Big);
+    assert_eq!(words, vec![0x435C, 0x8000]);
+}
+
+#[test]
+fn test_value_to_words_int32() {
+    let words = value_to_words(1000.0, &RegisterType::Int32, &Endianness::Big);
+    assert_eq!(words, vec![0x0000, 0x03E8]);
+}
+
+#[test]
+fn test_value_to_words_float64() {
+    let words = value_to_words(220.5, &RegisterType::Float64, &Endianness::Big);
+    assert_eq!(words, vec![0x406B, 0x9000, 0x0000, 0x0000]);
 }
