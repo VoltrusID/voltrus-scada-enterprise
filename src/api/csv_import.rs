@@ -80,6 +80,13 @@ pub async fn import_csv(
         )
             .into_response());
     }
+    if mode == "replace" {
+        return Ok((
+            StatusCode::NOT_IMPLEMENTED,
+            Json(json!({"error": "replace mode is not yet supported; use merge"})),
+        )
+            .into_response());
+    }
 
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut file_name: Option<String> = None;
@@ -222,8 +229,9 @@ pub async fn import_csv(
                     Ok(_) => imported += batch.len(),
                     Err(e) => {
                         errors.push(json!({
-                            "error": format!("Batch insert failed: {}", e),
+                            "error": format!("Batch insert failed ({} rows dropped): {}", batch.len(), e),
                         }));
+                        skipped += batch.len();
                     }
                 }
                 batch.clear();
@@ -238,8 +246,9 @@ pub async fn import_csv(
             Ok(_) => imported += batch.len(),
             Err(e) => {
                 errors.push(json!({
-                    "error": format!("Final batch insert failed: {}", e),
+                    "error": format!("Final batch insert failed ({} rows dropped): {}", batch.len(), e),
                 }));
+                skipped += batch.len();
             }
         }
     }

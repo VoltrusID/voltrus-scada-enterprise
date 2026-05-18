@@ -255,10 +255,8 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
         <ImportColumnMapper
           headers={fileHeaders}
           detectedMapping={previewResult.column_mapping}
-          onConfirm={(_mapping: ColumnMapping) => {
-            // For now the backend doesn't accept manual overrides,
-            // so we just return to preview. The user has seen the mapping
-            // and knows if tag_name is missing they need to fix their file.
+          onConfirm={() => {
+            // Backend auto-detects columns; mapping UI is informational only.
             setStep('preview');
           }}
           onCancel={() => setStep('preview')}

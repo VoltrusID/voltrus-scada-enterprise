@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { btnStyle } from './styles';
 
 interface ColumnMapping {
@@ -11,7 +11,7 @@ interface ColumnMapping {
 interface ImportColumnMapperProps {
   headers: string[];
   detectedMapping: Record<string, number>;
-  onConfirm: (mapping: ColumnMapping) => void;
+  onConfirm: () => void;
   onCancel: () => void;
 }
 
@@ -34,13 +34,6 @@ export function ImportColumnMapper({ headers, detectedMapping, onConfirm, onCanc
   };
 
   const [mapping, setMapping] = useState<ColumnMapping>(buildInitial);
-
-  const // Build reverse map: index -> header name
-  headerByIndex = useMemo(() => {
-    const map = new Map<number, string>();
-    headers.forEach((h, i) => map.set(i, h));
-    return map;
-  }, [headers]);
 
   const handleChange = (field: keyof ColumnMapping, value: string) => {
     const idx = value === '' ? null : Number(value);
@@ -157,7 +150,7 @@ export function ImportColumnMapper({ headers, detectedMapping, onConfirm, onCanc
           Back
         </button>
         <button
-          onClick={() => onConfirm(mapping)}
+          onClick={() => onConfirm()}
           disabled={!tagMapped}
           style={{
             ...btnStyle,
