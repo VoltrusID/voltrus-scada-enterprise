@@ -175,7 +175,7 @@ upload_to_r2() {
   local file="$1"
   local key="$2"
   info "Uploading $(basename "$file") -> ${key}"
-  wrangler r2 object put "${R2_BUCKET}/${key}" --file "$file" 2>&1 | grep -E "complete|error|Error" || true
+  wrangler r2 object put "${R2_BUCKET}/${key}" --file "$file" --remote 2>&1 | grep -E "complete|error|Error" || true
 }
 
 # ── Main ──
