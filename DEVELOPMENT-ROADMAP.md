@@ -1,6 +1,6 @@
 # Voltrus — Post-Launch Roadmap
 
-*Last updated: May 2026 — v0.35.0 shipped. All versions COMPLETE except v0.40.0 (BACKLOG). Versions shipped out of order: v0.34.0 before v0.32.0, v0.37.0 after v0.39.0.*
+*Last updated: May 2026 — v0.40.0 shipped. All versions COMPLETE. Versions shipped out of order: v0.34.0 before v0.32.0, v0.37.0 after v0.39.0.*
 
 ---
 

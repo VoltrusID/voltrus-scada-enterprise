@@ -158,10 +158,19 @@ export class VoltrusWebSocket {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.ws?.close();
-    this.ws = null;
+    // Clear URL before closing to prevent race with onclose triggering reconnect
     this.url = '';
     this.token = '';
+    this.ws?.close();
+    this.ws = null;
+    // Clear all callback arrays to prevent accumulation across reconnect cycles
+    this.tagUpdateCallbacks = [];
+    this.tagBatchCallbacks = [];
+    this.commandAckCallbacks = [];
+    this.alarmCallbacks = [];
+    this.deviceStatusCallbacks = [];
+    this.disconnectCallbacks = [];
+    this.connectCallbacks = [];
   }
 
   isConnected(): boolean {
@@ -169,7 +178,9 @@ export class VoltrusWebSocket {
   }
 
   onTagUpdate(cb: TagUpdateCallback): void { this.tagUpdateCallbacks.push(cb); }
+  offTagUpdate(cb: TagUpdateCallback): void { this.tagUpdateCallbacks = this.tagUpdateCallbacks.filter(c => c !== cb); }
   onTagBatch(cb: TagBatchCallback): void { this.tagBatchCallbacks.push(cb); }
+  offTagBatch(cb: TagBatchCallback): void { this.tagBatchCallbacks = this.tagBatchCallbacks.filter(c => c !== cb); }
   onCommandAck(cb: CommandAckCallback): void { this.commandAckCallbacks.push(cb); }
   onAlarm(cb: AlarmCallback): void { this.alarmCallbacks.push(cb); }
   onDeviceStatus(cb: DeviceStatusCallback): void { this.deviceStatusCallbacks.push(cb); }
@@ -214,8 +225,8 @@ export function setWsInstance(ws: VoltrusWebSocket | null): void {
  * If already connected, fires synchronously. Returns an unsubscribe function.
  */
 export function onWsReady(fn: ReadyListener): () => void {
-  if (_instance?.isConnected()) fn(_instance);
   _readyListeners.add(fn);
+  if (_instance?.isConnected()) fn(_instance);
   return () => { _readyListeners.delete(fn); };
 }
 

@@ -7,7 +7,7 @@ import { ProjectWizard } from './ProjectWizard'
 import { HealthCheckPanel } from './HealthCheckPanel'
 import { SmtpSettingsPanel } from './SmtpSettingsPanel'
 
-type SystemTab = 'overview' | 'docs' | 'templates' | 'config' | 'wizard' | 'health' | 'smtp'
+type SystemTab = 'overview' | 'docs' | 'templates' | 'config' | 'wizard' | 'health' | 'smtp' | 'tools'
 
 interface Props {
   systemInfo: SystemInfo | null | undefined
@@ -32,6 +32,7 @@ export function SystemPanel({ systemInfo }: Props) {
         <div style={tabStyle(tab === 'health')} onClick={() => setTab('health')}>Health</div>
         <div style={tabStyle(tab === 'config')} onClick={() => setTab('config')}>Config</div>
         <div style={tabStyle(tab === 'smtp')} onClick={() => setTab('smtp')}>SMTP</div>
+        <div style={tabStyle(tab === 'tools')} onClick={() => setTab('tools')}>Tools</div>
       </div>
 
       {tab === 'overview' && <SystemOverview systemInfo={systemInfo} />}
@@ -41,6 +42,68 @@ export function SystemPanel({ systemInfo }: Props) {
       {tab === 'health' && <HealthCheckPanel />}
       {tab === 'config' && <ConfigSnapshotPanel />}
       {tab === 'smtp' && <SmtpSettingsPanel />}
+      {tab === 'tools' && <ToolsPanel />}
+    </div>
+  )
+}
+
+const toolCard: React.CSSProperties = {
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+  padding: 20,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+}
+
+const launchBtn: React.CSSProperties = {
+  background: '#7c3aed',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 6,
+  padding: '10px 20px',
+  fontWeight: 600,
+  fontSize: 13,
+  cursor: 'pointer',
+}
+
+function openDeepLink(scheme: string, params: Record<string, string>) {
+  const sp = new URLSearchParams(params)
+  window.location.href = `${scheme}://open?${sp.toString()}`
+}
+
+function ToolsPanel() {
+  const scadaUrl = window.location.origin
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>External Tools</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+        Launch Voltrus desktop apps with SCADA context. Requires the desktop app to be installed.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={toolCard}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Voltrus PLC</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+            IEC 61131-3 Structured Text editor with softPLC runtime. Write logic, compile, simulate, deploy.
+          </div>
+          <button style={launchBtn} onClick={() => openDeepLink('voltrus-plc', { scada: scadaUrl })}>
+            Open Voltrus PLC
+          </button>
+        </div>
+
+        <div style={toolCard}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Voltrus HMI</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+            Drag-and-drop HMI builder for industrial PLCs. Design operator dashboards, deploy as standalone HTML.
+          </div>
+          <button style={{ ...launchBtn, background: '#f97316' }} onClick={() => openDeepLink('voltrus-hmi', { scada: scadaUrl })}>
+            Open Voltrus HMI
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

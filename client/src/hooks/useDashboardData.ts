@@ -17,7 +17,16 @@ export function useDashboardData(
   turbo: boolean,
 ) {
   const initialLoadDone = useRef(false)
+  const prevAuthed = useRef(authed)
   const historyReady = useHistoryReady()
+
+  // Reset initialLoadDone when auth state changes (logout/login cycle)
+  useEffect(() => {
+    if (prevAuthed.current && !authed) {
+      initialLoadDone.current = false
+    }
+    prevAuthed.current = authed
+  }, [authed])
 
   const actions = useDashboardStoreActions()
   const { data: systemInfo } = useSystemInfo(authed && mode === 'system')

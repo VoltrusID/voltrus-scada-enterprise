@@ -200,16 +200,12 @@ pub fn validate_saml_response(xml: &str, idp_certificate: &str) -> Result<(), St
 /// In production, a full XML-DSIG implementation should be used.
 /// This performs a simplified check for development/testing purposes.
 fn validate_signature(_xml: &str, _certificate: &str) -> Result<(), String> {
+    // TODO: Implement proper XML-DSIG verification before enabling SAML in production.
     // A full implementation would:
     // 1. Extract the <ds:Signature> element
     // 2. Canonicalize the signed element (Exclusive XML Canonicalization)
     // 3. Verify the signature using the IdP's certificate
-    //
-    // For this implementation, we verify the signature element exists and
-    // the certificate matches. Production deployments should use a proper
-    // XML signature library.
-    tracing::info!("SAML signature validation performed (simplified mode)");
-    Ok(())
+    Err("SAML signature validation not yet implemented. Disable SAML until a proper XML-DSIG library is integrated.".to_string())
 }
 
 // ── XML utility functions ──

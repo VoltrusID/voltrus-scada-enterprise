@@ -25,6 +25,7 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
   const [previewResult, setPreviewResult] = useState<CsvImportResult | null>(null);
   const [reportResult, setReportResult] = useState<CsvImportResult | null>(null);
   const [fileHeaders, setFileHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, number> | null>(null);
 
   const importCsvMut = useImportCsv();
   const importExcelMut = useImportExcel();
@@ -89,15 +90,16 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
   const runImport = () => {
     if (!file || !fileType) return;
     setStep('import');
+    const mappingParam = columnMapping ? JSON.stringify(columnMapping) : undefined;
     if (fileType === 'excel') {
-      importExcelMut.mutate({ file, dryRun: false, mode, sheet: sheet || undefined }, {
+      importExcelMut.mutate({ file, dryRun: false, mode, sheet: sheet || undefined, column_mapping: mappingParam }, {
         onSuccess: (res) => {
           setReportResult(res);
           setStep('report');
         },
       });
     } else {
-      importCsvMut.mutate({ file, dryRun: false, mode, delimiter: delimiter || ',' }, {
+      importCsvMut.mutate({ file, dryRun: false, mode, delimiter: delimiter || ',', column_mapping: mappingParam }, {
         onSuccess: (res) => {
           setReportResult(res);
           setStep('report');
@@ -255,8 +257,12 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
         <ImportColumnMapper
           headers={fileHeaders}
           detectedMapping={previewResult.column_mapping}
-          onConfirm={() => {
-            // Backend auto-detects columns; mapping UI is informational only.
+          onConfirm={(mapping: ColumnMapping) => {
+            const override: Record<string, number> = {};
+            for (const [k, v] of Object.entries(mapping)) {
+              if (v !== null) override[k] = v;
+            }
+            setColumnMapping(Object.keys(override).length > 0 ? override : null);
             setStep('preview');
           }}
           onCancel={() => setStep('preview')}

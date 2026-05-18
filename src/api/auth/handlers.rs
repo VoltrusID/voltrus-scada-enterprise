@@ -404,6 +404,15 @@ pub async fn change_password(
         .get_user_by_username(&auth.username)
         .await?
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+
+    if !verify_password(&body.old_password, &user.password_hash) {
+        return Ok((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "Current password is incorrect"})),
+        )
+            .into_response());
+    }
+
     let hash = hash_password(&body.new_password);
     state.storage.update_user_password(user.id, &hash).await?;
     Ok(Json(json!({"ok": true})).into_response())

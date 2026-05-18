@@ -11,7 +11,7 @@ interface ColumnMapping {
 interface ImportColumnMapperProps {
   headers: string[];
   detectedMapping: Record<string, number>;
-  onConfirm: () => void;
+  onConfirm: (mapping: ColumnMapping) => void;
   onCancel: () => void;
 }
 
@@ -150,7 +150,7 @@ export function ImportColumnMapper({ headers, detectedMapping, onConfirm, onCanc
           Back
         </button>
         <button
-          onClick={() => onConfirm()}
+          onClick={() => onConfirm(mapping)}
           disabled={!tagMapped}
           style={{
             ...btnStyle,

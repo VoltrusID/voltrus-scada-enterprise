@@ -17,6 +17,7 @@ pub struct ImportQuery {
     pub dry_run: Option<String>,
     pub mode: Option<String>,
     pub sheet: Option<String>,
+    pub column_mapping: Option<String>,
 }
 
 fn cell_to_string(cell: &Data) -> String {
@@ -171,7 +172,32 @@ pub async fn import_excel(
         }
     };
 
-    let column_mapping = auto_detect_columns_pub(&headers);
+    let column_mapping = match &params.column_mapping {
+        Some(json_str) => {
+            let provided: std::collections::HashMap<String, usize> = serde_json::from_str(json_str)
+                .map_err(|e| AppError(anyhow::anyhow!("Invalid column_mapping JSON: {}", e)))?;
+            for (key, &idx) in &provided {
+                if idx >= headers.len() {
+                    return Ok((
+                        StatusCode::BAD_REQUEST,
+                        Json(json!({
+                            "error": format!("column_mapping '{}' index {} out of bounds (file has {} columns)", key, idx, headers.len()),
+                        })),
+                    ).into_response());
+                }
+            }
+            if !provided.contains_key("tag_name") {
+                return Ok((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "error": "column_mapping must include 'tag_name'",
+                    })),
+                ).into_response());
+            }
+            provided
+        }
+        None => auto_detect_columns_pub(&headers),
+    };
 
     if !column_mapping.contains_key("tag_name") {
         return Ok((

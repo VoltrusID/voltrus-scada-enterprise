@@ -90,8 +90,8 @@ impl Storage {
             if let Err(e) =
                 conn.execute_batch(&format!("PRAGMA key = '{}';", key.replace("'", "''")))
             {
-                tracing::warn!(
-                    "Failed to set database encryption key (SQLCipher not available?): {}. Continuing without encryption.",
+                anyhow::bail!(
+                    "Failed to set database encryption key. Database will NOT be created without encryption. Error: {}",
                     e
                 );
             } else {
