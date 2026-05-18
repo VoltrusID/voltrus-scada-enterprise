@@ -74,6 +74,13 @@ pub async fn import_excel(
         )
             .into_response());
     }
+    if mode == "replace" {
+        return Ok((
+            StatusCode::NOT_IMPLEMENTED,
+            Json(json!({"error": "replace mode is not yet supported; use merge"})),
+        )
+            .into_response());
+    }
 
     // Tier gate: Excel import requires Professional+
     {
@@ -292,8 +299,9 @@ pub async fn import_excel(
                     Ok(_) => imported += batch.len(),
                     Err(e) => {
                         errors.push(json!({
-                            "error": format!("Batch insert failed: {}", e),
+                            "error": format!("Batch insert failed ({} rows dropped): {}", batch.len(), e),
                         }));
+                        skipped += batch.len();
                     }
                 }
                 batch.clear();
@@ -309,8 +317,9 @@ pub async fn import_excel(
             Ok(_) => imported += batch.len(),
             Err(e) => {
                 errors.push(json!({
-                    "error": format!("Final batch insert failed: {}", e),
+                    "error": format!("Final batch insert failed ({} rows dropped): {}", batch.len(), e),
                 }));
+                skipped += batch.len();
             }
         }
     }

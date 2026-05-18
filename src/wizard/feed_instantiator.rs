@@ -67,13 +67,19 @@ impl<'a> FeedInstantiator<'a> {
         // 2. Expand I/O list signal patterns and create data sources
         let expanded_ios = self.expand_io_patterns();
         let mut sort_order = 0i64;
+        let mut existing_ds_keys: std::collections::HashSet<String> = self
+            .storage
+            .list_data_sources(Some(&device_id))
+            .await?
+            .iter()
+            .map(|ds| ds.key.clone())
+            .collect();
         for io in &expanded_ios {
             let resolved_signal = io.signal.clone();
             let key = format!("{}:{}", device_id, resolved_signal);
 
             // Check if data source already exists
-            let existing = self.storage.list_data_sources(Some(&device_id)).await?;
-            if existing.iter().any(|ds| ds.key == key) {
+            if existing_ds_keys.contains(&key) {
                 continue;
             }
 
@@ -117,7 +123,8 @@ impl<'a> FeedInstantiator<'a> {
                 .context(format!("Failed to create data source: {}", key))?;
 
             created_data_source_ids.push(ds_id);
-            created_tags.push(resolved_signal);
+            created_tags.push(resolved_signal.clone());
+            existing_ds_keys.insert(key);
             sort_order += 1;
         }
 
@@ -224,11 +231,7 @@ impl<'a> FeedInstantiator<'a> {
             }) {
                 let threshold = parse_setpoint(&rule.setpoint);
                 let update = match rule.condition.as_str() {
-                    "high" | "high-high" => json!({
-                        "crit_val": if rule.severity == "critical" { threshold } else { ds.crit_val },
-                        "warn_val": if rule.severity == "major" || rule.severity == "warning" { threshold } else { ds.warn_val },
-                    }),
-                    "low" | "low-low" => json!({
+                    "high" | "high-high" | "low" | "low-low" => json!({
                         "crit_val": if rule.severity == "critical" { threshold } else { ds.crit_val },
                         "warn_val": if rule.severity == "major" || rule.severity == "warning" { threshold } else { ds.warn_val },
                     }),

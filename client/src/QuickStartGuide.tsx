@@ -20,6 +20,9 @@ export function QuickStartGuide({ onComplete }: QuickStartGuideProps) {
   const loading = createM.isPending
   const error = createM.error?.message
 
+  const isValidIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)
+      && ip.split('.').every((octet) => { const n = parseInt(octet, 10); return n >= 0 && n <= 255 })
+
   const handleConnect = () => {
     createM.mutate(
       {
@@ -174,12 +177,12 @@ export function QuickStartGuide({ onComplete }: QuickStartGuideProps) {
 
         <button
           onClick={handleConnect}
-          disabled={loading}
+          disabled={loading || !isValidIp}
           style={{
             ...primaryBtn,
             width: '100%',
-            opacity: loading ? 0.6 : 1,
-            cursor: loading ? 'wait' : 'pointer',
+            opacity: loading || !isValidIp ? 0.6 : 1,
+            cursor: loading ? 'wait' : isValidIp ? 'pointer' : 'not-allowed',
           }}
         >
           {loading ? 'Connecting...' : 'Connect & Auto-Discover'}
