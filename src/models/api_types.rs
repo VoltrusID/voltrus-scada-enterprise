@@ -94,6 +94,7 @@ pub struct UpdateUserRequest {
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ChangePasswordRequest {
+    pub old_password: String,
     pub new_password: String,
 }
 

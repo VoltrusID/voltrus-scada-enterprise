@@ -20,7 +20,9 @@ set -euo pipefail
 VERSION="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
 TAG="v${VERSION}"
 R2_BUCKET="voltrus-releases"
+D1_DB="voltrus-releases-db"
 BUILD_DIR="target/release-artifacts"
+VERSION_NUM="$(echo "$VERSION" | sed 's/[^0-9]//g' | sed 's/^0*//')"
 FD_LIMIT=65536
 NOTARIZE="${NOTARIZE:-0}"
 
@@ -35,16 +37,17 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
 step()  { echo -e "${CYAN}[STEP]${NC} $*"; }
 
-# ── All supported targets ──
-declare -A TARGET_MAP=(
-  [aarch64]="macos-arm64|aarch64-apple-darwin|"
-  [linux-arm64]="linux-arm64|aarch64-unknown-linux-musl|"
-  [linux-x86_64]="linux-x86_64|x86_64-unknown-linux-musl|"
-  [x86_64]="linux-x86_64|x86_64-unknown-linux-musl|"
-  [windows-x86_64]="windows-x86_64|x86_64-pc-windows-gnu|.exe"
-  [macos-arm64]="macos-arm64|aarch64-apple-darwin|"
-  [all]=""
-)
+# ── Target lookup (bash 3.2 compatible) ──
+resolve_target() {
+  case "$1" in
+    aarch64|macos-arm64)   echo "macos-arm64|aarch64-apple-darwin|" ;;
+    linux-arm64)           echo "linux-arm64|aarch64-unknown-linux-musl|" ;;
+    linux-x86_64|x86_64)   echo "linux-x86_64|x86_64-unknown-linux-musl|" ;;
+    windows-x86_64)        echo "windows-x86_64|x86_64-pc-windows-gnu|.exe" ;;
+    all)                   echo "" ;;
+    *)                     return 1 ;;
+  esac
+}
 
 ALL_TARGETS=(
   "macos-arm64|aarch64-apple-darwin|"
@@ -72,8 +75,7 @@ done
 # Resolve targets to build
 TARGETS=()
 if [ -n "$TARGET_FILTER" ]; then
-  entry="${TARGET_MAP[$TARGET_FILTER]:-}"
-  [ -z "$entry" ] && error "Unknown target '$TARGET_FILTER'. Valid: ${!TARGET_MAP[*]}"
+  entry="$(resolve_target "$TARGET_FILTER")" || error "Unknown target '$TARGET_FILTER'. Valid: aarch64 macos-arm64 linux-arm64 linux-x86_64 x86_64 windows-x86_64 all"
   TARGETS=("$entry")
 else
   TARGETS=("${ALL_TARGETS[@]}")
@@ -202,6 +204,42 @@ if [ "$UPLOAD" = true ]; then
     upload_to_r2 "$archive" "voltrus/latest/${name}/$(basename "$archive")"
   done
   info "All uploads complete!"
+
+  # ── Sync D1 release metadata ──
+  step "Syncing D1 release metadata..."
+  PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  SIZE_SUM=0
+  for entry in "${TARGETS[@]}"; do
+    IFS='|' read -r name _ _ <<< "$entry"
+    for f in "${BUILD_DIR}"/voltrus-${TAG}-${name}.*; do
+      [ -f "$f" ] || continue
+      s=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null)
+      SIZE_SUM=$((SIZE_SUM + s))
+    done
+  done
+  wrangler d1 execute "${D1_DB}" --remote --command \
+    "INSERT OR REPLACE INTO releases (version, short_version_string, title, description, length, pub_date) VALUES (${VERSION_NUM}, '${VERSION}', 'Voltrus ${TAG}', 'Voltrus SCADA ${TAG} release', ${SIZE_SUM}, '${PUB_DATE}')" \
+    2>&1 | grep -E "Executed|error|Error" || true
+
+  for entry in "${TARGETS[@]}"; do
+    IFS='|' read -r name _ _ <<< "$entry"
+
+    if [[ "$name" == *"windows"* ]]; then
+      archive="${BUILD_DIR}/voltrus-${TAG}-${name}.zip"
+    else
+      archive="${BUILD_DIR}/voltrus-${TAG}-${name}.tar.gz"
+    fi
+
+    size=$(stat -f%z "$archive" 2>/dev/null || stat -c%s "$archive" 2>/dev/null)
+    r2_key="voltrus/latest/${name}/$(basename "$archive")"
+    filename="$(basename "$archive")"
+
+    wrangler d1 execute "${D1_DB}" --remote --command \
+      "INSERT OR REPLACE INTO release_files (version, platform, filename, r2_key, size) VALUES (${VERSION_NUM}, '${name}', '${filename}', '${r2_key}', ${size})" \
+      2>&1 | grep -E "Executed|error|Error" || true
+    info "  D1: ${name} -> ${r2_key} (${size} bytes)"
+  done
+  info "D1 sync complete!"
 fi
 
 echo ""

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { fetchJson } from "../queries";
 
 export interface HaStatus {
   enabled: boolean;
@@ -15,11 +16,7 @@ export interface HaStatus {
 export function useHaStatus() {
   return useQuery<HaStatus>({
     queryKey: ["ha-status"],
-    queryFn: async () => {
-      const res = await fetch("/api/v1/ha/status");
-      if (!res.ok) throw new Error("Failed to fetch HA status");
-      return res.json();
-    },
+    queryFn: () => fetchJson<HaStatus>("/api/v1/ha/status"),
     refetchInterval: 5000,
   });
 }

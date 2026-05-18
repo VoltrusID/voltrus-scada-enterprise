@@ -17,7 +17,7 @@ import { MainContent } from './components/MainContent'
 import { useDashboardData } from './hooks/useDashboardData'
 import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
 import { useKioskMode } from './hooks/useKioskMode'
-import { useDashboardSystemInfo } from './store/dashboardStore'
+import { useDashboardSystemInfo, useDashboardStoreActions } from './store/dashboardStore'
 import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
 import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk, fetchJson } from './queries'
 import { LicenseContext, type LicenseInfo } from './LicenseContext'
@@ -176,6 +176,7 @@ function AppInner() {
   // ── Dashboard data hook (now store-backed) ───────────────────────
   const { systemInfo } = useDashboardData(authed, mode, activeScreen, sensors, screenSensors, historyRange, historyDetail, dashSettings.historyAutoAgg, turbo)
   const storeSystemInfo = useDashboardSystemInfo()
+  const storeActions = useDashboardStoreActions()
   const effectiveSystemInfo = systemInfo ?? storeSystemInfo
 
   // ── Derived values ───────────────────────────────────────────────
@@ -262,7 +263,7 @@ function AppInner() {
   useEffect(() => {
     fetchJson<any>('/api/license/status')
       .then(d => { setLicenseInfo(d) })
-      .catch(() => { setLicenseInfo({ status: 'Valid', tier: 'professional', feature_flags: {} }) })
+      .catch(() => { setLicenseInfo({ status: 'Unactivated', tier: 'engineering', feature_flags: {}, message: 'Failed to contact license server.' }) })
   }, [])
 
   // ── Auth ─────────────────────────────────────────────────────────
@@ -281,7 +282,7 @@ function AppInner() {
     } catch (e: any) { setLoginError(e.message || 'Login failed') }
   }
 
-  const handleLogout = async () => { disconnectWS(); await fetchOk('/api/v1/auth/logout', { method: 'POST' }).catch(() => {}); setAuthed(false); setAuthRole('user'); setAuthUser('') }
+  const handleLogout = async () => { disconnectWS(); storeActions.clearData(); await fetchOk('/api/v1/auth/logout', { method: 'POST' }).catch(() => {}); setAuthed(false); setAuthRole('user'); setAuthUser('') }
 
   // ── Handlers ─────────────────────────────────────────────────────
 
@@ -414,8 +415,8 @@ function AppInner() {
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
 
   if (mustChangePassword) {
-    const handleChangePassword = async (newPassword: string) => {
-      await fetchOk('/api/v1/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPassword }) })
+    const handleChangePassword = async (oldPassword: string, newPassword: string) => {
+      await fetchOk('/api/v1/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }) })
       setMustChangePassword(false)
     }
     return <ChangePasswordScreen onSubmit={handleChangePassword} />

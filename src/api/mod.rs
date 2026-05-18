@@ -174,7 +174,7 @@ async fn license_check_middleware(
     // Read license status in a sync block so the RwLockReadGuard is dropped
     // before any .await point, keeping the future Send.
     let license_check = {
-        let ls = state.license_status.read().unwrap();
+        let ls = state.license_status.read().unwrap_or_else(|e| e.into_inner());
         let is_valid = ls.is_valid();
         let body = if !is_valid {
             Some(match serde_json::to_value(&*ls) {
@@ -412,8 +412,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
         .route("/api/v1/auth/providers", get(auth::list_auth_providers))
         .route("/api/v1/auth/saml/metadata", post(auth::saml_metadata))
-        .route("/api/v1/auth/saml/acs", post(auth::saml_acs))
-        .route("/api/v1/auth/ldap/login", post(auth::ldap_login))
+        // SAML ACS and LDAP login removed from public router until signature
+        // validation is properly implemented. Re-enable on the protected router
+        // when SAML XML-DSIG verification is complete.
         .route("/api/v1/settings/branding", get(settings::get_branding))
         .route(
             "/api/v1/settings/alarm-cooldown",
@@ -696,7 +697,6 @@ pub fn create_router(state: AppState) -> Router {
     // Demo-allowed routes (authenticated + admin or demo role required)
     // These are operational routes that demo users should be able to use.
     let demo_protected = Router::new()
-        .route("/api/v1/seed", post(auth::seed))
         .route("/api/v1/settings/branding", put(settings::update_branding))
         .route(
             "/api/v1/settings/smtp",
@@ -1058,6 +1058,7 @@ pub fn create_router(state: AppState) -> Router {
     // Strictly admin-only routes (users, roles, API keys, security, compliance)
     // Demo users CANNOT access these.
     let admin_protected = Router::new()
+        .route("/api/v1/seed", post(auth::seed))
         .route(
             "/api/v1/users",
             get(auth::list_users).post(auth::create_user_handler),

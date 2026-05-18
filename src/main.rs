@@ -180,19 +180,19 @@ async fn main() -> anyhow::Result<()> {
         let status = license::resolve_license_status(&storage).await;
         Arc::new(std::sync::RwLock::new(status))
     };
-    let license_tier = license_status.read().unwrap().tier();
-    let feature_flags = license_status.read().unwrap().feature_flags();
+    let license_tier = license_status.read().unwrap_or_else(|e| e.into_inner()).tier();
+    let feature_flags = license_status.read().unwrap_or_else(|e| e.into_inner()).feature_flags();
 
-    if !license_status.read().unwrap().is_valid() {
+    if !license_status.read().unwrap_or_else(|e| e.into_inner()).is_valid() {
         tracing::warn!(
             "License status: {:?} — skipping Modbus polling",
-            license_status.read().unwrap()
+            license_status.read().unwrap_or_else(|e| e.into_inner())
         );
     }
 
     // Log engineering mode status at startup
     {
-        let ls = license_status.read().unwrap();
+        let ls = license_status.read().unwrap_or_else(|e| e.into_inner());
         if let license::LicenseStatus::Engineering { polling_active, daily_budget_secs, daily_used_secs, polling_remaining_secs, .. } = &*ls {
             tracing::info!(
                 "Engineering mode: {}/{}s used, {}s remaining, polling_active={}",
@@ -271,12 +271,12 @@ async fn main() -> anyhow::Result<()> {
         network::NetworkManager::new(app_config.networks.clone()),
     );
     #[cfg(feature = "modbus")]
-    if license_status.read().unwrap().is_valid() {
+    if license_status.read().unwrap_or_else(|e| e.into_inner()).is_valid() {
         // For Engineering mode, do NOT auto-start pollers.
         // Polling starts paused; user must use the start endpoint to begin.
         // For paid licenses (Valid status), auto-start pollers as usual.
         let is_engineering = {
-            let ls = license_status.read().unwrap();
+            let ls = license_status.read().unwrap_or_else(|e| e.into_inner());
             matches!(&*ls, license::LicenseStatus::Engineering { .. })
                 | matches!(&*ls, license::LicenseStatus::EngineeringPollingStopped { .. })
         };
@@ -351,13 +351,13 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 interval.tick().await;
                 let needs_update = {
-                    let ls = bg_license_status.read().unwrap();
+                    let ls = bg_license_status.read().unwrap_or_else(|e| e.into_inner());
                     matches!(&*ls, license::LicenseStatus::Engineering { .. })
                 };
                 if needs_update {
                     // Clone the status so we can drop the read lock before the await
                     let status_snapshot = {
-                        let ls = bg_license_status.read().unwrap();
+                        let ls = bg_license_status.read().unwrap_or_else(|e| e.into_inner());
                         ls.clone()
                     };
                     let updated = license::update_engineering_polling_daily(
@@ -371,7 +371,7 @@ async fn main() -> anyhow::Result<()> {
                         license::LicenseStatus::EngineeringPollingStopped { .. }
                     );
                     {
-                        let mut ls = bg_license_status.write().unwrap();
+                        let mut ls = bg_license_status.write().unwrap_or_else(|e| e.into_inner());
                         *ls = updated;
                     }
                     if is_stopped {
@@ -839,7 +839,23 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let login_rate_limiter = crate::security::LoginRateLimiter::new();
+    let global_rate_limiter = crate::security::GlobalRateLimiter::new();
     let intrusion_detector = crate::security::IntrusionDetector::new();
+
+    // Periodic cleanup of rate limiter entries to prevent unbounded memory growth
+    {
+        let login_rl = login_rate_limiter.clone();
+        let global_rl = global_rate_limiter.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(120));
+            loop {
+                interval.tick().await;
+                login_rl.cleanup();
+                global_rl.cleanup();
+            }
+        });
+    }
+
     let (audit_logger, mut audit_rx) = crate::security::AuditLogger::new();
 
     // Spawn audit log consumer
@@ -949,7 +965,7 @@ async fn main() -> anyhow::Result<()> {
         retention_config: app_config.retention.clone(),
         flow_engine,
         login_rate_limiter,
-        global_rate_limiter: crate::security::GlobalRateLimiter::new(),
+        global_rate_limiter,
         audit_logger,
         intrusion_detector,
         license_status,

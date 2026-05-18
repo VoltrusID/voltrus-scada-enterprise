@@ -14,7 +14,8 @@ const INPUT: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-export function ChangePasswordScreen({ onSubmit }: { onSubmit: (newPassword: string) => Promise<void> }) {
+export function ChangePasswordScreen({ onSubmit }: { onSubmit: (oldPassword: string, newPassword: string) => Promise<void> }) {
+  const [oldPw, setOldPw] = useState('')
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -23,12 +24,13 @@ export function ChangePasswordScreen({ onSubmit }: { onSubmit: (newPassword: str
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!oldPw) { setError('Current password is required'); return }
     if (pw !== pw2) { setError('Passwords do not match'); return }
     if (pw.length < 8) { setError('Password must be at least 8 characters'); return }
     setLoading(true)
     setError('')
     try {
-      await onSubmit(pw)
+      await onSubmit(oldPw, pw)
     } catch (err: any) {
       setError(err.message || 'Failed to change password')
     } finally {
@@ -85,6 +87,22 @@ export function ChangePasswordScreen({ onSubmit }: { onSubmit: (newPassword: str
 
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ padding: '28px 36px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Current password */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Current Password</span>
+            <input
+              type="password"
+              value={oldPw}
+              onChange={e => { setOldPw(e.target.value); setError('') }}
+              placeholder="Enter current password"
+              required
+              style={INPUT}
+              autoFocus
+              onFocus={e => { e.currentTarget.style.borderColor = 'rgba(245,158,11,.5)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,.1)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+            />
+          </div>
+
           {/* New password */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>New Password</span>
@@ -173,16 +191,16 @@ export function ChangePasswordScreen({ onSubmit }: { onSubmit: (newPassword: str
 
           <button
             type="submit"
-            disabled={loading || pw !== pw2 || pw.length < 8}
+            disabled={loading || !oldPw || pw !== pw2 || pw.length < 8}
             style={{
               padding: '12px 20px',
               borderRadius: 8,
               border: 'none',
-              background: loading || pw !== pw2 || pw.length < 8 ? 'var(--border)' : '#22c55e',
-              color: loading || pw !== pw2 || pw.length < 8 ? 'var(--muted)' : '#fff',
+              background: loading || !oldPw || pw !== pw2 || pw.length < 8 ? 'var(--border)' : '#22c55e',
+              color: loading || !oldPw || pw !== pw2 || pw.length < 8 ? 'var(--muted)' : '#fff',
               fontSize: 14,
               fontWeight: 600,
-              cursor: loading || pw !== pw2 || pw.length < 8 ? 'not-allowed' : 'pointer',
+              cursor: loading || !oldPw || pw !== pw2 || pw.length < 8 ? 'not-allowed' : 'pointer',
               fontFamily: 'Inter, sans-serif',
               transition: 'opacity 0.15s',
               marginTop: 4,
