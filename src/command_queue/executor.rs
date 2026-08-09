@@ -34,12 +34,10 @@ impl CommandQueue {
             "ethernet_ip" => self.execute_enip_write_gw(cmd, value).await,
             #[cfg(all(feature = "ethernet-ip", not(feature = "gateway-enip")))]
             "ethernet_ip" => self.execute_enip_write(cmd, value).await,
-            "mqtt" => WriteResult {
-                success: true,
-                device_response: Some("MQTT publish not implemented".to_string()),
-                error: None,
-                latency_ms: 0,
-            },
+            // MQTT is fire-and-forget publish, not request/response. Publish to
+            // the topic in source_config via the embedded broker (see
+            // execute_mqtt_write); without the broker feature it fails explicitly.
+            "mqtt" => self.execute_mqtt_write(cmd, value).await,
             #[cfg(feature = "gateway-dnp3")]
             "dnp3" => self.execute_dnp3_write_gw(cmd, value).await,
             #[cfg(all(feature = "dnp3", not(feature = "gateway-dnp3")))]
@@ -777,5 +775,91 @@ impl CommandQueue {
             value,
         )
         .await
+    }
+}
+
+#[cfg(feature = "mqtt-broker")]
+impl CommandQueue {
+    /// Publish the command value to the MQTT topic in the data source's
+    /// `source_config` (`{"topic": "..."}`). MQTT has no device ACK, so success
+    /// means "the broker accepted the publish", not "the device acted on it" —
+    /// the closest faithful analogue of the request/response protocols' ACK.
+    pub(super) async fn execute_mqtt_write(
+        &self,
+        cmd: &crate::models::Command,
+        value: f64,
+    ) -> WriteResult {
+        let ds = match self.storage.get_data_source_by_id(cmd.data_source_id).await {
+            Ok(Some(ds)) => ds,
+            _ => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some("Data source not found".to_string()),
+                    latency_ms: 0,
+                };
+            }
+        };
+
+        let topic = match Self::parse_mqtt_topic(&ds.source_config) {
+            Some(t) => t,
+            None => {
+                return WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some(
+                        "Could not parse MQTT topic from source_config".to_string(),
+                    ),
+                    latency_ms: 0,
+                };
+            }
+        };
+
+        let payload = Self::mqtt_payload(&ds.source_config, value);
+        let started = std::time::Instant::now();
+        let broker = self.mqtt_broker.read().await;
+        match broker.as_ref() {
+            Some(b) => match b.publish_sync(&topic, payload.as_bytes()) {
+                Ok(_) => WriteResult {
+                    success: true,
+                    device_response: Some(format!(
+                        "published {} bytes to {topic}",
+                        payload.len()
+                    )),
+                    error: None,
+                    latency_ms: started.elapsed().as_millis() as u64,
+                },
+                Err(e) => WriteResult {
+                    success: false,
+                    device_response: None,
+                    error: Some(format!("MQTT publish failed: {e}")),
+                    latency_ms: started.elapsed().as_millis() as u64,
+                },
+            },
+            None => WriteResult {
+                success: false,
+                device_response: None,
+                error: Some(
+                    "MQTT broker is not running; cannot publish command".to_string(),
+                ),
+                latency_ms: 0,
+            },
+        }
+    }
+}
+
+#[cfg(not(feature = "mqtt-broker"))]
+impl CommandQueue {
+    pub(super) async fn execute_mqtt_write(
+        &self,
+        _cmd: &crate::models::Command,
+        _value: f64,
+    ) -> WriteResult {
+        WriteResult {
+            success: false,
+            device_response: None,
+            error: Some("MQTT broker feature is not enabled in this build".to_string()),
+            latency_ms: 0,
+        }
     }
 }

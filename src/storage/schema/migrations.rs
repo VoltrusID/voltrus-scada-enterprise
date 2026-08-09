@@ -376,4 +376,13 @@ pub(super) fn run_migrations(conn: &Connection) {
         .execute_batch("ALTER TABLE enip_tags ADD COLUMN assembly_offset INTEGER NOT NULL DEFAULT 0");
     let _ = conn
         .execute_batch("ALTER TABLE enip_tags ADD COLUMN assembly_length INTEGER NOT NULL DEFAULT 0");
+
+    // Migration: alarm direction (low alarms).
+    // Low-alarm thresholds (low_warn/low_crit) live in data_sources.source_config
+    // alongside `deadband`, so no new columns are needed there. This migration
+    // adds `alarm_type` ('high' default, 'low') to alarms so auto-resolution is
+    // direction-aware: a low alarm clears when the value rises back above its
+    // threshold (+deadband), not when it drops further below it.
+    let _ = conn
+        .execute_batch("ALTER TABLE alarms ADD COLUMN alarm_type TEXT NOT NULL DEFAULT 'high'");
 }

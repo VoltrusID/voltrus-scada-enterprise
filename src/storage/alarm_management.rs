@@ -29,7 +29,13 @@ impl Storage {
                     Some(_) => {
                         "SELECT id, '{\"value\":' || ?1 || ', \"threshold\":' || threshold || ', \"deadband\":' || COALESCE(deadband, 0) || '}'
                          FROM alarms WHERE source_key = ?2 AND resolved_at IS NULL
-                           AND ?1 < threshold - COALESCE(deadband, 0)"
+                           AND (
+                            (COALESCE(alarm_type, 'high') = 'high'
+                             AND ?1 < threshold - COALESCE(deadband, 0))
+                         OR
+                            (COALESCE(alarm_type, 'low') = 'low'
+                             AND ?1 > threshold + COALESCE(deadband, 0))
+                       )"
                     }
                     None => {
                         "SELECT id, '{}' FROM alarms WHERE source_key = ?1 AND resolved_at IS NULL"

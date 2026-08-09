@@ -52,11 +52,25 @@ pub(crate) fn evaluate_data_sources(
                 cached.unwrap_or_else(|| generators::generate_value(ds, now))
             };
 
+            // Low-alarm thresholds live in source_config (absent = disabled).
+            let (low_warn, low_crit) = serde_json::from_str::<serde_json::Value>(&ds.source_config)
+                .ok()
+                .map(|cfg| {
+                    (
+                        cfg.get("low_warn").and_then(|v| v.as_f64()),
+                        cfg.get("low_crit").and_then(|v| v.as_f64()),
+                    )
+                })
+                .unwrap_or((None, None));
             let status = if value.is_nan() {
                 "offline".to_string()
             } else if ds.crit_val > 0.0 && value >= ds.crit_val {
                 "critical".to_string()
+            } else if low_crit.is_some_and(|lc| value <= lc) {
+                "critical".to_string()
             } else if ds.warn_val > 0.0 && value >= ds.warn_val {
+                "warning".to_string()
+            } else if low_warn.is_some_and(|lw| value <= lw) {
                 "warning".to_string()
             } else {
                 "normal".to_string()

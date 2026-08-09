@@ -231,7 +231,14 @@ impl FlowEngine {
 
 fn device_snapshot_to_message(snapshot: crate::models::DeviceSnapshot) -> Message {
     let mut metadata = HashMap::new();
-    metadata.insert("source".to_string(), "modbus".to_string());
+    // Use the snapshot's real acquisition protocol when known so triggers can
+    // discriminate by source; fall back to "modbus" for back-compat with
+    // snapshots that predate protocol tagging.
+    let source = snapshot
+        .protocol
+        .clone()
+        .unwrap_or_else(|| "modbus".to_string());
+    metadata.insert("source".to_string(), source);
     let payload = serde_json::json!({
         "device_id": snapshot.device_id,
         "status": match snapshot.status {

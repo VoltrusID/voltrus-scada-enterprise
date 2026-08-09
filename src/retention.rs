@@ -71,39 +71,46 @@ async fn archive_raw(storage: &Storage, cutoff: i64, archive_dir: &str) -> Resul
         return Ok(());
     }
 
-    // Group rows by date
-    let mut by_date: BTreeMap<String, Vec<(String, String, i64, f64)>> = BTreeMap::new();
-    for (device_id, metric, ts, value) in &rows {
-        let date = time::OffsetDateTime::from_unix_timestamp(*ts)
-            .ok()
-            .and_then(|dt| {
-                dt.format(&time::macros::format_description!("[year]-[month]-[day]"))
-                    .ok()
-            })
-            .unwrap_or_else(|| "unknown".to_string());
-        by_date
-            .entry(date)
-            .or_default()
-            .push((device_id.clone(), metric.clone(), *ts, *value));
-    }
-
-    std::fs::create_dir_all(archive_dir)
-        .with_context(|| format!("Failed to create archive dir: {archive_dir}"))?;
-
-    for (date, day_rows) in &by_date {
-        let path = PathBuf::from(archive_dir).join(format!("{date}.csv.gz"));
-        let file = std::fs::File::create(&path)
-            .with_context(|| format!("Failed to create archive file: {}", path.display()))?;
-        let mut encoder = GzEncoder::new(file, Compression::default());
-        writeln!(encoder, "device_id,metric,timestamp,value")?;
-        for (device_id, metric, ts, value) in day_rows {
-            writeln!(encoder, "{device_id},{metric},{ts},{value}")?;
+    // Grouping + gzip file writes are blocking I/O — run them off the async
+    // runtime worker so a large archive can't stall the broker/pollers.
+    let archive_dir = archive_dir.to_string();
+    tokio::task::spawn_blocking(move || {
+        // Group rows by date
+        let mut by_date: BTreeMap<String, Vec<(String, String, i64, f64)>> = BTreeMap::new();
+        for (device_id, metric, ts, value) in &rows {
+            let date = time::OffsetDateTime::from_unix_timestamp(*ts)
+                .ok()
+                .and_then(|dt| {
+                    dt.format(&time::macros::format_description!("[year]-[month]-[day]"))
+                        .ok()
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+            by_date
+                .entry(date)
+                .or_default()
+                .push((device_id.clone(), metric.clone(), *ts, *value));
         }
-        encoder.finish().context("Failed to finish gzip archive")?;
-        tracing::info!("Archived {} rows to {}", day_rows.len(), path.display());
-    }
 
-    Ok(())
+        std::fs::create_dir_all(&archive_dir)
+            .with_context(|| format!("Failed to create archive dir: {archive_dir}"))?;
+
+        for (date, day_rows) in &by_date {
+            let path = PathBuf::from(&archive_dir).join(format!("{date}.csv.gz"));
+            let file = std::fs::File::create(&path)
+                .with_context(|| format!("Failed to create archive file: {}", path.display()))?;
+            let mut encoder = GzEncoder::new(file, Compression::default());
+            writeln!(encoder, "device_id,metric,timestamp,value")?;
+            for (device_id, metric, ts, value) in day_rows {
+                writeln!(encoder, "{device_id},{metric},{ts},{value}")?;
+            }
+            encoder.finish().context("Failed to finish gzip archive")?;
+            tracing::info!("Archived {} rows to {}", day_rows.len(), path.display());
+        }
+
+        Ok(())
+    })
+    .await
+    .context("Archive task join failed")?
 }
 
 fn get_tier_keep(tiers: &[crate::models::RetentionTier], name: &str) -> Option<u64> {
