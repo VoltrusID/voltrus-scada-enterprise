@@ -339,6 +339,7 @@ fn node_id(node: &NodeConfig) -> String {
         NodeConfig::AlarmOut { id, .. } => id.clone(),
         NodeConfig::WriteOut { id, .. } => id.clone(),
         NodeConfig::Script { id, .. } => id.clone(),
+        NodeConfig::Dsl { id, .. } => id.clone(),
     }
 }
 

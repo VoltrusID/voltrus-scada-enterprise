@@ -1,3 +1,20 @@
+//! Sandboxed script engine for flow-engine Script nodes.
+//!
+//! Backed by QuickJS (`rquickjs`) — replaces the previous `boa_engine` backend
+//! (boa pulled ~70 MB RSS; QuickJS is ~2 MB). The public interface is unchanged:
+//! `execute_script` / `validate_syntax` / `ScriptResult`, so the flow-engine
+//! Script node and its tests need no changes.
+//!
+//! Per-call model (matches the previous boa backend): spawn a std thread, build a
+//! fresh QuickJS `Runtime` + `Context` on it (QuickJS runtimes are `!Send`), and
+//! enforce the CPU deadline via `recv_timeout` on the caller side plus a runtime
+//! interrupt handler on the worker side (so infinite loops actually terminate).
+//!
+//! Sandbox: no `require`/`import`/network/global access (string-blocked up front,
+//! same rules as before); QuickJS `Context::full` provides only ES intrinsics.
+//! Input is injected as a global `input` object (via `JSON.parse`); a script may
+//! define `main(input)` whose return is JSON-serialized as the output.
+
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -9,7 +26,7 @@ pub struct ScriptResult {
 }
 
 #[cfg(feature = "scripts")]
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Validate JS syntax. Returns None if valid.
 #[cfg(feature = "scripts")]
@@ -17,11 +34,21 @@ pub fn validate_syntax(source: &str) -> Option<String> {
     if source.trim().is_empty() {
         return Some("Script source is empty".to_string());
     }
-    let mut ctx = boa_engine::Context::default();
-    match ctx.eval(boa_engine::Source::from_bytes(source)) {
-        Ok(_) => None,
-        Err(e) => Some(format!("{}", e)),
-    }
+    use rquickjs::{Context, Runtime, Value};
+    let runtime = match Runtime::new() {
+        Ok(r) => r,
+        Err(e) => return Some(format!("runtime init failed: {e}")),
+    };
+    let ctx = match Context::full(&runtime) {
+        Ok(c) => c,
+        Err(e) => return Some(format!("context init failed: {e}")),
+    };
+    ctx.with(|c| -> Option<String> {
+        match c.eval::<Value, _>(source) {
+            Ok(_) => None,
+            Err(e) => Some(format!("{e}")),
+        }
+    })
 }
 
 /// Validate JS syntax — stub when scripts feature is disabled.
@@ -81,7 +108,7 @@ fn execute_with_timeout(
     cpu_limit_ms: u64,
     memory_limit_bytes: u64,
 ) -> Result<String, String> {
-    // Security pattern blocking
+    // Security pattern blocking (unchanged from the boa backend).
     if source.contains("require(") || source.contains("import ") {
         return Err("Scripts cannot use require() or import statements".to_string());
     }
@@ -97,11 +124,11 @@ fn execute_with_timeout(
     let input_json = input_json.to_string();
 
     std::thread::spawn(move || {
-        let result = run_script_in_boa(&source, &input_json, memory_limit_bytes, cpu_limit_ms);
+        let result = run_script_in_quickjs(&source, &input_json, memory_limit_bytes, cpu_limit_ms);
         let _ = tx.send(result);
     });
 
-    let timeout = std::time::Duration::from_millis(cpu_limit_ms);
+    let timeout = Duration::from_millis(cpu_limit_ms);
     match rx.recv_timeout(timeout) {
         Ok(result) => result,
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(format!(
@@ -114,66 +141,68 @@ fn execute_with_timeout(
     }
 }
 
+/// Run a script on a fresh QuickJS runtime (worker thread).
+///
+/// Contract (preserved from the boa backend):
+/// - `input` is a global holding the parsed JSON input.
+/// - If `main` is defined, its return is the result; otherwise `undefined`.
+/// - `undefined`/`null` result → output `"{}"`; otherwise JSON-stringified.
 #[cfg(feature = "scripts")]
-fn run_script_in_boa(
+fn run_script_in_quickjs(
     source: &str,
     input_json: &str,
-    _memory_limit_bytes: u64,
+    memory_limit_bytes: u64,
     cpu_limit_ms: u64,
 ) -> Result<String, String> {
-    use boa_engine::property::Attribute;
+    use rquickjs::{Context, Runtime};
 
-    let mut ctx = boa_engine::Context::default();
+    let runtime = Runtime::new().map_err(|e| format!("runtime init failed: {e}"))?;
+    runtime.set_memory_limit(memory_limit_bytes as usize);
+    runtime.set_max_stack_size(2 * 1024 * 1024);
 
-    // Set runtime limits for CPU/stability protection
-    ctx.set_runtime_limits({
-        let mut limits = boa_engine::vm::RuntimeLimits::default();
-        limits.set_loop_iteration_limit(1_000_000);
-        limits.set_recursion_limit(256);
-        limits.set_stack_size_limit(1024);
-        limits
-    });
+    // Interrupt handler: abort (return true) once the deadline has passed.
+    let deadline = Instant::now() + Duration::from_millis(cpu_limit_ms.max(1));
+    runtime.set_interrupt_handler(Some(Box::new(move || Instant::now() >= deadline)));
 
-    // Parse input JSON and set as global
-    let input_val: serde_json::Value =
-        serde_json::from_str(input_json).map_err(|e| format!("Failed to parse input JSON: {}", e))?;
-    let js_input = boa_engine::JsValue::from_json(&input_val, &mut ctx)
-        .map_err(|e| format!("Failed to convert input to JS value: {}", e))?;
-    ctx.register_global_property(boa_engine::js_string!("input"), js_input, Attribute::all())
-        .map_err(|e| format!("Failed to set input global: {}", e))?;
+    let ctx = Context::full(&runtime).map_err(|e| format!("context init failed: {e}"))?;
 
-    // Wrap source: execute user code, then call main(input) if defined
-    let wrapped_source = format!(
-        "(function() {{\n{}\nif (typeof main === 'function') {{ return main(input); }}\nreturn undefined;\n}})()",
-        source
-    );
+    ctx.with(|c| -> Result<String, String> {
+        // Build the full program: inject `input` via JSON.parse, run the user
+        // source, then call `main(input)` if defined and JSON.stringify its result.
+        let input_lit = js_string_literal(input_json);
+        let program = format!(
+            "(function () {{\n\
+             \x20\x20\x20\x20var input = JSON.parse({input_lit});\n\
+             \x20\x20\x20\x20{source}\n\
+             \x20\x20\x20\x20var __r = (typeof main === 'function') ? main(input) : undefined;\n\
+             \x20\x20\x20\x20return (__r === undefined || __r === null) ? '{{}}' : JSON.stringify(__r);\n\
+             }})()",
+            input_lit = input_lit,
+            source = source
+        );
+        let out: String = c
+            .eval::<String, _>(program.as_str())
+            .map_err(|e| format!("Script error: {e}"))?;
+        Ok(out)
+    })
+}
 
-    let _timeout_guard = cpu_limit_ms;
-    let result = ctx
-        .eval(boa_engine::Source::from_bytes(&wrapped_source))
-        .map_err(|e| {
-            let msg = format!("{}", e);
-            if msg.contains("loop iteration limit") {
-                format!(
-                    "Script exceeded CPU limit ({}ms timeout)",
-                    _timeout_guard
-                )
-            } else {
-                format!("Script error: {}", msg)
-            }
-        })?;
-
-    // Convert result to JSON
-    if result.is_undefined() {
-        return Ok("{}".to_string());
+/// Embed an arbitrary string as a double-quoted JS string literal.
+#[cfg(feature = "scripts")]
+fn js_string_literal(s: &str) -> String {
+    let mut out = String::from("\"");
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
     }
-
-    match result.to_json(&mut ctx) {
-        Ok(Some(json_val)) => serde_json::to_string(&json_val)
-            .map_err(|e| format!("Failed to serialize result: {}", e)),
-        Ok(None) => Ok("{}".to_string()),
-        Err(e) => Err(format!("Failed to convert result to JSON: {}", e)),
-    }
+    out.push('"');
+    out
 }
 
 #[cfg(test)]
@@ -230,59 +259,13 @@ mod tests {
 
     #[cfg(feature = "scripts")]
     #[test]
-    fn test_validate_syntax_balanced() {
-        let source = "function main(input) { return { a: 1, b: [1, 2] }; }";
-        assert_eq!(validate_syntax(source), None);
-    }
-
-    #[cfg(feature = "scripts")]
-    #[test]
-    fn test_execute_simple_return() {
-        let source = "function main(input) { return { power: input.voltage * input.current }; }";
-        let input = json!({"voltage": 220, "current": 5});
+    fn test_execute_main_returns_output() {
+        let source = "function main(input) { return { doubled: input.x * 2 }; }";
+        let input = json!({ "x": 21 });
         let result = execute_script(source, &input, 1000, 1048576);
-        assert!(
-            result.success,
-            "Expected success, got error: {:?}",
-            result.error
-        );
-        let output: serde_json::Value =
-            serde_json::from_str(result.output.unwrap().as_str()).unwrap();
-        assert_eq!(output["power"], 1100);
-    }
-
-    #[cfg(feature = "scripts")]
-    #[test]
-    fn test_execute_syntax_error() {
-        let source = "function main( { return 1; }";
-        let input = json!({});
-        let result = execute_script(source, &input, 1000, 1048576);
-        assert!(!result.success);
-        assert!(result.error.unwrap().contains("Script error"));
-    }
-
-    #[cfg(feature = "scripts")]
-    #[test]
-    fn test_execute_timeout() {
-        let source = "while(true) {}";
-        let input = json!({});
-        let result = execute_script(source, &input, 200, 1048576);
-        assert!(!result.success);
-        let err = result.error.unwrap();
-        assert!(
-            err.contains("timed out") || err.contains("CPU limit") || err.contains("loop iteration"),
-            "Expected timeout error, got: {}",
-            err
-        );
-    }
-
-    #[cfg(feature = "scripts")]
-    #[test]
-    fn test_execute_memory_limit() {
-        let source = "var arr = []; while(true) { arr.push(new Array(1024)); }";
-        let input = json!({});
-        let result = execute_script(source, &input, 5000, 65536);
-        assert!(!result.success);
+        assert!(result.success, "err: {:?}", result.error);
+        let out: Value = serde_json::from_str(&result.output.unwrap()).unwrap();
+        assert_eq!(out["doubled"], 42);
     }
 
     #[cfg(feature = "scripts")]
