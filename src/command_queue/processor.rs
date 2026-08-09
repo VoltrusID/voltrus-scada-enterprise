@@ -19,6 +19,8 @@ impl CommandQueue {
             ws_manager: None,
             readback_trackers: Arc::new(RwLock::new(std::collections::HashMap::new())),
             modbus_pool,
+            #[cfg(feature = "mqtt-broker")]
+            mqtt_broker: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -32,6 +34,8 @@ impl CommandQueue {
             in_flight: Arc::new(RwLock::new(HashSet::new())),
             ws_manager: None,
             readback_trackers: Arc::new(RwLock::new(std::collections::HashMap::new())),
+            #[cfg(feature = "mqtt-broker")]
+            mqtt_broker: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -41,6 +45,15 @@ impl CommandQueue {
     pub fn with_ws_manager(mut self, ws_manager: Arc<WsManager>) -> Self {
         self.ws_manager = Some(ws_manager);
         self
+    }
+
+    /// Returns a shared handle to the embedded MQTT broker slot so main.rs can
+    /// populate it after the broker starts (the queue task is already spawned).
+    #[cfg(feature = "mqtt-broker")]
+    pub fn mqtt_broker_handle(
+        &self,
+    ) -> Arc<RwLock<Option<crate::mqtt_broker::MqttBrokerState>>> {
+        self.mqtt_broker.clone()
     }
 
     /// Main loop: process the queue every 500 ms.
@@ -86,6 +99,19 @@ impl CommandQueue {
                 && scheduled_at > now
             {
                 continue; // Not yet time
+            }
+
+            // -- Retry backoff: don't hammer a failing device. --
+            // Exponential backoff off retry_count (2^n s, capped at 60s). sent_at
+            // records the last send and survives the queued→sent→queued retry
+            // cycle, so skip until the backoff window elapses.
+            if cmd.retry_count > 0
+                && let Some(last_sent) = cmd.sent_at
+            {
+                let backoff_secs = 2_i64.pow(cmd.retry_count.min(6) as u32).min(60);
+                if last_sent + backoff_secs > now {
+                    continue;
+                }
             }
 
             // -- Concurrency check: only one command per device in-flight --

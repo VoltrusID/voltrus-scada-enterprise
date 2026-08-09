@@ -22,6 +22,10 @@ pub struct Alarm {
     pub shelved_reason: Option<String>,
     pub deadband: f64,
     pub state: String,
+    /// "high" (fires when value ≥ threshold) or "low" (fires when value ≤
+    /// threshold). Drives direction-aware auto-resolution.
+    #[serde(default = "default_alarm_type")]
+    pub alarm_type: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -94,6 +98,10 @@ pub fn default_interval_ms() -> u64 {
 
 pub fn default_true() -> bool {
     true
+}
+
+pub fn default_alarm_type() -> String {
+    "high".into()
 }
 
 fn default_retention_hours() -> u32 {

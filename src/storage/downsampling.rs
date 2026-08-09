@@ -159,9 +159,16 @@ impl Storage {
                         ))
                     })
                     .context("Query daily failed")?;
+                let mut count = 0usize;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
+                    count += 1;
+                }
+                if count >= 10000 {
+                    tracing::warn!(
+                        "query_device_metrics_merged: daily tier hit 10000-row cap for device {device_id}; older daily buckets omitted"
+                    );
                 }
             }
 
@@ -189,9 +196,16 @@ impl Storage {
                         },
                     )
                     .context("Query hourly failed")?;
+                let mut count = 0usize;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
+                    count += 1;
+                }
+                if count >= 10000 {
+                    tracing::warn!(
+                        "query_device_metrics_merged: hourly tier hit 10000-row cap for device {device_id}; some hourly buckets omitted"
+                    );
                 }
             }
 
@@ -216,9 +230,16 @@ impl Storage {
                         ))
                     })
                     .context("Query raw failed")?;
+                let mut count = 0usize;
                 for row in rows {
                     let (ts, metric, value) = row.context("Row mapping failed")?;
                     grouped.entry(ts).or_default().insert(metric, value);
+                    count += 1;
+                }
+                if count >= 10000 {
+                    tracing::warn!(
+                        "query_device_metrics_merged: raw tier hit 10000-row cap for device {device_id}; most recent raw samples omitted — narrow the time window"
+                    );
                 }
             }
 

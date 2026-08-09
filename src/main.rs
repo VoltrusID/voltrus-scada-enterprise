@@ -532,166 +532,129 @@ async fn main() -> anyhow::Result<()> {
                             continue;
                         };
 
-                        // Parse alarm deadband from source configuration
-                        let deadband: f64 = if let Ok(cfg) =
-                            serde_json::from_str::<serde_json::Value>(&source.source_config)
-                        {
-                            cfg.get("deadband").and_then(|v| v.as_f64()).unwrap_or(0.0)
+                        // Parse alarm deadband + low-alarm thresholds from source_config.
+                        // Low thresholds are Optional: absent => disabled (no low alarm),
+                        // present (even 0) => enabled. High thresholds use warn_val/crit_val.
+                        let (deadband, low_warn, low_crit): (f64, Option<f64>, Option<f64>) =
+                            if let Ok(cfg) =
+                                serde_json::from_str::<serde_json::Value>(&source.source_config)
+                            {
+                                (
+                                    cfg.get("deadband").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                    cfg.get("low_warn").and_then(|v| v.as_f64()),
+                                    cfg.get("low_crit").and_then(|v| v.as_f64()),
+                                )
+                            } else {
+                                (0.0, None, None)
+                            };
+
+                        // Decide which alarm condition (if any) is met. High alarms fire
+                        // when value >= threshold; low alarms when value <= threshold.
+                        // Critical takes precedence. The None arm resolves all active alarms
+                        // for this source with direction-aware deadband hysteresis.
+                        let cond = if source.crit_val > 0.0 && value >= source.crit_val {
+                            Some(("critical", source.crit_val, "high"))
+                        } else if source.warn_val > 0.0 && value >= source.warn_val {
+                            Some(("warning", source.warn_val, "high"))
+                        } else if low_crit.is_some_and(|lc| value <= lc) {
+                            Some(("critical", low_crit.unwrap_or(0.0), "low"))
+                        } else if low_warn.is_some_and(|lw| value <= lw) {
+                            Some(("warning", low_warn.unwrap_or(0.0), "low"))
                         } else {
-                            0.0
+                            None
                         };
 
-                        if source.crit_val > 0.0 && value >= source.crit_val {
-                            // Non-repeating: check for any unresolved alarm (not just un-acked)
-                            let has_unresolved = storage
-                                .has_unresolved_alarm(&source.key, "critical")
-                                .await
-                                .unwrap_or(false);
-                            let in_cooldown = storage
-                                .is_in_cooldown(&source.key, "critical")
-                                .await
-                                .unwrap_or(false);
-                            if !has_unresolved && !in_cooldown {
-                                let msg = format!(
-                                    "{} reached {}{} (critical: {}{})",
-                                    source.name, value, source.unit, source.crit_val, source.unit
-                                );
-                                match storage
-                                    .create_alarm(
-                                        &source.key,
-                                        "critical",
-                                        value,
-                                        source.crit_val,
-                                        &msg,
-                                        deadband,
-                                    )
+                        match cond {
+                            Some((severity, threshold, alarm_type)) => {
+                                // Non-repeating: suppress while an unresolved alarm of this
+                                // severity exists or while in cooldown.
+                                let has_unresolved = storage
+                                    .has_unresolved_alarm(&source.key, severity)
                                     .await
-                                {
-                                    Ok(alarm_id) => {
-                                        let notif_storage = storage.clone();
-                                        let notif_notifier = email_notifier.clone();
-                                        let alarm = crate::models::Alarm {
-                                            id: alarm_id,
-                                            source_key: source.key.clone(),
-                                            source_name: source.name.clone(),
-                                            severity: "critical".to_string(),
-                                            priority: "critical".to_string(),
+                                    .unwrap_or(false);
+                                let in_cooldown = storage
+                                    .is_in_cooldown(&source.key, severity)
+                                    .await
+                                    .unwrap_or(false);
+                                if !has_unresolved && !in_cooldown {
+                                    let msg = if alarm_type == "low" {
+                                        format!(
+                                            "{} dropped to {}{} ({} low: {}{})",
+                                            source.name, value, source.unit, severity, threshold, source.unit
+                                        )
+                                    } else {
+                                        format!(
+                                            "{} reached {}{} ({}: {}{})",
+                                            source.name, value, source.unit, severity, threshold, source.unit
+                                        )
+                                    };
+                                    match storage
+                                        .create_alarm_with_type(
+                                            &source.key,
+                                            severity,
                                             value,
-                                            threshold: source.crit_val,
-                                            message: msg.clone(),
-                                            triggered_at: crate::timeutil::now_secs(),
-                                            resolved_at: None,
-                                            acknowledged_at: None,
-                                            acknowledged_by: None,
-                                            cooldown_until: None,
-                                            shelved_until: None,
-                                            shelved_by: None,
-                                            shelved_reason: None,
+                                            threshold,
+                                            &msg,
                                             deadband,
-                                            state: "active".to_string(),
-                                        };
-                                        // Broadcast alarm via WebSocket
-                                        alarm_ws_manager.broadcast_alarm(
-                                            crate::ws_types::ServerMessage::Alarm {
-                                                alarm_id,
-                                                tag_id: source.key.clone(),
-                                                severity: "critical".to_string(),
-                                                message: msg,
+                                            alarm_type,
+                                        )
+                                        .await
+                                    {
+                                        Ok(alarm_id) => {
+                                            let notif_storage = storage.clone();
+                                            let notif_notifier = email_notifier.clone();
+                                            let alarm = crate::models::Alarm {
+                                                id: alarm_id,
+                                                source_key: source.key.clone(),
+                                                source_name: source.name.clone(),
+                                                severity: severity.to_string(),
+                                                priority: severity.to_string(),
                                                 value,
-                                                ts: alarm.triggered_at,
-                                            },
-                                        );
-                                        tokio::spawn(async move {
-                                            notification::dispatch_alarm_notifications(
-                                                notif_storage,
-                                                &alarm,
-                                                notif_notifier,
-                                            )
-                                            .await;
-                                        });
+                                                threshold,
+                                                message: msg.clone(),
+                                                triggered_at: crate::timeutil::now_secs(),
+                                                resolved_at: None,
+                                                acknowledged_at: None,
+                                                acknowledged_by: None,
+                                                cooldown_until: None,
+                                                shelved_until: None,
+                                                shelved_by: None,
+                                                shelved_reason: None,
+                                                deadband,
+                                                state: "active".to_string(),
+                                                alarm_type: alarm_type.to_string(),
+                                            };
+                                            // Broadcast alarm via WebSocket
+                                            alarm_ws_manager.broadcast_alarm(
+                                                crate::ws_types::ServerMessage::Alarm {
+                                                    alarm_id,
+                                                    tag_id: source.key.clone(),
+                                                    severity: severity.to_string(),
+                                                    message: msg,
+                                                    value,
+                                                    ts: alarm.triggered_at,
+                                                },
+                                            );
+                                            tokio::spawn(async move {
+                                                notification::dispatch_alarm_notifications(
+                                                    notif_storage,
+                                                    &alarm,
+                                                    notif_notifier,
+                                                )
+                                                .await;
+                                            });
+                                        }
+                                        Err(e) => tracing::error!("Failed to create alarm: {}", e),
                                     }
-                                    Err(e) => tracing::error!("Failed to create alarm: {}", e),
                                 }
                             }
-                        } else if source.warn_val > 0.0 && value >= source.warn_val {
-                            // Non-repeating: check for any unresolved alarm (not just un-acked)
-                            let has_unresolved = storage
-                                .has_unresolved_alarm(&source.key, "warning")
-                                .await
-                                .unwrap_or(false);
-                            let in_cooldown = storage
-                                .is_in_cooldown(&source.key, "warning")
-                                .await
-                                .unwrap_or(false);
-                            if !has_unresolved && !in_cooldown {
-                                let msg = format!(
-                                    "{} reached {}{} (warning: {}{})",
-                                    source.name, value, source.unit, source.warn_val, source.unit
-                                );
-                                match storage
-                                    .create_alarm(
-                                        &source.key,
-                                        "warning",
-                                        value,
-                                        source.warn_val,
-                                        &msg,
-                                        deadband,
-                                    )
-                                    .await
-                                {
-                                    Ok(alarm_id) => {
-                                        let notif_storage = storage.clone();
-                                        let notif_notifier = email_notifier.clone();
-                                        let alarm = crate::models::Alarm {
-                                            id: alarm_id,
-                                            source_key: source.key.clone(),
-                                            source_name: source.name.clone(),
-                                            severity: "warning".to_string(),
-                                            priority: "warning".to_string(),
-                                            value,
-                                            threshold: source.warn_val,
-                                            message: msg.clone(),
-                                            triggered_at: crate::timeutil::now_secs(),
-                                            resolved_at: None,
-                                            acknowledged_at: None,
-                                            acknowledged_by: None,
-                                            cooldown_until: None,
-                                            shelved_until: None,
-                                            shelved_by: None,
-                                            shelved_reason: None,
-                                            deadband,
-                                            state: "active".to_string(),
-                                        };
-                                        // Broadcast alarm via WebSocket
-                                        alarm_ws_manager.broadcast_alarm(
-                                            crate::ws_types::ServerMessage::Alarm {
-                                                alarm_id,
-                                                tag_id: source.key.clone(),
-                                                severity: "warning".to_string(),
-                                                message: msg,
-                                                value,
-                                                ts: alarm.triggered_at,
-                                            },
-                                        );
-                                        tokio::spawn(async move {
-                                            notification::dispatch_alarm_notifications(
-                                                notif_storage,
-                                                &alarm,
-                                                notif_notifier,
-                                            )
-                                            .await;
-                                        });
-                                    }
-                                    Err(e) => tracing::error!("Failed to create alarm: {}", e),
-                                }
+                            None => {
+                                // Value within all thresholds — resolve active alarms with
+                                // direction-aware deadband hysteresis.
+                                let _ = storage
+                                    .resolve_active_alarms(&source.key, Some(value))
+                                    .await;
                             }
-                        } else {
-                            // Value below thresholds — resolve active alarms with deadband hysteresis.
-                            // Only resolves alarms where value < threshold - deadband.
-                            // Since deadband defaults to 0, existing behavior is unchanged.
-                            let _ = storage
-                                .resolve_active_alarms(&source.key, Some(value))
-                                .await;
                         }
                     }
                 }
@@ -779,6 +742,13 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(feature = "modbus")]
     let modbus_pool = std::sync::Arc::new(crate::modbus::ModbusPool::new());
 
+    // Optional handle so the command queue can publish MQTT writes once the
+    // embedded broker starts (broker init runs after the queue is spawned).
+    #[cfg(feature = "mqtt-broker")]
+    let mut queue_broker_handle: Option<
+        std::sync::Arc<tokio::sync::RwLock<Option<crate::mqtt_broker::MqttBrokerState>>>,
+    > = None;
+
     // Spawn command queue processor (Starter tier and above)
     if license_tier.command_queue() {
         #[cfg(feature = "modbus")]
@@ -794,6 +764,11 @@ async fn main() -> anyhow::Result<()> {
             cache.clone(),
         )
         .with_ws_manager(ws_manager.clone());
+        // Capture the queue's MQTT broker slot before `queue` moves into the task.
+        #[cfg(feature = "mqtt-broker")]
+        {
+            queue_broker_handle = Some(queue.mqtt_broker_handle());
+        }
         tokio::spawn(async move {
             queue.run().await;
         });
@@ -911,6 +886,15 @@ async fn main() -> anyhow::Result<()> {
             None
         }
     };
+    // Hand the running broker to the command queue so MQTT command writes can publish.
+    #[cfg(feature = "mqtt-broker")]
+    if let (Some(handle), Some(broker)) =
+        (queue_broker_handle.as_ref(), mqtt_broker_state.as_ref())
+    {
+        *handle.write().await = Some(broker.clone());
+        tracing::info!("Command queue connected to MQTT broker for writes");
+    }
+
     #[cfg(not(feature = "mqtt-broker"))]
     let mqtt_broker_state: Option<()> = None;
 

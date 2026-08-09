@@ -15,6 +15,9 @@ pub struct DeviceCache {
     trigger: watch::Sender<bool>,
     ws_manager: Option<Arc<WsManager>>,
     storage: Option<crate::storage::Storage>,
+    /// device_id → acquisition protocol, registered by the poller manager when a
+    /// poller starts; consulted on `update()` to tag each snapshot's `protocol`.
+    protocols: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl DeviceCache {
@@ -27,6 +30,7 @@ impl DeviceCache {
             trigger,
             ws_manager: None,
             storage: None,
+            protocols: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -42,8 +46,25 @@ impl DeviceCache {
         self
     }
 
+    /// Register the acquisition protocol for a device (called by the poller
+    /// manager when a poller starts). Tags every subsequent snapshot so flow
+    /// triggers can match on the real source instead of a hardcoded label.
+    pub async fn register_protocol(&self, device_id: &str, protocol: &str) {
+        self.protocols
+            .write()
+            .await
+            .insert(device_id.to_string(), protocol.to_string());
+        let mut devices = self.devices.write().await;
+        if let Some(entry) = devices.get_mut(device_id) {
+            entry.protocol = Some(protocol.to_string());
+        }
+    }
+
     pub async fn update(&self, device_id: &str, metrics: HashMap<String, f64>, simulated: bool) {
         let (snapshot, was_offline) = {
+            // Read the registered protocol (if any) before taking the device
+            // write lock — lock order is always protocols → devices.
+            let protocol = self.protocols.read().await.get(device_id).cloned();
             let mut devices = self.devices.write().await;
             let timestamp = crate::timeutil::now_secs();
 
@@ -59,6 +80,9 @@ impl DeviceCache {
                     e.timestamp = timestamp;
                     e.metrics = metrics.clone();
                     e.simulated = simulated;
+                    if let Some(p) = &protocol {
+                        e.protocol = Some(p.clone());
+                    }
                 })
                 .or_insert_with(|| DeviceSnapshot {
                     device_id: device_id.to_string(),
@@ -66,6 +90,7 @@ impl DeviceCache {
                     timestamp,
                     metrics,
                     simulated,
+                    protocol,
                 })
                 .clone();
 

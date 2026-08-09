@@ -103,6 +103,7 @@ impl PollerManager {
     #[cfg(feature = "gateway-modbus")]
     pub async fn start(&self, config: DeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "modbus").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -129,6 +130,7 @@ impl PollerManager {
     #[cfg(all(feature = "modbus", not(feature = "gateway-modbus")))]
     pub async fn start(&self, config: DeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "modbus").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -151,6 +153,7 @@ impl PollerManager {
     #[cfg(feature = "gateway-opcua")]
     pub async fn start_opcua(&self, config: OpcUaDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "opcua").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -180,6 +183,7 @@ impl PollerManager {
     #[cfg(all(feature = "opcua", not(feature = "gateway-opcua")))]
     pub async fn start_opcua(&self, config: OpcUaDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "opcua").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -193,6 +197,7 @@ impl PollerManager {
     #[cfg(feature = "gateway-s7")]
     pub async fn start_s7(&self, config: S7DeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "s7").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -222,6 +227,7 @@ impl PollerManager {
     #[cfg(all(feature = "s7", not(feature = "gateway-s7")))]
     pub async fn start_s7(&self, config: S7DeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "s7").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -235,6 +241,7 @@ impl PollerManager {
     #[cfg(feature = "gateway-enip")]
     pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "ethernet_ip").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -271,6 +278,7 @@ impl PollerManager {
     #[cfg(all(feature = "ethernet-ip", not(feature = "gateway-enip")))]
     pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "ethernet_ip").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -294,6 +302,7 @@ impl PollerManager {
     #[cfg(feature = "gateway-dnp3")]
     pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "dnp3").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -323,6 +332,7 @@ impl PollerManager {
     #[cfg(all(feature = "dnp3", not(feature = "gateway-dnp3")))]
     pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "dnp3").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -336,6 +346,7 @@ impl PollerManager {
     #[cfg(feature = "gateway-bacnet")]
     pub async fn start_bacnet(&self, config: crate::models::BacnetDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "bacnet").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -365,6 +376,7 @@ impl PollerManager {
     #[cfg(all(feature = "bacnet", not(feature = "gateway-bacnet")))]
     pub async fn start_bacnet(&self, config: crate::models::BacnetDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "bacnet").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -377,6 +389,7 @@ impl PollerManager {
 
     pub async fn start_voltrus_plc(&self, config: VoltrusPlcDeviceConfig) {
         let device_id = config.id.clone();
+        self.cache.register_protocol(&device_id, "voltrus_plc").await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }

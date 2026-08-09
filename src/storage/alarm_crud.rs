@@ -15,10 +15,29 @@ impl Storage {
         message: &str,
         deadband: f64,
     ) -> Result<i64> {
+        self.create_alarm_with_type(source_key, severity, value, threshold, message, deadband, "high")
+            .await
+    }
+
+    /// Create an alarm with an explicit direction (`alarm_type` = "high"|"low").
+    /// High alarms fire when value ≥ threshold; low alarms when value ≤ threshold.
+    /// The direction is stored so `resolve_active_alarms` can clear each alarm
+    /// with the correct hysteresis inequality.
+    pub async fn create_alarm_with_type(
+        &self,
+        source_key: &str,
+        severity: &str,
+        value: f64,
+        threshold: f64,
+        message: &str,
+        deadband: f64,
+        alarm_type: &str,
+    ) -> Result<i64> {
         let conn = self.conn.clone();
         let source_key = source_key.to_string();
         let severity = severity.to_string();
         let message = message.to_string();
+        let alarm_type = alarm_type.to_string();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
@@ -28,16 +47,16 @@ impl Storage {
                 _ => "warning",
             };
             conn.execute(
-                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at, priority, state, deadband)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active', ?8)",
-                rusqlite::params![source_key, severity, value, threshold, message, now, priority, deadband],
+                "INSERT INTO alarms (source_key, severity, value, threshold, message, triggered_at, priority, state, deadband, alarm_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'active', ?8, ?9)",
+                rusqlite::params![source_key, severity, value, threshold, message, now, priority, deadband, alarm_type],
             )
             .context("Insert alarm failed")?;
             let id = conn.last_insert_rowid();
             // Create audit entry
             let _ = conn.execute(
                 "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'created', 'system', ?2, ?3)",
-                rusqlite::params![id, format!("{{\"severity\":\"{}\",\"value\":{},\"threshold\":{}}}", severity, value, threshold), now],
+                rusqlite::params![id, format!("{{\"severity\":\"{}\",\"value\":{},\"threshold\":{},\"alarm_type\":\"{}\"}}", severity, value, threshold, alarm_type), now],
             );
             Ok(id)
         })
@@ -97,7 +116,7 @@ impl Storage {
                 Some(s) if s == "active" => (
                     "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
-                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active')
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active'), COALESCE(alarm_type, 'high')
                      FROM alarms
                      WHERE acknowledged_at IS NULL
                      ORDER BY triggered_at DESC LIMIT ?1",
@@ -106,7 +125,7 @@ impl Storage {
                 Some(s) if s == "acknowledged" => (
                     "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
-                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active')
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active'), COALESCE(alarm_type, 'high')
                      FROM alarms
                      WHERE acknowledged_at IS NOT NULL
                      ORDER BY triggered_at DESC LIMIT ?1",
@@ -115,7 +134,7 @@ impl Storage {
                 _ => (
                     "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
-                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active')
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active'), COALESCE(alarm_type, 'high')
                      FROM alarms
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
@@ -144,6 +163,7 @@ impl Storage {
                         shelved_reason: row.get(15)?,
                         deadband: row.get(16)?,
                         state: row.get(17)?,
+                        alarm_type: row.get(18)?,
                     })
                 })
                 .context("Query failed")?;

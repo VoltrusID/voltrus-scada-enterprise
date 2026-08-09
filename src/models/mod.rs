@@ -40,6 +40,12 @@ pub struct DeviceSnapshot {
     pub metrics: HashMap<String, f64>,
     #[serde(default)]
     pub simulated: bool,
+    /// Acquisition protocol that produced this snapshot ("modbus", "opcua",
+    /// "ethernet_ip", "s7", "dnp3", "bacnet", ...). Populated by the poller
+    /// manager so flow-engine triggers match on the real source. `None` falls
+    /// back to "modbus" for back-compat with pre-protocol snapshots.
+    #[serde(default)]
+    pub protocol: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, ToSchema)]

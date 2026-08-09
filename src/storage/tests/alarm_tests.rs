@@ -136,6 +136,39 @@ async fn test_resolve_active_alarms_with_deadband() {
 }
 
 #[tokio::test]
+async fn test_low_alarm_resolves_on_rise_not_drop() {
+    let storage = Storage::new_in_memory().unwrap();
+
+    // Low alarm: threshold 10, deadband 2. Fires when value <= 10.
+    let _id = storage
+        .create_alarm_with_type("low_tag", "critical", 8.0, 10.0, "Below low limit", 2.0, "low")
+        .await
+        .unwrap();
+
+    // Dropping further must NOT clear a low alarm. The pre-fix high-inequality
+    // resolve logic would have wrongly resolved it here (5 < 10 - 2).
+    storage.resolve_active_alarms("low_tag", Some(5.0)).await.unwrap();
+    let alarms = storage.list_alarms(Some("active"), 50).await.unwrap();
+    assert_eq!(alarms.len(), 1, "low alarm must not clear when value drops further");
+    assert!(alarms[0].resolved_at.is_none());
+
+    // Inside the hysteresis band (10 < 11 <= 12) must not clear yet.
+    storage.resolve_active_alarms("low_tag", Some(11.0)).await.unwrap();
+    assert!(
+        storage.list_alarms(Some("active"), 50).await.unwrap()[0].resolved_at.is_none(),
+        "low alarm stays active inside the deadband band"
+    );
+
+    // Rising above threshold + deadband (13 > 10 + 2) clears it.
+    storage.resolve_active_alarms("low_tag", Some(13.0)).await.unwrap();
+    let alarms = storage.list_alarms(Some("all"), 50).await.unwrap();
+    assert_eq!(alarms.len(), 1);
+    assert!(alarms[0].resolved_at.is_some());
+    assert_eq!(alarms[0].state, "resolved");
+    assert_eq!(alarms[0].alarm_type, "low");
+}
+
+#[tokio::test]
 async fn test_alarm_summary() {
     let storage = Storage::new_in_memory().unwrap();
 
