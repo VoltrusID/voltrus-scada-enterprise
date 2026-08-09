@@ -34,6 +34,8 @@ mod edr_compat;
 mod ethernet_ip;
 mod expression;
 mod flow_engine;
+#[cfg(feature = "gateway-client")]
+mod gateway_client;
 mod ha;
 mod hardware_cert;
 mod hub;
@@ -239,12 +241,11 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        if has_enabled_flows {
-            engine.spawn().await;
-            tracing::info!("FlowEngine started with enabled flow(s)");
-        } else {
-            tracing::info!("FlowEngine initialized but no enabled flows — deferring spawn");
-        }
+        engine.spawn().await;
+        tracing::info!(
+            seeded_flows = has_enabled_flows,
+            "FlowEngine started (runtime-added flows are picked up live)"
+        );
         Some(Arc::new(engine))
     } else {
         tracing::info!("FlowEngine skipped — Engineering tier");
@@ -912,6 +913,15 @@ async fn main() -> anyhow::Result<()> {
     };
     #[cfg(not(feature = "mqtt-broker"))]
     let mqtt_broker_state: Option<()> = None;
+
+    // Feed the embedded MQTT broker's message stream into the flow engine so
+    // flows with MQTT triggers fire on broker messages (BLE bridge / gateway /
+    // sensors publishing to the broker). No-op without the `mqtt-broker` feature.
+    #[cfg(feature = "mqtt-broker")]
+    if let (Some(engine), Some(broker)) = (flow_engine.as_ref(), mqtt_broker_state.as_ref()) {
+        engine.set_broker_tracker(broker.topic_tracker.clone());
+        tracing::info!("FlowEngine subscribed to MQTT broker event stream");
+    }
 
     // Initialize health monitor and HA state
     let health_monitor = Arc::new(ha::watchdog::HealthMonitor::new(

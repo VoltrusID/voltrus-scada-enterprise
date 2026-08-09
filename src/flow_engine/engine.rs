@@ -7,6 +7,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 
+#[cfg(feature = "mqtt-broker")]
+use crate::mqtt_broker::{MqttEvent, TopicTracker};
+#[cfg(feature = "mqtt-broker")]
+use std::sync::Mutex;
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Flow {
     pub id: String,
@@ -21,6 +26,8 @@ pub struct FlowEngine {
     state: Arc<FlowState>,
     storage: Storage,
     cache: DeviceCache,
+    #[cfg(feature = "mqtt-broker")]
+    broker_tracker: Arc<Mutex<Option<TopicTracker>>>,
 }
 
 impl FlowEngine {
@@ -30,6 +37,18 @@ impl FlowEngine {
             state: Arc::new(FlowState::new()),
             storage,
             cache,
+            #[cfg(feature = "mqtt-broker")]
+            broker_tracker: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Attach the embedded MQTT broker's message stream so flows with MQTT
+    /// triggers fire on broker messages. Optional and only meaningful with the
+    /// `mqtt-broker` feature; the engine runs fine without it.
+    #[cfg(feature = "mqtt-broker")]
+    pub fn set_broker_tracker(&self, tracker: TopicTracker) {
+        if let Ok(mut guard) = self.broker_tracker.lock() {
+            *guard = Some(tracker);
         }
     }
 
@@ -75,6 +94,73 @@ impl FlowEngine {
                                 tokio::spawn(async move {
                                     run_flow(&flow, msg, state.as_ref(), &storage, &cache).await;
                                 });
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // MQTT event source: feed broker messages into the engine as Messages.
+        // Only compiled when the embedded broker is enabled; without it the
+        // MQTT trigger variant still deserialises but never fires.
+        #[cfg(feature = "mqtt-broker")]
+        {
+            let broker_tracker = self.broker_tracker.clone();
+            let flows = flows.clone();
+            let state = state.clone();
+            let storage = storage.clone();
+            let cache = cache.clone();
+            tokio::spawn(async move {
+                loop {
+                    // Acquire a receiver without holding the non-Send
+                    // `MutexGuard` across the await below.
+                    let rx = {
+                        let Ok(guard) = broker_tracker.lock() else {
+                            break;
+                        };
+                        match &*guard {
+                            Some(tracker) => Some(tracker.subscribe_events()),
+                            None => None,
+                        }
+                    };
+                    let mut rx = match rx {
+                        Some(rx) => rx,
+                        None => {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                            continue;
+                        }
+                    };
+                    loop {
+                        match rx.recv().await {
+                            Ok(event) => {
+                                let msg = mqtt_event_to_message(event);
+                                let flows_guard = flows.read().await;
+                                for flow in flows_guard.values() {
+                                    if !flow.enabled {
+                                        continue;
+                                    }
+                                    if flow.trigger.matches(&msg) {
+                                        let flow = flow.clone();
+                                        let state = state.clone();
+                                        let storage = storage.clone();
+                                        let cache = cache.clone();
+                                        let msg = msg.clone();
+                                        tokio::spawn(async move {
+                                            run_flow(&flow, msg, state.as_ref(), &storage, &cache)
+                                                .await;
+                                        });
+                                    }
+                                }
+                            }
+                            Err(broadcast::error::RecvError::Lagged(n)) => {
+                                tracing::warn!("FlowEngine MQTT source lagged by {} messages", n);
+                            }
+                            Err(broadcast::error::RecvError::Closed) => {
+                                tracing::debug!(
+                                    "FlowEngine MQTT event stream closed; resubscribing"
+                                );
+                                break;
                             }
                         }
                     }
@@ -161,6 +247,29 @@ fn device_snapshot_to_message(snapshot: crate::models::DeviceSnapshot) -> Messag
     msg
 }
 
+/// Build a flow-engine [`Message`] from a broker MQTT event. Payload bytes are
+/// parsed as UTF-8 then JSON when possible; otherwise wrapped as `{"value": ..}`
+/// (raw string, or hex if the bytes are not valid UTF-8). `source` and `topic`
+/// land in metadata so the MQTT trigger can match on them.
+#[cfg(feature = "mqtt-broker")]
+fn mqtt_event_to_message(event: MqttEvent) -> Message {
+    let mut metadata = HashMap::new();
+    metadata.insert("source".to_string(), "mqtt".to_string());
+    metadata.insert("topic".to_string(), event.topic.clone());
+
+    let payload = match String::from_utf8(event.payload.clone()) {
+        Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(value) => value,
+            Err(_) => serde_json::json!({ "value": text }),
+        },
+        Err(_) => serde_json::json!({ "value": hex::encode(&event.payload) }),
+    };
+
+    let mut msg = Message::new(payload);
+    msg.metadata = metadata;
+    msg
+}
+
 async fn run_flow(
     flow: &Flow,
     mut msg: Message,
@@ -230,5 +339,41 @@ fn node_id(node: &NodeConfig) -> String {
         NodeConfig::AlarmOut { id, .. } => id.clone(),
         NodeConfig::WriteOut { id, .. } => id.clone(),
         NodeConfig::Script { id, .. } => id.clone(),
+    }
+}
+
+
+#[cfg(all(test, feature = "mqtt-broker"))]
+mod mqtt_event_to_message_tests {
+    use super::mqtt_event_to_message;
+    use crate::mqtt_broker::MqttEvent;
+
+    fn ev(topic: &str, payload: Vec<u8>) -> MqttEvent {
+        MqttEvent {
+            topic: topic.into(),
+            payload,
+            timestamp: 0,
+            retain: false,
+        }
+    }
+
+    #[test]
+    fn parses_json_payload() {
+        let msg = mqtt_event_to_message(ev("t", br#"{"temp":24.5}"#.to_vec()));
+        assert_eq!(msg.metadata.get("source"), Some(&"mqtt".to_string()));
+        assert_eq!(msg.metadata.get("topic"), Some(&"t".to_string()));
+        assert_eq!(msg.payload["temp"], 24.5);
+    }
+
+    #[test]
+    fn wraps_plain_string() {
+        let msg = mqtt_event_to_message(ev("t", b"hello".to_vec()));
+        assert_eq!(msg.payload["value"], "hello");
+    }
+
+    #[test]
+    fn wraps_non_utf8_as_hex() {
+        let msg = mqtt_event_to_message(ev("t", vec![0xff, 0x00, 0x01]));
+        assert_eq!(msg.payload["value"], "ff0001");
     }
 }
