@@ -42,6 +42,7 @@ export function EnipDeviceManager({ onClose, embedded }: { onClose: () => void; 
         ip: fd.get('ip') as string,
         port: Number(fd.get('port')) || 44818,
         slot: Number(fd.get('slot')) || 0,
+        assembly_instance: Number(fd.get('assembly_instance')) || 0,
         enabled: fd.get('enabled') === 'on',
         tags,
       },
@@ -61,6 +62,7 @@ export function EnipDeviceManager({ onClose, embedded }: { onClose: () => void; 
         ip: fd.get('ip') as string,
         port: Number(fd.get('port')) || 44818,
         slot: Number(fd.get('slot')) || 0,
+        assembly_instance: Number(fd.get('assembly_instance')) || 0,
         enabled: fd.get('enabled') === 'on',
         tags,
       },
@@ -371,6 +373,8 @@ function ExpandedEnipTags({ deviceId }: { deviceId: string }) {
 interface TagFormRow {
   name: string
   data_type: string
+  assembly_offset: number
+  assembly_length: number
 }
 
 function EnipDeviceForm({
@@ -390,16 +394,19 @@ function EnipDeviceForm({
   const [ip, setIp] = useState(src?.ip ?? '')
   const [port, setPort] = useState(src?.port ?? 44818)
   const [slot, setSlot] = useState(src?.slot ?? 0)
+  const [assemblyInstance, setAssemblyInstance] = useState(src?.assembly_instance ?? 0)
   const [enabled, setEnabled] = useState(src?.enabled ?? true)
   const [tags, setTags] = useState<TagFormRow[]>(
-    (src as any)?.tags?.map((t: EnipTag) => ({
+    (src as any)?.tags?.map((t: any) => ({
       name: t.name,
       data_type: t.data_type,
+      assembly_offset: t.assembly_offset ?? 0,
+      assembly_length: t.assembly_length ?? 0,
     })) ?? [],
   )
   const [deviceId, setDeviceId] = useState(src?.id ?? '')
 
-  const addTag = () => setTags([...tags, { name: '', data_type: 'dint32' }])
+  const addTag = () => setTags([...tags, { name: '', data_type: 'dint32', assembly_offset: 0, assembly_length: 0 }])
   const removeTag = (i: number) => setTags(tags.filter((_, j) => j !== i))
   const updateTag = (i: number, field: keyof TagFormRow, value: any) => {
     const next = [...tags]
@@ -436,7 +443,7 @@ function EnipDeviceForm({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Port</label>
           <input name="port" type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 44818)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
@@ -444,6 +451,10 @@ function EnipDeviceForm({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Slot</label>
           <input name="slot" type="number" value={slot} onChange={e => setSlot(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Assembly (0=poll)</label>
+          <input name="assembly_instance" type="number" value={assemblyInstance} onChange={e => setAssemblyInstance(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Enabled</label>
@@ -463,16 +474,18 @@ function EnipDeviceForm({
         </div>
         {tags.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12, padding: 8 }}>No tags configured. You can also add tags after creation.</div>}
         {tags.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 28px', gap: 4, marginBottom: 2, fontSize: 10, color: 'var(--muted)', paddingLeft: 2 }}>
-            <span>name</span><span>type</span><span></span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 64px 64px 28px', gap: 4, marginBottom: 2, fontSize: 10, color: 'var(--muted)', paddingLeft: 2 }}>
+            <span>name</span><span>type</span><span>off</span><span>len</span><span></span>
           </div>
         )}
         {tags.map((tag, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 28px', gap: 4, marginBottom: 4, alignItems: 'end' }}>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 64px 64px 28px', gap: 4, marginBottom: 4, alignItems: 'end' }}>
             <input value={tag.name} onChange={e => updateTag(i, 'name', e.target.value)} placeholder="Program:Tag.Name" style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
             <select value={tag.data_type} onChange={e => updateTag(i, 'data_type', e.target.value)} style={{ ...inputStyle, fontSize: 11 }}>
               {ENIP_DATA_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+            <input type="number" value={tag.assembly_offset} onChange={e => updateTag(i, 'assembly_offset', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
+            <input type="number" value={tag.assembly_length} onChange={e => updateTag(i, 'assembly_length', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
             <button type="button" onClick={() => removeTag(i)} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 14 }}>&times;</button>
           </div>
         ))}
@@ -483,6 +496,8 @@ function EnipDeviceForm({
         <span key={`hidden-${i}`} style={{ display: 'none' }}>
           <input type="hidden" name={`tag_${i}_name`} value={t.name} />
           <input type="hidden" name={`tag_${i}_data_type`} value={t.data_type} />
+          <input type="hidden" name={`tag_${i}_assembly_offset`} value={t.assembly_offset} />
+          <input type="hidden" name={`tag_${i}_assembly_length`} value={t.assembly_length} />
         </span>
       ))}
 
@@ -509,6 +524,8 @@ function collectFormTags(fd: FormData): Partial<EnipTag>[] {
     tags.push({
       name,
       data_type: (fd.get(`tag_${i}_data_type`) as string) || 'dint32',
+      assembly_offset: Number(fd.get(`tag_${i}_assembly_offset`)) || 0,
+      assembly_length: Number(fd.get(`tag_${i}_assembly_length`)) || 0,
     })
     i++
   }

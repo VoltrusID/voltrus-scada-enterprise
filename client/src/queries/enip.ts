@@ -8,6 +8,7 @@ export interface EnipDevice {
   ip: string
   port: number
   slot: number
+  assembly_instance: number
   enabled: boolean
   tag_count?: number
   created_at: number
@@ -18,6 +19,8 @@ export interface EnipTag {
   id: number
   name: string
   data_type: string
+  assembly_offset: number
+  assembly_length: number
 }
 
 export function useEnipDevices(enabled = true) {

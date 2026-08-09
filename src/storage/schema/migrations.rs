@@ -368,4 +368,12 @@ pub(super) fn run_migrations(conn: &Connection) {
         );
         CREATE INDEX IF NOT EXISTS idx_outbound_webhooks_enabled ON outbound_webhooks(enabled);",
     );
+
+    // Migration: EtherNet/IP implicit I/O assembly config (device instance + tag byte offsets)
+    let _ = conn
+        .execute_batch("ALTER TABLE enip_devices ADD COLUMN assembly_instance INTEGER NOT NULL DEFAULT 0");
+    let _ = conn
+        .execute_batch("ALTER TABLE enip_tags ADD COLUMN assembly_offset INTEGER NOT NULL DEFAULT 0");
+    let _ = conn
+        .execute_batch("ALTER TABLE enip_tags ADD COLUMN assembly_length INTEGER NOT NULL DEFAULT 0");
 }

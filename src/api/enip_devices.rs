@@ -68,7 +68,7 @@ pub async fn create_device(
 
     let id = state
         .storage
-        .create_enip_device(&req.name, &req.url, req.slot, req.interval_ms, req.enabled)
+        .create_enip_device(&req.name, &req.url, req.slot, req.interval_ms, req.enabled, req.assembly_instance)
         .await?;
 
     // Sync to asset inventory
@@ -124,6 +124,7 @@ pub async fn update_device(
             req.slot,
             req.interval_ms,
             req.enabled,
+            req.assembly_instance,
         )
         .await?;
 
@@ -239,6 +240,8 @@ pub async fn add_tag(
             &req.name,
             &req.display_name,
             &req.data_type,
+            req.assembly_offset,
+            req.assembly_length,
         )
         .await
         .map_err(|e| {
@@ -386,12 +389,15 @@ pub async fn start_device(
         url: device.url.clone(),
         slot: device.slot,
         interval_ms: device.interval_ms,
+        assembly_instance: device.assembly_instance,
         tags: tags
             .iter()
             .map(|t| crate::ethernet_ip::EnipTagConfig {
                 tag_name: t.tag_name.clone(),
                 name: t.name.clone(),
                 data_type: t.data_type.clone(),
+                assembly_offset: t.assembly_offset,
+                assembly_length: t.assembly_length,
             })
             .collect(),
     };
