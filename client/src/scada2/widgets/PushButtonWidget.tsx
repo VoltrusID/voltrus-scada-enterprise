@@ -21,9 +21,15 @@ const PushButtonWidget: React.FC<WidgetProps> = (props) => {
   const handlePress = useCallback(() => {
     if (editMode || !onWriteValue) return
     setPressed(true)
-    holdTimer.current = setTimeout(() => setPressed(false), 200)
     onWriteValue(onValue)
   }, [editMode, onWriteValue, onValue])
+
+  // Momentary release: write OFF so the commanded equipment de-energizes.
+  const handleRelease = useCallback(() => {
+    if (editMode || !onWriteValue) return
+    setPressed(false)
+    onWriteValue(offValue)
+  }, [editMode, onWriteValue, offValue])
 
   const handleToggle = useCallback(() => {
     if (editMode || !onWriteValue) return
@@ -42,10 +48,10 @@ const PushButtonWidget: React.FC<WidgetProps> = (props) => {
       alignItems: 'center', justifyContent: 'center', gap: 6,
     }}>
       <button
-        onClick={isMaintained ? handleToggle : handlePress}
-        onMouseDown={() => !isMaintained && setPressed(true)}
-        onMouseUp={() => !isMaintained && setPressed(false)}
-        onMouseLeave={() => setPressed(false)}
+        onClick={isMaintained ? handleToggle : undefined}
+        onMouseDown={() => !isMaintained && handlePress()}
+        onMouseUp={() => !isMaintained && handleRelease()}
+        onMouseLeave={() => { if (!isMaintained && pressed) handleRelease(); else setPressed(false) }}
         disabled={editMode}
         style={{
           width: '60%', aspectRatio: '1',

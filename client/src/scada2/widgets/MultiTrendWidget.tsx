@@ -23,7 +23,7 @@ const MultiTrendWidget: React.FC<WidgetProps> = (props) => {
 
   useEffect(() => {
     for (const sensor of displaySensors) {
-      const d = currentValues[sensor.key]
+      const d = currentValues[String(sensor.id)]
       if (d?.value !== undefined) {
         let buf = bufferRef.current.get(sensor.key)
         if (!buf) {

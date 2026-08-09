@@ -182,8 +182,9 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         const reordered = [...currentIds];
         reordered.splice(fromIdx, 1);
         reordered.splice(toIdx, 0, dragId);
-        const unfilteredIds = sensors.filter(s => !filtered.includes(s)).map(s => s.id);
-        const newOrder = [...reordered, ...unfilteredIds];
+        const filteredSet = new Set(filtered.map(s => s.id));
+        let cursor = 0;
+        const newOrder = sensors.map(s => (filteredSet.has(s.id) ? reordered[cursor++] : s.id));
         reorderMut.mutate(newOrder);
       }
     }
@@ -256,7 +257,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         <td style={tdStyle} onMouseDown={e => e.stopPropagation()}>
           <select value={s.source_type} onChange={e => {
             const newType = e.target.value;
-            onSave({ ...s, source_type: newType, source_config: '{}' });
+            onSave({ ...s, source_type: newType, source_config: '{}', device_id: '' });
           }} style={{ ...CELL, cursor: 'pointer', color: SOURCE_CATEGORY[s.source_type]?.color ?? 'var(--fg)', fontSize: 11 }}>
             <optgroup label="Real">
               <option value="modbus">modbus</option>
@@ -323,7 +324,7 @@ export function SensorManager({ sensors, onSave, onDelete, onAdd, onDuplicate, o
         <td style={tdStyle} />
         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
           <div style={{ display: 'flex', gap: 3 }}>
-            <button onClick={commitNewRow} style={{ padding: '2px 8px', borderRadius: 3, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green)', cursor: 'pointer', fontSize: 10 }}>ok</button>
+            <button onClick={commitNewRow} disabled={!(newRow?.key ?? '').trim()} style={{ padding: '2px 8px', borderRadius: 3, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green)', cursor: (newRow?.key ?? '').trim() ? 'pointer' : 'not-allowed', opacity: (newRow?.key ?? '').trim() ? 1 : 0.5, fontSize: 10 }}>ok</button>
             <button onClick={() => setNewRow(null)} style={{ padding: '2px 6px', borderRadius: 3, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 10 }}>x</button>
           </div>
         </td>

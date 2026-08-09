@@ -314,6 +314,7 @@ function AppInner() {
       min_val: s.min_val, max_val: s.max_val, warn_val: s.warn_val, crit_val: s.crit_val,
       base_val: s.base_val, decimals: s.decimals, source_type: s.source_type,
       color: s.color, chart_type: s.chart_type, source_config: s.source_config,
+      device_id: s.device_id, sort_order: s.sort_order,
     }
     await addSensorMut.mutateAsync(dup)
   }

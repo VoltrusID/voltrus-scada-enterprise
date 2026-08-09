@@ -60,10 +60,11 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
     setDragOver(false);
   }, []);
 
-  const runPreview = () => {
+  const runPreview = (mappingOverride?: Record<string, number> | null) => {
     if (!file || !fileType) return;
+    const mappingParam = mappingOverride ? JSON.stringify(mappingOverride) : undefined;
     if (fileType === 'excel') {
-      importExcelMut.mutate({ file, dryRun: true, mode, sheet: sheet || undefined }, {
+      importExcelMut.mutate({ file, dryRun: true, mode, sheet: sheet || undefined, column_mapping: mappingParam }, {
         onSuccess: (res) => {
           setPreviewResult(res);
           const hdrs = Object.entries(res.column_mapping)
@@ -74,7 +75,7 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
         },
       });
     } else {
-      importCsvMut.mutate({ file, dryRun: true, mode, delimiter: delimiter || ',' }, {
+      importCsvMut.mutate({ file, dryRun: true, mode, delimiter: delimiter || ',', column_mapping: mappingParam }, {
         onSuccess: (res) => {
           setPreviewResult(res);
           const hdrs = Object.entries(res.column_mapping)
@@ -202,7 +203,7 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
               </div>
             ) : null}
           </div>
-          <button onClick={runPreview} disabled={!file || importMut.isPending} style={{ ...btnStyle, alignSelf: 'flex-start', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}>
+          <button onClick={() => runPreview()} disabled={!file || importMut.isPending} style={{ ...btnStyle, alignSelf: 'flex-start', borderColor: 'var(--cyan)', color: 'var(--cyan)' }}>
             {importMut.isPending ? 'Previewing...' : 'Preview Import'}
           </button>
         </div>
@@ -262,8 +263,9 @@ export function DataImportWizard({ onClose, embedded }: { onClose: () => void; e
             for (const [k, v] of Object.entries(mapping)) {
               if (v !== null) override[k] = v;
             }
-            setColumnMapping(Object.keys(override).length > 0 ? override : null);
-            setStep('preview');
+            const mappingState = Object.keys(override).length > 0 ? override : null;
+            setColumnMapping(mappingState);
+            runPreview(mappingState);
           }}
           onCancel={() => setStep('preview')}
         />
