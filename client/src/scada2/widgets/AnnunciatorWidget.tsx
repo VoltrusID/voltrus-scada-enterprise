@@ -27,7 +27,7 @@ const AnnunciatorWidget: React.FC<WidgetProps> = (props) => {
   }
 
   const items = displaySensors.map(s => {
-    const d = currentValues[s.key]
+    const d = currentValues[String(s.id)]
     const isAlarm = d?.status === 'crit' || d?.status === 'warn'
     return {
       sensor: s,
@@ -80,7 +80,7 @@ const AnnunciatorWidget: React.FC<WidgetProps> = (props) => {
                 {item.sensor.name}
               </div>
               <div style={{ fontSize: 7, color: 'var(--muted)' }}>
-                {item.value !== undefined ? `${item.value.toFixed(1)} ${item.sensor.unit ?? ''}` : '--'}
+                {item.value !== undefined ? `${item.value.toFixed(item.sensor.decimals ?? 1)} ${item.sensor.unit ?? ''}` : '--'}
               </div>
             </div>
           </div>

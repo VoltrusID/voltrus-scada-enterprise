@@ -118,7 +118,7 @@ impl Storage {
                             triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
                             shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active'), COALESCE(alarm_type, 'high')
                      FROM alarms
-                     WHERE acknowledged_at IS NULL
+                     WHERE acknowledged_at IS NULL AND COALESCE(state, 'active') = 'active'
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
                 ),
@@ -128,6 +128,15 @@ impl Storage {
                             shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active'), COALESCE(alarm_type, 'high')
                      FROM alarms
                      WHERE acknowledged_at IS NOT NULL
+                     ORDER BY triggered_at DESC LIMIT ?1",
+                    vec![Box::new(limit)],
+                ),
+                Some(s) if s == "shelved" => (
+                    "SELECT id, source_key, COALESCE(source_name, ''), severity, COALESCE(priority, severity), value, threshold, message,
+                            triggered_at, resolved_at, acknowledged_at, acknowledged_by, cooldown_until,
+                            shelved_until, shelved_by, shelved_reason, COALESCE(deadband, 0), COALESCE(state, 'active'), COALESCE(alarm_type, 'high')
+                     FROM alarms
+                     WHERE COALESCE(state, 'active') = 'shelved'
                      ORDER BY triggered_at DESC LIMIT ?1",
                     vec![Box::new(limit)],
                 ),

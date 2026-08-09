@@ -42,7 +42,7 @@ impl TriggerConfig {
                         return false;
                     }
                 }
-                if let Some(metric_name) = metric {
+                if let Some(metric_name) = metric.as_deref().filter(|s| !s.is_empty()) {
                     if let Some(metrics) = msg.payload.get("metrics") {
                         if metrics.get(metric_name).is_none() {
                             return false;

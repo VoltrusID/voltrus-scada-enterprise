@@ -354,7 +354,7 @@ impl Storage {
 
             let active_critical: i64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND priority = 'critical'",
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND acknowledged_at IS NULL AND priority = 'critical'",
                     [],
                     |row| row.get(0),
                 )
@@ -362,7 +362,7 @@ impl Storage {
 
             let active_warning: i64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND priority = 'warning'",
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND acknowledged_at IS NULL AND priority = 'warning'",
                     [],
                     |row| row.get(0),
                 )
@@ -370,7 +370,7 @@ impl Storage {
 
             let active_info: i64 = conn
                 .query_row(
-                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND priority = 'info'",
+                    "SELECT COUNT(*) FROM alarms WHERE state = 'active' AND acknowledged_at IS NULL AND priority = 'info'",
                     [],
                     |row| row.get(0),
                 )

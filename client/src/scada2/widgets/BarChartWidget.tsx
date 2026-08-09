@@ -30,7 +30,7 @@ const BarChartWidget: React.FC<WidgetProps> = (props) => {
   let globalMin = Infinity
   let globalMax = -Infinity
   const items = displaySensors.map(s => {
-    const d = currentValues[s.key]
+    const d = currentValues[String(s.id)]
     const v = d?.value ?? 0
     const sMin = s.min_val ?? 0
     const sMax = s.max_val ?? 100

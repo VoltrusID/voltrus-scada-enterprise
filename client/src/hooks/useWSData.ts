@@ -19,13 +19,17 @@ export function useWSData(authed: boolean, sensors: SensorConfig[]) {
     }
 
     const state = actions.getState()
-    const dataUpdates: { id: string; points: { value: number; ts: number }[]; value: SensorData }[] = []
+    // Accumulate per-tag within a batch so a burst of samples for one tag does
+    // not collapse to only the last point. Preserve the server's sample
+    // timestamp (seconds -> ms) instead of clobbering it with Date.now().
+    const dataUpdates = new Map<string, { id: string; points: { value: number; ts: number }[]; value: SensorData }>()
 
     for (const u of updates) {
       const sensor = sensorMap.get(u.tag_id)
       if (!sensor) continue
 
       const k = String(sensor.id)
+      const ts = u.ts && u.ts > 1e12 ? u.ts : u.ts ? u.ts * 1000 : Date.now()
       const isOffline = u.value == null || Number.isNaN(u.value)
       const value: SensorData = {
         id: sensor.id,
@@ -37,18 +41,14 @@ export function useWSData(authed: boolean, sensors: SensorConfig[]) {
         status: u.quality || 'normal',
       }
 
-      if (isOffline) {
-        dataUpdates.push({ id: k, points: state.dataMap[k] ?? [], value })
-      } else {
-        const prevArr = state.dataMap[k] ?? []
-        const newArr = [...prevArr, { value: u.value, ts: Date.now() }]
-        const trimmed = newArr.length > LIVE_PTS ? newArr.slice(-LIVE_PTS) : newArr
-        dataUpdates.push({ id: k, points: trimmed, value })
-      }
+      const prevArr = dataUpdates.has(k) ? dataUpdates.get(k)!.points : (state.dataMap[k] ?? [])
+      const appended = isOffline ? prevArr : [...prevArr, { value: u.value, ts }]
+      const trimmed = appended.length > LIVE_PTS ? appended.slice(-LIVE_PTS) : appended
+      dataUpdates.set(k, { id: k, points: trimmed, value })
     }
 
-    if (dataUpdates.length > 0) {
-      actions.mergeSensorData(dataUpdates)
+    if (dataUpdates.size > 0) {
+      actions.mergeSensorData(Array.from(dataUpdates.values()))
     }
   }, [actions])
 

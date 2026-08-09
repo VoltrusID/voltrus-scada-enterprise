@@ -59,6 +59,16 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
             {(['name', 'key'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f}</span><input value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })} style={inputStyle} /></label>))}
             {!hideNumberFields && (['unit'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f}</span><input value={form[f]} onChange={e => setForm({ ...form, [f]: e.target.value })} style={inputStyle} /></label>))}
             {!hideNumberFields && (['min_val', 'max_val', 'warn_val', 'crit_val', 'base_val', 'decimals'] as const).map(f => (<label key={f} style={labelStyle}><span style={labelTextStyle}>{f.replace('_', ' ')}</span><input type="number" step="any" value={form[f]} onChange={e => setForm({ ...form, [f]: parseFloat(e.target.value) || 0 })} style={monoInputStyle} /></label>))}
+            {!hideNumberFields && (
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Low-alarm limits &amp; deadband (optional)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <label style={labelStyle}><span style={labelTextStyle}>low warn</span><input type="number" step="any" value={srcConfig.low_warn ?? ''} onChange={e => setSrcConfig(c => { const n = { ...c }; const v = e.target.value === '' ? NaN : parseFloat(e.target.value); if (isNaN(v)) delete n.low_warn; else n.low_warn = v; return n; })} placeholder="—" style={monoInputStyle} /></label>
+                  <label style={labelStyle}><span style={labelTextStyle}>low crit</span><input type="number" step="any" value={srcConfig.low_crit ?? ''} onChange={e => setSrcConfig(c => { const n = { ...c }; const v = e.target.value === '' ? NaN : parseFloat(e.target.value); if (isNaN(v)) delete n.low_crit; else n.low_crit = v; return n; })} placeholder="—" style={monoInputStyle} /></label>
+                  <label style={labelStyle}><span style={labelTextStyle}>deadband</span><input type="number" step="any" min="0" value={srcConfig.deadband ?? 0} onChange={e => setSrcConfig(c => ({ ...c, deadband: parseFloat(e.target.value) || 0 }))} placeholder="0" style={monoInputStyle} /></label>
+                </div>
+              </div>
+            )}
             <label style={labelStyle}><span style={labelTextStyle}>color</span><input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} style={{ height: 32, padding: 2, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6 }} /></label>
             <label style={labelStyle}><span style={labelTextStyle}>chart type</span><select value={form.chart_type || 'sparkline'} onChange={e => setForm({ ...form, chart_type: e.target.value })} style={inputStyle}>{CHART_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
             {(form.chart_type || 'sparkline') === 'image' && (

@@ -27,7 +27,7 @@ const PieChartWidget: React.FC<WidgetProps> = (props) => {
   }
 
   const items = displaySensors.map(s => {
-    const d = currentValues[s.key]
+    const d = currentValues[String(s.id)]
     const v = Math.max(0, d?.value ?? 0)
     return { sensor: s, value: v }
   })

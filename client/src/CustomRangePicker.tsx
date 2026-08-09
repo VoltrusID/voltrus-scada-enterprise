@@ -63,7 +63,7 @@ function getIntervalMs(range: string, detail?: 'auto' | 'full'): number {
     durSec = m[range] ?? 1800;
   }
   if (isFull) return 1000;
-  const presets: Record<string, number> = { '30m': 10000, '1h': 20000, '6h': 120000, '24h': 480000, '7d': 3360000, '30d': 14400000 };
+  const presets: Record<string, number> = { '30m': 10000, '1h': 10000, '6h': 120000, '24h': 480000, '7d': 3360000, '30d': 14400000 };
   if (presets[range]) return presets[range];
   return Math.max(1000, Math.min(3600000, durSec * 1000 / 300));
 }

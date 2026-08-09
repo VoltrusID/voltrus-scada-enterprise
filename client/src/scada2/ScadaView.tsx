@@ -204,7 +204,7 @@ export const ScadaView: React.FC<Props> = ({
       width: w.width,
       height: w.height,
       rotation: 0,
-      sensor_bindings: JSON.stringify(w.sensorId != null ? [w.sensorId] : []),
+      sensor_bindings: JSON.stringify(w.sensorIds ?? (w.sensorId != null ? [w.sensorId] : [])),
     }))
 
     const connections: ScadaConnectionItem[] = layout.connections.map(c => ({

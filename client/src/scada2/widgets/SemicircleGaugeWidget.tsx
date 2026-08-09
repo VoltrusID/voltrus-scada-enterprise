@@ -10,8 +10,8 @@ const SemicircleGaugeWidget: React.FC<WidgetProps> = (props) => {
 
   const min = sensor?.min_val ?? 0
   const max = sensor?.max_val ?? 100
-  const warn = sensor?.warn_val ?? (min + max) * 0.75
-  const crit = sensor?.crit_val ?? (min + max) * 0.9
+  const warn = sensor?.warn_val ?? min + (max - min) * 0.75
+  const crit = sensor?.crit_val ?? min + (max - min) * 0.9
   const decimals = sensor?.decimals ?? 1
   const unit = sensor?.unit ?? ''
 

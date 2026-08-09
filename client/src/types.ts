@@ -109,6 +109,7 @@ export interface Alarm {
   cooldown_until: number | null
   shelved_until: number | null
   shelved_reason: string | null
+  alarm_type?: 'high' | 'low'
 }
 
 export interface AlarmSummary {
@@ -285,6 +286,8 @@ export type FlowNodeType =
   | 'data_source_out'
   | 'http_out'
   | 'alarm_out'
+  | 'write_out'
+  | 'dsl'
 
 export type FlowTriggerType = 'modbus' | 'timer' | 'mqtt'
 

@@ -53,6 +53,9 @@ export function ImportColumnMapper({ headers, detectedMapping, onConfirm, onCanc
     return null;
   };
 
+  const hasConflict = VOLTRUS_FIELDS.some(f => getConflict(f.key, mapping[f.key]) !== null);
+  const canConfirm = tagMapped && !hasConflict;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ padding: 16, background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
@@ -151,13 +154,13 @@ export function ImportColumnMapper({ headers, detectedMapping, onConfirm, onCanc
         </button>
         <button
           onClick={() => onConfirm(mapping)}
-          disabled={!tagMapped}
+          disabled={!canConfirm}
           style={{
             ...btnStyle,
             borderColor: 'var(--cyan)',
-            color: tagMapped ? 'var(--cyan)' : 'var(--muted)',
-            opacity: tagMapped ? 1 : 0.5,
-            cursor: tagMapped ? 'pointer' : 'not-allowed',
+            color: canConfirm ? 'var(--cyan)' : 'var(--muted)',
+            opacity: canConfirm ? 1 : 0.5,
+            cursor: canConfirm ? 'pointer' : 'not-allowed',
           }}
         >
           Confirm Mapping

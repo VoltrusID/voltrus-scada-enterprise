@@ -308,7 +308,19 @@ export function TvDetailChart({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div
+        ref={containerRef}
+        onContextMenu={onAnnotationClick ? (e) => {
+          e.preventDefault();
+          const chart = chartRef.current;
+          if (!chart) return;
+          const rect = containerRef.current?.getBoundingClientRect();
+          const x = rect ? e.clientX - rect.left : e.clientX;
+          const t = chart.timeScale().coordinateToTime(x);
+          if (t !== null && typeof t === 'number') onAnnotationClick(t);
+        } : undefined}
+        style={{ width: '100%', height: '100%' }}
+      />
       {userScrolled && (
         <button
           onClick={handleReset}
