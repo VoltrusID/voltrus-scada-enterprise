@@ -118,6 +118,12 @@ pub enum NodeConfig {
         #[serde(default)]
         inputs: Vec<String>,
     },
+    #[serde(rename = "dsl")]
+    Dsl {
+        id: String,
+        #[serde(default)]
+        source: String,
+    },
 }
 
 impl NodeConfig {
@@ -406,6 +412,16 @@ impl NodeConfig {
                     }
                 }
                 Ok(NodeResult::Continue(msg))
+            }
+            NodeConfig::Dsl { source, .. } => {
+                match crate::expression::run_dsl(source, &msg.payload) {
+                    Ok(Some(v)) => {
+                        msg.payload = v;
+                        Ok(NodeResult::Continue(msg))
+                    }
+                    Ok(None) => Ok(NodeResult::FilterReject),
+                    Err(_) => Ok(NodeResult::Continue(msg)),
+                }
             }
         }
     }
