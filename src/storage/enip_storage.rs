@@ -11,6 +11,7 @@ impl Storage {
         slot: u8,
         interval_ms: u64,
         enabled: bool,
+        assembly_instance: u32,
     ) -> Result<i64> {
         let conn = self.conn.clone();
         let name = name.to_string();
@@ -19,9 +20,9 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
             conn.execute(
-                "INSERT INTO enip_devices (name, url, slot, interval_ms, enabled, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![name, url, slot, interval_ms, enabled as i64, now],
+                "INSERT INTO enip_devices (name, url, slot, interval_ms, enabled, assembly_instance, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![name, url, slot, interval_ms, enabled as i64, assembly_instance, now],
             )
             .context("Insert enip device failed")?;
             Ok(conn.last_insert_rowid())
@@ -35,7 +36,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let result = conn.query_row(
-                "SELECT id, name, url, slot, interval_ms, enabled, created_at FROM enip_devices WHERE id = ?1",
+                "SELECT id, name, url, slot, interval_ms, enabled, assembly_instance, created_at FROM enip_devices WHERE id = ?1",
                 rusqlite::params![id],
                 |row| {
                     Ok(EnipDevice {
@@ -45,7 +46,8 @@ impl Storage {
                         slot: row.get(3)?,
                         interval_ms: row.get(4)?,
                         enabled: row.get::<_, i64>(5)? != 0,
-                        created_at: row.get(6)?,
+                        assembly_instance: row.get(6)?,
+                        created_at: row.get(7)?,
                     })
                 },
             );
@@ -65,7 +67,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, name, url, slot, interval_ms, enabled, created_at FROM enip_devices ORDER BY created_at"
+                    "SELECT id, name, url, slot, interval_ms, enabled, assembly_instance, created_at FROM enip_devices ORDER BY created_at"
                 )
                 .context("Prepare list_enip_devices failed")?;
 
@@ -77,7 +79,8 @@ impl Storage {
                     slot: row.get(3)?,
                     interval_ms: row.get(4)?,
                     enabled: row.get::<_, i64>(5)? != 0,
-                    created_at: row.get(6)?,
+                    assembly_instance: row.get(6)?,
+                    created_at: row.get(7)?,
                 })
             })
             .context("Query list_enip_devices failed")?;
@@ -100,6 +103,7 @@ impl Storage {
         slot: Option<u8>,
         interval_ms: Option<u64>,
         enabled: Option<bool>,
+        assembly_instance: Option<u32>,
     ) -> Result<()> {
         let conn = self.conn.clone();
         let name = name.map(|s| s.to_string());
@@ -141,6 +145,13 @@ impl Storage {
                     rusqlite::params![enabled as i64, id],
                 )
                 .context("Update enip device enabled failed")?;
+            }
+            if let Some(assembly_instance) = assembly_instance {
+                conn.execute(
+                    "UPDATE enip_devices SET assembly_instance = ?1 WHERE id = ?2",
+                    rusqlite::params![assembly_instance, id],
+                )
+                .context("Update enip device assembly_instance failed")?;
             }
             Ok(())
         })
@@ -199,6 +210,8 @@ impl Storage {
         name: &str,
         display_name: &str,
         data_type: &str,
+        assembly_offset: u32,
+        assembly_length: u32,
     ) -> Result<i64> {
         let conn = self.conn.clone();
         let tag_name = tag_name.to_string();
@@ -210,9 +223,9 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let now = crate::timeutil::now_secs();
             conn.execute(
-                "INSERT INTO enip_tags (device_id, tag_name, name, display_name, data_type, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![device_id, tag_name, name, display_name, data_type, now],
+                "INSERT INTO enip_tags (device_id, tag_name, name, display_name, data_type, assembly_offset, assembly_length, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![device_id, tag_name, name, display_name, data_type, assembly_offset, assembly_length, now],
             )
             .context("Insert enip tag failed")?;
 
@@ -242,7 +255,7 @@ impl Storage {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, device_id, tag_name, name, display_name, data_type, created_at FROM enip_tags WHERE device_id = ?1 ORDER BY created_at"
+                    "SELECT id, device_id, tag_name, name, display_name, data_type, assembly_offset, assembly_length, created_at FROM enip_tags WHERE device_id = ?1 ORDER BY created_at"
                 )
                 .context("Prepare list_enip_tags failed")?;
 
@@ -254,7 +267,9 @@ impl Storage {
                     name: row.get(3)?,
                     display_name: row.get(4)?,
                     data_type: row.get(5)?,
-                    created_at: row.get(6)?,
+                    assembly_offset: row.get(6)?,
+                    assembly_length: row.get(7)?,
+                    created_at: row.get(8)?,
                 })
             })
             .context("Query list_enip_tags failed")?;
@@ -314,12 +329,15 @@ impl Storage {
                 url: device.url.clone(),
                 slot: device.slot,
                 interval_ms: device.interval_ms,
+                assembly_instance: device.assembly_instance,
                 tags: tags
                     .iter()
                     .map(|t| crate::ethernet_ip::EnipTagConfig {
                         tag_name: t.tag_name.clone(),
                         name: t.name.clone(),
                         data_type: t.data_type.clone(),
+                        assembly_offset: t.assembly_offset,
+                        assembly_length: t.assembly_length,
                     })
                     .collect(),
             });

@@ -292,6 +292,7 @@ pub(super) fn create_tables(conn: &Connection) -> Result<()> {
             slot INTEGER NOT NULL DEFAULT 0,
             interval_ms INTEGER NOT NULL DEFAULT 1000,
             enabled INTEGER NOT NULL DEFAULT 1,
+            assembly_instance INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS enip_tags (
@@ -301,6 +302,8 @@ pub(super) fn create_tables(conn: &Connection) -> Result<()> {
             name TEXT NOT NULL,
             display_name TEXT NOT NULL DEFAULT '',
             data_type TEXT NOT NULL DEFAULT '',
+            assembly_offset INTEGER NOT NULL DEFAULT 0,
+            assembly_length INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             UNIQUE(device_id, tag_name)
         );

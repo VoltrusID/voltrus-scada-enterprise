@@ -23,11 +23,13 @@ pub struct EnipDeviceRuntimeConfig {
 }
 
 /// Tag configuration for the poller.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EnipTagConfig {
     pub tag_name: String,
     pub name: String,
     pub data_type: String,
+    pub assembly_offset: u32,
+    pub assembly_length: u32,
 }
 
 /// Main entry point for EtherNet/IP device polling.

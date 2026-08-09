@@ -367,6 +367,8 @@ pub struct EnipDevice {
     pub interval_ms: u64,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub assembly_instance: u32,
     pub created_at: i64,
 }
 
@@ -387,6 +389,10 @@ pub struct EnipTag {
     pub display_name: String,
     #[serde(default)]
     pub data_type: String,
+    #[serde(default)]
+    pub assembly_offset: u32,
+    #[serde(default)]
+    pub assembly_length: u32,
     pub created_at: i64,
 }
 
@@ -401,6 +407,8 @@ pub struct CreateEnipDeviceRequest {
     pub interval_ms: u64,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub assembly_instance: u32,
 }
 
 #[cfg(feature = "ethernet-ip")]
@@ -411,6 +419,7 @@ pub struct UpdateEnipDeviceRequest {
     pub slot: Option<u8>,
     pub interval_ms: Option<u64>,
     pub enabled: Option<bool>,
+    pub assembly_instance: Option<u32>,
 }
 
 #[cfg(feature = "ethernet-ip")]
@@ -422,6 +431,10 @@ pub struct CreateEnipTagRequest {
     pub display_name: String,
     #[serde(default)]
     pub data_type: String,
+    #[serde(default)]
+    pub assembly_offset: u32,
+    #[serde(default)]
+    pub assembly_length: u32,
 }
 
 /// Runtime config for an EtherNet/IP device, used by the poller.
@@ -432,6 +445,7 @@ pub struct EnipDeviceConfig {
     pub url: String,
     pub slot: u8,
     pub interval_ms: u64,
+    pub assembly_instance: u32,
     pub tags: Vec<crate::ethernet_ip::EnipTagConfig>,
 }
 
