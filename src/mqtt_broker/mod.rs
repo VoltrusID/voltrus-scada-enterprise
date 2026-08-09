@@ -4,7 +4,7 @@ pub mod config;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
-use tokio::sync::{RwLock, watch};
+use tokio::sync::{RwLock, broadcast, watch};
 
 use crate::models::MqttBrokerConfig;
 
@@ -57,14 +57,27 @@ pub struct RecentMessage {
     pub retain: bool,
 }
 
+/// A single MQTT message broadcast to event consumers (e.g. the flow engine,
+/// which turns broker messages into flow triggers).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MqttEvent {
+    pub topic: String,
+    #[serde(with = "bytes_to_string")]
+    pub payload: Vec<u8>,
+    pub timestamp: i64,
+    pub retain: bool,
+}
+
 const MAX_RECENT_MESSAGES: usize = 500;
 const MAX_TOPIC_MESSAGES: usize = 50;
+const EVENT_CHANNEL_CAPACITY: usize = 1024;
 
 /// In-memory tracker of topics and messages passing through the broker.
 #[derive(Clone)]
 pub struct TopicTracker {
     topics: Arc<RwLock<HashMap<String, TopicInfo>>>,
     recent_messages: Arc<RwLock<VecDeque<RecentMessage>>>,
+    event_tx: broadcast::Sender<MqttEvent>,
 }
 
 impl TopicTracker {
@@ -72,7 +85,14 @@ impl TopicTracker {
         Self {
             topics: Arc::new(RwLock::new(HashMap::new())),
             recent_messages: Arc::new(RwLock::new(VecDeque::with_capacity(MAX_RECENT_MESSAGES))),
+            event_tx: broadcast::channel(EVENT_CHANNEL_CAPACITY).0,
         }
+    }
+
+    /// Subscribe to a broadcast of every message that flows through the broker.
+    /// Used by the flow engine as the MQTT event source.
+    pub fn subscribe_events(&self) -> broadcast::Receiver<MqttEvent> {
+        self.event_tx.subscribe()
     }
 
     pub async fn record_message(&self, topic: String, payload: Vec<u8>, retain: bool) {
@@ -80,6 +100,14 @@ impl TopicTracker {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
+
+        // Fan out to event subscribers (best-effort; no receivers = no-op).
+        let _ = self.event_tx.send(MqttEvent {
+            topic: topic.clone(),
+            payload: payload.clone(),
+            timestamp: now,
+            retain,
+        });
 
         {
             let mut topics = self.topics.write().await;
@@ -362,4 +390,35 @@ pub async fn get_topic_tree(tracker: &TopicTracker) -> serde_json::Value {
         "topics": topics,
         "tree": tree,
     })
+}
+
+
+#[cfg(test)]
+mod topic_tracker_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn record_message_broadcasts_to_subscribers() {
+        let tracker = TopicTracker::new();
+        let mut rx = tracker.subscribe_events();
+
+        tracker
+            .record_message("sensors/01/temp".into(), b"24.5".to_vec(), false)
+            .await;
+
+        let ev = tokio::time::timeout(std::time::Duration::from_millis(200), rx.recv())
+            .await
+            .expect("event broadcast timed out")
+            .expect("event channel closed");
+        assert_eq!(ev.topic, "sensors/01/temp");
+        assert_eq!(ev.payload, b"24.5");
+        assert!(!ev.retain);
+    }
+
+    #[tokio::test]
+    async fn record_message_without_subscribers_is_noop() {
+        // No subscriber present — the broadcast send must not error.
+        let tracker = TopicTracker::new();
+        tracker.record_message("x/y".into(), b"1".to_vec(), true).await;
+    }
 }
