@@ -5,6 +5,7 @@ use crate::flow_engine::{
 use crate::storage::Storage;
 use std::collections::HashMap;
 use std::sync::Arc;
+use dashmap::DashMap;
 use tokio::sync::{RwLock, broadcast};
 
 #[cfg(feature = "mqtt-broker")]
@@ -26,6 +27,9 @@ pub struct FlowEngine {
     state: Arc<FlowState>,
     storage: Storage,
     cache: DeviceCache,
+    in_flight: Arc<DashMap<String, ()>>,
+    last_fired: Arc<DashMap<String, std::time::Instant>>,
+    last_values: Arc<DashMap<String, serde_json::Value>>,
     #[cfg(feature = "mqtt-broker")]
     broker_tracker: Arc<Mutex<Option<TopicTracker>>>,
 }
@@ -37,6 +41,9 @@ impl FlowEngine {
             state: Arc::new(FlowState::new()),
             storage,
             cache,
+            in_flight: Arc::new(DashMap::new()),
+            last_fired: Arc::new(DashMap::new()),
+            last_values: Arc::new(DashMap::new()),
             #[cfg(feature = "mqtt-broker")]
             broker_tracker: Arc::new(Mutex::new(None)),
         }
@@ -58,6 +65,9 @@ impl FlowEngine {
         let storage = self.storage.clone();
         let cache = self.cache.clone();
         let mut rx = self.cache.subscribe();
+        let in_flight = self.in_flight.clone();
+        let last_fired = self.last_fired.clone();
+        let last_values = self.last_values.clone();
 
         // Spawn timer flows task
         {
@@ -65,6 +75,9 @@ impl FlowEngine {
             let state = state.clone();
             let storage = storage.clone();
             let cache = cache.clone();
+            let in_flight = in_flight.clone();
+            let last_fired = last_fired.clone();
+            let last_values = last_values.clone();
             tokio::spawn(async move {
                 let mut last_run: HashMap<String, std::time::Instant> = HashMap::new();
                 loop {
@@ -84,16 +97,21 @@ impl FlowEngine {
                             };
                             if should_run {
                                 last_run.insert(flow.id.clone(), now);
-                                let flow = flow.clone();
-                                let state = state.clone();
-                                let storage = storage.clone();
-                                let cache = cache.clone();
                                 let msg = Message::new(
                                     serde_json::json!({"timestamp": crate::timeutil::now_secs()}),
                                 );
-                                tokio::spawn(async move {
-                                    run_flow(&flow, msg, state.as_ref(), &storage, &cache).await;
-                                });
+                                if gate_fire(&flow, &msg, &in_flight, &last_fired, &last_values) {
+                                    let flow = flow.clone();
+                                    let state = state.clone();
+                                    let storage = storage.clone();
+                                    let cache = cache.clone();
+                                    let in_flight = in_flight.clone();
+                                    let flow_id = flow.id.clone();
+                                    tokio::spawn(async move {
+                                        run_flow(&flow, msg, state.as_ref(), &storage, &cache).await;
+                                        in_flight.remove(&flow_id);
+                                    });
+                                }
                             }
                         }
                     }
@@ -111,6 +129,9 @@ impl FlowEngine {
             let state = state.clone();
             let storage = storage.clone();
             let cache = cache.clone();
+            let in_flight = in_flight.clone();
+            let last_fired = last_fired.clone();
+            let last_values = last_values.clone();
             tokio::spawn(async move {
                 loop {
                     // Acquire a receiver without holding the non-Send
@@ -140,15 +161,20 @@ impl FlowEngine {
                                     if !flow.enabled {
                                         continue;
                                     }
-                                    if flow.trigger.matches(&msg) {
+                                    if flow.trigger.matches(&msg)
+                                        && gate_fire(&flow, &msg, &in_flight, &last_fired, &last_values)
+                                    {
                                         let flow = flow.clone();
                                         let state = state.clone();
                                         let storage = storage.clone();
                                         let cache = cache.clone();
                                         let msg = msg.clone();
+                                        let in_flight = in_flight.clone();
+                                        let flow_id = flow.id.clone();
                                         tokio::spawn(async move {
                                             run_flow(&flow, msg, state.as_ref(), &storage, &cache)
                                                 .await;
+                                            in_flight.remove(&flow_id);
                                         });
                                     }
                                 }
@@ -179,14 +205,19 @@ impl FlowEngine {
                             if !flow.enabled {
                                 continue;
                             }
-                            if flow.trigger.matches(&msg) {
+                            if flow.trigger.matches(&msg)
+                                && gate_fire(&flow, &msg, &in_flight, &last_fired, &last_values)
+                            {
                                 let flow = flow.clone();
                                 let state = state.clone();
                                 let storage = storage.clone();
                                 let cache = cache.clone();
                                 let msg = msg.clone();
+                                let in_flight = in_flight.clone();
+                                let flow_id = flow.id.clone();
                                 tokio::spawn(async move {
                                     run_flow(&flow, msg, state.as_ref(), &storage, &cache).await;
+                                    in_flight.remove(&flow_id);
                                 });
                             }
                         }
@@ -285,7 +316,11 @@ async fn run_flow(
     cache: &DeviceCache,
 ) {
     let start = std::time::Instant::now();
-    for node in &flow.nodes {
+    // Execute process nodes (in array order) before output nodes so the grouped
+    // canvas layout matches the real execution order.
+    let process_nodes: Vec<&NodeConfig> = flow.nodes.iter().filter(|n| !is_output_node(n)).collect();
+    let output_nodes: Vec<&NodeConfig> = flow.nodes.iter().filter(|n| is_output_node(n)).collect();
+    for node in process_nodes.into_iter().chain(output_nodes) {
         let ctx = crate::flow_engine::node::NodeContext {
             flow_id: flow.id.clone(),
             node_id: node_id(node),
@@ -332,6 +367,70 @@ async fn run_flow(
         Some(msg.payload),
     )
     .await;
+}
+
+fn is_output_node(node: &NodeConfig) -> bool {
+    matches!(
+        node,
+        NodeConfig::DataSourceOut { .. }
+            | NodeConfig::HttpOut { .. }
+            | NodeConfig::AlarmOut { .. }
+            | NodeConfig::WriteOut { .. }
+    )
+}
+
+/// Re-entrancy / debounce / on-change-only gate shared by every trigger source.
+/// Returns true (and records the fire in the trackers) only when the flow is
+/// allowed to run now. The caller must clear `in_flight` when the run finishes.
+fn gate_fire(
+    flow: &Flow,
+    msg: &Message,
+    in_flight: &Arc<DashMap<String, ()>>,
+    last_fired: &Arc<DashMap<String, std::time::Instant>>,
+    last_values: &Arc<DashMap<String, serde_json::Value>>,
+) -> bool {
+    // Re-entrancy: never overlap two runs of the same flow.
+    if in_flight.contains_key(&flow.id) {
+        return false;
+    }
+    let now = std::time::Instant::now();
+    // Debounce: minimum interval between firings (modbus + mqtt triggers).
+    let debounce_ms = match &flow.trigger {
+        TriggerConfig::Modbus { debounce_ms, .. }
+        | TriggerConfig::Mqtt { debounce_ms, .. } => *debounce_ms,
+        TriggerConfig::Timer { .. } => None,
+    };
+    if let Some(ms) = debounce_ms {
+        if let Some(last) = last_fired.get(&flow.id) {
+            if (now.duration_since(*last).as_millis() as u64) < ms {
+                return false;
+            }
+        }
+    }
+    // on_change_only (modbus): suppress unless the watched value actually changed.
+    if let TriggerConfig::Modbus { metric, on_change_only, .. } = &flow.trigger {
+        if on_change_only.unwrap_or(false) {
+            let current = metric
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .and_then(|k| msg.payload.get("metrics").and_then(|m| m.get(k)))
+                .cloned()
+                .unwrap_or_else(|| {
+                    msg.payload.get("metrics").cloned().unwrap_or(serde_json::Value::Null)
+                });
+            let changed = {
+                let prev = last_values.get(&flow.id);
+                !prev.as_deref().is_some_and(|p| *p == current)
+            };
+            if !changed {
+                return false;
+            }
+            last_values.insert(flow.id.clone(), current);
+        }
+    }
+    in_flight.insert(flow.id.clone(), ());
+    last_fired.insert(flow.id.clone(), now);
+    true
 }
 
 fn node_id(node: &NodeConfig) -> String {
@@ -383,5 +482,60 @@ mod mqtt_event_to_message_tests {
     fn wraps_non_utf8_as_hex() {
         let msg = mqtt_event_to_message(ev("t", vec![0xff, 0x00, 0x01]));
         assert_eq!(msg.payload["value"], "ff0001");
+    }
+}
+
+#[cfg(test)]
+mod gate_fire_tests {
+    use super::*;
+
+    fn flow(id: &str, trigger: TriggerConfig) -> Flow {
+        Flow { id: id.to_string(), name: id.to_string(), enabled: true, trigger, nodes: vec![] }
+    }
+
+    fn trackers() -> (Arc<DashMap<String, ()>>, Arc<DashMap<String, std::time::Instant>>, Arc<DashMap<String, serde_json::Value>>) {
+        (Arc::new(DashMap::new()), Arc::new(DashMap::new()), Arc::new(DashMap::new()))
+    }
+
+    #[test]
+    fn reentrancy_blocks_overlap() {
+        let (in_flight, last_fired, last_values) = trackers();
+        let f = flow("f1", TriggerConfig::Timer { interval_ms: 1000 });
+        let msg = Message::new(serde_json::json!({}));
+        assert!(gate_fire(&f, &msg, &in_flight, &last_fired, &last_values));
+        // A second fire while the first run is still in flight must be blocked.
+        assert!(!gate_fire(&f, &msg, &in_flight, &last_fired, &last_values));
+    }
+
+    #[test]
+    fn debounce_suppresses_within_window() {
+        let (in_flight, last_fired, last_values) = trackers();
+        let f = flow("f1", TriggerConfig::Modbus {
+            device_id: "*".into(), metric: None, debounce_ms: Some(10_000), on_change_only: Some(false),
+        });
+        let msg = Message::new(serde_json::json!({"metrics": {"temp": 5}}));
+        assert!(gate_fire(&f, &msg, &in_flight, &last_fired, &last_values));
+        in_flight.remove("f1"); // previous run finished
+        assert!(!gate_fire(&f, &msg, &in_flight, &last_fired, &last_values));
+    }
+
+    #[test]
+    fn on_change_only_suppresses_unchanged() {
+        let (in_flight, last_fired, last_values) = trackers();
+        let f = flow("f1", TriggerConfig::Modbus {
+            device_id: "*".into(), metric: Some("temp".into()), debounce_ms: None, on_change_only: Some(true),
+        });
+        let m = |v: i64| Message::new(serde_json::json!({"metrics": {"temp": v}}));
+        assert!(gate_fire(&f, &m(5), &in_flight, &last_fired, &last_values));
+        in_flight.remove("f1");
+        assert!(!gate_fire(&f, &m(5), &in_flight, &last_fired, &last_values));
+        assert!(gate_fire(&f, &m(6), &in_flight, &last_fired, &last_values));
+    }
+
+    #[test]
+    fn output_nodes_classified() {
+        assert!(is_output_node(&NodeConfig::HttpOut { id: "h".into(), url: "u".into(), headers: Default::default(), timeout_ms: 1, retry_count: 0 }));
+        assert!(is_output_node(&NodeConfig::WriteOut { id: "w".into(), data_source_id: 1, value_expr: None, policy: "immediate".into(), reason: "r".into() }));
+        assert!(!is_output_node(&NodeConfig::Filter { id: "f".into(), condition: "true".into() }));
     }
 }
