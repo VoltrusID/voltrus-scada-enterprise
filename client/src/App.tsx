@@ -90,7 +90,6 @@ export function AppInner() {
   const mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts' = _overlayPage ?? liveMode
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
-  const [showDataManager, setShowDataManager] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [screenPrompt, setScreenPrompt] = useState<{ title: string; label: string; placeholder?: string; initialValue?: string; shortcutValue?: string; okLabel?: string; onSubmit: (v: string, shortcut?: string | null) => void } | null>(null)
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
@@ -108,14 +107,12 @@ export function AppInner() {
     if (m === 'system' || m === 'flows' || m === 'tags' || m === 'assets' || m === 'scripts') navigate({ to: `/${m}`, search: prev => ({ ...prev, screen: 'all' }) })
     else navigate({ to: '/', search: prev => ({ ...prev, mode: m }) })
   }, [navigate])
+  const toggleAlarms = useCallback(() => navigate({ to: _routePage === 'alarms' ? '/' : '/alarms' }), [navigate, _routePage])
   const [scadaToolbarSlot, setScadaToolbarSlot] = useState<React.ReactNode>(null)
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null)
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
   const [showShortcutsPanel, setShowShortcutsPanel] = useState(false)
-  const [showAlarmPanel, setShowAlarmPanel] = useState(false)
-  const [showCommandPanel, setShowCommandPanel] = useState(false)
   const [showExportPanel, setShowExportPanel] = useState(false)
-  const [showShiftHandover, setShowShiftHandover] = useState(false)
   const [showSnapshotPanel, setShowSnapshotPanel] = useState(false)
   const [showAuditPanel, setShowAuditPanel] = useState(false)
   const [showImportWizard, setShowImportWizard] = useState(false)
@@ -412,7 +409,7 @@ export function AppInner() {
   // ── Keyboard navigation ──────────────────────────────────────────
   useKeyboardNavigation({
     shortcuts, sensors, screens, navShortcuts, effectiveNavShortcuts,
-    setSelectedSensor, setActiveScreen, setViewMode, setMode, setShowAlarmPanel, mode,
+    setSelectedSensor, setActiveScreen, setViewMode, setMode, setShowAlarmPanel: toggleAlarms, mode,
   })
 
   // ── Kiosk mode ──────────────────────────────────────────
@@ -461,17 +458,17 @@ export function AppInner() {
         shortcutsPanel={showShortcutsPanel ? <ShortcutsConfigPanel effectiveNavShortcuts={effectiveNavShortcuts} navShortcuts={navShortcuts} saveNavShortcutsMut={saveNavShortcutsMut} onClose={() => setShowShortcutsPanel(false)} /> : null}
         mode={mode}
         onSettingsClick={() => setShowDashSettings(true)}
-        onDataManagerClick={() => setShowDataManager(true)}
+        onDataManagerClick={() => navigate({ to: '/data' })}
         onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
         onTagsClick={() => { setMode('tags'); setActiveScreen('all') }}
         onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
         isAdmin={isAdminOrDemo}
         username={authUser}
         onLogout={handleLogout}
-        onAlarmPanelToggle={() => setShowAlarmPanel(v => !v)}
-        onCommandPanelToggle={() => setShowCommandPanel(v => !v)}
+        onAlarmPanelToggle={toggleAlarms}
+        onCommandPanelToggle={() => navigate({ to: _routePage === 'commands' ? '/' : '/commands' })}
         onExportClick={() => setShowExportPanel(true)}
-        onShiftHandoverToggle={() => setShowShiftHandover(v => !v)}
+        onShiftHandoverToggle={() => navigate({ to: _routePage === 'shift' ? '/' : '/shift' })}
         onSnapshotsClick={() => setShowSnapshotPanel(v => !v)}
         onAuditPanelToggle={() => setShowAuditPanel(v => !v)}
         onImportWizardClick={() => setShowImportWizard(true)}
@@ -603,17 +600,17 @@ export function AppInner() {
 
 
         {showDashSettings && <Suspense fallback={null}><DashboardSettings settings={dashSettings} onChange={setDashSettings} onClose={() => setShowDashSettings(false)} alarmMuted={alarmMuted} onToggleMute={() => { toggleMute(); setAlarmMuted(!alarmMuted) }} kioskMode={kiosk.enabled} onToggleKiosk={kiosk.toggle} /></Suspense>}
-        {showDataManager && <Suspense fallback={null}><DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => setShowDataManager(false)} shortcuts={shortcuts} isAdmin={isAdminOrDemo} isStrictAdmin={isAdmin} /></Suspense>}
+        {_routePage === 'data' && <Suspense fallback={null}><DataManager sensors={sensors} onSave={handleSave} onDelete={handleDelete} onAdd={handleAddSensorToManager} onDuplicate={handleDuplicateSensor} onClose={() => navigate({ to: '/' })} shortcuts={shortcuts} isAdmin={isAdminOrDemo} isStrictAdmin={isAdmin} /></Suspense>}
         {showAddDialog && activeScreen !== 'all' && (
           <AddSensorDialog screenId={activeScreen} sensors={sensors} screenSensorIds={screenSensors.map(s => s.id)} onClose={() => setShowAddDialog(false)} onDone={() => { setShowAddDialog(false); queryClient.invalidateQueries({ queryKey: ['screenDataSources', activeScreen] }); queryClient.invalidateQueries({ queryKey: ['sensors'] }) }} />
         )}
         {screenPrompt && <PromptDialog {...screenPrompt} onClose={() => setScreenPrompt(null)} />}
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
         {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
-        {showAlarmPanel && <Suspense fallback={null}><AlarmPanel onClose={() => setShowAlarmPanel(false)} /></Suspense>}
-        {showCommandPanel && <Suspense fallback={null}><CommandPanel onClose={() => setShowCommandPanel(false)} isAdmin={isAdminOrDemo} /></Suspense>}
+        {_routePage === 'alarms' && <Suspense fallback={null}><AlarmPanel onClose={() => navigate({ to: '/' })} /></Suspense>}
+        {_routePage === 'commands' && <Suspense fallback={null}><CommandPanel onClose={() => navigate({ to: '/' })} isAdmin={isAdminOrDemo} /></Suspense>}
         {showExportPanel && <Suspense fallback={null}><DataExportPanel onClose={() => setShowExportPanel(false)} /></Suspense>}
-        {showShiftHandover && <Suspense fallback={null}><ShiftHandoverPanel onClose={() => setShowShiftHandover(false)} /></Suspense>}
+        {_routePage === 'shift' && <Suspense fallback={null}><ShiftHandoverPanel onClose={() => navigate({ to: '/' })} /></Suspense>}
         {showSnapshotPanel && (
           <OverlayScreen title={t('snapshots.title')} onClose={() => setShowSnapshotPanel(false)}>
             <Suspense fallback={null}><ConfigSnapshotPanel /></Suspense>
