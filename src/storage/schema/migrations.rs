@@ -385,4 +385,10 @@ pub(super) fn run_migrations(conn: &Connection) {
     // threshold (+deadband), not when it drops further below it.
     let _ = conn
         .execute_batch("ALTER TABLE alarms ADD COLUMN alarm_type TEXT NOT NULL DEFAULT 'high'");
+
+    // Migration: persist per-widget config (setpoints, labels, colors, thresholds)
+    // for SCADA mimic equipment so operator customizations survive reload.
+    // Idempotent — ignored once the column exists.
+    let _ = conn
+        .execute_batch("ALTER TABLE scada_equipment ADD COLUMN config TEXT NOT NULL DEFAULT '{}'");
 }

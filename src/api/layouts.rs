@@ -312,6 +312,12 @@ pub async fn save_scada_equipment(
                 .unwrap_or_else(|| {
                     serde_json::to_string(&item["sensor_bindings"]).unwrap_or("[]".to_string())
                 }),
+            config: item["config"]
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    serde_json::to_string(&item["config"]).unwrap_or("{}".to_string())
+                }),
         });
     }
 

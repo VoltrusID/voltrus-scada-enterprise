@@ -189,6 +189,7 @@ impl<'a> FeedInstantiator<'a> {
                     height: 160.0,
                     rotation: 0.0,
                     sensor_bindings,
+                    config: "{}".to_string(),
                 };
 
                 self.storage
