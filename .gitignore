@@ -1,6 +1,7 @@
 /target
 voltrus-iced/target/
 data.db
+solar-farm.db*
 static/
 client/node_modules/
 client/dist/
