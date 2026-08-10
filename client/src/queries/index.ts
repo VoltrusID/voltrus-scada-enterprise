@@ -241,6 +241,21 @@ export {
 } from './bacnet'
 
 export type { BacnetDevice, BacnetObject, BacnetDiscoveredDevice, BacnetBrowsedObject } from './bacnet'
+export {
+  useGatewayInfo,
+  useGatewayEndpoint,
+  useSetGatewayEndpoint,
+  useDiscoverGateway,
+  useBrowseGateway,
+} from './gateway'
+export type {
+  GatewayInfo,
+  GatewayEndpoint,
+  DiscoveredDevice,
+  BrowsedTag,
+  DiscoverArgs,
+  BrowseArgs,
+} from './gateway'
 
 export {
   useComplianceConfig,
