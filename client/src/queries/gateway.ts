@@ -108,3 +108,25 @@ export function useBrowseGateway() {
     },
   })
 }
+export interface ScanArgs {
+  ip: string
+  port?: number
+  unit_id?: number
+  area?: string
+  reg_type?: string
+  start?: number
+  count?: number
+}
+
+export function useScanGateway() {
+  return useMutation({
+    mutationFn: async (args: ScanArgs) => {
+      const r = await fetchOk('/api/v1/gateway/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+      })
+      return (await r.json()) as { tags: BrowsedTag[] }
+    },
+  })
+}

@@ -247,6 +247,7 @@ export {
   useSetGatewayEndpoint,
   useDiscoverGateway,
   useBrowseGateway,
+  useScanGateway,
 } from './gateway'
 export type {
   GatewayInfo,
@@ -255,6 +256,7 @@ export type {
   BrowsedTag,
   DiscoverArgs,
   BrowseArgs,
+  ScanArgs,
 } from './gateway'
 
 export {
