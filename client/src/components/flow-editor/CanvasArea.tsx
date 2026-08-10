@@ -138,6 +138,7 @@ export function CanvasArea({
     const rect = canvasRef.current?.getBoundingClientRect()
     if (!rect) return
     const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
     const totalItems = 1 + nodes.length
     let bestIndex = totalItems
     let bestDist = Infinity
@@ -167,8 +168,11 @@ export function CanvasArea({
       const gapX = i === 0
         ? pos.x - NODE_GAP / 2
         : pos.x + NODE_WIDTH + NODE_GAP / 2
+      // 2D distance so the vertical output stack and cross-category drops
+      // resolve correctly (X alone can't distinguish stacked outputs).
+      const gapY = pos.y + NODE_HEIGHT / 2
 
-      const dist = Math.abs(x - gapX)
+      const dist = Math.hypot(x - gapX, y - gapY)
       if (dist < bestDist) {
         bestDist = dist
         bestIndex = i
