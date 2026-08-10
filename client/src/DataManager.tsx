@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { SensorManager } from './SensorManager';
 import { ModbusDeviceManager } from './ModbusDeviceManager';
 import { OpcUaDeviceManager } from './OpcUaDeviceManager';
@@ -24,6 +25,8 @@ import { FeatureBadge } from './components/FeatureBadge';
 import type { SensorConfig } from './types';
 
 type Tab = 'sources' | 'modbus' | 'opcua' | 's7' | 'enip' | 'dnp3' | 'bacnet' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras' | 'security' | 'compliance' | 'roles';
+const TAB_VALUES: readonly Tab[] = ['sources', 'modbus', 'opcua', 's7', 'enip', 'dnp3', 'bacnet', 'hub', 'users', 'notifications', 'api-keys', 'reports', 'oee', 'analytics', 'recipes', 'cameras', 'security', 'compliance', 'roles'];
+const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TAB_VALUES as readonly string[]).includes(v);
 
 interface NavItem {
   id: Tab
@@ -117,7 +120,10 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   isAdmin?: boolean;
   isStrictAdmin?: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>('sources');
+  const navigate = useNavigate();
+  const routerSearch = useRouterState({ select: s => s.location.search }) as { tab?: string };
+  const tab: Tab = isTab(routerSearch.tab) ? routerSearch.tab : 'sources';
+  const setTab = (t: Tab) => navigate({ to: '/data', search: prev => ({ ...prev, tab: t }) });
   const modalRef = useRef<HTMLDivElement>(null);
   const license = useLicense();
   const isOpcUaDisabled = license?.feature_flags?.opcua_enabled === false;

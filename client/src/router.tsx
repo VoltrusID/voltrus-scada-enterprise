@@ -18,11 +18,12 @@ export const rootRoute = createRootRoute({
   // Optional search schema (defaults resolved in App.tsx via ??). Keeping
   // fields optional avoids making `search` mandatory on every navigate and
   // lets setters merge with `(prev) => ({ ...prev, x })` updaters.
-  validateSearch: (input: Record<string, unknown>): { screen?: string; view?: 'cards' | 'canvas' | 'twin' | 'scada'; mode?: 'live' | 'history' } => {
-    const out: { screen?: string; view?: 'cards' | 'canvas' | 'twin' | 'scada'; mode?: 'live' | 'history' } = {}
+  validateSearch: (input: Record<string, unknown>): { screen?: string; view?: 'cards' | 'canvas' | 'twin' | 'scada'; mode?: 'live' | 'history'; tab?: string } => {
+    const out: { screen?: string; view?: 'cards' | 'canvas' | 'twin' | 'scada'; mode?: 'live' | 'history'; tab?: string } = {}
     if (typeof input.screen === 'string') out.screen = input.screen
     if (input.view === 'canvas' || input.view === 'twin' || input.view === 'scada') out.view = input.view
     if (input.mode === 'history') out.mode = 'history'
+    if (typeof input.tab === 'string') out.tab = input.tab
     return out
   },
 })
