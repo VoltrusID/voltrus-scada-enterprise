@@ -30,10 +30,18 @@ export interface AnnotationMarker {
 }
 
 function toTvData(points: DataPoint[]): LineData<Time>[] {
-  return points.map(p => ({
-    time: p.ts / 1000 as Time,
-    value: p.value,
-  }))
+  // Filter null/undefined/NaN — lightweight-charts LineSeries throws
+  // "Value is null" when fed a point whose value isn't a finite number
+  // (telemetry gaps / missing register reads arrive as JSON null despite
+  // the `number` type). Also enforce ascending unique time, which the
+  // library requires for both setData and update.
+  const seen = new Map<number, LineData<Time>>()
+  for (const p of points) {
+    if (p.value === null || p.value === undefined || !Number.isFinite(p.value)) continue
+    const t = p.ts / 1000
+    seen.set(t, { time: t as Time, value: p.value })
+  }
+  return [...seen.values()].sort((a, b) => (a.time as number) - (b.time as number))
 }
 
 interface Props {

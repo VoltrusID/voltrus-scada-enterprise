@@ -277,7 +277,13 @@ function AppInner() {
   const handleLogin = async (username: string, password: string) => {
     setLoginError('')
     try {
-      const r = await fetchOk('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
+      // Raw fetch, not fetchOk: the refresh wrapper would rewrite the
+      // login endpoint's own 401 ("Invalid credentials") into "Session expired".
+      const r = await fetch('/api/v1/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }), credentials: 'include' })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        throw new Error(body.error || `Login failed: ${r.status}`)
+      }
       const d = await r.json(); connectWS(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || username); setMustChangePassword(!!d.must_change_password)
     } catch (e: any) { setLoginError(e.message || 'Login failed') }
   }
