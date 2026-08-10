@@ -27,6 +27,8 @@ mod enip_devices;
 mod firmware_catalog;
 mod flows;
 mod generators;
+#[cfg(feature = "gateway-client")]
+mod gateway_proxy;
 pub(crate) mod hardware_cert;
 pub(crate) mod hub;
 mod import_nodered;
@@ -337,6 +339,17 @@ fn scripts_admin_routes() -> Router<AppState> {
         .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
         .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
         .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
+}
+#[cfg(feature = "gateway-client")]
+fn gateway_proxy_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/v1/gateway/info", get(gateway_proxy::get_info))
+        .route(
+            "/api/v1/gateway/endpoint",
+            get(gateway_proxy::get_endpoint).put(gateway_proxy::set_endpoint),
+        )
+        .route("/api/v1/gateway/discover", post(gateway_proxy::discover))
+        .route("/api/v1/gateway/browse", post(gateway_proxy::browse))
 }
 
 pub fn create_router(state: AppState) -> Router {
@@ -1047,6 +1060,8 @@ pub fn create_router(state: AppState) -> Router {
     #[cfg(feature = "scripts")]
     let demo_protected = demo_protected.merge(scripts_admin_routes());
     let demo_protected = demo_protected.merge(voltrus_plc_admin_routes());
+    #[cfg(feature = "gateway-client")]
+    let demo_protected = demo_protected.merge(gateway_proxy_routes());
 
     let demo_protected = demo_protected
         .layer(middleware::from_fn(demo_allowed_middleware))
