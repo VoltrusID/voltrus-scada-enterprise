@@ -222,16 +222,25 @@ pub async fn scan(
         })
         .collect();
 
-    let resp = client
-        .read_tags(pb::ReadTagsRequest {
-            session_id: session_id.clone(),
-            tags,
-        })
-        .await;
+    // Sub-batch the reads: a transport reset / panic on one register only drops
+    // its chunk (each chunk is a separate gRPC stream over the reused channel),
+    // so the scan still returns the registers that responded.
+    let mut values: Vec<pb::TagValue> = Vec::new();
+    for chunk in tags.chunks(8) {
+        match client
+            .read_tags(pb::ReadTagsRequest {
+                session_id: session_id.clone(),
+                tags: chunk.to_vec(),
+            })
+            .await
+        {
+            Ok(r) => values.extend(r.values),
+            Err(e) => tracing::warn!(error = %e, "gateway scan sub-batch failed"),
+        }
+    }
     let _ = client
         .disconnect(pb::DisconnectRequest { session_id })
         .await;
-    let values = resp?.values;
 
     let out: Vec<Value> = values
         .into_iter()
