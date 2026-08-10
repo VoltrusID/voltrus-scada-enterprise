@@ -225,6 +225,7 @@ export interface ScadaEquipmentItem {
   height: number
   rotation: number
   sensor_bindings: string
+  config: string
 }
 
 export interface ScadaConnectionItem {

@@ -67,6 +67,7 @@ export function exportToAPI(canvas: Canvas): {
         height: Math.round((obj.height ?? DEFAULT_SIZES[props.equipment_type].height) * (obj.scaleY ?? 1)),
         rotation: Math.round((obj.angle ?? 0) * 10) / 10,
         sensor_bindings: JSON.stringify(props.bindings.map((b: { sensor_id: number }) => b.sensor_id)),
+        config: '{}',
       })
     }
 

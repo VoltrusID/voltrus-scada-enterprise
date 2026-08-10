@@ -162,6 +162,8 @@ pub struct ScadaEquipment {
     pub height: f64,
     pub rotation: f64,
     pub sensor_bindings: String,
+    #[serde(default)]
+    pub config: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]

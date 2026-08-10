@@ -12,7 +12,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings FROM scada_equipment WHERE screen_id = ?1")
+                .prepare("SELECT screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings, config FROM scada_equipment WHERE screen_id = ?1")
                 .context("Prepare failed")?;
             let rows = stmt
                 .query_map(rusqlite::params![screen_id], |row| {
@@ -27,6 +27,7 @@ impl Storage {
                         height: row.get(7)?,
                         rotation: row.get(8)?,
                         sensor_bindings: row.get(9)?,
+                        config: row.get(10)?,
                     })
                 })
                 .context("Query failed")?;
@@ -48,10 +49,10 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT OR REPLACE INTO scada_equipment (screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                "INSERT OR REPLACE INTO scada_equipment (screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings, config)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 rusqlite::params![item.screen_id, item.equipment_id, item.equipment_type, item.equipment_name,
-                                  item.x, item.y, item.width, item.height, item.rotation, item.sensor_bindings],
+                                  item.x, item.y, item.width, item.height, item.rotation, item.sensor_bindings, item.config],
             )
             .context("Upsert scada equipment failed")?;
             Ok(())
@@ -78,10 +79,10 @@ impl Storage {
             .context("Delete scada equipment failed")?;
             for item in &items {
                 tx.execute(
-                    "INSERT INTO scada_equipment (screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    "INSERT INTO scada_equipment (screen_id, equipment_id, equipment_type, equipment_name, x, y, width, height, rotation, sensor_bindings, config)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                     rusqlite::params![item.screen_id, item.equipment_id, item.equipment_type, item.equipment_name,
-                                      item.x, item.y, item.width, item.height, item.rotation, item.sensor_bindings],
+                                      item.x, item.y, item.width, item.height, item.rotation, item.sensor_bindings, item.config],
                 )
                 .context("Insert scada equipment failed")?;
             }

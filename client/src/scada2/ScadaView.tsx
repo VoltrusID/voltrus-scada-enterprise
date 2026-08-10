@@ -79,7 +79,7 @@ function loadLayoutFromAPI(
       y: eq.y,
       width: eq.width,
       height: eq.height,
-      config: {} as Record<string, any>,
+      config: (JSON.parse(eq.config || '{}') as Record<string, any>),
     }
   })
 
@@ -205,6 +205,7 @@ export const ScadaView: React.FC<Props> = ({
       height: w.height,
       rotation: 0,
       sensor_bindings: JSON.stringify(w.sensorIds ?? (w.sensorId != null ? [w.sensorId] : [])),
+      config: JSON.stringify(w.config ?? {}),
     }))
 
     const connections: ScadaConnectionItem[] = layout.connections.map(c => ({

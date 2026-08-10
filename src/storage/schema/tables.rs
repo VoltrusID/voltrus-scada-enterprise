@@ -151,6 +151,7 @@ pub(super) fn create_tables(conn: &Connection) -> Result<()> {
             height REAL NOT NULL DEFAULT 60,
             rotation REAL NOT NULL DEFAULT 0,
             sensor_bindings TEXT NOT NULL DEFAULT '[]',
+            config TEXT NOT NULL DEFAULT '{}',
             PRIMARY KEY (screen_id, equipment_id)
         );
         CREATE TABLE IF NOT EXISTS scada_connections (
