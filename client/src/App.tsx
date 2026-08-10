@@ -459,9 +459,9 @@ export function AppInner() {
         mode={mode}
         onSettingsClick={() => setShowDashSettings(true)}
         onDataManagerClick={() => navigate({ to: '/data' })}
-        onFlowsClick={() => { setMode('flows'); setActiveScreen('all') }}
-        onTagsClick={() => { setMode('tags'); setActiveScreen('all') }}
-        onAssetsClick={() => { setMode('assets'); setActiveScreen('all') }}
+        onFlowsClick={() => setMode('flows')}
+        onTagsClick={() => setMode('tags')}
+        onAssetsClick={() => setMode('assets')}
         isAdmin={isAdminOrDemo}
         username={authUser}
         onLogout={handleLogout}
@@ -475,11 +475,11 @@ export function AppInner() {
         onNodeRedWizardClick={() => setShowNodeRedWizard(true)}
         onMqttPanelClick={() => setShowMqttPanel(true)}
         onEdrPanelClick={() => setShowEdrPanel(true)}
-        onSystemClick={() => { setMode('system'); setActiveScreen('all') }}
-        onScriptsClick={() => { setMode('scripts'); setActiveScreen('all') }}
+        onSystemClick={() => setMode('system')}
+        onScriptsClick={() => setMode('scripts')}
         screens={screens}
         activeScreen={activeScreen}
-        onTabClick={(id) => { setActiveScreen(id); if (mode === 'system' || mode === 'flows' || mode === 'tags' || mode === 'assets' || mode === 'scripts') setMode('live') }}
+        onTabClick={(id) => navigate({ to: '/', search: prev => ({ ...prev, screen: id, ...(_overlayPage ? { mode: 'live' as const } : {}) }) })}
         onRenameScreen={handleRenameScreen}
         onDeleteScreen={handleDeleteScreen}
         onAddScreen={handleAddScreen}
