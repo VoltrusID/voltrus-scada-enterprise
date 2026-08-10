@@ -73,4 +73,6 @@ export const queryKeys = {
   compressionDeadband: ['compressionDeadband'] as const,
   version: ['version'] as const,
   smtpConfig: ['smtpConfig'] as const,
+  gatewayInfo: ['gatewayInfo'] as const,
+  gatewayEndpoint: ['gatewayEndpoint'] as const,
 }
