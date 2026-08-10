@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useRouterState, Outlet } from '@tanstack/react-router'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
 import { ChangePasswordScreen } from './ChangePasswordScreen'
@@ -49,7 +50,7 @@ const MqttBrokerPanel = lazy(() => import('./MqttBrokerPanel').then(m => ({ defa
 const EdrCompatPanel = lazy(() => import('./EdrCompatPanel').then(m => ({ default: m.EdrCompatPanel })))
 const ScriptEditor = lazy(() => import('./components/ScriptEditor').then(m => ({ default: m.ScriptEditor })))
 
-function AppInner() {
+export function AppInner() {
   const queryClient = useQueryClient()
   const { t, ready: i18nReady } = useTranslation()
 
@@ -70,12 +71,23 @@ function AppInner() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [dashSettings, setDashSettings] = useState({ gap: 12, refreshInterval: 1000, historyAutoAgg: 'sampling' as const })
   const [showDashSettings, setShowDashSettings] = useState(false)
-  const [selectedSensor, setSelectedSensor] = useState<number | null>(null)
-  const [activeScreen, setActiveScreen] = useState<string>(() => new URLSearchParams(window.location.search).get('screen') ?? 'all')
-  const [mode, setMode] = useState<'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts'>(() => {
-    const m = new URLSearchParams(window.location.search).get('mode')
-    return (m === 'history' || m === 'system' || m === 'flows' || m === 'tags' || m === 'assets' || m === 'scripts') ? m : 'live'
-  })
+  // ── Router-backed navigation ────────────────────────────────────
+  // selectedSensor / activeScreen / mode / viewMode are derived from the URL
+  // (see router.tsx). The old useState + window.history.replaceState hack is
+  // gone — the router owns the URL, so deep-links + back/forward just work.
+  const navigate = useNavigate()
+  const routerLocation = useRouterState({ select: s => s.location })
+  const searchParams = (routerLocation.search ?? {}) as { screen?: string; view?: string; mode?: string }
+  const activeScreen = searchParams.screen ?? 'all'
+  const viewMode: 'cards' | 'canvas' | 'twin' | 'scada' =
+    searchParams.view === 'canvas' || searchParams.view === 'twin' || searchParams.view === 'scada' ? searchParams.view : 'cards'
+  const liveMode: 'live' | 'history' = searchParams.mode === 'history' ? 'history' : 'live'
+  const _pathSegs = routerLocation.pathname.split('/').filter(Boolean)
+  const _routePage = _pathSegs[0] ?? ''
+  const selectedSensor = _routePage === 'sensor' && _pathSegs[1] ? Number(_pathSegs[1]) : null
+  const _overlayPage = _routePage === 'system' || _routePage === 'flows' || _routePage === 'tags' || _routePage === 'assets' || _routePage === 'scripts'
+    ? (_routePage as 'system' | 'flows' | 'tags' | 'assets' | 'scripts') : null
+  const mode: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts' = _overlayPage ?? liveMode
   const [historyRange, setHistoryRange] = useState('30m')
   const [historyDetail, setHistoryDetail] = useState<'auto' | 'full'>('auto')
   const [showDataManager, setShowDataManager] = useState(false)
@@ -84,10 +96,18 @@ function AppInner() {
   const [screenConfirm, setScreenConfirm] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
   const [showBrandingDialog, setShowBrandingDialog] = useState(false)
   const [layoutBreakpoint, setLayoutBreakpoint] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'cards' | 'canvas' | 'twin' | 'scada'>(() => {
-    const v = new URLSearchParams(window.location.search).get('view')
-    return (v === 'canvas' || v === 'twin' || v === 'scada') ? v : 'cards'
-  })
+  // Setters navigate instead of setState — each change is a real history
+  // entry, so deep-links + browser back/forward work end to end.
+  const setActiveScreen = useCallback((id: string) => navigate({ to: '/', search: prev => ({ ...prev, screen: id }) }), [navigate])
+  const setViewMode = useCallback((v: 'cards' | 'canvas' | 'twin' | 'scada') => navigate({ to: '/', search: prev => ({ ...prev, view: v }) }), [navigate])
+  const setSelectedSensor = useCallback((id: number | null) => {
+    if (id == null) navigate({ to: '/' })
+    else navigate({ to: '/sensor/$id', params: { id: String(id) } })
+  }, [navigate])
+  const setMode = useCallback((m: 'live' | 'history' | 'system' | 'flows' | 'tags' | 'assets' | 'scripts') => {
+    if (m === 'system' || m === 'flows' || m === 'tags' || m === 'assets' || m === 'scripts') navigate({ to: `/${m}`, search: prev => ({ ...prev, screen: 'all' }) })
+    else navigate({ to: '/', search: prev => ({ ...prev, mode: m }) })
+  }, [navigate])
   const [scadaToolbarSlot, setScadaToolbarSlot] = useState<React.ReactNode>(null)
   const [localLayouts, setLocalLayouts] = useState<ScreenLayouts | null>(null)
   const [localCanvasLayouts, setLocalCanvasLayouts] = useState<CanvasLayoutItem[] | null>(null)
@@ -126,14 +146,7 @@ function AppInner() {
   // cleanup on unmount only
   useEffect(() => () => { wsRef.current?.disconnect(); wsRef.current = null; setWsInstance(null) }, [])
 
-  // ── URL sync ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    p.set('mode', mode)
-    p.set('screen', activeScreen)
-    p.set('view', viewMode)
-    window.history.replaceState(null, '', `${window.location.pathname}?${p}`)
-  }, [mode, activeScreen, viewMode])
+  // ── URL sync is owned by @tanstack/react-router (see router.tsx) ──
 
   // ── Query hooks ──────────────────────────────────────────────────
   const { data: sensors = [] } = useSensors(authed)
@@ -621,17 +634,19 @@ function AppInner() {
 
       <Footer activeAlarmCount={activeAlarms.count} viewMode={viewMode} activeScreen={activeScreen} screens={screens} />
       <ToastContainer />
+      {/* router outlet (child route components render null; AppInner owns all chrome) */}
+      <span style={{ display: 'none' }}><Outlet /></span>
     </div>
     </LicenseContext.Provider>
   )
 }
 
-export default function App() {
+export default function App({ children }: { children: ReactNode }) {
   const storeRef = useRef(createDashboardStore())
   return (
     <DashboardStoreProvider value={storeRef.current}>
       <ThemeProvider>
-        <AppInner />
+        {children}
       </ThemeProvider>
     </DashboardStoreProvider>
   )
