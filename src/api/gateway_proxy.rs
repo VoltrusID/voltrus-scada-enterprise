@@ -161,7 +161,6 @@ pub async fn discover(
 #[derive(serde::Deserialize)]
 pub struct BrowseBody {
     pub protocol: String, // "modbus" | "opcua"
-    #[serde(flatten)]
     pub params: Value,
 }
 
