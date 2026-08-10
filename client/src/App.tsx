@@ -543,7 +543,7 @@ export function AppInner() {
               <Suspense fallback={null}><ScriptEditor /></Suspense>
             </OverlayScreen>
           )}
-          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && mode !== 'scripts' && (
+          {mode !== 'system' && mode !== 'flows' && mode !== 'tags' && mode !== 'assets' && mode !== 'scripts' && selectedSensor == null && (
             <MainContent
               viewMode={viewMode} mode={mode}
               screenSensors={screenSensors}
