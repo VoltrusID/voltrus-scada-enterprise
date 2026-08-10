@@ -6,6 +6,8 @@ import './index.css'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import App from './App'
+import { RouterProvider } from '@tanstack/react-router'
+import { router } from './router'
 import { toast } from './components/Toast'
 
 const queryClient = new QueryClient({
@@ -31,7 +33,7 @@ queryClient.getQueryCache().config.onError = (error: any) => {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <App><RouterProvider router={router} /></App>
     </QueryClientProvider>
   </StrictMode>
 )
