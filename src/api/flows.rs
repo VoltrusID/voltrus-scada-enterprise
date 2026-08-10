@@ -187,7 +187,7 @@ pub async fn test_flow(
             storage: state.storage.clone(),
             cache: cache.clone(),
         };
-        match node.process(msg, &ctx) {
+        match node.process(msg, &ctx).await {
             Ok(crate::flow_engine::node::NodeResult::Continue(new_msg)) => {
                 output = new_msg.payload.clone();
                 results.push(json!({

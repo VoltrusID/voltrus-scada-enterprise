@@ -328,7 +328,7 @@ async fn run_flow(
             storage: storage.clone(),
             cache: cache.clone(),
         };
-        match node.process(msg, &ctx) {
+        match node.process(msg, &ctx).await {
             Ok(crate::flow_engine::node::NodeResult::Continue(new_msg)) => {
                 msg = new_msg;
             }

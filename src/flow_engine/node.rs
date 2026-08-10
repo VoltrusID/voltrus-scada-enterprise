@@ -127,7 +127,12 @@ pub enum NodeConfig {
 }
 
 impl NodeConfig {
-    pub fn process(&self, mut msg: Message, ctx: &NodeContext) -> Result<NodeResult, String> {
+    pub async fn process(&self, mut msg: Message, ctx: &NodeContext) -> Result<NodeResult, String> {
+        // Clone the shared handles up front so the `&NodeContext` borrow ends
+        // before any `.await` (keeps this future `Send` for tokio::spawn).
+        let storage = ctx.storage.clone();
+        let cache = ctx.cache.clone();
+        let flow_id = ctx.flow_id.clone();
         match self {
             NodeConfig::Filter { condition, .. } => {
                 let result = crate::expression::evaluate_json(condition, &msg.payload)?;
@@ -194,13 +199,10 @@ impl NodeConfig {
             } => {
                 let value = get_json_path(&msg.payload, value_field)?;
                 let numeric_value = to_f64(&value)?;
-                let device_id = format!("flow_{}", ctx.flow_id);
+                let device_id = format!("flow_{}", flow_id);
                 let mut metrics = HashMap::new();
                 metrics.insert(source_key.clone(), numeric_value);
-                let cache = ctx.cache.clone();
-                tokio::runtime::Handle::current().spawn(async move {
-                    cache.update(&device_id, metrics, false).await;
-                });
+                cache.update(&device_id, metrics, false).await;
                 Ok(NodeResult::Continue(msg))
             }
             NodeConfig::HttpOut {
@@ -210,32 +212,32 @@ impl NodeConfig {
                 retry_count,
                 ..
             } => {
-                let payload = msg.payload.clone();
-                let url = url.clone();
-                let headers = headers.clone();
-                let timeout_ms = *timeout_ms;
-                let retry_count = *retry_count;
-                tokio::runtime::Handle::current().spawn(async move {
-                    let client = reqwest::Client::new();
-                    for attempt in 0..=retry_count {
-                        let mut request = client.post(&url).json(&payload);
-                        for (k, v) in &headers {
-                            request = request.header(k, v);
-                        }
-                        request = request.timeout(std::time::Duration::from_millis(timeout_ms));
-                        match request.send().await {
-                            Ok(resp) if resp.status().is_success() => break,
-                            _ => {
-                                if attempt < retry_count {
-                                    tokio::time::sleep(std::time::Duration::from_millis(
-                                        100 * (attempt + 1),
-                                    ))
-                                    .await;
-                                }
-                            }
-                        }
+                let client = reqwest::Client::new();
+                let mut last_error: Option<String> = None;
+                for attempt in 0..=*retry_count {
+                    let mut request = client.post(url).json(&msg.payload);
+                    for (k, v) in headers {
+                        request = request.header(k, v);
                     }
-                });
+                    request = request.timeout(std::time::Duration::from_millis(*timeout_ms));
+                    match request.send().await {
+                        Ok(resp) if resp.status().is_success() => {
+                            last_error = None;
+                            break;
+                        }
+                        Ok(resp) => last_error = Some(format!("HTTP {}", resp.status())),
+                        Err(e) => last_error = Some(e.to_string()),
+                    }
+                    if attempt < *retry_count {
+                        tokio::time::sleep(std::time::Duration::from_millis(
+                            100 * (attempt + 1),
+                        ))
+                        .await;
+                    }
+                }
+                if let Some(e) = last_error {
+                    return Err(format!("HttpOut failed after {} retries: {}", retry_count, e));
+                }
                 Ok(NodeResult::Continue(msg))
             }
             NodeConfig::AlarmOut {
@@ -244,15 +246,13 @@ impl NodeConfig {
                 message,
                 ..
             } => {
-                let storage = ctx.storage.clone();
-                let source_key = source_key.clone();
-                let severity = severity.clone();
-                let message = message.clone();
-                tokio::runtime::Handle::current().spawn(async move {
-                    let _ = storage
-                        .create_alarm(&source_key, &severity, 0.0, 0.0, &message, 0.0)
-                        .await;
-                });
+                if let Err(e) = storage
+                    .create_alarm(source_key, severity, 0.0, 0.0, message, 0.0)
+                    .await
+                {
+                    tracing::warn!("AlarmOut node: failed to create alarm: {}", e);
+                    return Err(format!("AlarmOut failed: {}", e));
+                }
                 Ok(NodeResult::Continue(msg))
             }
             NodeConfig::WriteOut {
@@ -262,7 +262,7 @@ impl NodeConfig {
                 reason,
                 ..
             } => {
-                // 1. Resolve the write value
+                // 1. Resolve the write value.
                 let value_str = if let Some(expr) = value_expr {
                     let result = crate::expression::evaluate_json(expr, &msg.payload)?;
                     match &result {
@@ -281,7 +281,7 @@ impl NodeConfig {
                         }
                     }
                 } else {
-                    // Take the first numeric value from message payload
+                    // Take the first numeric value from message payload.
                     let mut found: Option<String> = None;
                     if let Value::Object(map) = &msg.payload {
                         for (_key, v) in map {
@@ -298,109 +298,99 @@ impl NodeConfig {
                     })?
                 };
 
-                // 2. Look up device info
+                // 2. Look up the target device and enqueue the command.
                 let ds_id = *data_source_id;
-                let storage = ctx.storage.clone();
-                let policy = policy.clone();
-                let reason = reason.clone();
-                tokio::runtime::Handle::current().spawn(async move {
-                    match storage.get_data_source_device_id(ds_id).await {
-                        Ok(Some((device_id, protocol))) => {
-                            // 3. Generate command ID
-                            let command_id: String = rand::rng()
-                                .sample_iter(&rand::distr::Alphanumeric)
-                                .take(21)
-                                .map(char::from)
-                                .collect::<String>()
-                                .to_lowercase();
-                            let now = crate::timeutil::now_secs();
-                            let cmd = Command {
-                                id: format!("cmd_{}", command_id),
-                                data_source_id: ds_id,
-                                device_id,
-                                protocol,
-                                value: value_str,
-                                status: "pending".to_string(),
-                                policy,
-                                scheduled_at: None,
-                                retry_count: 0,
-                                max_retries: 3,
-                                error_message: None,
-                                created_at: now,
-                                sent_at: None,
-                                acked_at: None,
-                                resolved_at: None,
-                                created_by: reason,
-                                readback_status: None,
-                                readback_value: None,
-                                readback_attempts: 0,
-                                readback_ts: None,
-                            };
-                            if let Err(e) = storage.insert_command(&cmd).await {
-                                tracing::warn!("WriteOut node: failed to insert command: {}", e);
-                            }
-                        }
-                        Ok(None) => {
-                            tracing::warn!(
-                                "WriteOut node: device not found for data_source_id {}",
-                                ds_id
-                            );
-                        }
-                        Err(e) => {
-                            tracing::warn!("WriteOut node: error looking up device: {}", e);
+                match storage.get_data_source_device_id(ds_id).await {
+                    Ok(Some((device_id, protocol))) => {
+                        let command_id: String = rand::rng()
+                            .sample_iter(&rand::distr::Alphanumeric)
+                            .take(21)
+                            .map(char::from)
+                            .collect::<String>()
+                            .to_lowercase();
+                        let now = crate::timeutil::now_secs();
+                        let cmd = Command {
+                            id: format!("cmd_{}", command_id),
+                            data_source_id: ds_id,
+                            device_id,
+                            protocol,
+                            value: value_str,
+                            status: "pending".to_string(),
+                            policy: policy.clone(),
+                            scheduled_at: None,
+                            retry_count: 0,
+                            max_retries: 3,
+                            error_message: None,
+                            created_at: now,
+                            sent_at: None,
+                            acked_at: None,
+                            resolved_at: None,
+                            created_by: reason.clone(),
+                            readback_status: None,
+                            readback_value: None,
+                            readback_attempts: 0,
+                            readback_ts: None,
+                        };
+                        if let Err(e) = storage.insert_command(&cmd).await {
+                            return Err(format!("WriteOut failed to insert command: {}", e));
                         }
                     }
-                });
+                    Ok(None) => {
+                        return Err(format!(
+                            "WriteOut: device not found for data_source_id {}",
+                            ds_id
+                        ));
+                    }
+                    Err(e) => {
+                        return Err(format!("WriteOut: error looking up device: {}", e));
+                    }
+                }
                 Ok(NodeResult::Continue(msg))
             }
             NodeConfig::Script {
                 script_id, inputs, ..
             } => {
-                let storage = ctx.storage.clone();
-                let flow_id = ctx.flow_id.clone();
-                let result = tokio::runtime::Handle::current().block_on(async {
-                    match storage.get_script(*script_id).await {
-                        Ok(Some(script)) if script.enabled && script.syntax_error.is_none() => {
-                            let mut tag_input = serde_json::Map::new();
-                            for key in inputs {
-                                if let Some(val) = msg.payload.get(key) {
-                                    tag_input.insert(key.clone(), val.clone());
-                                }
+                let result = match storage.get_script(*script_id).await {
+                    Ok(Some(script)) if script.enabled && script.syntax_error.is_none() => {
+                        let mut tag_input = serde_json::Map::new();
+                        for key in inputs {
+                            if let Some(val) = msg.payload.get(key) {
+                                tag_input.insert(key.clone(), val.clone());
                             }
-                            let input = serde_json::Value::Object(tag_input);
-                            let result = crate::script_engine::execute_script(
-                                &script.source,
-                                &input,
-                                script.cpu_limit_ms as u64,
-                                script.memory_limit_bytes as u64,
-                            );
-                            let _ = storage
-                                .create_script_execution(
-                                    *script_id,
-                                    Some(&flow_id),
-                                    None,
-                                    result.duration_ms as i64,
-                                    if result.success { "success" } else { "error" },
-                                    result.error.as_deref(),
-                                    result.output.as_deref(),
-                                )
-                                .await;
-                            result
                         }
-                        Ok(Some(_)) => crate::script_engine::ScriptResult {
-                            success: false,
-                            output: None,
-                            error: Some("Script has syntax error or is disabled".into()),
-                            duration_ms: 0,
-                        },
-                        _ => crate::script_engine::ScriptResult {
-                            success: false,
-                            output: None,
-                            error: Some("Script not found".into()),
-                            duration_ms: 0,
-                        },
+                        let input = serde_json::Value::Object(tag_input);
+                        let result = crate::script_engine::execute_script(
+                            &script.source,
+                            &input,
+                            script.cpu_limit_ms as u64,
+                            script.memory_limit_bytes as u64,
+                        );
+                        let _ = storage
+                            .create_script_execution(
+                                *script_id,
+                                Some(&flow_id),
+                                None,
+                                result.duration_ms as i64,
+                                if result.success { "success" } else { "error" },
+                                result.error.as_deref(),
+                                result.output.as_deref(),
+                            )
+                            .await;
+                        result
                     }
-                });
+                    Ok(Some(_)) => crate::script_engine::ScriptResult {
+                        success: false,
+                        output: None,
+                        error: Some("Script has syntax error or is disabled".into()),
+                        duration_ms: 0,
+                    },
+                    _ => crate::script_engine::ScriptResult {
+                        success: false,
+                        output: None,
+                        error: Some("Script not found".into()),
+                        duration_ms: 0,
+                    },
+                };
 
                 if result.success
                     && let Some(ref out) = result.output
