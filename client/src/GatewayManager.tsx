@@ -12,6 +12,7 @@ import {
   useSetGatewayEndpoint,
   useDiscoverGateway,
   useBrowseGateway,
+  useScanGateway,
   type BrowsedTag,
 } from './queries'
 import { queryKeys } from './queries/keys'
@@ -63,6 +64,7 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
   const setEndpointMut = useSetGatewayEndpoint()
   const discoverMut = useDiscoverGateway()
   const browseMut = useBrowseGateway()
+  const scanMut = useScanGateway()
 
   const [endpointInput, setEndpointInput] = useState('')
   const [protocol, setProtocol] = useState<Protocol>('modbus')
@@ -76,6 +78,10 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
   const [oSecMode, setOSecMode] = useState('None')
   const [oUser, setOUser] = useState('')
   const [oPass, setOPass] = useState('')
+  const [scanStart, setScanStart] = useState(0)
+  const [scanCount, setScanCount] = useState(25)
+  const [scanType, setScanType] = useState('float32')
+  const [scanArea, setScanArea] = useState('holding')
   // results
   const [tags, setTags] = useState<BrowsedTag[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -126,6 +132,22 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
         onError: (e: unknown) => {
           setTags([])
           setImportMsg(`browse failed: ${String(e)}`)
+        },
+      },
+    )
+  }
+  const onScan = () => {
+    setSelected(new Set())
+    scanMut.mutate(
+      { ip: mIp, port: mPort, unit_id: mUnit, area: scanArea, reg_type: scanType, start: scanStart, count: scanCount },
+      {
+        onSuccess: (r) => {
+          setTags(r.tags)
+          setImportMsg(r.tags.length ? `${r.tags.length} registers responded.` : 'No registers responded in that range.')
+        },
+        onError: (e: unknown) => {
+          setTags([])
+          setImportMsg(`scan failed: ${String(e)}`)
         },
       },
     )
@@ -310,15 +332,54 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
           </div>
         )}
 
+        {protocol === 'modbus' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 12 }}>
+            <div>
+              <label style={labelStyle}>Start</label>
+              <input type="number" value={scanStart} onChange={(e) => setScanStart(Number(e.target.value) || 0)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Count</label>
+              <input type="number" value={scanCount} onChange={(e) => setScanCount(Number(e.target.value) || 25)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Type</label>
+              <select value={scanType} onChange={(e) => setScanType(e.target.value)} style={inputStyle}>
+                <option value="float32">float32</option>
+                <option value="uint16">uint16</option>
+                <option value="int16">int16</option>
+                <option value="int32">int32</option>
+                <option value="uint32">uint32</option>
+                <option value="float64">float64</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Area</label>
+              <select value={scanArea} onChange={(e) => setScanArea(e.target.value)} style={inputStyle}>
+                <option value="holding">holding</option>
+                <option value="input">input</option>
+                <option value="coil">coil</option>
+                <option value="discrete">discrete</option>
+              </select>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
           {protocol === 'modbus' && (
-            <button style={btnStyle} onClick={onDiscover} disabled={discoverMut.isPending}>
-              {discoverMut.isPending ? 'Scanning…' : 'Discover'}
+            <>
+              <button style={btnStyle} onClick={onDiscover} disabled={discoverMut.isPending}>
+                {discoverMut.isPending ? 'Scanning…' : 'Discover'}
+              </button>
+              <button style={btnStyle} onClick={onScan} disabled={scanMut.isPending}>
+                {scanMut.isPending ? 'Scanning…' : 'Scan Registers'}
+              </button>
+            </>
+          )}
+          {protocol === 'opcua' && (
+            <button style={btnStyle} onClick={onBrowse} disabled={browseMut.isPending}>
+              {browseMut.isPending ? 'Browsing…' : 'Browse Tags'}
             </button>
           )}
-          <button style={btnStyle} onClick={onBrowse} disabled={browseMut.isPending}>
-            {browseMut.isPending ? 'Browsing…' : 'Browse Tags'}
-          </button>
         </div>
 
         {discoverMut.data && protocol === 'modbus' && (

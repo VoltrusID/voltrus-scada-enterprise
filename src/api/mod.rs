@@ -350,6 +350,7 @@ fn gateway_proxy_routes() -> Router<AppState> {
         )
         .route("/api/v1/gateway/discover", post(gateway_proxy::discover))
         .route("/api/v1/gateway/browse", post(gateway_proxy::browse))
+        .route("/api/v1/gateway/scan", post(gateway_proxy::scan))
 }
 
 pub fn create_router(state: AppState) -> Router {

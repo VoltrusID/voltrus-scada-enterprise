@@ -156,6 +156,108 @@ pub async fn discover(
         .collect();
     Ok(Json(json!({ "devices": devices })))
 }
+// ── POST /api/v1/gateway/scan ────────────────────────────────────────────────
+// Modbus has no tag directory, so BrowseTags returns empty for it. A scan reads
+// a register range as a candidate type (stepping by the type's word size so
+// float32/int32 don't overlap) and reports every register that responds with a
+// value — letting the user pick real registers (with their live values) to import.
+#[derive(serde::Deserialize)]
+pub struct ScanBody {
+    pub ip: String,
+    pub port: Option<u32>,
+    pub unit_id: Option<u32>,
+    pub area: Option<String>,     // holding | input | coil | discrete (default holding)
+    pub reg_type: Option<String>, // float32 | uint16 | int16 | int32 | uint32 | float64
+    pub start: Option<u32>,
+    pub count: Option<u32>, // number of tags (not registers); capped at 200
+}
+
+fn type_step(reg_type: &str) -> u32 {
+    match reg_type {
+        "int16" | "uint16" => 1,
+        "int32" | "uint32" | "float32" => 2,
+        "float64" => 4,
+        _ => 1,
+    }
+}
+
+pub async fn scan(
+    State(state): State<AppState>,
+    Json(body): Json<ScanBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let (endpoint, _) = resolve_endpoint(&state).await;
+    let mut client = connect_gateway(&endpoint).await?;
+    let connect = pb::ConnectRequest {
+        session_hint: "scan".into(),
+        protocol: Some(Protocol::Modbus(pb::ModbusConnectConfig {
+            id: "scan".into(),
+            ip: body.ip,
+            port: body.port.unwrap_or(502),
+            unit_id: body.unit_id.unwrap_or(1),
+            interval_ms: 1000,
+            endianness: "big".into(),
+            bind_addr: String::new(),
+        })),
+    };
+    let session_id = client.open_session(connect).await?.session_id;
+
+    let area = body.area.unwrap_or_else(|| "holding".into());
+    let reg_type = body.reg_type.unwrap_or_else(|| "float32".into());
+    let step = type_step(&reg_type);
+    let start = body.start.unwrap_or(0);
+    let count = body.count.unwrap_or(50).min(200);
+
+    let tags: Vec<pb::TagAddress> = (0..count)
+        .map(|i| {
+            let addr = start + i * step;
+            pb::TagAddress {
+                address: Some(pb::tag_address::Address::Modbus(pb::ModbusTagAddress {
+                    name: format!("reg_{addr}"),
+                    address: addr,
+                    reg_type: reg_type.clone(),
+                    scale: 1.0,
+                    register_area: area.clone(),
+                })),
+            }
+        })
+        .collect();
+
+    let resp = client
+        .read_tags(pb::ReadTagsRequest {
+            session_id: session_id.clone(),
+            tags,
+        })
+        .await;
+    let _ = client
+        .disconnect(pb::DisconnectRequest { session_id })
+        .await;
+    let values = resp?.values;
+
+    let out: Vec<Value> = values
+        .into_iter()
+        .filter_map(|tv| {
+            if !tv.error.is_empty() {
+                return None;
+            }
+            let m = match tv.tag.and_then(|t| t.address) {
+                Some(pb::tag_address::Address::Modbus(m)) => m,
+                _ => return None,
+            };
+            let value = tv.value.and_then(crate::gateway_client::value_to_f64)?;
+            Some(json!({
+                "protocol": "modbus",
+                "name": m.name,
+                "address": m.address,
+                "data_type": reg_type,
+                "register_area": area,
+                "scale": 1.0,
+                "value": value,
+            }))
+        })
+        .collect();
+    Ok(Json(json!({ "tags": out })))
+}
+
 
 // ── POST /api/v1/gateway/browse ───────────────────────────────────────────────
 #[derive(serde::Deserialize)]
