@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   useAlarms,
@@ -375,7 +376,10 @@ export function AlarmPanel({ onClose }: Props) {
 
   const isMobile = useIsMobile()
   const [filter, setFilter] = useState<string>('active')
-  const [panelTab, setPanelTab] = useState<PanelTab>('alarms')
+  const navigate = useNavigate()
+  const routerSearch = useRouterState({ select: s => s.location.search }) as { tab?: string }
+  const panelTab: PanelTab = (PANEL_TABS as readonly string[]).includes(routerSearch.tab as string) ? routerSearch.tab as PanelTab : 'alarms'
+  const setPanelTab = (t: PanelTab) => navigate({ to: '/alarms', search: prev => ({ ...prev, tab: t }) })
   const [shelfTarget, setShelfTarget] = useState<number | null>(null)
   const { data: alarms = [], isLoading } = useAlarms(filter)
   const ackMut = useAcknowledgeAlarm()

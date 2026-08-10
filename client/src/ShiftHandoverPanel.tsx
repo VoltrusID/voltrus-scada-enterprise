@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useShiftHandovers, useCreateShiftHandover, useShiftAutoReport } from './queries'
 import type { ShiftHandover as ShiftHandoverType } from './queries'
 import { btnStyle, inputStyle, labelStyle, labelTextStyle, tabStyle } from './styles'
@@ -393,7 +394,10 @@ export function ShiftHandoverPanel({ onClose, embedded }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, embedded])
 
-  const [activeTab, setActiveTab] = useState<TabId>('log')
+  const navigate = useNavigate()
+  const routerSearch = useRouterState({ select: s => s.location.search }) as { tab?: string }
+  const activeTab: TabId = routerSearch.tab === 'log' || routerSearch.tab === 'report' ? routerSearch.tab : 'log'
+  const setActiveTab = (t: TabId) => navigate({ to: '/shift', search: prev => ({ ...prev, tab: t }) })
   const [showCreate, setShowCreate] = useState(false)
 
   const content = (

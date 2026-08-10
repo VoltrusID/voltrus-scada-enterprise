@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { fmtTs } from '../styles'
 import {
   listCommands,
@@ -137,7 +138,10 @@ interface Props {
 }
 
 export function CommandPanel({ onClose, isAdmin }: Props) {
-  const [panelTab, setPanelTab] = useState<PanelTab>('history')
+  const navigate = useNavigate()
+  const routerSearch = useRouterState({ select: s => s.location.search }) as { tab?: string }
+  const panelTab: PanelTab = (PANEL_TABS as readonly string[]).includes(routerSearch.tab as string) ? routerSearch.tab as PanelTab : 'history'
+  const setPanelTab = (t: PanelTab) => navigate({ to: '/commands', search: prev => ({ ...prev, tab: t }) })
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [history, setHistory] = useState<Command[]>([])
   const [active, setActive] = useState<Command[]>([])
