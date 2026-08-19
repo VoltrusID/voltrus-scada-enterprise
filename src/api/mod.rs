@@ -15,7 +15,7 @@ mod compliance;
 mod compression;
 mod config_snapshots;
 mod csv_import;
-mod data;
+pub(crate) mod data;
 mod data_sources;
 #[cfg(feature = "dnp3")]
 mod dnp3_devices;

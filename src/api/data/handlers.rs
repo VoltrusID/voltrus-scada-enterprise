@@ -138,7 +138,7 @@ pub async fn get_history(
                 raw_points
                     .iter()
                     .filter_map(|(ts, metrics)| {
-                        metrics.get(&data_source.key).map(|&v| DataPoint {
+                        metrics.get(metric_name(&data_source.key, &data_source.device_id)).map(|&v| DataPoint {
                             timestamp: *ts,
                             value: v,
                         })
