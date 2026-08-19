@@ -224,7 +224,7 @@ export function AssetList({ onSelect, onScan, onImport, onExport }: Props) {
                     {asset.asset_type}
                   </td>
                   <td style={tdStyle}>{asset.vendor ?? '-'}</td>
-                  <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
+                  <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>
                     {asset.ip_address ?? '-'}
                   </td>
                   <td style={tdStyle}>
@@ -237,12 +237,12 @@ export function AssetList({ onSelect, onScan, onImport, onExport }: Props) {
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       width: 28, height: 28, borderRadius: '50%',
                       background: `${rc}22`, color: rc,
-                      fontSize: 11, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace",
+                      fontSize: 11, fontWeight: 700, fontFamily: "var(--font-mono)",
                     }}>
                       {asset.risk_score}
                     </span>
                   </td>
-                  <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--muted)' }}>
+                  <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--muted)' }}>
                     {asset.firmware_version ?? '-'}
                   </td>
                   <td style={{ ...tdStyle, fontSize: 11, color: 'var(--muted)' }}>

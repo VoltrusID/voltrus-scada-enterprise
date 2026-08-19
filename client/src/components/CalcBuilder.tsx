@@ -20,10 +20,10 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--fg)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
 }
 
-const monoInputStyle: React.CSSProperties = { ...inputStyle, fontFamily: 'JetBrains Mono,monospace' }
+const monoInputStyle: React.CSSProperties = { ...inputStyle, fontFamily: 'var(--font-mono)' }
 
 const btnStyle: React.CSSProperties = {
-  fontFamily: 'Inter,sans-serif', fontSize: 13, fontWeight: 500, padding: '7px 14px', borderRadius: 6,
+  fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, padding: '7px 14px', borderRadius: 6,
   border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer',
   display: 'flex', alignItems: 'center', gap: 6,
 }
@@ -155,7 +155,7 @@ export function CalcBuilder({ metrics, values, onCreate, onUpdate, onDelete }: C
           <input style={monoInputStyle} value={formula} onChange={e => setFormula(e.target.value)} placeholder="e.g. (temp * 1.8) + 32" />
         </label>
         {preview != null && (
-          <div style={{ fontSize: 12, color: 'var(--cyan)', fontFamily: 'JetBrains Mono,monospace', padding: '4px 8px', background: 'rgba(0,212,170,0.08)', borderRadius: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--cyan)', fontFamily: 'var(--font-mono)', padding: '4px 8px', background: 'rgba(0,212,170,0.08)', borderRadius: 4 }}>
             Preview: {preview}
           </div>
         )}
@@ -189,7 +189,7 @@ export function CalcBuilder({ metrics, values, onCreate, onUpdate, onDelete }: C
           <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Available Variables</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {values.map(v => (
-              <span key={v.id} style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace', color: 'var(--fg)', padding: '2px 6px', background: 'var(--card)', borderRadius: 4, border: '1px solid var(--border)' }}>
+              <span key={v.id} style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg)', padding: '2px 6px', background: 'var(--card)', borderRadius: 4, border: '1px solid var(--border)' }}>
                 {v.name} = {v.value}
               </span>
             ))}
@@ -211,7 +211,7 @@ export function CalcBuilder({ metrics, values, onCreate, onUpdate, onDelete }: C
                   {m.name}
                   {m.unit && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 6 }}>{m.unit}</span>}
                 </div>
-                <div style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace', color: 'var(--cyan)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--cyan)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {m.formula}
                 </div>
                 {m.validation_error && (

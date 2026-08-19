@@ -13,7 +13,7 @@ export function ConfigPanel({ node, trigger, onNodeChange, onTriggerChange, onTr
   const inputStyle: React.CSSProperties = {
     background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6,
     padding: '6px 10px', color: 'var(--fg)', fontSize: 12,
-    fontFamily: "'JetBrains Mono', monospace", width: '100%',
+    fontFamily: "'var(--font-mono)', monospace", width: '100%',
   }
   const labelStyle: React.CSSProperties = {
     fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase',

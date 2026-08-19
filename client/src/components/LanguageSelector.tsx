@@ -34,7 +34,7 @@ export function LanguageSelector() {
         borderRadius: 6,
         padding: '6px 10px',
         fontSize: 12,
-        fontFamily: 'Inter, system-ui, sans-serif',
+        fontFamily: 'var(--font-ui)',
         cursor: 'pointer',
         outline: 'none',
         minWidth: 44,

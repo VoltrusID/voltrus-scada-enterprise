@@ -38,7 +38,7 @@ function ShortcutRow({ value, onChange }: { value: string; onChange: (v: string 
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       {value ? (
         <kbd style={{
-          fontFamily: "'JetBrains Mono',monospace", fontSize: 11, fontWeight: 600,
+          fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
           padding: '2px 6px', borderRadius: 3,
           background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--cyan)',
         }}>{displayShortcut(value)}</kbd>

@@ -98,7 +98,7 @@ export const SensorCard = React.memo(function SensorCard({
           <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', padding: '3px 8px', borderRadius: 4, flexShrink: 0, minWidth: 44, minHeight: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: st === 'critical' ? 'rgba(239,68,68,.15)' : st === 'warning' ? 'rgba(234,179,8,.15)' : st === 'offline' ? 'rgba(100,100,100,.15)' : 'rgba(34,197,94,.15)', color: stColor(st) }}>{st}</div>
         </div>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 28, fontWeight: 700, lineHeight: 1.2 }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 28, fontWeight: 700, lineHeight: 1.2 }}>
           <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
           <span style={{ fontSize: 14, color: 'var(--muted)', fontWeight: 400, marginLeft: 4 }}>{s.unit}</span>
         </div>
@@ -158,7 +158,7 @@ export const SensorCard = React.memo(function SensorCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {shortcut && (
             <kbd style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 600,
+              fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
               padding: '2px 6px', borderRadius: 3,
               background: 'var(--bg)', border: '1px solid var(--border)',
               color: 'var(--muted)', lineHeight: 1,
@@ -185,7 +185,7 @@ export const SensorCard = React.memo(function SensorCard({
         </div>
       )}
       {!hideStatus && (
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 24, fontWeight: 700, padding: '0 14px', lineHeight: 1.3 }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 24, fontWeight: 700, padding: '0 14px', lineHeight: 1.3 }}>
           <span style={{ color: st === 'normal' ? s.color : stColor(st) }}>{st === 'offline' ? 'OFFLINE' : cv ? cv.value.toFixed(s.decimals) : s.base_val.toFixed(s.decimals)}</span>
           <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500, marginLeft: 4 }}>{s.unit}</span>
         </div>

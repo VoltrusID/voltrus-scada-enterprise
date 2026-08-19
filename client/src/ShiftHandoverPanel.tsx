@@ -195,7 +195,7 @@ function HandoverLogTab({ showCreate, onCreateToggle }: { showCreate: boolean; o
                   <span style={{
                     display: 'inline-block', padding: '2px 8px', borderRadius: 4,
                     fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,.12)',
-                    color: 'var(--ok)', fontFamily: 'JetBrains Mono, monospace',
+                    color: 'var(--ok)', fontFamily: 'var(--font-mono)',
                   }}>{h.shift_date}</span>
                   <span style={{
                     display: 'inline-block', padding: '2px 8px', borderRadius: 4,
@@ -204,7 +204,7 @@ function HandoverLogTab({ showCreate, onCreateToggle }: { showCreate: boolean; o
                   }}>{h.shift_period}</span>
                   <span style={{ fontSize: 11, color: 'var(--muted)' }}>by #{h.author_id}</span>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace' }}>
+                <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
                   {formatTimestamp(h.created_at)}
                 </span>
               </div>
@@ -250,7 +250,7 @@ function ReportSection({ title, items, color, type }: { title: string; items: an
             textTransform: 'uppercase', flexShrink: 0,
           }}>{item.severity || 'info'}</span>
           <span style={{ flex: 1 }}>{item.message || item.source_name || 'Alarm'}</span>
-          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
             {formatTimestamp(item.triggered_at)}
           </span>
         </div>
@@ -262,7 +262,7 @@ function ReportSection({ title, items, color, type }: { title: string; items: an
         <div key={i} style={{ fontSize: 12, color: 'var(--text)', padding: '4px 0', display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600, flexShrink: 0 }}>@{item.author_id}</span>
           <span style={{ flex: 1 }}>{item.annotation_text}</span>
-          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
             {formatTimestamp(item.created_at)}
           </span>
         </div>
@@ -288,7 +288,7 @@ function ReportSection({ title, items, color, type }: { title: string; items: an
             textTransform: 'uppercase', flexShrink: 0,
           }}>{item.severity}</span>
           <span style={{ flex: 1 }}>{item.details || item.event_type}</span>
-          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)', flexShrink: 0 }}>
             {formatTimestamp(item.created_at)}
           </span>
         </div>
@@ -339,7 +339,7 @@ function AutoReportTab() {
           <span style={{
             display: 'inline-block', padding: '2px 8px', borderRadius: 4,
             fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,.12)',
-            color: 'var(--ok)', fontFamily: 'JetBrains Mono, monospace',
+            color: 'var(--ok)', fontFamily: 'var(--font-mono)',
           }}>{report.shift_date}</span>
           <span style={{
             display: 'inline-block', padding: '2px 8px', borderRadius: 4,

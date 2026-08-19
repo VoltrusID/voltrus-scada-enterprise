@@ -78,7 +78,7 @@ export function SmtpSettingsPanel() {
         </label>
         <label style={labelStyle}>
           <span style={labelTextStyle}>Port</span>
-          <input style={{ ...inputStyle, fontFamily: 'JetBrains Mono,monospace' }} type="number" value={port} onChange={e => setPort(Number(e.target.value))} />
+          <input style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} type="number" value={port} onChange={e => setPort(Number(e.target.value))} />
         </label>
       </div>
 

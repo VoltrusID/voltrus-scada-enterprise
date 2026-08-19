@@ -101,8 +101,8 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
                     {d.name || d.id}
                   </div>
                 </td>
-                <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.ip}</td>
-                <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.port}</td>
+                <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.ip}</td>
+                <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.port}</td>
                 <td style={tdStyle}>{d.unit_id}</td>
                 <td style={tdStyle}>{d.interval_ms}ms</td>
                 <td style={tdStyle}><span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,.1)', color: '#a78bfa' }}>{d.endianness}</span></td>

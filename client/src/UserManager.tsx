@@ -115,7 +115,7 @@ export function UserManager({ onClose, embedded }: { onClose: () => void; embedd
   if (embedded) return <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>{tableContent}</div>
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-ui)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button onClick={onClose} style={{ ...btnStyle, padding: '4px 8px' }} aria-label="Close user management">&larr; Back</button>
         <h2 style={{ fontSize: 18, fontWeight: 700 }}>User Management</h2>

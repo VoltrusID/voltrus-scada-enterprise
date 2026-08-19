@@ -146,13 +146,13 @@ export function ScriptExecutionHistory({ scriptId }: ScriptExecutionHistoryProps
                   alignItems: 'center',
                 }}
               >
-                <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 11 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
                   {fmtTs(exec.created_at)}
                 </span>
                 <span>
                   <StatusBadge status={exec.status} />
                 </span>
-                <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 11, color: 'var(--muted)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)' }}>
                   {exec.duration_ms}ms
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -179,7 +179,7 @@ export function ScriptExecutionHistory({ scriptId }: ScriptExecutionHistoryProps
                         Error
                       </div>
                       <pre style={{
-                        margin: 0, fontSize: 11, fontFamily: 'JetBrains Mono,monospace',
+                        margin: 0, fontSize: 11, fontFamily: 'var(--font-mono)',
                         color: 'var(--crit)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                         maxHeight: 120, overflow: 'auto',
                         padding: '6px 8px', background: 'rgba(239,68,68,.06)',
@@ -195,7 +195,7 @@ export function ScriptExecutionHistory({ scriptId }: ScriptExecutionHistoryProps
                         Output
                       </div>
                       <pre style={{
-                        margin: 0, fontSize: 11, fontFamily: 'JetBrains Mono,monospace',
+                        margin: 0, fontSize: 11, fontFamily: 'var(--font-mono)',
                         color: 'var(--fg)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                         maxHeight: 120, overflow: 'auto',
                         padding: '6px 8px', background: 'rgba(148,163,184,.06)',

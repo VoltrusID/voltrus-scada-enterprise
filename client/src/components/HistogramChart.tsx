@@ -125,33 +125,33 @@ export function HistogramChart({ data, lsl, usl, loading }: HistogramChartProps)
       <div style={{ display: 'flex', gap: 8, padding: '6px 12px', flexWrap: 'wrap' }}>
         <div style={cardStyle}>
           <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Mean</span>
-          <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{formatNum(data.stats.mean)}</span>
+          <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{formatNum(data.stats.mean)}</span>
         </div>
         <div style={cardStyle}>
           <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Std Dev</span>
-          <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{formatNum(data.stats.stddev)}</span>
+          <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{formatNum(data.stats.stddev)}</span>
         </div>
         <div style={cardStyle}>
           <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Count</span>
-          <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{data.stats.count}</span>
+          <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{data.stats.count}</span>
         </div>
         {data.capability && (
           <>
             <div style={cardStyle}>
               <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Cp</span>
-              <span style={{ fontSize: 12, color: '#00d4aa', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{formatNum(data.capability.cp)}</span>
+              <span style={{ fontSize: 12, color: '#00d4aa', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{formatNum(data.capability.cp)}</span>
             </div>
             <div style={cardStyle}>
               <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Cpk</span>
-              <span style={{ fontSize: 12, color: data.capability.cpk >= 1.33 ? '#22c55e' : '#f59e0b', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{formatNum(data.capability.cpk)}</span>
+              <span style={{ fontSize: 12, color: data.capability.cpk >= 1.33 ? '#22c55e' : '#f59e0b', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{formatNum(data.capability.cpk)}</span>
             </div>
             <div style={cardStyle}>
               <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Pp</span>
-              <span style={{ fontSize: 12, color: '#00d4aa', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{formatNum(data.capability.pp)}</span>
+              <span style={{ fontSize: 12, color: '#00d4aa', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{formatNum(data.capability.pp)}</span>
             </div>
             <div style={cardStyle}>
               <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Ppk</span>
-              <span style={{ fontSize: 12, color: data.capability.ppk >= 1.33 ? '#22c55e' : '#f59e0b', fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{formatNum(data.capability.ppk)}</span>
+              <span style={{ fontSize: 12, color: data.capability.ppk >= 1.33 ? '#22c55e' : '#f59e0b', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{formatNum(data.capability.ppk)}</span>
             </div>
           </>
         )}

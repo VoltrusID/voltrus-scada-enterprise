@@ -155,7 +155,7 @@ export function RoleManager({ onClose, embedded }: { onClose: () => void; embedd
                                   style={{
                                     display: 'inline-block', padding: '2px 8px', borderRadius: 4,
                                     fontSize: 11, fontWeight: 600,
-                                    fontFamily: 'JetBrains Mono, monospace',
+                                    fontFamily: 'var(--font-mono)',
                                     background: 'rgba(34,211,238,.08)', color: 'var(--cyan)',
                                     border: '1px solid rgba(34,211,238,.15)',
                                   }}
@@ -207,7 +207,7 @@ export function RoleManager({ onClose, embedded }: { onClose: () => void; embedd
                   key={p}
                   style={{
                     display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                    fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 11, fontFamily: 'var(--font-mono)',
                     background: 'var(--card)', border: '1px solid var(--border)',
                     color: 'var(--muted)',
                   }}
@@ -263,7 +263,7 @@ export function RoleManager({ onClose, embedded }: { onClose: () => void; embedd
       position: 'fixed', inset: 0, zIndex: 50,
       background: 'rgba(0,0,0,.6)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'Inter,sans-serif',
+      fontFamily: 'var(--font-ui)',
     }}>
       <div style={{
         background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12,
@@ -324,7 +324,7 @@ function RoleForm({ initialName, initialPermissions, onSave, onClose, loading, e
               style={{
                 ...inputStyle,
                 minHeight: 56, resize: 'vertical',
-                fontFamily: 'JetBrains Mono, monospace', fontSize: 12,
+                fontFamily: 'var(--font-mono)', fontSize: 12,
               }}
             />
           </label>

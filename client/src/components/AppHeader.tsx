@@ -18,7 +18,7 @@ const useIsMobile = () => {
 
 /* ── Shared styles ── */
 const SEGMENT_BTN: React.CSSProperties = {
-  fontFamily: 'Inter,sans-serif',
+  fontFamily: 'var(--font-ui)',
   fontSize: 12,
   fontWeight: 600,
   padding: '5px 12px',
@@ -216,7 +216,7 @@ function ActionMenu({ items, trigger }: { items: MenuItem[]; trigger: React.Reac
                   : 'var(--fg)',
                 cursor: 'pointer',
                 textAlign: 'left' as const,
-                fontFamily: 'Inter,sans-serif',
+                fontFamily: 'var(--font-ui)',
                 transition: 'background 0.1s',
               }}
               onMouseEnter={e => { if (!item.active) (e.currentTarget.style.background = 'var(--hover-overlay)') }}
@@ -226,7 +226,7 @@ function ActionMenu({ items, trigger }: { items: MenuItem[]; trigger: React.Reac
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.shortcut && (
                 <kbd style={{
-                  fontFamily: "'JetBrains Mono',monospace", fontSize: 10, padding: '1px 5px',
+                  fontFamily: "var(--font-mono)", fontSize: 10, padding: '1px 5px',
                   borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)',
                 }}>{displayShortcut(item.shortcut)}</kbd>
               )}
@@ -328,7 +328,7 @@ export function AppHeader({
       {label}
       {shortcut && (
         <kbd style={{
-          fontFamily: "'JetBrains Mono',monospace", fontSize: 9, padding: '1px 4px',
+          fontFamily: "var(--font-mono)", fontSize: 9, padding: '1px 4px',
           borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)',
         }}>{displayShortcut(shortcut)}</kbd>
       )}

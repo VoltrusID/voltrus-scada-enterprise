@@ -174,7 +174,7 @@ export function AnnotationPanel({ onClose, embedded }: Props) {
           <span style={{
             fontSize: 11, color: 'var(--muted)', background: 'var(--card)',
             border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-mono)',
           }}>
             {annotations.length} item{annotations.length !== 1 ? 's' : ''}
           </span>
@@ -277,14 +277,14 @@ export function AnnotationPanel({ onClose, embedded }: Props) {
                   <tr key={ann.id} style={{ transition: 'background 0.1s ease' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                    <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12, whiteSpace: 'nowrap', color: 'var(--muted)' }}>
+                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'nowrap', color: 'var(--muted)' }}>
                       {formatTimestamp(ann.data_timestamp)}
                     </td>
                     <td style={tdStyle}>
                       <span style={{
                         display: 'inline-block', padding: '2px 8px', borderRadius: 4,
                         fontSize: 11, fontWeight: 600, background: 'rgba(34,197,94,.12)',
-                        color: 'var(--ok)', fontFamily: 'JetBrains Mono, monospace',
+                        color: 'var(--ok)', fontFamily: 'var(--font-mono)',
                       }}>{ann.tag_id}</span>
                     </td>
                     <td style={{ ...tdStyle, fontSize: 13, maxWidth: 340 }}>

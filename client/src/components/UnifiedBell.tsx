@@ -21,7 +21,7 @@ const TAB_STYLE = (active: boolean): React.CSSProperties => ({
   padding: '10px 0',
   fontSize: 12,
   fontWeight: 600,
-  fontFamily: 'Inter,sans-serif',
+  fontFamily: 'var(--font-ui)',
   textAlign: 'center' as const,
   cursor: 'pointer',
   border: 'none',
@@ -171,7 +171,7 @@ export function UnifiedBell({ authed, activeAlarmCount, onOpenAlarmPanel }: Prop
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        fontFamily: 'Inter,sans-serif',
+                        fontFamily: 'var(--font-ui)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -213,7 +213,7 @@ export function UnifiedBell({ authed, activeAlarmCount, onOpenAlarmPanel }: Prop
                           style={{
                             fontSize: 11, padding: '2px 8px', borderRadius: 4,
                             border: '1px solid var(--border)', background: 'var(--bg)',
-                            color: 'var(--fg)', cursor: 'pointer', fontFamily: 'Inter,sans-serif',
+                            color: 'var(--fg)', cursor: 'pointer', fontFamily: 'var(--font-ui)',
                           }}
                         >Mark read</button>
                         <button
@@ -221,7 +221,7 @@ export function UnifiedBell({ authed, activeAlarmCount, onOpenAlarmPanel }: Prop
                           style={{
                             fontSize: 11, padding: '2px 8px', borderRadius: 4,
                             border: '1px solid var(--border)', background: 'var(--bg)',
-                            color: 'var(--crit)', cursor: 'pointer', fontFamily: 'Inter,sans-serif',
+                            color: 'var(--crit)', cursor: 'pointer', fontFamily: 'var(--font-ui)',
                           }}
                         >Dismiss</button>
                       </div>

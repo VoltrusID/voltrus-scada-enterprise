@@ -351,8 +351,8 @@ export const EdrCompatPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =
                             {exc.priority.toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{exc.exclusion_type}</td>
-                        <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{exc.path}</td>
+                        <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{exc.exclusion_type}</td>
+                        <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{exc.path}</td>
                         <td style={{ ...tdStyle, color: 'var(--muted)' }}>{exc.reason}</td>
                       </tr>
                     )
@@ -380,7 +380,7 @@ export const EdrCompatPanel: React.FC<{ onClose: () => void }> = ({ onClose }) =
                   background: 'var(--bg)', color: 'var(--fg)', padding: 16, borderRadius: 8,
                   border: '1px solid var(--border)',
                   fontSize: 12, overflow: 'auto', maxHeight: 300, lineHeight: 1.6,
-                  fontFamily: "'JetBrains Mono',monospace",
+                  fontFamily: "var(--font-mono)",
                 }}>
                   {ps1Script}
                 </pre>

@@ -45,7 +45,7 @@ export function Footer({ activeAlarmCount, viewMode, activeScreen, screens }: Pr
       alignItems: 'center',
       padding: '0 14px',
       gap: 14,
-      fontFamily: "'JetBrains Mono', monospace",
+      fontFamily: "'var(--font-mono)', monospace",
       fontSize: 10.5,
       color: 'var(--muted)',
       zIndex: 5,

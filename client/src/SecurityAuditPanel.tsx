@@ -144,7 +144,7 @@ export function SecurityAuditPanel({ onClose, embedded }: Props) {
           <span style={{
             fontSize: 11, color: 'var(--muted)', background: 'var(--card)',
             border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px',
-            fontFamily: 'JetBrains Mono, monospace',
+            fontFamily: 'var(--font-mono)',
           }}>
             {eventCount} event{eventCount !== 1 ? 's' : ''}
           </span>
@@ -212,14 +212,14 @@ export function SecurityAuditPanel({ onClose, embedded }: Props) {
                   <tr key={evt.id} style={{ transition: 'background 0.1s ease' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.02)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                    <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12, whiteSpace: 'nowrap', color: 'var(--muted)' }}>
+                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'nowrap', color: 'var(--muted)' }}>
                       {formatTimestamp(evt.created_at)}
                     </td>
                     <td style={tdStyle}>
                       <span style={{
                         display: 'inline-block', padding: '2px 8px', borderRadius: 4,
                         fontSize: 11, fontWeight: 600, background: 'rgba(168,85,247,.12)',
-                        color: '#a855f7', fontFamily: 'JetBrains Mono, monospace',
+                        color: '#a855f7', fontFamily: 'var(--font-mono)',
                       }}>{eventTypeLabel(evt.event_type)}</span>
                     </td>
                     <td style={tdStyle}>
@@ -229,7 +229,7 @@ export function SecurityAuditPanel({ onClose, embedded }: Props) {
                         background: sev.bg, color: sev.color, letterSpacing: '.03em',
                       }}>{evt.severity}</span>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
                       {evt.source_ip ?? <span style={{ color: 'var(--muted)', opacity: 0.5 }}>--</span>}
                     </td>
                     <td style={tdStyle}>{evt.username ?? <span style={{ color: 'var(--muted)', opacity: 0.5 }}>--</span>}</td>
@@ -264,19 +264,19 @@ export function SecurityAuditPanel({ onClose, embedded }: Props) {
                     <span style={labelTextStyle}>Failed Login Threshold</span>
                     <input type="number" min={1} value={thresholdForm.failed_login_threshold}
                       onChange={e => setThresholdForm({ ...thresholdForm, failed_login_threshold: Number(e.target.value) })}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace' }} />
+                      style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} />
                   </label>
                   <label style={{ ...labelStyle, flex: '1 1 200px' }}>
                     <span style={labelTextStyle}>Suspicious 401 Threshold</span>
                     <input type="number" min={1} value={thresholdForm.suspicious_401_threshold}
                       onChange={e => setThresholdForm({ ...thresholdForm, suspicious_401_threshold: Number(e.target.value) })}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace' }} />
+                      style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} />
                   </label>
                   <label style={{ ...labelStyle, flex: '1 1 200px' }}>
                     <span style={labelTextStyle}>Rate Limit Threshold</span>
                     <input type="number" min={1} value={thresholdForm.rate_limit_threshold}
                       onChange={e => setThresholdForm({ ...thresholdForm, rate_limit_threshold: Number(e.target.value) })}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace' }} />
+                      style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} />
                   </label>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -53,7 +53,7 @@ const tdStyle: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: 13,
   borderBottom: '1px solid var(--border)',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: "'var(--font-mono)', monospace",
 }
 
 export function GatewayManager({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
@@ -244,7 +244,7 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
             value={endpointInput}
             onChange={(e) => setEndpointInput(e.target.value)}
             placeholder="http://127.0.0.1:50061"
-            style={{ ...inputStyle, flex: 1, minWidth: 240, fontFamily: "'JetBrains Mono', monospace" }}
+            style={{ ...inputStyle, flex: 1, minWidth: 240, fontFamily: "'var(--font-mono)', monospace" }}
           />
           <button
             style={btnStyle}
@@ -296,7 +296,7 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
             <div>
               <label style={labelStyle}>IP</label>
-              <input value={mIp} onChange={(e) => setMIp(e.target.value)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }} />
+              <input value={mIp} onChange={(e) => setMIp(e.target.value)} style={{ ...inputStyle, fontFamily: "'var(--font-mono)', monospace" }} />
             </div>
             <div>
               <label style={labelStyle}>Port</label>
@@ -311,7 +311,7 @@ export function GatewayManager({ onClose, embedded }: { onClose: () => void; emb
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div style={{ gridColumn: '1 / span 2' }}>
               <label style={labelStyle}>Endpoint URL</label>
-              <input value={oUrl} onChange={(e) => setOUrl(e.target.value)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }} />
+              <input value={oUrl} onChange={(e) => setOUrl(e.target.value)} style={{ ...inputStyle, fontFamily: "'var(--font-mono)', monospace" }} />
             </div>
             <div>
               <label style={labelStyle}>Security Policy</label>

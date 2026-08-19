@@ -30,7 +30,7 @@ export function EquipmentLabel({ name, sensors, currentValues }: Props) {
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginTop: 2 }}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: st === 'critical' ? '#ef4444' : st === 'warning' ? '#eab308' : '#22c55e', flexShrink: 0 }} />
               <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>{s.name}:</span>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: st === 'normal' ? s.color : st === 'critical' ? '#ef4444' : '#eab308' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: st === 'normal' ? s.color : st === 'critical' ? '#ef4444' : '#eab308' }}>
                 {cv && cv.value != null && !Number.isNaN(cv.value) ? cv.value.toFixed(s.decimals) : 'OFFLINE'} {s.unit}
               </span>
             </div>

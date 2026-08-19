@@ -92,7 +92,7 @@ function DiffViewer({ diff }: { diff: ConfigDiff }) {
               {/* Changed rows */}
               {section.changed.map((item, i) => (
                 <div key={`c-${i}`} style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2, fontFamily: "var(--font-mono)" }}>
                     id: {item.id}
                   </div>
                   <DiffLine type="removed" content={JSON.stringify(item.from, null, 2)} />
@@ -123,7 +123,7 @@ function DiffLine({ type, content }: { type: 'added' | 'removed' | 'changed'; co
   return (
     <pre style={{
       margin: 0, padding: '6px 10px', fontSize: 11, lineHeight: 1.5,
-      fontFamily: "'JetBrains Mono',monospace",
+      fontFamily: "var(--font-mono)",
       background: bg, color, borderRadius: 4,
       whiteSpace: 'pre-wrap', wordBreak: 'break-all',
       borderLeft: `3px solid ${color}`,
@@ -217,7 +217,7 @@ function SnapshotRow({
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontFamily: "var(--font-mono)" }}>
             {formatTimestamp(snapshot.created_at)}
           </span>
           <TriggerBadge trigger={snapshot.trigger} />

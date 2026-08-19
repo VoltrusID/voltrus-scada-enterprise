@@ -72,7 +72,7 @@ function TopicTreeNode({ name, data, path, selected, onSelect, topicsMap }: Tree
             padding: '1px 6px',
             borderRadius: 8,
             marginLeft: 'auto',
-            fontFamily: 'JetBrains Mono,monospace',
+            fontFamily: 'var(--font-mono)',
           }}>
             {msgCount.toLocaleString()}
           </span>
@@ -112,7 +112,7 @@ function PayloadView({ payload }: { payload: string }) {
     <pre style={{
       margin: 0,
       fontSize: 12,
-      fontFamily: 'JetBrains Mono,monospace',
+      fontFamily: 'var(--font-mono)',
       color: isJson ? 'var(--cyan)' : 'var(--fg)',
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-all',
@@ -203,13 +203,13 @@ function OverviewTab() {
                 <tbody>
                   {status.clients.map(c => (
                     <tr key={c.client_id}>
-                      <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{c.client_id}</td>
+                      <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{c.client_id}</td>
                       <td style={tdStyle}>{timeAgo(c.connected_at)}</td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {c.subscriptions.length > 0
                             ? c.subscriptions.map(s => (
-                              <span key={s} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,211,238,.1)', color: 'var(--cyan)', fontFamily: 'JetBrains Mono,monospace' }}>{s}</span>
+                              <span key={s} style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,211,238,.1)', color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>{s}</span>
                             ))
                             : <span style={{ color: 'var(--muted)' }}>-</span>}
                         </div>
@@ -287,7 +287,7 @@ function TopicsTab() {
                     marginBottom: 2,
                   }}
                 >
-                  <div style={{ fontSize: 12, fontFamily: 'JetBrains Mono,monospace', color: 'var(--fg)' }}>{t.topic}</div>
+                  <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--fg)' }}>{t.topic}</div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
                     <span style={{ fontSize: 10, color: 'var(--muted)' }}>{timeAgo(t.last_update)}</span>
                     <span style={{ fontSize: 10, color: 'var(--cyan)' }}>{t.message_count.toLocaleString()} msgs</span>
@@ -324,7 +324,7 @@ function TopicsTab() {
           <>
             <div style={{ ...cardStyle, flexShrink: 0 }}>
               <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Selected Topic</div>
-              <div style={{ fontSize: 13, fontFamily: 'JetBrains Mono,monospace', fontWeight: 600, wordBreak: 'break-all' }}>{selectedTopic}</div>
+              <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600, wordBreak: 'break-all' }}>{selectedTopic}</div>
               {topicsMap.has(selectedTopic) && (
                 <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
                   <span style={{ fontSize: 11, color: 'var(--muted)' }}>Messages: <span style={{ color: 'var(--cyan)' }}>{topicsMap.get(selectedTopic)!.message_count.toLocaleString()}</span></span>
@@ -446,9 +446,9 @@ function MessagesTab() {
                 fontSize: 12,
               }}
             >
-              <span style={{ color: 'var(--muted)', fontFamily: 'JetBrains Mono,monospace', fontSize: 11 }}>{formatTimestamp(m.timestamp)}</span>
+              <span style={{ color: 'var(--muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{formatTimestamp(m.timestamp)}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: 11, color: 'var(--cyan)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.topic}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--cyan)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.topic}</div>
                 <div style={{ maxHeight: 60, overflow: 'auto' }}>
                   <PayloadView payload={m.payload} />
                 </div>
@@ -515,7 +515,7 @@ function PublishTab() {
                 <div
                   key={s}
                   onClick={() => setTopic(s)}
-                  style={{ padding: '6px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'JetBrains Mono,monospace' }}
+                  style={{ padding: '6px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
@@ -536,7 +536,7 @@ function PublishTab() {
               ...inputStyle,
               minHeight: 120,
               resize: 'vertical',
-              fontFamily: 'JetBrains Mono,monospace',
+              fontFamily: 'var(--font-mono)',
               fontSize: 12,
               lineHeight: 1.6,
             }}

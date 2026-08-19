@@ -200,7 +200,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
                       </div>
                     </td>
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{s.name}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{s.url}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.url}</td>
                     <td style={{ ...tdStyle, color: 'var(--muted)', fontSize: 12 }}>
                       {formatLastSeen(siteStatusEntry?.last_seen ?? s.last_seen)}
                     </td>

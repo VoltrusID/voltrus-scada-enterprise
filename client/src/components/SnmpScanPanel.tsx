@@ -154,7 +154,7 @@ export function SnmpScanPanel({ onClose }: Props) {
             <div style={{ padding: '8px 12px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>Scanning network...</span>
-                <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: 'var(--cyan)' }}>
+                <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: 'var(--cyan)' }}>
                   {progress}/{total} ({pct}%)
                 </span>
               </div>
@@ -185,7 +185,7 @@ export function SnmpScanPanel({ onClose }: Props) {
                   <tbody>
                     {results.map(r => (
                       <tr key={r.ip}>
-                        <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{r.ip}</td>
+                        <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontWeight: 600 }}>{r.ip}</td>
                         <td style={tdStyle}>{r.sys_name || '--'}</td>
                         <td style={tdStyle}>{r.vendor || '--'}</td>
                         <td style={tdStyle}>{r.model || '--'}</td>

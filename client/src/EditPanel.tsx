@@ -113,7 +113,7 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
                   value={srcConfig.text_content || ''}
                   onChange={e => setSrcConfig({ ...srcConfig, text_content: e.target.value })}
                   placeholder="# Title&#10;&#10;Write **bold**, *italic*, [links](https://...)&#10;&#10;- Bullet lists&#10;- `code`"
-                  style={{ ...inputStyle, minHeight: 120, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, resize: 'vertical', marginTop: 6 }}
+                  style={{ ...inputStyle, minHeight: 120, fontFamily: "var(--font-mono)", fontSize: 12, resize: 'vertical', marginTop: 6 }}
                 />
               </div>
             )}
@@ -122,7 +122,7 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
                 {capturedShortcut ? (
                   <kbd style={{
-                    fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 600,
+                    fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
                     padding: '4px 8px', borderRadius: 4,
                     background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--cyan)',
                   }}>{displayShortcut(capturedShortcut)}</kbd>

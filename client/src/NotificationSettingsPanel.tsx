@@ -128,7 +128,7 @@ export function NotificationSettingsPanel({ onClose, embedded }: { onClose: () =
                 return (
                   <tr key={s.id}>
                     <td style={tdStyle}>
-                      <span style={{ fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{s.source_key || '*'}</span>
+                      <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{s.source_key || '*'}</span>
                     </td>
                     <td style={tdStyle}>
                       <span style={{
@@ -214,7 +214,7 @@ export function NotificationSettingsPanel({ onClose, embedded }: { onClose: () =
   if (embedded) return <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>{tableContent}</div>
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-ui)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button onClick={onClose} style={{ ...btnStyle, padding: '4px 8px' }}>&larr; Back</button>
         <h2 style={{ fontSize: 18, fontWeight: 700 }}>Notification Settings</h2>
@@ -330,7 +330,7 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
                     placeholder="5551234567"
                     value={target.phone}
                     onChange={e => updateSmsTarget(idx, 'phone', e.target.value)}
-                    style={{ ...inputStyle, flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                    style={{ ...inputStyle, flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
                   />
                   <select
                     value={target.carrier}
@@ -374,7 +374,7 @@ function NotificationDialog({ setting, onSave, onClose, error }: {
                 placeholder={channelType === 'email' ? 'user@example.com\nadmin@example.com' : channelType === 'webhook' ? 'https://hooks.example.com/notify' : 'admin\noperator'}
                 value={targetsText}
                 onChange={e => setTargetsText(e.target.value)}
-                style={{ ...inputStyle, minHeight: 80, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
+                style={{ ...inputStyle, minHeight: 80, resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: 12 }}
                 rows={3}
               />
             </div>

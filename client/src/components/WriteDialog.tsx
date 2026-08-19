@@ -66,7 +66,7 @@ export function WriteDialog({ tagId, tagName, currentValue, policy, onClose }: P
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Tag</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 14, fontWeight: 600 }}>{tagName}</span>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: 'var(--cyan)' }}>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: 'var(--cyan)' }}>
                 {currentValue != null ? currentValue.toFixed(2) : '--'}
               </span>
             </div>
@@ -76,7 +76,7 @@ export function WriteDialog({ tagId, tagName, currentValue, policy, onClose }: P
             /* Success state */
             <div style={{ padding: '16px 12px', borderRadius: 6, background: 'rgba(34,197,94,.1)', border: '1px solid var(--ok)', textAlign: 'center' }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ok)', marginBottom: 8 }}>Command submitted</div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace", wordBreak: 'break-all' }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "var(--font-mono)", wordBreak: 'break-all' }}>
                 {success.command_id}
               </div>
               <button

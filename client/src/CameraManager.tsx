@@ -116,7 +116,7 @@ function CameraSnapshotsPanel({ camera }: { camera: Camera }) {
               <tbody>
                 {snapshots.map((snap: CameraSnapshot) => (
                   <tr key={snap.id}>
-                    <td style={{ padding: '6px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', fontFamily: "'JetBrains Mono',monospace" }}>
+                    <td style={{ padding: '6px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', fontFamily: "var(--font-mono)" }}>
                       {formatTime(snap.timestamp)}
                     </td>
                     <td style={{ padding: '6px 10px', fontSize: 12, borderBottom: '1px solid var(--border)' }}>
@@ -402,7 +402,7 @@ export function CameraManager({ onClose, embedded }: { onClose: () => void; embe
                 {filtered.map(c => (
                   <tr key={c.id}>
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{c.name}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.url}>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.url}>
                       {c.url}
                     </td>
                     <td style={tdStyle}>

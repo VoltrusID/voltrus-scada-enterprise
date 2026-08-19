@@ -106,7 +106,7 @@ export function RunChart({ data, loading }: RunChartProps) {
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
           Run Chart
         </span>
-        <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono,monospace' }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
           {data.runs_count} runs
         </span>
       </div>
@@ -117,7 +117,7 @@ export function RunChart({ data, loading }: RunChartProps) {
         <div style={{ padding: '6px 12px', borderTop: '1px solid var(--border)', maxHeight: 100, overflow: 'auto' }}>
           {data.signals.map((sig, i) => (
             <div key={i} style={{ fontSize: 11, color: '#ef4444', marginBottom: 2, display: 'flex', gap: 8 }}>
-              <span style={{ fontWeight: 600, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace' }}>{sig.rule}</span>
+              <span style={{ fontWeight: 600, color: 'var(--fg)', fontFamily: 'var(--font-mono)' }}>{sig.rule}</span>
               <span style={{ color: 'var(--muted)' }}>{sig.description}</span>
             </div>
           ))}

@@ -456,7 +456,7 @@ export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{s.key} · {s.unit || '—'}</div>
                   </div>
                   {cv && (
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: s.color, fontWeight: 600 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: s.color, fontWeight: 600 }}>
                       {cv.value != null && !Number.isNaN(cv.value) ? cv.value.toFixed(s.decimals) : '—'}
                     </div>
                   )}

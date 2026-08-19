@@ -14,7 +14,7 @@ const useIsMobile = () => {
 
 /* ── Shared styles ── */
 const SEGMENT_BTN: React.CSSProperties = {
-  fontFamily: 'Inter,sans-serif',
+  fontFamily: 'var(--font-ui)',
   fontSize: 11,
   fontWeight: 600,
   padding: '4px 10px',
