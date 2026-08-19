@@ -1,3 +1,11 @@
+[workspace]
+members = [".", "native"]
+resolver = "2"
+
+# GPUI rendering is perf-critical even in dev builds.
+[profile.dev.package.gpui]
+opt-level = 3
+
 [package]
 name = "voltrus"
 version = "0.47.0"
