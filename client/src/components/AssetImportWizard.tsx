@@ -230,7 +230,7 @@ export function AssetImportWizard({ onClose }: Props) {
                         <tr key={i}>
                           <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{(a.name as string) || '--'}</td>
                           <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{(a.asset_type as string) || '--'}</td>
-                          <td style={{ padding: '5px 8px', fontSize: 11, fontFamily: "'JetBrains Mono',monospace", borderBottom: '1px solid var(--border)' }}>{(a.ip_address as string) || '--'}</td>
+                          <td style={{ padding: '5px 8px', fontSize: 11, fontFamily: "var(--font-mono)", borderBottom: '1px solid var(--border)' }}>{(a.ip_address as string) || '--'}</td>
                           <td style={{ padding: '5px 8px', fontSize: 11, borderBottom: '1px solid var(--border)' }}>{(a.vendor as string) || '--'}</td>
                         </tr>
                       ))}

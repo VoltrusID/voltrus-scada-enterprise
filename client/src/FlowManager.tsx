@@ -76,7 +76,7 @@ function FlowList({ flows, onEdit, onDelete, onStart, onStop, onCreate }: {
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{flow.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'JetBrains Mono', monospace", display: 'flex', gap: 12 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'var(--font-mono)', monospace", display: 'flex', gap: 12 }}>
                     <span>{flow.id}</span>
                     <span style={{ color: triggerColor }}>{triggerLabel}</span>
                     <span>{nodeCount} node{nodeCount !== 1 ? 's' : ''}</span>

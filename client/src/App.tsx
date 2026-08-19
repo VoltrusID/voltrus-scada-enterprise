@@ -422,13 +422,13 @@ export function AppInner() {
   }, [activeAlarms.count, startAlarm, stopAlarm])
 
   // ── Render gates ─────────────────────────────────────────────────
-  if (!i18nReady) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>Loading...</div>
-  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('license.checking')}</div>
+  if (!i18nReady) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>Loading...</div>
+  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>{t('license.checking')}</div>
   const licenseStatus = licenseInfo.status
   const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Engineering' || licenseStatus === 'EngineeringPollingStopped'
   if (!isLicensed) return <LicenseActivationScreen />
   if (showLicenseActivation) return <LicenseActivationScreen />
-  if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter,sans-serif' }}>{t('common.loading')}</div>
+  if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>{t('common.loading')}</div>
   if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
 
   if (mustChangePassword) {

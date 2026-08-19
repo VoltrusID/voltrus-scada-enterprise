@@ -93,7 +93,7 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
     for (let i = 0; i <= 5; i++) { const y = pT + (cH / 5) * i; ctx.beginPath(); ctx.moveTo(pL, y); ctx.lineTo(W - pR, y); ctx.stroke() }
 
     // Y labels
-    ctx.fillStyle = '#52525b'; ctx.font = '11px JetBrains Mono,monospace'; ctx.textAlign = 'right'
+    ctx.fillStyle = '#52525b'; ctx.font = "11px 'SF Mono','JetBrains Mono',Menlo,monospace"; ctx.textAlign = 'right'
     for (let i = 0; i <= 5; i++) { const v = yMin + ((yMax - yMin) / 5) * (5 - i); ctx.fillText(v.toFixed(1), pL - 8, pT + (cH / 5) * i + 4) }
 
     // X labels — adaptive, only for visible range
@@ -118,7 +118,7 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
 
     // Threshold lines
     ctx.setLineDash([6, 4])
-    if (warn >= yMin && warn <= yMax) { ctx.strokeStyle = 'rgba(234,179,8,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pL, toY(warn)); ctx.lineTo(W - pR, toY(warn)); ctx.stroke(); ctx.fillStyle = 'rgba(234,179,8,0.7)'; ctx.font = '10px JetBrains Mono,monospace'; ctx.textAlign = 'left'; ctx.fillText('WARN', W - pR + 4, toY(warn) + 3) }
+    if (warn >= yMin && warn <= yMax) { ctx.strokeStyle = 'rgba(234,179,8,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pL, toY(warn)); ctx.lineTo(W - pR, toY(warn)); ctx.stroke(); ctx.fillStyle = 'rgba(234,179,8,0.7)'; ctx.font = "10px 'SF Mono','JetBrains Mono',Menlo,monospace"; ctx.textAlign = 'left'; ctx.fillText('WARN', W - pR + 4, toY(warn) + 3) }
     if (crit >= yMin && crit <= yMax) { ctx.strokeStyle = 'rgba(239,68,68,0.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pL, toY(crit)); ctx.lineTo(W - pR, toY(crit)); ctx.stroke(); ctx.fillStyle = 'rgba(239,68,68,0.7)'; ctx.textAlign = 'left'; ctx.fillText('CRIT', W - pR + 4, toY(crit) + 3) }
     ctx.setLineDash([])
 
@@ -172,7 +172,7 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
       const cy = toY(lv)
       ctx.beginPath(); ctx.arc(lx, cy, 5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill()
       ctx.beginPath(); ctx.arc(lx, cy, 9, 0, Math.PI * 2); ctx.strokeStyle = color + '40'; ctx.lineWidth = 2; ctx.stroke()
-      ctx.fillStyle = color; ctx.font = 'bold 13px JetBrains Mono,monospace'; ctx.textAlign = 'right'
+      ctx.fillStyle = color; ctx.font = "bold 13px 'SF Mono','JetBrains Mono',Menlo,monospace"; ctx.textAlign = 'right'
       ctx.fillText(lv.toFixed(1) + (unit ? ' ' + unit : ''), W - pR - 2, cy - 12)
     }
   }, [data, color, warn, crit, unit, validOverlays, size, pointWidth])
@@ -260,7 +260,7 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
         {validOverlays.length > 0 && (
           <div style={{ position: 'absolute', top: 8, right: 24, display: 'flex', gap: 10, pointerEvents: 'none', zIndex: 1 }}>
             {validOverlays.map((ov, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: ov.color, opacity: 0.85, background: 'rgba(17,17,19,0.8)', padding: '2px 6px', borderRadius: 4 }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: ov.color, opacity: 0.85, background: 'rgba(17,17,19,0.8)', padding: '2px 6px', borderRadius: 4 }}>
                 <div style={{ width: 12, height: 2, background: ov.color, borderRadius: 1 }} />
                 {ov.name} ({ov.unit})
               </div>
@@ -288,7 +288,7 @@ export function DetailChart({ data: rawData, color: rawColor, warn, crit, unit, 
         return (<>
           <div style={{ position: 'fixed', left: hover.clientX, top: scrollRect.top, width: 1, height: scrollRect.height, background: 'rgba(255,255,255,0.12)', pointerEvents: 'none', zIndex: 9999 }} />
           <div style={{ position: 'fixed', left: hover.clientX - 5, top: hover.clientY - 5, width: 10, height: 10, borderRadius: '50%', background: color, border: '2px solid #fff', pointerEvents: 'none', zIndex: 9999 }} />
-          <div style={{ position: 'fixed', left: scrollRect.left + tipLeft, top: scrollRect.top + tipTop, background: 'rgba(17,17,19,0.95)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', pointerEvents: 'none', zIndex: 9999, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, whiteSpace: 'nowrap' }}>
+          <div style={{ position: 'fixed', left: scrollRect.left + tipLeft, top: scrollRect.top + tipTop, background: 'rgba(17,17,19,0.95)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', pointerEvents: 'none', zIndex: 9999, fontFamily: "var(--font-mono)", fontSize: 12, whiteSpace: 'nowrap' }}>
             {allSeries.map((s, i) => (
               <div key={i} style={{ color: s.color, fontWeight: i === 0 ? 700 : 500, fontSize: i === 0 ? 14 : 11, marginTop: i > 0 ? 2 : 0 }}>
                 {allSeries.length > 1 && <span style={{ fontSize: 10, opacity: 0.7 }}>{s.name}: </span>}{s.val}

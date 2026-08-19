@@ -83,7 +83,7 @@ export function FlowNode({ node, triggerType, isTrigger, isSelected, index, onSe
         <div style={{ padding: '10px 12px' }}>
           <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.4 }}>{(meta as any).desc}</div>
           {preview && (
-            <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'var(--font-mono)', monospace", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {preview}
             </div>
           )}

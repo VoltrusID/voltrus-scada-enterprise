@@ -114,11 +114,11 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onBack} style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back<kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8, padding: '1px 3px', marginLeft: 2, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>Esc</kbd>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>Back<kbd style={{ fontFamily: "var(--font-mono)", fontSize: 8, padding: '1px 3px', marginLeft: 2, borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>Esc</kbd>
           </button>
           <h1 style={{ fontSize: 16, fontWeight: 700 }}>{sensor.name}</h1>
           {shortcuts[sensor.id] && (
-            <kbd style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(shortcuts[sensor.id])}</kbd>
+            <kbd style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)' }}>{displayShortcut(shortcuts[sensor.id])}</kbd>
           )}
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>({sensor.key})</span>
         </div>
@@ -154,21 +154,21 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
       <div style={{ display: 'grid', gridTemplateColumns: 'auto repeat(4, 1fr) auto', gap: 6, flexShrink: 0 }}>
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Current</div>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 700, color: st === 'normal' ? sensor.color : stColor(st) }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 18, fontWeight: 700, color: st === 'normal' ? sensor.color : stColor(st) }}>
             {curV != null ? curV.toFixed(sensor.decimals) : 'OFFLINE'}<span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginLeft: 3 }}>{sensor.unit}</span>
           </div>
         </div>
         {[{ l: 'Min', v: stats.safeValues.length ? stats.minV.toFixed(sensor.decimals) : '—' }, { l: 'Max', v: stats.safeValues.length ? stats.maxV.toFixed(sensor.decimals) : '—' }, { l: 'Avg', v: stats.safeValues.length ? stats.avgV.toFixed(sensor.decimals) : '—' }, { l: 'Pts', v: String(stats.pointCount) }].map((s, i) => (
           <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px' }}>
             <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{s.l}</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, marginTop: 1 }}>{s.v}</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, marginTop: 1 }}>{s.v}</div>
           </div>
         ))}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
           {[{ l: 'Warn', v: sensor.warn_val, c: 'var(--warn)' }, { l: 'Crit', v: sensor.crit_val, c: 'var(--crit)' }].map((t, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10 }}>
               <span style={{ color: 'var(--muted)' }}>{t.l}</span>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", color: t.c }}>{t.v}{sensor.unit ? sensor.unit : ''}</span>
+              <span style={{ fontFamily: "var(--font-mono)", color: t.c }}>{t.v}{sensor.unit ? sensor.unit : ''}</span>
             </div>
           ))}
         </div>
@@ -183,7 +183,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
             const s = (allSensors ?? []).find(x => x.id === id);
             if (!s) return null;
             return (
-              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 3, background: s.color + '20', border: `1px solid ${s.color}40`, fontSize: 10, fontFamily: "'JetBrains Mono',monospace", color: s.color, cursor: 'pointer' }} onClick={() => setOverlayIds(prev => prev.filter(x => x !== id))}>
+              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 3, background: s.color + '20', border: `1px solid ${s.color}40`, fontSize: 10, fontFamily: "var(--font-mono)", color: s.color, cursor: 'pointer' }} onClick={() => setOverlayIds(prev => prev.filter(x => x !== id))}>
                 <div style={{ width: 6, height: 2, background: s.color, borderRadius: 1 }} />
                 {s.name}
                 <span style={{ opacity: 0.6, marginLeft: 1 }}>x</span>
@@ -209,7 +209,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
                         <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
                         <div style={{ fontSize: 9, color: 'var(--muted)' }}>{s.key}</div>
                       </div>
-                      {curVal != null && <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: s.color, fontWeight: 600 }}>{curVal.toFixed(s.decimals)}</div>}
+                      {curVal != null && <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: s.color, fontWeight: 600 }}>{curVal.toFixed(s.decimals)}</div>}
                     </button>
                   );
                 })}
@@ -278,7 +278,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
                       flexShrink: 0, marginTop: 5,
                     }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "var(--font-mono)" }}>
                         {new Date(ann.data_timestamp * 1000).toLocaleString()}
                       </div>
                       <div style={{ marginTop: 2, lineHeight: 1.4 }}>{ann.annotation_text}</div>
@@ -311,7 +311,7 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
                 </div>
                 <button onClick={() => setAnnotationTime(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}>&times;</button>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace", marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "var(--font-mono)", marginBottom: 8 }}>
                 {new Date(annotationTime * 1000).toLocaleString()}
               </div>
               <textarea

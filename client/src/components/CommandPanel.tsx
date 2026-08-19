@@ -97,7 +97,7 @@ function CommandRow({ cmd, onExpand, expanded, onCancel, showCancel }: {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: 'var(--cyan)' }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: 'var(--cyan)' }}>
             {cmd.value}
           </span>
           <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'rgba(139,92,246,.1)', color: '#a78bfa', fontWeight: 600 }}>

@@ -152,8 +152,8 @@ export function EnipDeviceManager({ onClose, embedded }: { onClose: () => void; 
                         {d.name || d.id}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.ip}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.port}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.ip}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.port}</td>
                     <td style={tdStyle}>{d.slot}</td>
                     <td style={tdStyle}>{d.tag_count ?? 0}</td>
                     <td style={tdStyle}>
@@ -317,7 +317,7 @@ function ExpandedEnipTags({ deviceId }: { deviceId: string }) {
               const typeColor = TYPE_COLORS[t.data_type] ?? TYPE_COLORS.dint32
               return (
                 <tr key={t.id}>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{t.name}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{t.name}</td>
                   <td style={nodeTdStyle}>
                     <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: typeColor.bg, color: typeColor.fg }}>
                       {t.data_type}
@@ -344,7 +344,7 @@ function ExpandedEnipTags({ deviceId }: { deviceId: string }) {
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="Program:Tag.Name"
-                style={{ ...inputStyle, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -439,22 +439,22 @@ function EnipDeviceForm({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>IP Address *</label>
-          <input name="ip" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.10" required style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="ip" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.10" required style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Port</label>
-          <input name="port" type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 44818)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="port" type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 44818)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Slot</label>
-          <input name="slot" type="number" value={slot} onChange={e => setSlot(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="slot" type="number" value={slot} onChange={e => setSlot(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Assembly (0=poll)</label>
-          <input name="assembly_instance" type="number" value={assemblyInstance} onChange={e => setAssemblyInstance(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="assembly_instance" type="number" value={assemblyInstance} onChange={e => setAssemblyInstance(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Enabled</label>
@@ -480,12 +480,12 @@ function EnipDeviceForm({
         )}
         {tags.map((tag, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 64px 64px 28px', gap: 4, marginBottom: 4, alignItems: 'end' }}>
-            <input value={tag.name} onChange={e => updateTag(i, 'name', e.target.value)} placeholder="Program:Tag.Name" style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
+            <input value={tag.name} onChange={e => updateTag(i, 'name', e.target.value)} placeholder="Program:Tag.Name" style={{ ...inputStyle, fontSize: 12, fontFamily: "var(--font-mono)" }} />
             <select value={tag.data_type} onChange={e => updateTag(i, 'data_type', e.target.value)} style={{ ...inputStyle, fontSize: 11 }}>
               {ENIP_DATA_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <input type="number" value={tag.assembly_offset} onChange={e => updateTag(i, 'assembly_offset', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
-            <input type="number" value={tag.assembly_length} onChange={e => updateTag(i, 'assembly_length', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
+            <input type="number" value={tag.assembly_offset} onChange={e => updateTag(i, 'assembly_offset', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "var(--font-mono)" }} />
+            <input type="number" value={tag.assembly_length} onChange={e => updateTag(i, 'assembly_length', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "var(--font-mono)" }} />
             <button type="button" onClick={() => removeTag(i)} style={{ background: 'none', border: 'none', color: 'var(--crit)', cursor: 'pointer', fontSize: 14 }}>&times;</button>
           </div>
         ))}

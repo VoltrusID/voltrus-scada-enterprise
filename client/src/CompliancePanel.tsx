@@ -66,7 +66,7 @@ export function CompliancePanel({ onClose, embedded }: { onClose: () => void; em
       position: 'fixed', inset: 0, zIndex: 50,
       background: 'rgba(0,0,0,.6)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'Inter,sans-serif',
+      fontFamily: 'var(--font-ui)',
     }}>
       <div style={{
         background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12,
@@ -346,7 +346,7 @@ function ESignatureRow({ sig, tdStyle }: { sig: ElectronicSignature; tdStyle: Re
       </td>
       <td style={tdStyle}>{sig.action}</td>
       <td style={tdStyle}>{sig.resource_type}</td>
-      <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>
+      <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
         {sig.resource_id}
       </td>
       <td style={{ ...tdStyle, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

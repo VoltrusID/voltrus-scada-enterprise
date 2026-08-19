@@ -123,8 +123,8 @@ export function Dnp3DeviceManager({ onClose, embedded }: { onClose: () => void; 
                         {d.name || d.id}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.ip}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.port}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.ip}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.port}</td>
                     <td style={tdStyle}>{d.master_address}</td>
                     <td style={tdStyle}>{d.outstation_address}</td>
                     <td style={tdStyle}>{d.point_count ?? 0}</td>
@@ -228,11 +228,11 @@ function Dnp3ScanPanel({ onClose }: { onClose: () => void }) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'end', marginBottom: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>CIDR Range</label>
-          <input value={cidr} onChange={e => setCidr(e.target.value)} placeholder="192.168.1.0/24" style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input value={cidr} onChange={e => setCidr(e.target.value)} placeholder="192.168.1.0/24" style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Port</label>
-          <input type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 20000)} style={{ ...inputStyle, width: 90, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 20000)} style={{ ...inputStyle, width: 90, fontFamily: "var(--font-mono)" }} />
         </div>
         <button
           onClick={handleScan}
@@ -259,8 +259,8 @@ function Dnp3ScanPanel({ onClose }: { onClose: () => void }) {
             <tbody>
               {results.map((r, i) => (
                 <tr key={i}>
-                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{r.ip}</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{r.port}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "var(--font-mono)" }}>{r.ip}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "var(--font-mono)" }}>{r.port}</td>
                   <td style={{ padding: '4px 10px', fontSize: 12 }}>{r.outstation_address}</td>
                   <td style={{ padding: '4px 10px' }}>
                     <button
@@ -405,22 +405,22 @@ function ExpandedDnp3Points({ deviceId }: { deviceId: number }) {
               const gvColor = GV_COLORS[p.group_num] ?? GV_COLORS[30]
               return (
                 <tr key={p.id}>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{p.name}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{p.name}</td>
                   <td style={nodeTdStyle}>{p.display_name || '-'}</td>
                   <td style={nodeTdStyle}>
                     <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: gvColor.bg, color: gvColor.fg }}>
                       G{p.group_num}
                     </span>
                   </td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>V{p.variation}</td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{p.point_index}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>V{p.variation}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{p.point_index}</td>
                   <td style={nodeTdStyle}>
                     <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(0,200,200,.08)', color: 'var(--cyan)' }}>
                       {p.data_type}
                     </span>
                   </td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{p.scale}</td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{p.deadband}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{p.scale}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{p.deadband}</td>
                   <td style={nodeTdStyle}>
                     <button
                       onClick={() => handleRemove(p.id)}
@@ -442,7 +442,7 @@ function ExpandedDnp3Points({ deviceId }: { deviceId: number }) {
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="point_name"
-                style={{ ...inputStyle, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -468,7 +468,7 @@ function ExpandedDnp3Points({ deviceId }: { deviceId: number }) {
                 type="number"
                 value={newPointIndex}
                 onChange={e => setNewPointIndex(parseInt(e.target.value) || 0)}
-                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -482,7 +482,7 @@ function ExpandedDnp3Points({ deviceId }: { deviceId: number }) {
                 step="0.01"
                 value={newScale}
                 onChange={e => setNewScale(parseFloat(e.target.value) || 1)}
-                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -491,7 +491,7 @@ function ExpandedDnp3Points({ deviceId }: { deviceId: number }) {
                 step="0.001"
                 value={newDeadband}
                 onChange={e => setNewDeadband(parseFloat(e.target.value) || 0)}
-                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -569,22 +569,22 @@ function Dnp3DeviceForm({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>IP Address *</label>
-          <input value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.100" required style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.100" required style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Port</label>
-          <input type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 20000)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 20000)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Master Addr</label>
-          <input type="number" value={masterAddress} onChange={e => setMasterAddress(parseInt(e.target.value) || 1)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={masterAddress} onChange={e => setMasterAddress(parseInt(e.target.value) || 1)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Outstation Addr</label>
-          <input type="number" value={outstationAddress} onChange={e => setOutstationAddress(parseInt(e.target.value) || 10)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={outstationAddress} onChange={e => setOutstationAddress(parseInt(e.target.value) || 10)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Enabled</label>
@@ -603,11 +603,11 @@ function Dnp3DeviceForm({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Integrity Poll (s)</label>
-          <input type="number" value={integrityInterval} onChange={e => setIntegrityInterval(parseInt(e.target.value) || 300)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={integrityInterval} onChange={e => setIntegrityInterval(parseInt(e.target.value) || 300)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Event Scan (ms)</label>
-          <input type="number" value={eventScanMs} onChange={e => setEventScanMs(e.target.value ? parseInt(e.target.value) : '')} placeholder="Optional" style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={eventScanMs} onChange={e => setEventScanMs(e.target.value ? parseInt(e.target.value) : '')} placeholder="Optional" style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
       </div>
 

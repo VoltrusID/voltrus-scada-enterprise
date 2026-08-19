@@ -30,7 +30,7 @@ const CODE_BLOCK: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '12px 14px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: "'var(--font-mono)', monospace",
   fontSize: 12,
   color: 'var(--fg)',
   marginTop: 8,
@@ -44,7 +44,7 @@ const INLINE_CODE: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '2px 7px',
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: "'var(--font-mono)', monospace",
   fontSize: 12,
   color: 'var(--fg)',
 }
@@ -84,14 +84,14 @@ export function LicenseActivationScreen() {
 
   if (loading) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>
         Checking license...
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'Inter, sans-serif', padding: '40px 20px' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'var(--font-ui)', padding: '40px 20px' }}>
       <div style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
@@ -231,7 +231,7 @@ export function LicenseActivationScreen() {
               fontSize: 14,
               fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: 'Inter, sans-serif',
+              fontFamily: 'var(--font-ui)',
               transition: 'opacity 0.15s',
             }}
             onMouseEnter={e => { e.currentTarget.style.opacity = '0.85' }}

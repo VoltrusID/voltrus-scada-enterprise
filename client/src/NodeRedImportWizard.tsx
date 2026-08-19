@@ -202,7 +202,7 @@ export function NodeRedImportWizard({ onClose, embedded }: { onClose: () => void
                       {result.details.modbus_devices.map(d => (
                         <tr key={d.device_id}>
                           <td style={tdStyle}>{d.name}</td>
-                          <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{d.ip}</td>
+                          <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{d.ip}</td>
                           <td style={tdStyle}>{d.port}</td>
                           <td style={tdStyle}>{d.unit_id}</td>
                           <td style={tdStyle}>{d.tags.length}</td>
@@ -231,7 +231,7 @@ export function NodeRedImportWizard({ onClose, embedded }: { onClose: () => void
                       {result.details.mqtt_sources.map((s, i) => (
                         <tr key={i}>
                           <td style={tdStyle}>{s.name}</td>
-                          <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono,monospace', fontSize: 12 }}>{s.topic}</td>
+                          <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }}>{s.topic}</td>
                           <td style={tdStyle}>{s.qos}</td>
                           <td style={tdStyle}>{s.direction}</td>
                         </tr>

@@ -16,7 +16,7 @@ const CELL: React.CSSProperties = {
   borderRadius: 0,
   fontFamily: 'inherit',
 };
-const CELL_MONO: React.CSSProperties = { ...CELL, fontFamily: "'JetBrains Mono',monospace" };
+const CELL_MONO: React.CSSProperties = { ...CELL, fontFamily: "var(--font-mono)" };
 const CELL_NUM: React.CSSProperties = { ...CELL_MONO, textAlign: 'right' };
 
 const thStyle: React.CSSProperties = {
@@ -61,7 +61,7 @@ function ShortcutCell({ shortcut, onSet, onClear }: { shortcut: string | null; o
     <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px', minWidth: 80 }} onMouseDown={e => e.stopPropagation()}>
       {shortcut ? (
         <kbd style={{
-          fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: 600,
+          fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
           padding: '2px 5px', borderRadius: 3, background: 'var(--bg)',
           border: '1px solid var(--border)', color: 'var(--cyan)',
         }}>{displayShortcut(shortcut)}</kbd>

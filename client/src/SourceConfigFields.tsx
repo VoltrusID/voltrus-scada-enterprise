@@ -107,7 +107,7 @@ function ExpressionBuilder({ registers, value, onChange }: { registers: { name: 
       </div>
 
       {editingRaw ? (
-        <input type="text" value={value} onChange={e => { onChange(e.target.value); setTerms(parseTerms(e.target.value)); }} placeholder="{Reg_A} + {Reg_B} * 0.5" style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, width: '100%' }} />
+        <input type="text" value={value} onChange={e => { onChange(e.target.value); setTerms(parseTerms(e.target.value)); }} placeholder="{Reg_A} + {Reg_B} * 0.5" style={{ ...inputStyle, fontFamily: "var(--font-mono)", fontSize: 12, width: '100%' }} />
       ) : (
         <>
           {terms.map(termRow)}
@@ -116,7 +116,7 @@ function ExpressionBuilder({ registers, value, onChange }: { registers: { name: 
       )}
 
       {value && (
-        <div style={{ marginTop: 6, padding: '4px 8px', background: 'rgba(34,197,94,.05)', borderRadius: 4, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--fg)' }}>
+        <div style={{ marginTop: 6, padding: '4px 8px', background: 'rgba(34,197,94,.05)', borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--fg)' }}>
           = {value}
         </div>
       )}
@@ -130,8 +130,8 @@ export function SourceConfigFields({ sourceType, config, onChange }: { sourceTyp
   const { data: registers = [] } = useModbusRegisters(config.modbus_device_id ?? '', sourceType === 'modbus' && !!config.modbus_device_id);
   switch (sourceType) {
     case 'random_walk': return (<>
-      <label style={labelStyle}><span style={labelTextStyle}>Volatility</span><input type="range" min="0.01" max="0.5" step="0.01" value={config.volatility ?? 0.06} onChange={e => set('volatility', parseFloat(e.target.value))} style={{ width: '100%' }} /><span style={{ fontSize: 11, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace' }}>{(config.volatility ?? 0.06).toFixed(2)}</span></label>
-      <label style={labelStyle}><span style={labelTextStyle}>Reversion</span><input type="range" min="0.01" max="0.2" step="0.01" value={config.reversion ?? 0.03} onChange={e => set('reversion', parseFloat(e.target.value))} style={{ width: '100%' }} /><span style={{ fontSize: 11, color: 'var(--fg)', fontFamily: 'JetBrains Mono,monospace' }}>{(config.reversion ?? 0.03).toFixed(2)}</span></label></>);
+      <label style={labelStyle}><span style={labelTextStyle}>Volatility</span><input type="range" min="0.01" max="0.5" step="0.01" value={config.volatility ?? 0.06} onChange={e => set('volatility', parseFloat(e.target.value))} style={{ width: '100%' }} /><span style={{ fontSize: 11, color: 'var(--fg)', fontFamily: 'var(--font-mono)' }}>{(config.volatility ?? 0.06).toFixed(2)}</span></label>
+      <label style={labelStyle}><span style={labelTextStyle}>Reversion</span><input type="range" min="0.01" max="0.2" step="0.01" value={config.reversion ?? 0.03} onChange={e => set('reversion', parseFloat(e.target.value))} style={{ width: '100%' }} /><span style={{ fontSize: 11, color: 'var(--fg)', fontFamily: 'var(--font-mono)' }}>{(config.reversion ?? 0.03).toFixed(2)}</span></label></>);
     case 'sine': return (<>
       <label style={labelStyle}><span style={labelTextStyle}>Amplitude</span><input type="number" step="any" value={config.amplitude ?? 5} onChange={e => set('amplitude', parseFloat(e.target.value))} style={monoInputStyle} /></label>
       <label style={labelStyle}><span style={labelTextStyle}>Frequency (Hz)</span><input type="number" step="any" value={config.frequency ?? 0.5} onChange={e => set('frequency', parseFloat(e.target.value))} style={monoInputStyle} /></label>
@@ -148,7 +148,7 @@ export function SourceConfigFields({ sourceType, config, onChange }: { sourceTyp
       <label style={labelStyle}><span style={labelTextStyle}>JSON Path</span><input type="text" value={config.path ?? ''} onChange={e => set('path', e.target.value)} style={inputStyle} placeholder="data.value" /></label>
       <label style={labelStyle}><span style={labelTextStyle}>Method</span><select value={config.method ?? 'GET'} onChange={e => set('method', e.target.value)} style={inputStyle}><option value="GET">GET</option><option value="POST">POST</option></select></label>
       <label style={labelStyle}><span style={labelTextStyle}>Poll Interval (ms)</span><input type="number" step="1000" min="1000" value={config.poll_interval ?? 5000} onChange={e => set('poll_interval', parseInt(e.target.value))} style={monoInputStyle} /></label>
-      <label style={labelStyle}><span style={labelTextStyle}>Headers (JSON)</span><textarea value={typeof config.headers === 'object' ? JSON.stringify(config.headers, null, 2) : config.headers ?? '{}'} onChange={e => { try { set('headers', JSON.parse(e.target.value)) } catch { set('headers', e.target.value) } }} style={{ ...inputStyle, minHeight: 60, fontFamily: 'JetBrains Mono,monospace', fontSize: 11 }} /></label></>);
+      <label style={labelStyle}><span style={labelTextStyle}>Headers (JSON)</span><textarea value={typeof config.headers === 'object' ? JSON.stringify(config.headers, null, 2) : config.headers ?? '{}'} onChange={e => { try { set('headers', JSON.parse(e.target.value)) } catch { set('headers', e.target.value) } }} style={{ ...inputStyle, minHeight: 60, fontFamily: 'var(--font-mono)', fontSize: 11 }} /></label></>);
     case 'modbus': {
       const modbusMode = config.modbus_mode ?? (config.expression ? 'expression' : 'single');
       const setMode = (mode: string) => onChange({ ...config, modbus_mode: mode, expression: mode === 'single' ? '' : (config.expression ?? ''), modbus_register_name: mode === 'expression' ? '' : (config.modbus_register_name ?? '') });

@@ -676,7 +676,7 @@ export function SimProfileManager() {
                     <div key={key} style={{
                       fontSize: 10, padding: '3px 8px', borderRadius: 4,
                       background: 'rgba(255,255,255,.04)', color: 'var(--muted)',
-                      fontFamily: "'JetBrains Mono',monospace",
+                      fontFamily: "var(--font-mono)",
                     }}>
                       {key}: {String(val)}
                     </div>

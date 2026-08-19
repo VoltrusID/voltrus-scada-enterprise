@@ -154,8 +154,8 @@ export function S7DeviceManager({ onClose, embedded }: { onClose: () => void; em
                         {d.name || d.id}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.ip}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.port}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.ip}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.port}</td>
                     <td style={tdStyle}>{d.rack}</td>
                     <td style={tdStyle}>{d.slot}</td>
                     <td style={tdStyle}>{d.tag_count ?? 0}</td>
@@ -324,14 +324,14 @@ function ExpandedS7Tags({ deviceId }: { deviceId: string }) {
               const areaColor = AREA_COLORS[t.area] ?? AREA_COLORS.db
               return (
                 <tr key={t.id}>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{t.name}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{t.name}</td>
                   <td style={nodeTdStyle}>
                     <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(0,200,200,.08)', color: 'var(--cyan)' }}>
                       {t.data_type}
                     </span>
                   </td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>DB{t.db_number}</td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{t.offset}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>DB{t.db_number}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{t.offset}</td>
                   <td style={nodeTdStyle}>
                     <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: areaColor.bg, color: areaColor.fg }}>
                       {t.area.toUpperCase()}
@@ -358,7 +358,7 @@ function ExpandedS7Tags({ deviceId }: { deviceId: string }) {
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="tag_name"
-                style={{ ...inputStyle, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -371,7 +371,7 @@ function ExpandedS7Tags({ deviceId }: { deviceId: string }) {
                 type="number"
                 value={newDb}
                 onChange={e => setNewDb(parseInt(e.target.value) || 1)}
-                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -379,7 +379,7 @@ function ExpandedS7Tags({ deviceId }: { deviceId: string }) {
                 type="number"
                 value={newOffset}
                 onChange={e => setNewOffset(parseInt(e.target.value) || 0)}
-                style={{ ...inputStyle, fontSize: 11, width: 70, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 70, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -481,22 +481,22 @@ function S7DeviceForm({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>IP Address *</label>
-          <input name="ip" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.0.1" required style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="ip" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.0.1" required style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Port</label>
-          <input name="port" type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 102)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="port" type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 102)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Rack</label>
-          <input name="rack" type="number" value={rack} onChange={e => setRack(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="rack" type="number" value={rack} onChange={e => setRack(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Slot</label>
-          <input name="slot" type="number" value={slot} onChange={e => setSlot(parseInt(e.target.value) || 1)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input name="slot" type="number" value={slot} onChange={e => setSlot(parseInt(e.target.value) || 1)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Enabled</label>
@@ -522,12 +522,12 @@ function S7DeviceForm({
         )}
         {tags.map((tag, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 60px 60px 60px 28px', gap: 4, marginBottom: 4, alignItems: 'end' }}>
-            <input value={tag.name} onChange={e => updateTag(i, 'name', e.target.value)} placeholder="temperature" style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
+            <input value={tag.name} onChange={e => updateTag(i, 'name', e.target.value)} placeholder="temperature" style={{ ...inputStyle, fontSize: 12, fontFamily: "var(--font-mono)" }} />
             <select value={tag.data_type} onChange={e => updateTag(i, 'data_type', e.target.value)} style={{ ...inputStyle, fontSize: 11 }}>
               {S7_DATA_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
-            <input type="number" value={tag.db_number} onChange={e => updateTag(i, 'db_number', parseInt(e.target.value) || 1)} style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
-            <input type="number" value={tag.offset} onChange={e => updateTag(i, 'offset', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }} />
+            <input type="number" value={tag.db_number} onChange={e => updateTag(i, 'db_number', parseInt(e.target.value) || 1)} style={{ ...inputStyle, fontSize: 12, fontFamily: "var(--font-mono)" }} />
+            <input type="number" value={tag.offset} onChange={e => updateTag(i, 'offset', parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 12, fontFamily: "var(--font-mono)" }} />
             <select value={tag.area} onChange={e => updateTag(i, 'area', e.target.value)} style={{ ...inputStyle, fontSize: 11 }}>
               {S7_AREAS.map(a => <option key={a} value={a}>{a.toUpperCase()}</option>)}
             </select>

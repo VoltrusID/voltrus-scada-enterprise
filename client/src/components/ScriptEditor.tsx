@@ -458,7 +458,7 @@ export function ScriptEditor() {
                 fontSize: 12, color: 'var(--crit)',
                 padding: '8px 12px', background: 'rgba(239,68,68,.1)',
                 borderRadius: 6, border: '1px solid rgba(239,68,68,.2)',
-                fontFamily: 'JetBrains Mono,monospace',
+                fontFamily: 'var(--font-mono)',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}>
@@ -578,7 +578,7 @@ export function ScriptEditor() {
                   </div>
                   {testResult.output && (
                     <pre style={{
-                      margin: 0, fontSize: 11, fontFamily: 'JetBrains Mono,monospace',
+                      margin: 0, fontSize: 11, fontFamily: 'var(--font-mono)',
                       color: 'var(--fg)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                       maxHeight: 200, overflow: 'auto',
                     }}>
@@ -587,7 +587,7 @@ export function ScriptEditor() {
                   )}
                   {testResult.error && (
                     <pre style={{
-                      margin: 0, fontSize: 11, fontFamily: 'JetBrains Mono,monospace',
+                      margin: 0, fontSize: 11, fontFamily: 'var(--font-mono)',
                       color: 'var(--crit)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                     }}>
                       {testResult.error}

@@ -75,7 +75,7 @@ export function ApiKeyManager({ onClose, embedded }: { onClose: () => void; embe
           <p style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 12, fontWeight: 600 }}>
             This key will not be shown again. Copy it now.
           </p>
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: 12, fontFamily: 'JetBrains Mono, monospace', fontSize: 13, wordBreak: 'break-all', marginBottom: 12, color: 'var(--fg)' }}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: 12, fontFamily: 'var(--font-mono)', fontSize: 13, wordBreak: 'break-all', marginBottom: 12, color: 'var(--fg)' }}>
             {createdKey.key}
           </div>
           {createdKey.warning && (
@@ -116,7 +116,7 @@ export function ApiKeyManager({ onClose, embedded }: { onClose: () => void; embe
                 <td style={tdStyle}>
                   <span style={{ fontWeight: 600 }}>{k.name}</span>
                 </td>
-                <td style={{ ...tdStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: 'var(--muted)' }}>
+                <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--muted)' }}>
                   {k.key_prefix}...
                 </td>
                 <td style={{ ...tdStyle, color: 'var(--muted)', fontSize: 12 }}>{fmtTs(k.created_at)}</td>
@@ -169,7 +169,7 @@ export function ApiKeyManager({ onClose, embedded }: { onClose: () => void; embe
   if (embedded) return <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>{tableContent}</div>
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter,sans-serif' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-ui)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <button onClick={onClose} style={{ ...btnStyle, padding: '4px 8px' }}>&larr; Back</button>
         <h2 style={{ fontSize: 18, fontWeight: 700 }}>API Key Management</h2>
@@ -216,7 +216,7 @@ function CreateApiKeyDialog({ onSave, onClose, loading, error }: {
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Permissions (JSON array)</span>
-            <input placeholder='["data:read"]' value={permissions} onChange={e => setPermissions(e.target.value)} style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }} />
+            <input placeholder='["data:read"]' value={permissions} onChange={e => setPermissions(e.target.value)} style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 12 }} />
           </label>
           {error && <p style={{ fontSize: 12, color: 'var(--crit)' }}>{error}</p>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

@@ -51,7 +51,7 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
         {/* ── Dashboard ── */}
         <div style={sectionTitle}>Dashboard</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={labelStyle}><span style={labelTextStyle}>Grid Gap (px)</span><input type="range" min="4" max="24" value={settings.gap} onChange={e => onChange({ ...settings, gap: parseInt(e.target.value) })} style={{ width: '100%' }} /><span style={{ fontSize: 11, fontFamily: 'JetBrains Mono,monospace' }}>{settings.gap}px</span></label>
+          <label style={labelStyle}><span style={labelTextStyle}>Grid Gap (px)</span><input type="range" min="4" max="24" value={settings.gap} onChange={e => onChange({ ...settings, gap: parseInt(e.target.value) })} style={{ width: '100%' }} /><span style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>{settings.gap}px</span></label>
           <label style={labelStyle}><span style={labelTextStyle}>Refresh Interval (ms)</span><input type="number" step="100" min="100" value={settings.refreshInterval} onChange={e => onChange({ ...settings, refreshInterval: parseInt(e.target.value) || 1000 })} style={monoInputStyle} /></label>
           <div style={labelStyle}>
             <span style={labelTextStyle}>History Auto Mode</span>
@@ -82,7 +82,7 @@ export function DashboardSettings({ settings, onChange, onClose, alarmMuted, onT
               const val = Math.max(0, Math.min(86400, parseInt(e.target.value) || 0))
               updateCooldown.mutate(val)
             }} style={monoInputStyle} />
-            <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'JetBrains Mono,monospace' }}>0 = disabled</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>0 = disabled</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
             After acknowledging an alarm, wait this long before re-triggering.

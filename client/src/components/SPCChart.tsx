@@ -114,7 +114,7 @@ export function SPCChart({ data, loading }: SpcChartProps) {
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
           {data.chart_type}
         </span>
-        <span style={{ fontSize: 11, color: pctColor, fontWeight: 700, fontFamily: 'JetBrains Mono,monospace' }}>
+        <span style={{ fontSize: 11, color: pctColor, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
           {data.in_control_percent.toFixed(1)}% in control
         </span>
       </div>

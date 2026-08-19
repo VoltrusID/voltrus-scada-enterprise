@@ -213,7 +213,7 @@ export function OpcUaDeviceManager({ onClose, embedded }: { onClose: () => void;
                         {d.name}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.url}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.url}</td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,.1)', color: '#a78bfa' }}>
                         {d.security_policy}/{d.security_mode}
@@ -346,7 +346,7 @@ function ExpandedNodes({ deviceId, onDeleteNode }: { deviceId: number; onDeleteN
         <tbody>
           {nodes.map(n => (
             <tr key={n.id}>
-              <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{n.node_id}</td>
+              <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{n.node_id}</td>
               <td style={nodeTdStyle}>{n.name}</td>
               <td style={nodeTdStyle}>{n.display_name}</td>
               <td style={nodeTdStyle}>{n.data_type || '-'}</td>
@@ -432,7 +432,7 @@ function BrowseDialog({ isLoading, results, selectedNodes, onToggleNode, onAdd, 
                         style={{ cursor: 'pointer' }}
                       />
                     </td>
-                    <td style={{ ...tdStyleForBrowse(), fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{r.node_id}</td>
+                    <td style={{ ...tdStyleForBrowse(), fontFamily: "var(--font-mono)", fontSize: 11 }}>{r.node_id}</td>
                     <td style={tdStyleForBrowse()}>{r.display_name}</td>
                     <td style={tdStyleForBrowse()}>
                       <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(139,92,246,.1)', color: '#a78bfa' }}>

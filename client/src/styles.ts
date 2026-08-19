@@ -44,7 +44,7 @@ export const inputStyle: React.CSSProperties = {
   background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px',
   color: 'var(--fg)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box'
 };
-export const monoInputStyle: React.CSSProperties = { ...inputStyle, fontFamily: 'JetBrains Mono,monospace' };
+export const monoInputStyle: React.CSSProperties = { ...inputStyle, fontFamily: 'var(--font-mono)' };
 export const labelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
 export const labelTextStyle: React.CSSProperties = { fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' as const };
 export const tabStyle = (active: boolean): React.CSSProperties => ({
@@ -55,7 +55,7 @@ export const tabStyle = (active: boolean): React.CSSProperties => ({
   transition: 'color 0.15s, border-color 0.15s',
 });
 export const btnStyle: React.CSSProperties = {
-  fontFamily: 'Inter,sans-serif', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6,
+  fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6,
   border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', cursor: 'pointer',
   display: 'flex', alignItems: 'center', gap: 5, transition: 'border-color 0.15s, color 0.15s',
 };

@@ -128,10 +128,10 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
                         {d.name || d.id}
                       </div>
                     </td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.ip}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.port}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.ip}</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.port}</td>
                     <td style={tdStyle}>{d.device_instance}</td>
-                    <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{d.interval_ms}ms</td>
+                    <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{d.interval_ms}ms</td>
                     <td style={tdStyle}>
                       {d.cov_enabled ? (
                         <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,.12)', color: '#4ade80' }}>On</span>
@@ -238,7 +238,7 @@ function BacnetDiscoverPanel({ onClose }: { onClose: () => void }) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'end', marginBottom: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Timeout (s)</label>
-          <input type="number" value={timeout} onChange={e => setTimeout_(parseInt(e.target.value) || 5)} min={1} max={30} style={{ ...inputStyle, width: 90, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={timeout} onChange={e => setTimeout_(parseInt(e.target.value) || 5)} min={1} max={30} style={{ ...inputStyle, width: 90, fontFamily: "var(--font-mono)" }} />
         </div>
         <button
           onClick={handleDiscover}
@@ -266,8 +266,8 @@ function BacnetDiscoverPanel({ onClose }: { onClose: () => void }) {
             <tbody>
               {results.map((r, i) => (
                 <tr key={i}>
-                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{r.ip}</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "'JetBrains Mono',monospace" }}>{r.port}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "var(--font-mono)" }}>{r.ip}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, fontFamily: "var(--font-mono)" }}>{r.port}</td>
                   <td style={{ padding: '4px 10px', fontSize: 12 }}>{r.device_instance}</td>
                   <td style={{ padding: '4px 10px', fontSize: 12 }}>{r.vendor_name || '-'}</td>
                   <td style={{ padding: '4px 10px' }}>
@@ -386,16 +386,16 @@ function ExpandedBacnetObjects({ deviceId }: { deviceId: number }) {
               const tc = TYPE_COLORS[o.object_type] ?? TYPE_COLORS.analogValue
               return (
                 <tr key={o.id}>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{o.name}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{o.name}</td>
                   <td style={nodeTdStyle}>{o.display_name || '-'}</td>
                   <td style={nodeTdStyle}>
                     <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: tc.bg, color: tc.fg }}>
                       {o.object_type}
                     </span>
                   </td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{o.object_instance}</td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{o.property}</td>
-                  <td style={{ ...nodeTdStyle, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{o.cov_increment}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{o.object_instance}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{o.property}</td>
+                  <td style={{ ...nodeTdStyle, fontFamily: "var(--font-mono)", fontSize: 11 }}>{o.cov_increment}</td>
                   <td style={nodeTdStyle}>
                     <button
                       onClick={() => handleRemove(o.id)}
@@ -417,7 +417,7 @@ function ExpandedBacnetObjects({ deviceId }: { deviceId: number }) {
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="object_name"
-                style={{ ...inputStyle, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -438,7 +438,7 @@ function ExpandedBacnetObjects({ deviceId }: { deviceId: number }) {
                 type="number"
                 value={newInstance}
                 onChange={e => setNewInstance(parseInt(e.target.value) || 0)}
-                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -446,7 +446,7 @@ function ExpandedBacnetObjects({ deviceId }: { deviceId: number }) {
                 value={newProperty}
                 onChange={e => setNewProperty(e.target.value)}
                 placeholder="presentValue"
-                style={{ ...inputStyle, fontSize: 11, width: 110, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 110, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -455,7 +455,7 @@ function ExpandedBacnetObjects({ deviceId }: { deviceId: number }) {
                 step="0.01"
                 value={newCovIncrement}
                 onChange={e => setNewCovIncrement(parseFloat(e.target.value) || 0)}
-                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "'JetBrains Mono',monospace" }}
+                style={{ ...inputStyle, fontSize: 11, width: 60, fontFamily: "var(--font-mono)" }}
               />
             </td>
             <td style={{ padding: '6px 12px' }}>
@@ -531,22 +531,22 @@ function BacnetDeviceForm({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>IP Address *</label>
-          <input value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.100" required style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.100" required style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Port</label>
-          <input type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 47808)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={port} onChange={e => setPort(parseInt(e.target.value) || 47808)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Device Instance</label>
-          <input type="number" value={deviceInstance} onChange={e => setDeviceInstance(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={deviceInstance} onChange={e => setDeviceInstance(parseInt(e.target.value) || 0)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Interval (ms)</label>
-          <input type="number" value={intervalMs} onChange={e => setIntervalMs(parseInt(e.target.value) || 5000)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={intervalMs} onChange={e => setIntervalMs(parseInt(e.target.value) || 5000)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Enabled</label>
@@ -565,7 +565,7 @@ function BacnetDeviceForm({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>COV Lifetime (s)</label>
-          <input type="number" value={covLifetime} onChange={e => setCovLifetime(parseInt(e.target.value) || 3600)} style={{ ...inputStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+          <input type="number" value={covLifetime} onChange={e => setCovLifetime(parseInt(e.target.value) || 3600)} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
         </div>
       </div>
 

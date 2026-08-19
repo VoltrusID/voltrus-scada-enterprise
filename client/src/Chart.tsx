@@ -28,7 +28,7 @@ function SparklineChart({ data, color: rawColor, warn, crit, simulated }: { data
     let yMin = rawMin - 2, yMax = rawMax + 2; if (yMax - yMin < 4) { yMin--; yMax++; }
     const toX = (i: number) => pL + (i / (data.length - 1)) * cW;
     const toY = (v: number) => pT + cH - ((v - yMin) / (yMax - yMin)) * cH;
-    ctx.fillStyle = '#52525b'; ctx.font = '10px JetBrains Mono,monospace'; ctx.textAlign = 'right';
+    ctx.fillStyle = '#52525b'; ctx.font = "10px 'SF Mono','JetBrains Mono',Menlo,monospace"; ctx.textAlign = 'right';
     for (let i = 0; i <= 4; i++) { const v = yMin + ((yMax - yMin) / 4) * (4 - i); ctx.fillText(v.toFixed(1), pL - 6, pT + (cH / 4) * i + 3); }
     ctx.setLineDash([4, 4]);
     if (warn >= yMin && warn <= yMax) { ctx.strokeStyle = 'rgba(234,179,8,0.3)'; ctx.beginPath(); ctx.moveTo(pL, toY(warn)); ctx.lineTo(W - pR, toY(warn)); ctx.stroke(); }
@@ -45,7 +45,7 @@ function SparklineChart({ data, color: rawColor, warn, crit, simulated }: { data
     const lv = data[data.length - 1], cy = toY(lv);
     ctx.beginPath(); ctx.arc(lx, cy, 4, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
     ctx.beginPath(); ctx.arc(lx, cy, 7, 0, Math.PI * 2); ctx.strokeStyle = color + '40'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = color; ctx.font = 'bold 11px JetBrains Mono,monospace'; ctx.textAlign = 'right'; ctx.fillText(lv.toFixed(1), W - pR - 2, cy - 8);
+    ctx.fillStyle = color; ctx.font = "bold 11px 'SF Mono','JetBrains Mono',Menlo,monospace"; ctx.textAlign = 'right'; ctx.fillText(lv.toFixed(1), W - pR - 2, cy - 8);
   }, [data, color, warn, crit, size, simulated]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '100%' }}><canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} /></div>;
@@ -63,7 +63,7 @@ function BigNumberChart({ value, unit, color: rawColor, warn, crit, decimals }: 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '10px 16px' }}>
-      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 48, fontWeight: 800, color: stCol, lineHeight: 1.1 }}>
+      <div style={{ fontFamily: "var(--font-mono)", fontSize: 48, fontWeight: 800, color: stCol, lineHeight: 1.1 }}>
         {value.toFixed(decimals)}
       </div>
       {unit && <div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '.06em' }}>{unit}</div>}
@@ -161,20 +161,20 @@ function GaugeChart({ value, min, max, warn, crit, color: rawColor, decimals, un
 
     // Value text
     ctx.fillStyle = color;
-    ctx.font = 'bold 20px JetBrains Mono,monospace';
+    ctx.font = "bold 20px 'SF Mono','JetBrains Mono',Menlo,monospace";
     ctx.textAlign = 'center';
     ctx.fillText(value.toFixed(decimals), cx, cy + 24);
 
     // Unit text
     if (unit) {
       ctx.fillStyle = '#71717a';
-      ctx.font = '11px Inter,sans-serif';
+      ctx.font = "11px 'SF Pro Text',-apple-system,sans-serif";
       ctx.fillText(unit, cx, cy + 40);
     }
 
     // Min/max labels
     ctx.fillStyle = '#52525b';
-    ctx.font = '10px JetBrains Mono,monospace';
+    ctx.font = "10px 'SF Mono','JetBrains Mono',Menlo,monospace";
     ctx.textAlign = 'center';
     ctx.fillText(min.toFixed(0), cx - r - 4, cy + 14);
     ctx.fillText(max.toFixed(0), cx + r + 4, cy + 14);

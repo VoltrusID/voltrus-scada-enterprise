@@ -481,7 +481,7 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                   textAlign: 'center', padding: 40, color: 'var(--muted)',
                   border: '1px dashed var(--border)', borderRadius: 8,
                 }}>
-                  <div style={{ fontSize: 24, marginBottom: 12, fontFamily: 'JetBrains Mono, monospace', color: 'var(--muted)' }}>[Bench]</div>
+                  <div style={{ fontSize: 24, marginBottom: 12, fontFamily: 'var(--font-mono)', color: 'var(--muted)' }}>[Bench]</div>
                   <div>Click "Run Benchmark" to measure hardware performance.</div>
                   <div style={{ fontSize: 12, marginTop: 6 }}>Tests: tag writes, batch inserts, queries, compression (~20 seconds)</div>
                 </div>

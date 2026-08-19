@@ -94,7 +94,7 @@ export function AddSensorDialog({ screenId, sensors, screenSensorIds, onClose, o
                 />
                 {namingConvention && (
                   <div style={{ fontSize: 11, color: nameValidation === false ? 'var(--crit)' : 'var(--muted)', marginTop: 4 }}>
-                    Pattern: <code style={{ fontFamily: "'JetBrains Mono',monospace", background: 'var(--bg)', padding: '1px 4px', borderRadius: 3 }}>{namingConvention.custom_regex || namingConvention.regex}</code>
+                    Pattern: <code style={{ fontFamily: "var(--font-mono)", background: 'var(--bg)', padding: '1px 4px', borderRadius: 3 }}>{namingConvention.custom_regex || namingConvention.regex}</code>
                     {nameValidation === false && <span style={{ marginLeft: 8, fontWeight: 600 }}>Does not match naming convention</span>}
                   </div>
                 )}

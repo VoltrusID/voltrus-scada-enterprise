@@ -66,7 +66,7 @@ export function PromptDialog({ title, label, placeholder, initialValue, shortcut
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
               {capturedShortcut ? (
                 <kbd style={{
-                  fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 600,
+                  fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
                   padding: '4px 8px', borderRadius: 4,
                   background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--cyan)',
                 }}>{displayShortcut(capturedShortcut)}</kbd>

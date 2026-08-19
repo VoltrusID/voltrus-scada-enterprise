@@ -184,7 +184,7 @@ export function TagBrowser({ isAdmin }: { isAdmin: boolean }) {
           <>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Path</div>
-              <div style={{ fontSize: 13, color: 'var(--fg)', fontFamily: "'JetBrains Mono',monospace", wordBreak: 'break-all' }}>{selectedPath}</div>
+              <div style={{ fontSize: 13, color: 'var(--fg)', fontFamily: "var(--font-mono)", wordBreak: 'break-all' }}>{selectedPath}</div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Tag Count</div>
@@ -192,7 +192,7 @@ export function TagBrowser({ isAdmin }: { isAdmin: boolean }) {
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Tag IDs</div>
-              <div style={{ fontSize: 12, color: 'var(--fg)', fontFamily: "'JetBrains Mono',monospace", maxHeight: 120, overflow: 'auto' }}>
+              <div style={{ fontSize: 12, color: 'var(--fg)', fontFamily: "var(--font-mono)", maxHeight: 120, overflow: 'auto' }}>
                 {selectedNode.tagIds.length === 0 ? 'None' : selectedNode.tagIds.join(', ')}
               </div>
             </div>

@@ -124,7 +124,7 @@ export function CameraWidget({ cameraId, cameraName, onExpand }: CameraWidgetPro
             justifyContent: 'space-between',
             alignItems: 'flex-end',
           }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: "'JetBrains Mono',monospace" }}>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: "var(--font-mono)" }}>
               {formatTime(latest.timestamp)}
             </span>
             {latest.alarm_source && (

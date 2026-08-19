@@ -213,7 +213,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           padding: '5px 10px', borderRadius: 6,
           border: '1px solid var(--border)', background: 'var(--card)',
           color: 'var(--muted)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-          fontFamily: 'Inter,sans-serif',
+          fontFamily: 'var(--font-ui)',
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           Back

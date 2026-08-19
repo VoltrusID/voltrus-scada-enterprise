@@ -164,7 +164,7 @@ export function RecipeLoadStatus({ commandIds, onComplete }: Props) {
               padding: '8px 16px', borderBottom: '1px solid var(--border)',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "'JetBrains Mono',monospace" }}>{id.slice(0, 8)}...</span>
+              <span style={{ fontSize: 11, color: 'var(--muted)', fontFamily: "var(--font-mono)" }}>{id.slice(0, 8)}...</span>
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>Loading...</span>
             </div>
           )
@@ -184,7 +184,7 @@ export function RecipeLoadStatus({ commandIds, onComplete }: Props) {
                   Tag #{cmd.data_source_id}
                 </span>
                 <span style={{
-                  fontFamily: "'JetBrains Mono',monospace", fontSize: 12,
+                  fontFamily: "var(--font-mono)", fontSize: 12,
                   color: 'var(--cyan)', fontWeight: 600,
                 }}>
                   {cmd.value}

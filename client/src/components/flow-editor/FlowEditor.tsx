@@ -209,7 +209,7 @@ export function FlowEditor({ flow, onSave, onCancel }: Props) {
             <div style={{ flex: 1 }}>
               <label style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, display: 'block', fontWeight: 600 }}>Payload JSON</label>
               <textarea
-                style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--fg)', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", width: '100%', minHeight: 80, resize: 'vertical' }}
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px', color: 'var(--fg)', fontSize: 12, fontFamily: "'var(--font-mono)', monospace", width: '100%', minHeight: 80, resize: 'vertical' }}
                 value={testPayload}
                 onChange={e => setTestPayload(e.target.value)}
               />
@@ -220,7 +220,7 @@ export function FlowEditor({ flow, onSave, onCancel }: Props) {
               </button>
             </div>
             {testResult && (
-              <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 8, padding: 12, fontSize: 11, fontFamily: "'JetBrains Mono', monospace", overflow: 'auto', maxHeight: 120 }}>
+              <div style={{ flex: 1, background: 'var(--bg)', borderRadius: 8, padding: 12, fontSize: 11, fontFamily: "'var(--font-mono)', monospace", overflow: 'auto', maxHeight: 120 }}>
                 {testResult.error ? (
                   <div style={{ color: 'var(--crit)' }}>{testResult.error}</div>
                 ) : (

@@ -61,7 +61,7 @@ export function ToastContainer() {
             borderRadius: 8,
             fontSize: 13,
             fontWeight: 500,
-            fontFamily: 'Inter,sans-serif',
+            fontFamily: 'var(--font-ui)',
             boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
             border: `1px solid ${t.type === 'error' ? 'var(--crit)' : t.type === 'success' ? 'var(--ok)' : 'var(--cyan)'}`,
             background: t.type === 'error' ? 'rgba(239,68,68,.15)' : t.type === 'success' ? 'rgba(34,197,94,.15)' : 'rgba(34,211,238,.1)',
