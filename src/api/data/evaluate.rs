@@ -9,6 +9,8 @@ pub(crate) fn evaluate_data_sources(
     data_sources
         .iter()
         .map(|ds| {
+            // Cache metrics are stored under the bare register name.
+            let metric = metric_name(&ds.key, &ds.device_id);
             let value = if ds.source_type == "modbus" {
                 let metrics = cache_data
                     .iter()
@@ -23,7 +25,7 @@ pub(crate) fn evaluate_data_sources(
                         {
                             if let Some(expr_str) = cfg.get("expression").and_then(|v| v.as_str()) {
                                 if expr_str.is_empty() {
-                                    m.get(&ds.key).copied().unwrap_or(f64::NAN)
+                                    m.get(metric).copied().unwrap_or(f64::NAN)
                                 } else {
                                     match expression::evaluate(expr_str, m) {
                                         Ok(val) => val,
@@ -37,10 +39,10 @@ pub(crate) fn evaluate_data_sources(
                                     }
                                 }
                             } else {
-                                m.get(&ds.key).copied().unwrap_or(f64::NAN)
+                                m.get(metric).copied().unwrap_or(f64::NAN)
                             }
                         } else {
-                            m.get(&ds.key).copied().unwrap_or(f64::NAN)
+                            m.get(metric).copied().unwrap_or(f64::NAN)
                         }
                     }
                 }
@@ -48,7 +50,7 @@ pub(crate) fn evaluate_data_sources(
                 let cached = cache_data
                     .iter()
                     .find(|s| s.device_id == ds.device_id && s.status == DeviceStatus::Online)
-                    .and_then(|s| s.metrics.get(&ds.key).copied());
+                    .and_then(|s| s.metrics.get(metric).copied());
                 cached.unwrap_or_else(|| generators::generate_value(ds, now))
             };
 

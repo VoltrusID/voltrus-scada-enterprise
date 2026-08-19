@@ -324,7 +324,8 @@ async fn handle_tag_write(
     }
 
     let cache_device_id = ds.device_id.clone();
-    let ds_key = ds.key.clone();
+    // Cache metrics live under the bare register name (see data::metric_name).
+    let metric_key = crate::api::data::metric_name(&ds.key, &ds.device_id).to_string();
 
     // Execute the write directly based on protocol
     let result = execute_direct_write(state, &ds, value).await;
@@ -341,7 +342,7 @@ async fn handle_tag_write(
     // via the data broadcaster pipeline, regardless of protocol success.
     state
         .cache
-        .set_metric_value(&cache_device_id, &ds_key, value)
+        .set_metric_value(&cache_device_id, &metric_key, value)
         .await;
 
     // Send ack/nack back to all connected clients

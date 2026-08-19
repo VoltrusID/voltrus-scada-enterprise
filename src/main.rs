@@ -520,12 +520,12 @@ async fn main() -> anyhow::Result<()> {
                                     }
                                 } else {
                                     *value_map
-                                        .get(&format!("{}:{}", source.device_id, source.key))
+                                        .get(&format!("{}:{}", source.device_id, crate::api::data::metric_name(&source.key, &source.device_id)))
                                         .unwrap_or(&source.base_val)
                                 }
                             } else {
                                 *value_map
-                                    .get(&format!("{}:{}", source.device_id, source.key))
+                                    .get(&format!("{}:{}", source.device_id, crate::api::data::metric_name(&source.key, &source.device_id)))
                                     .unwrap_or(&source.base_val)
                             }
                         } else {
