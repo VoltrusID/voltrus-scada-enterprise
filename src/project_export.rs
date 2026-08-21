@@ -97,6 +97,7 @@ pub fn export_project(db_path: &str, output_path: &str, tier: &LicenseTier) -> R
 
         let tier_str = match tier {
             LicenseTier::Engineering => "engineering",
+            LicenseTier::Edge => "edge",
             LicenseTier::Starter => "starter",
             LicenseTier::Professional => "professional",
             LicenseTier::Enterprise => "enterprise",
@@ -304,9 +305,10 @@ fn check_tier_compatibility(exported_tier: &LicenseTier, target_tier: &LicenseTi
     let tier_rank = |t: &LicenseTier| -> u8 {
         match t {
             LicenseTier::Engineering => 0,
-            LicenseTier::Starter => 1,
-            LicenseTier::Professional => 2,
-            LicenseTier::Enterprise => 3,
+            LicenseTier::Edge => 1,
+            LicenseTier::Starter => 2,
+            LicenseTier::Professional => 3,
+            LicenseTier::Enterprise => 4,
         }
     };
 
@@ -407,6 +409,15 @@ mod tests {
         assert!(check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Enterprise).is_ok());
         // Exporting from Starter to Professional should succeed.
         assert!(check_tier_compatibility(&LicenseTier::Starter, &LicenseTier::Professional).is_ok());
+        // Exporting from Edge to Starter should succeed (Edge rank 1 < Starter rank 2).
+        assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Starter).is_ok());
+    }
+
+    #[test]
+    fn test_tier_compatibility_edge_bounds() {
+        // Edge is higher than Engineering but lower than Starter.
+        assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Engineering).is_err());
+        assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Starter).is_ok());
     }
 
     #[test]
