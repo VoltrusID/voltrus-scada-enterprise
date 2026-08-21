@@ -4,6 +4,7 @@
 #[serde(rename_all = "lowercase")]
 pub enum LicenseTier {
     Engineering,
+    Edge,
     Starter,
     Professional,
     Enterprise,
@@ -15,6 +16,7 @@ impl LicenseTier {
     pub fn from_tier_str(s: Option<&str>) -> Self {
         match s.map(|t| t.to_lowercase()) {
             Some(ref t) if t == "engineering" => LicenseTier::Engineering,
+            Some(ref t) if t == "edge" => LicenseTier::Edge,
             Some(ref t) if t == "starter" => LicenseTier::Starter,
             Some(ref t) if t == "professional" || t == "pro" => LicenseTier::Professional,
             Some(ref t) if t == "enterprise" => LicenseTier::Enterprise,
@@ -26,6 +28,7 @@ impl LicenseTier {
     pub fn max_devices(&self) -> Option<u32> {
         match self {
             LicenseTier::Engineering => Some(5),
+            LicenseTier::Edge => Some(15),
             LicenseTier::Starter => Some(50),
             LicenseTier::Professional => None,
             LicenseTier::Enterprise => None,
@@ -36,6 +39,7 @@ impl LicenseTier {
     pub fn data_retention_days(&self) -> u32 {
         match self {
             LicenseTier::Engineering => 7,
+            LicenseTier::Edge => 90,
             LicenseTier::Starter | LicenseTier::Professional | LicenseTier::Enterprise => 365,
         }
     }

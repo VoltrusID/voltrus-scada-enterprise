@@ -5,6 +5,7 @@ use super::*;
 #[test]
 fn test_license_tier_max_devices() {
     assert_eq!(LicenseTier::Engineering.max_devices(), Some(5));
+    assert_eq!(LicenseTier::Edge.max_devices(), Some(15));
     assert_eq!(LicenseTier::Starter.max_devices(), Some(50));
     assert_eq!(LicenseTier::Professional.max_devices(), None);
     assert_eq!(LicenseTier::Enterprise.max_devices(), None);
@@ -59,6 +60,27 @@ fn test_license_tier_feature_flags() {
     assert!(!starter.sso());
     assert!(!starter.sso_saml());
     assert!(!starter.cfr_part_11());
+
+    // Edge tier: same features as Starter but capped devices and retention
+    let edge = LicenseTier::Edge;
+    assert_eq!(edge.max_devices(), Some(15));
+    assert_eq!(edge.data_retention_days(), 90);
+    assert!(!edge.opcua_enabled());
+    assert!(!edge.sms_notifications());
+    assert!(!edge.pdf_reporting());
+    assert!(!edge.rbac());
+    assert!(!edge.multi_site());
+    assert!(!edge.recipes());
+    assert!(!edge.sso());
+    assert!(!edge.sso_saml());
+    assert!(!edge.cfr_part_11());
+    assert!(edge.email_notifications());
+    assert!(edge.rest_api_export());
+    assert!(edge.csv_export());
+    assert!(edge.analytics());
+    assert!(edge.oee());
+    assert!(edge.backup_restore());
+    assert!(edge.white_label());
 
     // Professional tier: most features enabled
     let pro = LicenseTier::Professional;
@@ -154,6 +176,14 @@ fn test_from_tier_str() {
         LicenseTier::Starter
     );
     assert_eq!(
+        LicenseTier::from_tier_str(Some("edge")),
+        LicenseTier::Edge
+    );
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("Edge")),
+        LicenseTier::Edge
+    );
+    assert_eq!(
         LicenseTier::from_tier_str(Some("STARTER")),
         LicenseTier::Starter
     );
@@ -190,6 +220,12 @@ fn test_to_feature_flags_json_structure() {
     let flags = LicenseTier::Starter.to_feature_flags();
     assert_eq!(flags["max_devices"], 50);
     assert_eq!(flags["email_notifications"], true);
+
+    let flags = LicenseTier::Edge.to_feature_flags();
+    assert_eq!(flags["max_devices"], 15);
+    assert_eq!(flags["data_retention_days"], 90);
+    assert_eq!(flags["email_notifications"], true);
+    assert_eq!(flags["opcua_enabled"], false);
 
     let flags = LicenseTier::Enterprise.to_feature_flags();
     assert_eq!(flags["max_devices"], serde_json::Value::Null);
