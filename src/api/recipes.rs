@@ -8,11 +8,22 @@ use serde::Deserialize;
 use crate::api::{AppError, AppState};
 use crate::models::{CreateRecipeRequest, Recipe};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListRecipesQuery {
     pub device_id: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/recipes",
+    params(ListRecipesQuery),
+    responses(
+        (status = 200, body = Vec<Recipe>),
+        (status = 403),
+    ),
+    tag = "Recipes",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_recipes(
     State(state): State<AppState>,
     Query(q): Query<ListRecipesQuery>,
@@ -27,6 +38,18 @@ pub async fn list_recipes(
     Ok(Json(recipes))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/recipes",
+    request_body = CreateRecipeRequest,
+    responses(
+        (status = 201, body = Recipe),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Recipes",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_recipe(
     State(state): State<AppState>,
     Json(req): Json<CreateRecipeRequest>,
@@ -57,6 +80,20 @@ pub async fn create_recipe(
     Ok((StatusCode::CREATED, Json(recipe)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/recipes/{id}",
+    params(
+        ("id" = i64, Path, description = "Recipe ID")
+    ),
+    responses(
+        (status = 200, body = Recipe),
+        (status = 403),
+        (status = 404),
+    ),
+    tag = "Recipes",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -75,13 +112,29 @@ pub async fn get_recipe(
     Ok(Json(recipe))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateRecipeRequest {
     pub name: Option<String>,
     pub category: Option<Option<String>>,
     pub description: Option<Option<String>>,
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/recipes/{id}",
+    params(
+        ("id" = i64, Path, description = "Recipe ID")
+    ),
+    request_body = UpdateRecipeRequest,
+    responses(
+        (status = 200, body = Recipe),
+        (status = 400),
+        (status = 403),
+        (status = 404),
+    ),
+    tag = "Recipes",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -112,6 +165,19 @@ pub async fn update_recipe(
     Ok(Json(recipe))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/recipes/{id}",
+    params(
+        ("id" = i64, Path, description = "Recipe ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    tag = "Recipes",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -126,6 +192,20 @@ pub async fn delete_recipe(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/recipes/{id}/load",
+    params(
+        ("id" = i64, Path, description = "Recipe ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+        (status = 404),
+    ),
+    tag = "Recipes",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn load_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,

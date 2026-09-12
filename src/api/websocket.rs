@@ -16,6 +16,15 @@ use crate::ws_types::{ClientMessage, ServerMessage};
 /// within 30 seconds of connecting. After successful authentication the connection
 /// is registered with `WsManager` and the client can subscribe to tags and issue
 /// tag writes.
+#[utoipa::path(
+    get,
+    path = "/api/v1/ws",
+    tag = "Stream",
+    responses(
+        (status = 200, description = "Server-sent events stream"),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,

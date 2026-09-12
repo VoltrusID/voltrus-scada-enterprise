@@ -57,7 +57,7 @@ pub enum DeviceStatus {
 
 // ── Application entities ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct User {
     pub id: i64,
     pub username: String,
@@ -106,21 +106,21 @@ pub struct DataSource {
     pub path: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ScreenDataSource {
     pub screen_id: String,
     pub data_source_id: i64,
     pub sort_order: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ScreenLayoutRow {
     pub screen_id: String,
     pub breakpoint: String,
     pub layout: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct TwinLayout {
     pub screen_id: String,
     pub equipment_id: String,
@@ -210,7 +210,7 @@ pub struct AuditLogEntry {
 
 // ── Flow types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Flow {
     pub id: String,
     pub name: String,
@@ -221,7 +221,7 @@ pub struct Flow {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct FlowRun {
     pub id: i64,
     pub flow_id: String,

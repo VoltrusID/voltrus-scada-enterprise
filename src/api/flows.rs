@@ -7,6 +7,15 @@ use axum::{
 };
 use serde_json::json;
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/flows",
+    tag = "Flows",
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_flows(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -14,6 +23,19 @@ pub async fn list_flows(
     Ok(Json(json!({ "flows": flows })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/flows/{id}",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    responses(
+        (status = 200, body = Flow),
+        (status = 404),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_flow(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -26,6 +48,17 @@ pub async fn get_flow(
     Ok(Json(flow))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows",
+    tag = "Flows",
+    request_body = Flow,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_flow(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -60,6 +93,20 @@ pub async fn create_flow(
     Ok(Json(json!({ "id": id })))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/flows/{id}",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    request_body = Flow,
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_flow(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -88,6 +135,19 @@ pub async fn update_flow(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/flows/{id}",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_flow(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -111,6 +171,19 @@ pub async fn delete_flow(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows/{id}/start",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_flow(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -136,6 +209,19 @@ pub async fn start_flow(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows/{id}/stop",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_flow(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
@@ -155,6 +241,21 @@ pub async fn stop_flow(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/flows/{id}/test",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 404),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn test_flow(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -221,6 +322,18 @@ pub async fn test_flow(
     })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/flows/{id}/runs",
+    tag = "Flows",
+    params(
+        ("id" = String, Path, description = "Flow ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_flow_runs(
     State(state): State<AppState>,
     Path(id): Path<String>,

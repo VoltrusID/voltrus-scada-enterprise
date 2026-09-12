@@ -11,7 +11,7 @@ fn default_cov_lifetime() -> u32 {
     3600
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct BacnetDevice {
     pub id: i64,
     pub name: String,
@@ -30,7 +30,7 @@ pub struct BacnetDevice {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct BacnetObject {
     pub id: i64,
     pub device_id: i64,
@@ -66,7 +66,7 @@ pub struct BacnetObjectConfig {
     pub cov_increment: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct BacnetDiscoveredDevice {
     pub device_instance: u32,
     pub ip: String,

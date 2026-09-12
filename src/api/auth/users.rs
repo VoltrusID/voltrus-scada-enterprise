@@ -6,11 +6,43 @@ use serde_json::json;
 
 use super::*;
 
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct UserCreatedResponse {
+    pub ok: bool,
+    pub id: i64,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct OkResponse {
+    pub ok: bool,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/users",
+    responses(
+        (status = 200, body = Vec<crate::models::User>),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_users(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let users = state.storage.list_users().await?;
     Ok(Json(users))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/users",
+    request_body = crate::models::CreateUserRequest,
+    responses(
+        (status = 200, body = UserCreatedResponse),
+        (status = 400),
+        (status = 409),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_user_handler(
     State(state): State<AppState>,
     Extension(auth): Extension<super::super::AuthUser>,
@@ -58,6 +90,20 @@ pub async fn create_user_handler(
     Ok(Json(json!({"ok": true, "id": id})).into_response())
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/users/{id}",
+    params(
+        ("id" = i64, Path, description = "User ID")
+    ),
+    request_body = crate::models::UpdateUserRequest,
+    responses(
+        (status = 200, body = OkResponse),
+        (status = 400),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_user_handler(
     State(state): State<AppState>,
     Extension(auth): Extension<super::super::AuthUser>,
@@ -104,6 +150,19 @@ pub async fn update_user_handler(
     Ok(Json(json!({"ok": true})).into_response())
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/users/{id}",
+    params(
+        ("id" = i64, Path, description = "User ID")
+    ),
+    responses(
+        (status = 200, body = OkResponse),
+        (status = 400),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_user_handler(
     State(state): State<AppState>,
     Extension(auth): Extension<super::super::AuthUser>,

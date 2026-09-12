@@ -11,6 +11,22 @@ use crate::models::*;
 // ── Write Tag ──
 
 /// POST /api/v1/tags/{id}/write
+#[utoipa::path(
+    post,
+    path = "/api/v1/tags/{id}/write",
+    params(
+        ("id" = i64, Path, description = "Tag ID")
+    ),
+    request_body = WriteRequest,
+    responses(
+        (status = 202, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+        (status = 429),
+    ),
+    tag = "Commands",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn write_tag(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -170,6 +186,18 @@ pub async fn write_tag(
 // ── Get Command Status ──
 
 /// GET /api/v1/commands/{command_id}
+#[utoipa::path(
+    get,
+    path = "/api/v1/commands/{command_id}",
+    params(
+        ("command_id" = String, Path, description = "Command ID")
+    ),
+    responses(
+        (status = 200, body = Command),
+    ),
+    tag = "Commands",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_command_status(
     State(state): State<AppState>,
     Path(command_id): Path<String>,
@@ -185,6 +213,15 @@ pub async fn get_command_status(
 // ── List Commands ──
 
 /// GET /api/v1/commands
+#[utoipa::path(
+    get,
+    path = "/api/v1/commands",
+    responses(
+        (status = 200, body = Vec<Command>),
+    ),
+    tag = "Commands",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_commands(
     State(state): State<AppState>,
     Query(query): Query<CommandQuery>,
@@ -196,6 +233,19 @@ pub async fn list_commands(
 // ── Cancel Command ──
 
 /// POST /api/v1/commands/{command_id}/cancel
+#[utoipa::path(
+    post,
+    path = "/api/v1/commands/{command_id}/cancel",
+    params(
+        ("command_id" = String, Path, description = "Command ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+    ),
+    tag = "Commands",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn cancel_command(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -234,6 +284,18 @@ pub async fn cancel_command(
 // ── Get Command Audit ──
 
 /// GET /api/v1/commands/{command_id}/audit
+#[utoipa::path(
+    get,
+    path = "/api/v1/commands/{command_id}/audit",
+    params(
+        ("command_id" = String, Path, description = "Command ID")
+    ),
+    responses(
+        (status = 200, body = Vec<CommandAuditEntry>),
+    ),
+    tag = "Commands",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_command_audit(
     State(state): State<AppState>,
     Path(command_id): Path<String>,
@@ -245,6 +307,19 @@ pub async fn get_command_audit(
 // ── Update Write Policy ──
 
 /// PATCH /api/v1/data-sources/{id}/write-policy
+#[utoipa::path(
+    patch,
+    path = "/api/v1/data-sources/{id}/write-policy",
+    params(
+        ("id" = i64, Path, description = "Data Source ID")
+    ),
+    request_body = WritePolicyUpdate,
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Commands",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_write_policy(
     State(state): State<AppState>,
     Path(data_source_id): Path<i64>,

@@ -17,7 +17,7 @@ fn require_enterprise(state: &AppState) -> Result<(), AppError> {
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListEventsQuery {
     pub event_type: Option<String>,
     pub severity: Option<String>,
@@ -33,6 +33,17 @@ fn default_limit() -> u32 {
     100
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/security/events",
+    params(ListEventsQuery),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Security",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_security_events(
     State(state): State<AppState>,
     Query(params): Query<ListEventsQuery>,
@@ -56,12 +67,23 @@ pub async fn list_security_events(
     })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ExportCsvQuery {
     pub from: Option<i64>,
     pub to: Option<i64>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/security/events/export",
+    params(ExportCsvQuery),
+    responses(
+        (status = 200, description = "CSV export"),
+        (status = 403),
+    ),
+    tag = "Security",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn export_security_csv(
     State(state): State<AppState>,
     Query(params): Query<ExportCsvQuery>,
@@ -92,6 +114,16 @@ pub async fn export_security_csv(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/security/thresholds",
+    responses(
+        (status = 200, body = crate::models::SecurityThresholds),
+        (status = 403),
+    ),
+    tag = "Security",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_security_thresholds(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -100,6 +132,18 @@ pub async fn get_security_thresholds(
     Ok(Json(json!(thresholds)))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/security/thresholds",
+    request_body = crate::models::SecurityThresholds,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Security",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_security_thresholds(
     State(state): State<AppState>,
     Json(body): Json<SecurityThresholds>,

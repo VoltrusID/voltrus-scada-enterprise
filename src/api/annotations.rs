@@ -9,7 +9,7 @@ use crate::models::*;
 
 // ── Query params ──
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListAnnotationsQuery {
     pub tag_id: Option<String>,
     pub from: Option<i64>,
@@ -18,6 +18,17 @@ pub struct ListAnnotationsQuery {
 
 // ── Handlers ──
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/annotations",
+    request_body = crate::models::CreateAnnotationRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 500),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_annotation(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -63,6 +74,16 @@ pub async fn create_annotation(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/annotations",
+    params(ListAnnotationsQuery),
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_annotations(
     State(state): State<AppState>,
     Query(params): Query<ListAnnotationsQuery>,
@@ -78,6 +99,19 @@ pub async fn list_annotations(
     })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/annotations/{id}",
+    params(
+        ("id" = i64, Path, description = "Annotation ID")
+    ),
+    responses(
+        (status = 200, body = crate::models::Annotation),
+        (status = 404),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_annotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -91,6 +125,20 @@ pub async fn get_annotation(
     Ok(Json(json!(annotation)))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/annotations/{id}",
+    params(
+        ("id" = i64, Path, description = "Annotation ID")
+    ),
+    request_body = crate::models::UpdateAnnotationRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 404),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_annotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -108,6 +156,19 @@ pub async fn update_annotation(
     Ok(Json(json!({ "ok": true })))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/annotations/{id}",
+    params(
+        ("id" = i64, Path, description = "Annotation ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 404),
+    ),
+    tag = "Annotations",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_annotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,

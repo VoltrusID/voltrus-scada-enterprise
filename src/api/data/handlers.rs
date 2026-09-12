@@ -2,6 +2,15 @@ use super::*;
 
 /// GET /api/data?screen=X — fetch data sources, generate values using generators
 /// For source_type == "modbus": read from cache, evaluate expression if present
+#[utoipa::path(
+    get,
+    path = "/api/v1/data",
+    responses(
+        (status = 200, body = Vec<DataSourceData>),
+    ),
+    tag = "Data",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_data(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -18,6 +27,15 @@ pub async fn get_data(
 /// For modbus sources: reads real telemetry data from DB
 /// For non-modbus sources: generates synthetic data via generators
 /// Returns compact format: each sensor has {values: [f64], start: unix_ms, interval: ms, count: usize}
+#[utoipa::path(
+    get,
+    path = "/api/v1/history",
+    responses(
+        (status = 200, body = HistoryResponse),
+    ),
+    tag = "Data",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_history(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -211,6 +229,15 @@ pub async fn get_history(
 }
 
 /// GET /api/export/csv?sensor=X&range=30m — generate CSV from history data
+#[utoipa::path(
+    get,
+    path = "/api/v1/export/csv",
+    responses(
+        (status = 200, description = "CSV file download"),
+    ),
+    tag = "Data",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn export_csv(
     State(state): State<AppState>,
     Query(params): Query<DataQuery>,
@@ -274,6 +301,15 @@ pub async fn export_csv(
 /// - `interval` — aggregation window (1m, 5m, 15m, 1h, 1d)
 /// - `limit` / `offset` — pagination (default limit: 1000, max: 10000)
 /// - `format` — json (default), csv
+#[utoipa::path(
+    get,
+    path = "/api/v1/data/export",
+    responses(
+        (status = 200, description = "JSON export, or CSV when format=csv", body = ExportResponse),
+    ),
+    tag = "Data",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn export_data(
     State(state): State<AppState>,
     Query(params): Query<ExportQuery>,

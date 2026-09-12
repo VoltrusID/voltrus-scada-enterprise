@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::{AppError, AppState, AuthUser};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateApiKeyRequest {
     pub name: String,
     #[serde(default)]
@@ -20,6 +20,29 @@ fn default_permissions() -> String {
     "[]".to_string()
 }
 
+/// Response for a newly created API key — the plaintext key is shown exactly once.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ApiKeyCreatedResponse {
+    pub ok: bool,
+    pub id: i64,
+    pub name: String,
+    pub key: String,
+    pub warning: String,
+    pub note: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/api-keys",
+    tag = "API Keys",
+    request_body = CreateApiKeyRequest,
+    responses(
+        (status = 200, description = "API key created", body = ApiKeyCreatedResponse),
+        (status = 400, description = "Name must not be empty"),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_api_key(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -61,11 +84,33 @@ pub async fn create_api_key(
     .into_response())
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/api-keys",
+    tag = "API Keys",
+    responses(
+        (status = 200, description = "List of API keys", body = serde_json::Value),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_api_keys(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let keys = state.storage.list_api_keys().await?;
     Ok(Json(json!({ "keys": keys })))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/api-keys/{id}",
+    tag = "API Keys",
+    params(("id" = i64, Path, description = "API key ID")),
+    responses(
+        (status = 200, description = "API key revoked"),
+        (status = 404, description = "API key not found"),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn revoke_api_key(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
