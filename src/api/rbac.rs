@@ -28,6 +28,16 @@ fn license_forbidden() -> Response {
 
 // ── List roles ──
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/roles",
+    responses(
+        (status = 200, body = Vec<crate::models::Role>),
+        (status = 403),
+    ),
+    tag = "RBAC",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_roles(State(state): State<AppState>) -> Result<Response, AppError> {
     if !state.license_tier.rbac() {
         return Ok(license_forbidden());
@@ -38,6 +48,18 @@ pub async fn list_roles(State(state): State<AppState>) -> Result<Response, AppEr
 
 // ── Create role ──
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/roles",
+    request_body = crate::models::CreateRoleRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "RBAC",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -95,6 +117,21 @@ pub async fn create_role(
 
 // ── Update role ──
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/roles/{id}",
+    params(
+        ("id" = i64, Path, description = "Role ID")
+    ),
+    request_body = crate::models::UpdateRoleRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "RBAC",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -145,6 +182,20 @@ pub async fn update_role(
 
 // ── Delete role ──
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/roles/{id}",
+    params(
+        ("id" = i64, Path, description = "Role ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 404),
+        (status = 403),
+    ),
+    tag = "RBAC",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -177,6 +228,22 @@ pub async fn delete_role(
 
 // ── Assign role to user ──
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/users/{id}/role",
+    params(
+        ("id" = i64, Path, description = "User ID")
+    ),
+    request_body = crate::models::AssignRoleRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 404),
+        (status = 403),
+    ),
+    tag = "RBAC",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn assign_user_role(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,

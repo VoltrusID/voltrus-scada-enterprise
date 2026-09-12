@@ -10,9 +10,27 @@ use crate::dnp3::objects::common_group_variations;
 use crate::models::Dnp3DeviceConfig;
 use crate::models::*;
 
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct Dnp3ActionResponse {
+    pub ok: bool,
+    pub id: Option<i64>,
+    pub message: Option<String>,
+}
+
 // ── Device CRUD ──
 
 /// GET /api/v1/dnp3/devices
+#[utoipa::path(
+    get,
+    operation_id = "dnp3_list_devices",
+    path = "/api/v1/dnp3/devices",
+    responses(
+        (status = 200, body = Vec<crate::models::Dnp3Device>),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_devices(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -50,6 +68,19 @@ pub async fn list_devices(
 }
 
 /// POST /api/v1/dnp3/devices
+#[utoipa::path(
+    post,
+    operation_id = "dnp3_create_device",
+    path = "/api/v1/dnp3/devices",
+    request_body = crate::models::CreateDnp3DeviceRequest,
+    responses(
+        (status = 201, body = Dnp3ActionResponse),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -107,6 +138,19 @@ pub async fn create_device(
 }
 
 /// GET /api/v1/dnp3/devices/{id}
+#[utoipa::path(
+    get,
+    path = "/api/v1/dnp3/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = crate::models::Dnp3Device),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -128,6 +172,21 @@ pub async fn get_device(
 }
 
 /// PUT /api/v1/dnp3/devices/{id}
+#[utoipa::path(
+    put,
+    operation_id = "dnp3_update_device",
+    path = "/api/v1/dnp3/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    request_body = crate::models::UpdateDnp3DeviceRequest,
+    responses(
+        (status = 200, body = Dnp3ActionResponse),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -166,6 +225,20 @@ pub async fn update_device(
 }
 
 /// DELETE /api/v1/dnp3/devices/{id}
+#[utoipa::path(
+    delete,
+    operation_id = "dnp3_delete_device",
+    path = "/api/v1/dnp3/devices/{id}",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -198,6 +271,21 @@ pub async fn delete_device(
 // ── Point CRUD ──
 
 /// POST /api/v1/dnp3/devices/{id}/points
+#[utoipa::path(
+    post,
+    path = "/api/v1/dnp3/devices/{id}/points",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    request_body = crate::models::CreateDnp3PointRequest,
+    responses(
+        (status = 201, body = Dnp3ActionResponse),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn add_point(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -242,6 +330,20 @@ pub async fn add_point(
 }
 
 /// DELETE /api/v1/dnp3/devices/{id}/points/{point_id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/dnp3/devices/{id}/points/{point_id}",
+    params(
+        ("id" = i64, Path, description = "Device ID"),
+        ("point_id" = i64, Path, description = "Point ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn remove_point(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -266,6 +368,21 @@ pub async fn remove_point(
 // ── Start / Stop ──
 
 /// POST /api/v1/dnp3/devices/{id}/start
+#[utoipa::path(
+    post,
+    operation_id = "dnp3_start_device",
+    path = "/api/v1/dnp3/devices/{id}/start",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = Dnp3ActionResponse),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -336,6 +453,20 @@ pub async fn start_device(
 }
 
 /// POST /api/v1/dnp3/devices/{id}/stop
+#[utoipa::path(
+    post,
+    operation_id = "dnp3_stop_device",
+    path = "/api/v1/dnp3/devices/{id}/stop",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = Dnp3ActionResponse),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_device(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -365,7 +496,7 @@ pub async fn stop_device(
 
 // ── Discovery ──
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ScanRequest {
     pub range: String,
     #[serde(default = "default_dnp3_scan_port")]
@@ -377,6 +508,18 @@ fn default_dnp3_scan_port() -> u16 {
 }
 
 /// POST /api/v1/dnp3/scan
+#[utoipa::path(
+    post,
+    operation_id = "dnp3_scan_network",
+    path = "/api/v1/dnp3/scan",
+    request_body = ScanRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn scan_network(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -398,6 +541,19 @@ pub async fn scan_network(
 // ── Actions ──
 
 /// POST /api/v1/dnp3/devices/{id}/integrity
+#[utoipa::path(
+    post,
+    path = "/api/v1/dnp3/devices/{id}/integrity",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = Dnp3ActionResponse),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn trigger_integrity(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -422,6 +578,19 @@ pub async fn trigger_integrity(
 }
 
 /// POST /api/v1/dnp3/devices/{id}/freeze
+#[utoipa::path(
+    post,
+    path = "/api/v1/dnp3/devices/{id}/freeze",
+    params(
+        ("id" = i64, Path, description = "Device ID")
+    ),
+    responses(
+        (status = 200, body = Dnp3ActionResponse),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn trigger_freeze(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -444,6 +613,16 @@ pub async fn trigger_freeze(
 }
 
 /// GET /api/v1/dnp3/group-variations
+#[utoipa::path(
+    get,
+    path = "/api/v1/dnp3/group-variations",
+    responses(
+        (status = 200, body = Vec<serde_json::Value>),
+        (status = 403),
+    ),
+    tag = "DNP3",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_group_variations(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,

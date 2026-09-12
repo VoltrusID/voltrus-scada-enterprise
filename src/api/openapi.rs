@@ -23,6 +23,10 @@ use axum::response::Html;
         crate::api::auth::ldap_login,
         crate::api::auth::change_password,
         crate::api::auth::seed,
+        crate::api::auth::list_users,
+        crate::api::auth::create_user_handler,
+        crate::api::auth::update_user_handler,
+        crate::api::auth::delete_user_handler,
         // Settings
         crate::api::settings::get_branding,
         crate::api::settings::get_alarm_cooldown,
@@ -54,6 +58,7 @@ use axum::response::Html;
         crate::api::data::export_data,
         // Modbus devices
         crate::api::modbus_devices::list_modbus_devices,
+        crate::api::modbus_devices::get_modbus_device,
         crate::api::modbus_devices::create_modbus_device,
         crate::api::modbus_devices::update_modbus_device,
         crate::api::modbus_devices::delete_modbus_device,
@@ -95,6 +100,41 @@ use axum::response::Html;
         crate::api::enip_devices::browse_device,
         crate::api::enip_devices::start_device,
         crate::api::enip_devices::stop_device,
+        // DNP3 devices
+        crate::api::dnp3_devices::list_devices,
+        crate::api::dnp3_devices::create_device,
+        crate::api::dnp3_devices::get_device,
+        crate::api::dnp3_devices::update_device,
+        crate::api::dnp3_devices::delete_device,
+        crate::api::dnp3_devices::add_point,
+        crate::api::dnp3_devices::remove_point,
+        crate::api::dnp3_devices::scan_network,
+        crate::api::dnp3_devices::start_device,
+        crate::api::dnp3_devices::stop_device,
+        crate::api::dnp3_devices::trigger_integrity,
+        crate::api::dnp3_devices::trigger_freeze,
+        crate::api::dnp3_devices::list_group_variations,
+        // BACnet devices
+        crate::api::bacnet_devices::list_devices,
+        crate::api::bacnet_devices::create_device,
+        crate::api::bacnet_devices::update_device,
+        crate::api::bacnet_devices::delete_device,
+        crate::api::bacnet_devices::list_objects,
+        crate::api::bacnet_devices::add_object,
+        crate::api::bacnet_devices::remove_object,
+        crate::api::bacnet_devices::browse_device,
+        crate::api::bacnet_devices::start_device,
+        crate::api::bacnet_devices::stop_device,
+        crate::api::bacnet_devices::discover_network,
+        // MQTT broker
+        crate::api::mqtt_broker::get_status,
+        crate::api::mqtt_broker::update_config,
+        crate::api::mqtt_broker::start_broker,
+        crate::api::mqtt_broker::stop_broker,
+        crate::api::mqtt_broker::get_topics,
+        crate::api::mqtt_broker::get_topic_messages,
+        crate::api::mqtt_broker::get_messages,
+        crate::api::mqtt_broker::publish_message,
         // Screens
         crate::api::screens::list_screens,
         crate::api::screens::create_screen,
@@ -124,6 +164,9 @@ use axum::response::Html;
         crate::api::data_sources::update_data_source,
         crate::api::data_sources::delete_data_source,
         crate::api::data_sources::reorder_data_sources,
+        // Tag tree
+        crate::api::tag_tree::get_tag_tree,
+        crate::api::tag_tree::update_tag_path,
         // Flows
         crate::api::flows::list_flows,
         crate::api::flows::create_flow,
@@ -138,10 +181,9 @@ use axum::response::Html;
         crate::api::notifications::list_notification_settings,
         crate::api::notifications::create_notification_setting,
         crate::api::notifications::update_notification_setting,
-        crate::api::notifications::delete_notification_setting,
         crate::api::notifications::test_notification,
         // Stream
-        crate::api::stream::stream,
+        crate::api::websocket::websocket_handler,
         // Shortcuts
         crate::api::shortcuts::get_shortcuts,
         crate::api::shortcuts::save_shortcuts,
@@ -380,6 +422,47 @@ use axum::response::Html;
         crate::api::compression::CompressionStatsResponse,
         crate::api::compression::CompressionConfigResponse,
         crate::api::compression::MemoryStatsResponse,
+        // User schemas
+        crate::models::User,
+        crate::models::CreateUserRequest,
+        crate::api::auth::UserCreatedResponse,
+        crate::api::auth::OkResponse,
+        crate::models::UpdateUserRequest,
+        // Tag tree schemas
+        crate::api::tag_tree::TagTreeResponse,
+        crate::api::tag_tree::TagPathUpdatedResponse,
+        // DNP3 schemas
+        crate::models::Dnp3Device,
+        crate::models::Dnp3Point,
+        crate::models::CreateDnp3DeviceRequest,
+        crate::api::dnp3_devices::Dnp3ActionResponse,
+        crate::api::dnp3_devices::ScanRequest,
+        crate::models::UpdateDnp3DeviceRequest,
+        crate::models::CreateDnp3PointRequest,
+        // MQTT broker schemas
+        crate::mqtt_broker::BrokerStatus,
+        crate::mqtt_broker::ConnectedClient,
+        crate::mqtt_broker::TopicInfo,
+        crate::mqtt_broker::RecentMessage,
+        // MQTT broker request/response schemas
+        crate::api::mqtt_broker::UpdateMqttConfigRequest,
+        crate::api::mqtt_broker::PublishRequest,
+        crate::api::mqtt_broker::MqttConfigSummary,
+        crate::api::mqtt_broker::MqttStatusResponse,
+        crate::api::mqtt_broker::MqttConfigUpdateResponse,
+        crate::api::mqtt_broker::MqttActionStatusResponse,
+        crate::api::mqtt_broker::MqttTopicMessagesResponse,
+        crate::api::mqtt_broker::MqttMessagesResponse,
+        crate::api::mqtt_broker::MqttPublishResponse,
+        // BACnet schemas
+        crate::models::BacnetDevice,
+        crate::models::BacnetObject,
+        crate::models::BacnetDiscoveredDevice,
+        crate::models::CreateBacnetDeviceRequest,
+        crate::models::UpdateBacnetDeviceRequest,
+        crate::models::CreateBacnetObjectRequest,
+        // API key schemas
+        crate::api::api_keys::ApiKeyCreatedResponse,
     )),
     tags(
         (name = "Auth", description = "Authentication and user management"),
@@ -409,6 +492,10 @@ use axum::response::Html;
         (name = "API Keys", description = "API key management"),
         (name = "Settings", description = "Application settings"),
         (name = "License", description = "License status"),
+        (name = "DNP3", description = "DNP3 SCADA device management"),
+        (name = "BACnet", description = "BACnet/IP device management"),
+        (name = "MQTT Broker", description = "Embedded MQTT broker control and inspection"),
+        (name = "Tags", description = "Tag tree and UNS path management"),
     )
 )]
 pub struct ApiDoc;

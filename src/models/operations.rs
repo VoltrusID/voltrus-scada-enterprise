@@ -36,7 +36,7 @@ impl MachineState {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct DowntimeEvent {
     pub id: i64,
     pub device_id: String,
@@ -47,18 +47,18 @@ pub struct DowntimeEvent {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateDowntimeEventRequest {
     pub device_id: String,
     pub state: String,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CloseDowntimeEventRequest {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct OeeMetrics {
     pub availability: f64,
     pub performance: f64,
@@ -69,7 +69,7 @@ pub struct OeeMetrics {
     pub downtime_count: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct ShiftConfig {
     pub id: i64,
     pub name: String,
@@ -80,7 +80,7 @@ pub struct ShiftConfig {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateShiftRequest {
     pub name: String,
     pub start_hour: u32,
@@ -91,7 +91,7 @@ pub struct CreateShiftRequest {
 
 // ── Report types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Report {
     pub id: i64,
     pub name: String,
@@ -103,7 +103,7 @@ pub struct Report {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateReportRequest {
     pub name: String,
     pub schedule: String,
@@ -112,7 +112,7 @@ pub struct CreateReportRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateReportRequest {
     pub name: Option<String>,
     pub schedule: Option<String>,
@@ -123,7 +123,7 @@ pub struct UpdateReportRequest {
 
 // ── Hub (Multi-Site) types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct HubSite {
     pub id: i64,
     pub name: String,
@@ -135,7 +135,7 @@ pub struct HubSite {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateHubSiteRequest {
     pub name: String,
     pub url: String,
@@ -143,7 +143,7 @@ pub struct CreateHubSiteRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateHubSiteRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -153,7 +153,7 @@ pub struct UpdateHubSiteRequest {
 
 // ── Recipe types ──
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct Recipe {
     pub id: i64,
     pub name: String,
@@ -166,7 +166,7 @@ pub struct Recipe {
     pub updated_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateRecipeRequest {
     pub name: String,
     pub category: Option<String>,
@@ -197,7 +197,7 @@ pub struct LicenseActivationRow {
 
 // ── Security Audit types (v0.22.0 IEC 62443) ──
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct SecurityEvent {
     pub id: i64,
     pub event_type: String,
@@ -224,7 +224,7 @@ fn default_severity() -> String {
     "info".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SecurityThresholds {
     pub failed_login_threshold: u32,
     pub failed_login_window_secs: u64,
@@ -249,7 +249,7 @@ impl Default for SecurityThresholds {
 
 // ── Annotation types (v0.23.0) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Annotation {
     pub id: i64,
     pub tag_id: String,
@@ -260,21 +260,21 @@ pub struct Annotation {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CreateAnnotationRequest {
     pub tag_id: String,
     pub annotation_text: String,
     pub data_timestamp: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UpdateAnnotationRequest {
     pub annotation_text: Option<String>,
 }
 
 // ── Shift Handover types (v0.23.0) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ShiftHandover {
     pub id: i64,
     pub author_id: i64,
@@ -286,7 +286,7 @@ pub struct ShiftHandover {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CreateShiftHandoverRequest {
     pub shift_date: String,
     pub shift_period: String,
@@ -297,7 +297,7 @@ pub struct CreateShiftHandoverRequest {
 
 // ── User Notification types (v0.23.0) ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UserNotification {
     pub id: i64,
     pub user_id: i64,

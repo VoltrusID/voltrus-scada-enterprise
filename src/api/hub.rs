@@ -76,6 +76,16 @@ fn multi_site_required(state: &AppState) -> Option<(HttpStatus, Json<serde_json:
     None
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/hub/sites",
+    responses(
+        (status = 200, body = Vec<crate::models::HubSite>),
+        (status = 403),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_sites(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, body)) = multi_site_required(&state) {
         return (status, body).into_response();
@@ -91,6 +101,18 @@ pub async fn list_sites(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/hub/sites",
+    request_body = CreateHubSiteRequest,
+    responses(
+        (status = 201, body = crate::models::HubSite),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_site(
     State(state): State<AppState>,
     Json(body): Json<CreateHubSiteRequest>,
@@ -144,6 +166,21 @@ pub async fn create_site(
     }
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/hub/sites/{id}",
+    params(
+        ("id" = i64, Path, description = "Hub site ID")
+    ),
+    request_body = UpdateHubSiteRequest,
+    responses(
+        (status = 204),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_site(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -196,6 +233,19 @@ pub async fn update_site(
     }
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/hub/sites/{id}",
+    params(
+        ("id" = i64, Path, description = "Hub site ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_site(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
     if let Some((status, err)) = multi_site_required(&state) {
         return (status, err).into_response();
@@ -216,6 +266,21 @@ pub async fn delete_site(State(state): State<AppState>, Path(id): Path<i64>) -> 
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/hub/sites/{id}/start",
+    params(
+        ("id" = i64, Path, description = "Hub site ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+        (status = 404),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_site_connection(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -263,6 +328,19 @@ pub async fn start_site_connection(
     Json(json!({"ok": true})).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/hub/sites/{id}/stop",
+    params(
+        ("id" = i64, Path, description = "Hub site ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_site_connection(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -278,6 +356,16 @@ pub async fn stop_site_connection(
     Json(json!({"ok": true})).into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/hub/status",
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Hub",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_hub_status(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, err)) = multi_site_required(&state) {
         return (status, err).into_response();

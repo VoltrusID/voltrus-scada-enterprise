@@ -28,6 +28,18 @@ fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/login",
+    request_body = crate::models::LoginRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 401),
+        (status = 403),
+        (status = 429),
+    ),
+    tag = "Auth",
+)]
 pub async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -236,6 +248,14 @@ async fn check_password_and_login(
     )
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Auth",
+)]
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     // Revoke refresh token if present
     if let Some(refresh_cookie) = jar.get("voltrus_refresh") {
@@ -257,6 +277,15 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> impl IntoR
     )
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/me",
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     let token = jar.get("voltrus_token").map(|c| c.value()).unwrap_or("");
     if token.is_empty() {
@@ -270,6 +299,15 @@ pub async fn auth_me(State(state): State<AppState>, jar: CookieJar) -> impl Into
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/csrf-token",
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 401),
+    ),
+    tag = "Auth",
+)]
 pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> impl IntoResponse {
     let token = jar.get("voltrus_token").map(|c| c.value()).unwrap_or("");
     if token.is_empty() {
@@ -292,6 +330,15 @@ pub async fn get_csrf_token(State(state): State<AppState>, jar: CookieJar) -> im
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/refresh",
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 401),
+    ),
+    tag = "Auth",
+)]
 pub async fn refresh_token(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -382,11 +429,32 @@ pub async fn refresh_token(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/seed",
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     state.storage.seed_database(&[]).await?;
     Ok(Json(json!({"ok": true})))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/change-password",
+    request_body = crate::models::ChangePasswordRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Auth",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn change_password(
     State(state): State<AppState>,
     Extension(auth): Extension<super::super::AuthUser>,

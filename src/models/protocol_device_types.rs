@@ -7,7 +7,7 @@ use super::{DeviceConfig, Endianness, RegisterConfig, RegisterType, default_inte
 use super::{default_interval_ms, default_true};
 
 #[cfg(feature = "modbus")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ModbusDevice {
     pub id: String,
     pub name: String,
@@ -88,7 +88,7 @@ pub struct CreateModbusDeviceRequest {
 }
 
 #[cfg(feature = "modbus")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct ModbusRegisterInput {
     pub name: String,
     pub address: u16,
@@ -106,7 +106,7 @@ fn default_reg_type_str() -> String {
 }
 
 #[cfg(feature = "modbus")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct ScanRegisterRequest {
     pub ip: String,
     #[serde(default = "default_modbus_port")]
@@ -134,7 +134,7 @@ fn default_scan_register_area() -> String {
 }
 
 #[cfg(feature = "modbus")]
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct ScannedRegister {
     pub address: u16,
     pub raw_value: Option<u16>,
@@ -146,7 +146,7 @@ pub struct ScannedRegister {
 }
 
 #[cfg(feature = "modbus")]
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct PollerStatus {
     pub device_id: String,
     pub running: bool,
@@ -156,7 +156,7 @@ pub struct PollerStatus {
 // ── OPC-UA config types ──
 
 #[cfg(feature = "opcua")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, utoipa::ToSchema)]
 pub enum OpcUaSecurityPolicy {
     #[default]
     None,
@@ -165,7 +165,7 @@ pub enum OpcUaSecurityPolicy {
 }
 
 #[cfg(feature = "opcua")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, utoipa::ToSchema)]
 pub enum OpcUaSecurityMode {
     #[default]
     None,
@@ -201,7 +201,7 @@ pub struct OpcUaDeviceConfig {
 
 /// Database row for opcua_devices table.
 #[cfg(feature = "opcua")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct OpcUaDevice {
     pub id: i64,
     pub name: String,
@@ -219,7 +219,7 @@ pub struct OpcUaDevice {
 
 /// Database row for opcua_nodes table.
 #[cfg(feature = "opcua")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct OpcUaNode {
     pub id: i64,
     pub device_id: i64,
@@ -231,7 +231,7 @@ pub struct OpcUaNode {
 }
 
 #[cfg(feature = "opcua")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateOpcUaDeviceRequest {
     pub name: String,
     pub url: String,
@@ -248,7 +248,7 @@ pub struct CreateOpcUaDeviceRequest {
 }
 
 #[cfg(feature = "opcua")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateOpcUaDeviceRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -261,7 +261,7 @@ pub struct UpdateOpcUaDeviceRequest {
 }
 
 #[cfg(feature = "opcua")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateOpcUaNodeRequest {
     pub node_id: String,
     pub name: String,
@@ -302,7 +302,7 @@ fn default_s7_slot() -> u8 {
 
 /// Database row for s7_tags table.
 #[cfg(feature = "s7")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct S7TagRow {
     pub id: i64,
     pub device_id: i64,
@@ -316,7 +316,7 @@ pub struct S7TagRow {
 }
 
 #[cfg(feature = "s7")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateS7DeviceRequest {
     pub name: String,
     pub url: String,
@@ -331,7 +331,7 @@ pub struct CreateS7DeviceRequest {
 }
 
 #[cfg(feature = "s7")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateS7DeviceRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -342,7 +342,7 @@ pub struct UpdateS7DeviceRequest {
 }
 
 #[cfg(feature = "s7")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateS7TagRequest {
     pub tag_address: String,
     pub name: String,
@@ -379,7 +379,7 @@ fn default_enip_slot() -> u8 {
 
 /// Database row for enip_tags table.
 #[cfg(feature = "ethernet-ip")]
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct EnipTag {
     pub id: i64,
     pub device_id: i64,
@@ -397,7 +397,7 @@ pub struct EnipTag {
 }
 
 #[cfg(feature = "ethernet-ip")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateEnipDeviceRequest {
     pub name: String,
     pub url: String,
@@ -412,7 +412,7 @@ pub struct CreateEnipDeviceRequest {
 }
 
 #[cfg(feature = "ethernet-ip")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateEnipDeviceRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -423,7 +423,7 @@ pub struct UpdateEnipDeviceRequest {
 }
 
 #[cfg(feature = "ethernet-ip")]
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateEnipTagRequest {
     pub tag_name: String,
     pub name: String,

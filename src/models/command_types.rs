@@ -48,7 +48,7 @@ impl CommandStatus {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Command {
     pub id: String,
     pub data_source_id: i64,
@@ -76,7 +76,7 @@ pub struct Command {
     pub readback_ts: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct CommandAuditEntry {
     pub id: i64,
     pub command_id: String,
@@ -97,8 +97,9 @@ pub struct WritePolicy {
     pub write_deadband: Option<f64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct WriteRequest {
+    #[schema(value_type = Object)]
     pub value: serde_json::Value,
     #[serde(default = "default_write_policy")]
     pub policy: String,
@@ -110,7 +111,7 @@ fn default_write_policy() -> String {
     "immediate".to_string()
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct CommandQuery {
     pub tag: Option<String>,
     pub status: Option<String>,
@@ -144,7 +145,7 @@ pub(crate) mod option_option {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct WritePolicyUpdate {
     pub writable: Option<bool>,
     #[serde(default, with = "option_option")]

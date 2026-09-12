@@ -30,14 +30,14 @@ fn extract_user_agent(headers: &HeaderMap) -> Option<String> {
 
 // -- SSO request types --
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct SamlAcsRequest {
     pub saml_response: String,
     #[serde(default)]
     pub relay_state: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct LdapLoginRequest {
     pub username: String,
     pub password: String,
@@ -46,6 +46,14 @@ pub struct LdapLoginRequest {
 // -- SSO / SAML / LDAP endpoints (Enterprise-tier gated) --
 
 /// GET /api/v1/auth/providers -- lists enabled auth providers.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/providers",
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Auth",
+)]
 pub async fn list_auth_providers(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -90,6 +98,15 @@ pub async fn list_auth_providers(
 }
 
 /// POST /api/v1/auth/saml/metadata -- returns SP metadata XML.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/saml/metadata",
+    responses(
+        (status = 200, description = "SAML SP metadata XML", body = String),
+        (status = 403),
+    ),
+    tag = "Auth",
+)]
 pub async fn saml_metadata(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     if !state.license_tier.sso_saml() {
         return Ok((
@@ -115,6 +132,16 @@ pub async fn saml_metadata(State(state): State<AppState>) -> Result<impl IntoRes
 }
 
 /// POST /api/v1/auth/saml/acs -- SAML Assertion Consumer Service.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/saml/acs",
+    request_body = SamlAcsRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Auth",
+)]
 pub async fn saml_acs(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -178,6 +205,18 @@ pub async fn saml_acs(
 }
 
 /// POST /api/v1/auth/ldap/login -- LDAP authentication endpoint.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/ldap/login",
+    request_body = LdapLoginRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 401),
+        (status = 403),
+    ),
+    tag = "Auth",
+)]
 pub async fn ldap_login(
     State(state): State<AppState>,
     headers: HeaderMap,

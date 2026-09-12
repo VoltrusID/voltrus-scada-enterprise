@@ -10,7 +10,7 @@ use crate::compliance::*;
 
 // ── Query params for listing signatures ──
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct SignatureQuery {
     pub resource_type: Option<String>,
     pub resource_id: Option<String>,
@@ -26,6 +26,16 @@ fn license_forbidden() -> Response {
 
 // ── Get compliance config ──
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/compliance/config",
+    responses(
+        (status = 200, body = crate::compliance::ComplianceConfig),
+        (status = 403),
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_compliance_config(State(state): State<AppState>) -> Result<Response, AppError> {
     if !state.license_tier.cfr_part_11() {
         return Ok(license_forbidden());
@@ -38,6 +48,18 @@ pub async fn get_compliance_config(State(state): State<AppState>) -> Result<Resp
 
 // ── Update compliance config (admin-only) ──
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/compliance/config",
+    request_body = crate::compliance::UpdateComplianceConfigRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_compliance_config(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -119,6 +141,18 @@ pub async fn update_compliance_config(
 
 // ── Create electronic signature ──
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/compliance/sign",
+    request_body = crate::compliance::CreateSignatureRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_electronic_signature(
     State(state): State<AppState>,
     Extension(auth): Extension<super::AuthUser>,
@@ -186,6 +220,17 @@ pub async fn create_electronic_signature(
 
 // ── List electronic signatures ──
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/compliance/signatures",
+    params(SignatureQuery),
+    responses(
+        (status = 200, body = Vec<crate::compliance::ElectronicSignature>),
+        (status = 403),
+    ),
+    tag = "Compliance",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_electronic_signatures(
     State(state): State<AppState>,
     Query(query): Query<SignatureQuery>,

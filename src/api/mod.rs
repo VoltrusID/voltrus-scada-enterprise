@@ -47,7 +47,7 @@ mod oee;
 #[cfg(feature = "opcua")]
 mod opcua_devices;
 #[cfg(feature = "openapi")]
-mod openapi;
+pub(crate) mod openapi;
 mod rbac;
 mod recipes;
 mod reports;
@@ -1193,7 +1193,9 @@ pub fn create_router(state: AppState) -> Router {
             crate::security::strip_forwarded_host_middleware,
         ));
 
-    let router = Router::new()
+    // `mut` is consumed by the cfg(openapi) docs-route attachment below.
+    #[allow(unused_mut)]
+    let mut router = Router::new()
         .merge(api_router)
         .merge(static_router);
 
