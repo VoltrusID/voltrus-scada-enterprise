@@ -9,7 +9,7 @@ use tokio::sync::{RwLock, broadcast, watch};
 use crate::models::MqttBrokerConfig;
 
 /// Runtime status of the embedded MQTT broker.
-#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum BrokerStatus {
     Stopped,
@@ -19,7 +19,7 @@ pub enum BrokerStatus {
 }
 
 /// Connected client info.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct ConnectedClient {
     pub client_id: String,
     pub connected_at: i64,
@@ -27,7 +27,7 @@ pub struct ConnectedClient {
 }
 
 /// Tracked information for a single MQTT topic.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct TopicInfo {
     pub topic: String,
     #[serde(with = "bytes_to_string")]
@@ -48,7 +48,7 @@ mod bytes_to_string {
 }
 
 /// A single recent message for the message stream.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct RecentMessage {
     pub topic: String,
     #[serde(with = "bytes_to_string")]

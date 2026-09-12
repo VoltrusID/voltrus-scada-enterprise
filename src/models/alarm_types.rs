@@ -2,7 +2,7 @@
 
 // ── Alarm types ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Alarm {
     pub id: i64,
     pub source_key: String,
@@ -36,7 +36,7 @@ pub struct AlarmQuery {
 
 // ── Alarm Management Overhaul types (v0.23.0) ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmAuditEntry {
     pub id: i64,
     pub alarm_id: i64,
@@ -46,13 +46,13 @@ pub struct AlarmAuditEntry {
     pub created_at: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ShelfAlarmRequest {
     pub duration_secs: u64,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmSummary {
     pub active_critical: i64,
     pub active_warning: i64,
@@ -62,7 +62,7 @@ pub struct AlarmSummary {
     pub avg_ack_time_secs: f64,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct AlarmAnalyticsEntry {
     pub source_key: String,
     pub source_name: String,
@@ -73,7 +73,7 @@ pub struct AlarmAnalyticsEntry {
 
 // ── Notification settings ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct NotificationSetting {
     pub id: i64,
     pub source_key: String,
@@ -83,7 +83,7 @@ pub struct NotificationSetting {
     pub created_at: i64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateNotificationSettingRequest {
     pub source_key: String,
     pub channel_type: String,
@@ -111,7 +111,7 @@ fn default_retention_hours() -> u32 {
 // ── RTSP Video / Camera types ──
 
 /// Database row for cameras table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct Camera {
     pub id: i64,
     pub name: String,
@@ -126,7 +126,7 @@ pub struct Camera {
 }
 
 /// Database row for camera_snapshots table.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct CameraSnapshot {
     pub id: i64,
     pub camera_id: i64,
@@ -136,7 +136,7 @@ pub struct CameraSnapshot {
     pub file_size: u64,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateCameraRequest {
     pub name: String,
     pub url: String,
@@ -148,7 +148,7 @@ pub struct CreateCameraRequest {
     pub retention_hours: u32,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateCameraRequest {
     pub name: Option<String>,
     pub url: Option<String>,
@@ -157,7 +157,7 @@ pub struct UpdateCameraRequest {
     pub retention_hours: Option<u32>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateNotificationSettingRequest {
     pub source_key: Option<String>,
     pub channel_type: Option<String>,
@@ -165,7 +165,7 @@ pub struct UpdateNotificationSettingRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct TestNotificationRequest {
     pub channel_type: String,
     pub config: String,

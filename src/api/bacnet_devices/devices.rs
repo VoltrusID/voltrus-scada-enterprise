@@ -5,6 +5,7 @@ use super::*;
 /// GET /api/v1/bacnet/devices
 #[utoipa::path(
     get,
+    operation_id = "bacnet_list_devices",
     path = "/api/v1/bacnet/devices",
     responses(
         (status = 200, body = Vec<serde_json::Value>),
@@ -51,6 +52,7 @@ pub async fn list_devices(
 /// POST /api/v1/bacnet/devices
 #[utoipa::path(
     post,
+    operation_id = "bacnet_create_device",
     path = "/api/v1/bacnet/devices",
     request_body = CreateBacnetDeviceRequest,
     responses(
@@ -127,6 +129,7 @@ pub async fn create_device(
 /// PUT /api/v1/bacnet/devices/{id}
 #[utoipa::path(
     put,
+    operation_id = "bacnet_update_device",
     path = "/api/v1/bacnet/devices/{id}",
     params(
         ("id" = i64, Path, description = "Device ID")
@@ -183,6 +186,7 @@ pub async fn update_device(
 /// DELETE /api/v1/bacnet/devices/{id}
 #[utoipa::path(
     delete,
+    operation_id = "bacnet_delete_device",
     path = "/api/v1/bacnet/devices/{id}",
     params(
         ("id" = i64, Path, description = "Device ID")
@@ -233,6 +237,7 @@ pub async fn delete_device(
 /// POST /api/v1/bacnet/devices/{id}/start
 #[utoipa::path(
     post,
+    operation_id = "bacnet_start_device",
     path = "/api/v1/bacnet/devices/{id}/start",
     params(
         ("id" = i64, Path, description = "Device ID")
@@ -319,6 +324,7 @@ pub async fn start_device(
 /// POST /api/v1/bacnet/devices/{id}/stop
 #[utoipa::path(
     post,
+    operation_id = "bacnet_stop_device",
     path = "/api/v1/bacnet/devices/{id}/stop",
     params(
         ("id" = i64, Path, description = "Device ID")

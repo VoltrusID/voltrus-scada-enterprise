@@ -8,12 +8,35 @@ use serde_json::json;
 use super::{AppError, AppState};
 use crate::storage::Storage;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct TreeQuery {
     pub search: Option<String>,
 }
 
+/// Response envelope for the hierarchical UNS tag tree.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct TagTreeResponse {
+    pub tree: Vec<serde_json::Value>,
+}
+
+/// Acknowledgement for a tag path update.
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct TagPathUpdatedResponse {
+    pub ok: bool,
+}
+
 /// GET /api/v1/tags/tree — hierarchical UNS tree view of all tags
+#[utoipa::path(
+    get,
+    path = "/api/v1/tags/tree",
+    tag = "Tags",
+    params(TreeQuery),
+    responses(
+        (status = 200, description = "Hierarchical UNS tag tree", body = TagTreeResponse),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_tag_tree(
     State(state): State<AppState>,
     Query(params): Query<TreeQuery>,
@@ -24,6 +47,19 @@ pub async fn get_tag_tree(
 }
 
 /// PUT /api/v1/tags/{id}/path — update a tag's UNS path
+#[utoipa::path(
+    put,
+    path = "/api/v1/tags/{id}/path",
+    tag = "Tags",
+    params(("id" = i64, Path, description = "Data source (tag) ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Path updated", body = TagPathUpdatedResponse),
+        (status = 400, description = "Invalid path"),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_tag_path(
     State(state): State<AppState>,
     Path(id): Path<i64>,

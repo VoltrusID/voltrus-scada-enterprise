@@ -4,14 +4,14 @@ use std::collections::HashMap;
 
 // ── Analytics types ──
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ControlLimits {
     pub ucl: f64,
     pub cl: f64,
     pub lcl: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SpcPoint {
     pub index: usize,
     pub value: f64,
@@ -19,7 +19,7 @@ pub struct SpcPoint {
     pub subgroup_values: Option<Vec<f64>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SpcResult {
     pub chart_type: String,
     pub data_points: Vec<SpcPoint>,
@@ -28,7 +28,7 @@ pub struct SpcResult {
     pub in_control_percent: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct HistogramBin {
     pub lower: f64,
     pub upper: f64,
@@ -36,13 +36,13 @@ pub struct HistogramBin {
     pub frequency: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CurvePoint {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct DistributionStats {
     pub mean: f64,
     pub stddev: f64,
@@ -51,7 +51,7 @@ pub struct DistributionStats {
     pub count: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CapabilityIndices {
     pub cp: f64,
     pub cpk: f64,
@@ -59,7 +59,7 @@ pub struct CapabilityIndices {
     pub ppk: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct HistogramResult {
     pub bins: Vec<HistogramBin>,
     pub normal_curve: Vec<CurvePoint>,
@@ -67,14 +67,14 @@ pub struct HistogramResult {
     pub capability: Option<CapabilityIndices>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RunChartPoint {
     pub value: f64,
     pub timestamp: i64,
     pub above_median: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Signal {
     pub rule: String,
     pub start_idx: usize,
@@ -82,7 +82,7 @@ pub struct Signal {
     pub description: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct RunChartResult {
     pub points: Vec<RunChartPoint>,
     pub median: f64,

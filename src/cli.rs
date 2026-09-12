@@ -3,6 +3,9 @@ use base64::Engine;
 use crate::config;
 use crate::storage::Storage;
 
+#[cfg(feature = "openapi")]
+use utoipa::OpenApi;
+
 const HELP_TEXT: &str = "\
 voltrus — Industrial Modbus monitoring dashboard
 

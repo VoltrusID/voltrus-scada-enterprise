@@ -8,6 +8,15 @@ use super::{AppError, AppState};
 use crate::models::*;
 
 /// GET /api/v1/notifications/settings
+#[utoipa::path(
+    get,
+    path = "/api/v1/notifications/settings",
+    tag = "Notifications",
+    responses(
+        (status = 200, body = Vec<NotificationSetting>),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_notification_settings(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -16,6 +25,18 @@ pub async fn list_notification_settings(
 }
 
 /// POST /api/v1/notifications/settings
+#[utoipa::path(
+    post,
+    path = "/api/v1/notifications/settings",
+    tag = "Notifications",
+    request_body = CreateNotificationSettingRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_notification_setting(
     State(state): State<AppState>,
     Json(req): Json<CreateNotificationSettingRequest>,
@@ -136,6 +157,20 @@ pub async fn create_notification_setting(
 }
 
 /// PUT /api/v1/notifications/settings/{id}
+#[utoipa::path(
+    put,
+    path = "/api/v1/notifications/settings/{id}",
+    tag = "Notifications",
+    params(
+        ("id" = i64, Path, description = "Notification setting ID")
+    ),
+    request_body = UpdateNotificationSettingRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_notification_setting(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -183,6 +218,18 @@ pub async fn update_notification_setting(
 }
 
 /// DELETE /api/v1/notifications/settings/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/notifications/settings/{id}",
+    tag = "Notifications",
+    params(
+        ("id" = i64, Path, description = "Notification setting ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_notification_setting(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -194,6 +241,18 @@ pub async fn delete_notification_setting(
 /// POST /api/v1/notifications/test
 ///
 /// Sends a test notification to validate configuration without creating an actual alarm.
+#[utoipa::path(
+    post,
+    path = "/api/v1/notifications/test",
+    tag = "Notifications",
+    request_body = TestNotificationRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn test_notification(
     State(state): State<AppState>,
     Json(req): Json<TestNotificationRequest>,

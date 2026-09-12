@@ -21,14 +21,14 @@ fn oee_required(state: &AppState) -> Option<(HttpStatus, Json<serde_json::Value>
     None
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct OeeMetricsQuery {
     pub device_id: String,
     pub from: Option<i64>,
     pub to: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct DowntimeQuery {
     pub device_id: Option<String>,
     pub from: Option<i64>,
@@ -36,6 +36,18 @@ pub struct DowntimeQuery {
 }
 
 /// GET /api/v1/oee/metrics?device_id=&from=&to= -- OEE breakdown
+#[utoipa::path(
+    get,
+    path = "/api/v1/oee/metrics",
+    params(OeeMetricsQuery),
+    responses(
+        (status = 200, body = crate::models::OeeMetrics),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_oee_metrics(
     State(state): State<AppState>,
     Query(q): Query<OeeMetricsQuery>,
@@ -67,6 +79,17 @@ pub async fn get_oee_metrics(
 }
 
 /// GET /api/v1/oee/downtime?device_id=&from=&to= -- list downtime events
+#[utoipa::path(
+    get,
+    path = "/api/v1/oee/downtime",
+    params(DowntimeQuery),
+    responses(
+        (status = 200, body = Vec<crate::models::DowntimeEvent>),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_downtime(
     State(state): State<AppState>,
     Query(q): Query<DowntimeQuery>,
@@ -90,6 +113,18 @@ pub async fn list_downtime(
 }
 
 /// POST /api/v1/oee/downtime -- manually create downtime event
+#[utoipa::path(
+    post,
+    path = "/api/v1/oee/downtime",
+    request_body = crate::models::CreateDowntimeEventRequest,
+    responses(
+        (status = 201, body = crate::models::DowntimeEvent),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_downtime(
     State(state): State<AppState>,
     Json(req): Json<crate::models::CreateDowntimeEventRequest>,
@@ -146,6 +181,21 @@ pub async fn create_downtime(
 }
 
 /// PUT /api/v1/oee/downtime/{id}/close -- close event with reason
+#[utoipa::path(
+    put,
+    path = "/api/v1/oee/downtime/{id}/close",
+    params(
+        ("id" = i64, Path, description = "Downtime event ID")
+    ),
+    request_body = crate::models::CloseDowntimeEventRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn close_downtime(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -170,6 +220,16 @@ pub async fn close_downtime(
 }
 
 /// GET /api/v1/oee/shifts -- list shifts
+#[utoipa::path(
+    get,
+    path = "/api/v1/oee/shifts",
+    responses(
+        (status = 200, body = Vec<crate::models::ShiftConfig>),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_shifts(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, body)) = oee_required(&state) {
         return (status, body).into_response();
@@ -186,6 +246,18 @@ pub async fn list_shifts(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// POST /api/v1/oee/shifts -- create shift
+#[utoipa::path(
+    post,
+    path = "/api/v1/oee/shifts",
+    request_body = crate::models::CreateShiftRequest,
+    responses(
+        (status = 201, body = crate::models::ShiftConfig),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_shift(
     State(state): State<AppState>,
     Json(req): Json<crate::models::CreateShiftRequest>,
@@ -273,6 +345,19 @@ pub async fn create_shift(
 }
 
 /// DELETE /api/v1/oee/shifts/{id} -- delete shift
+#[utoipa::path(
+    delete,
+    path = "/api/v1/oee/shifts/{id}",
+    params(
+        ("id" = i64, Path, description = "Shift ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 403),
+    ),
+    tag = "OEE",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_shift(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
     if let Some((status, body)) = oee_required(&state) {
         return (status, body).into_response();
