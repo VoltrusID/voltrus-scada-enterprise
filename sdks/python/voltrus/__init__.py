@@ -1,29 +1,30 @@
 """Voltrus SCADA Python SDK."""
 
-from .client import VoltrusClient
+from .client import VoltrusClient, VoltrusError
 from .models import (
     Alarm,
     AlarmSummary,
-    CommandStatus,
-    DataPoint,
-    Device,
+    DeviceSnapshot,
+    HistoryResponse,
+    HistorySeries,
+    LiveValue,
     OeeMetrics,
     Screen,
-    TagValue,
     WriteResult,
 )
 
 __all__ = [
     "VoltrusClient",
+    "VoltrusError",
     "Alarm",
     "AlarmSummary",
-    "CommandStatus",
-    "DataPoint",
-    "Device",
+    "DeviceSnapshot",
+    "HistoryResponse",
+    "HistorySeries",
+    "LiveValue",
     "OeeMetrics",
     "Screen",
-    "TagValue",
     "WriteResult",
 ]
 
-__version__ = "0.34.0"
+__version__ = "0.47.0"

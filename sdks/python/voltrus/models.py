@@ -1,85 +1,131 @@
-"""Pydantic models for Voltrus SDK."""
+"""Typed models for Voltrus SCADA SDK.
 
-from datetime import datetime
-from typing import Optional, Union
+Plain dataclasses — the only dependency is urllib3. Fields mirror the JSON
+the server actually returns (see src/models/ and src/api/ in the voltrus
+repository). Endpoints whose bodies are protocol-specific (device configs,
+flows, recipes, ...) return plain dicts instead of models.
+"""
 
-from pydantic import BaseModel
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Union
 
 
-class TagValue(BaseModel):
-    id: str
-    name: str
-    value: Optional[Union[float, str, bool]] = None
-    quality: str  # 'good' | 'bad' | 'unknown'
-    timestamp: str
+@dataclass
+class LiveValue:
+    """One evaluated data source — a row of GET /api/v1/data."""
+
+    id: int
+    key: str
+    value: float
+    warn: float
+    crit: float
+    source_type: str  # 'modbus' | 'simulated' | ...
+    status: str  # 'normal' | 'warning' | 'critical' | 'offline'
+
+    @property
+    def quality(self) -> str:
+        """Map status to good/bad, Kepware-style."""
+        return "bad" if self.status == "offline" else "good"
+
+
+@dataclass
+class DeviceSnapshot:
+    """Latest cached metrics for one device — a row of GET /api/v1/live."""
+
     device_id: str
+    status: str  # 'online' | 'offline' | ...
+    timestamp: int  # unix seconds
+    metrics: Dict[str, float]
+    simulated: bool = False
+    protocol: str = ""
 
 
-class WriteResult(BaseModel):
-    command_id: str
-    status: str  # 'pending' | 'sent' | 'acked' | 'failed'
-    message: str
+@dataclass
+class HistorySeries:
+    """Compact time series for one sensor."""
+
+    values: List[float] = field(default_factory=list)
+    start: int = 0  # unix ms
+    interval: int = 0  # ms between points
+    count: int = 0
 
 
-class CommandStatus(BaseModel):
-    command_id: str
-    tag_id: str
-    value: Union[float, str, bool]
-    status: str  # 'pending' | 'sent' | 'acked' | 'failed' | 'cancelled'
-    created_at: str
-    updated_at: str
-    performed_by: str
-    plc_response: Optional[str] = None
+@dataclass
+class HistoryResponse:
+    """Response of GET /api/v1/history."""
+
+    sensors: List[Dict[str, Any]]
+    data: Dict[str, HistorySeries]
+    range: str
+    interval: int  # ms between points
 
 
-class Alarm(BaseModel):
-    id: str
-    alarm_id: str
+@dataclass
+class Alarm:
+    """One alarm row from GET /api/v1/alarms."""
+
+    id: int
     source_key: str
     source_name: str
     severity: str  # 'critical' | 'warning' | 'info'
+    priority: str
+    value: float
+    threshold: float
     message: str
-    state: str  # 'active' | 'acknowledged' | 'shelved'
-    triggered_at: str
-    acknowledged_at: Optional[str] = None
-    acknowledged_by: Optional[str] = None
+    triggered_at: int  # unix seconds
+    state: str  # 'active' | 'acknowledged' | 'shelved' | 'cleared'
+    alarm_type: str = "high"  # 'high' fires at >= threshold, 'low' at <=
+    deadband: float = 0.0
+    resolved_at: Union[int, None] = None
+    acknowledged_at: Union[int, None] = None
+    acknowledged_by: Union[str, None] = None
+    cooldown_until: Union[int, None] = None
+    shelved_until: Union[int, None] = None
+    shelved_by: Union[str, None] = None
+    shelved_reason: Union[str, None] = None
 
 
-class AlarmSummary(BaseModel):
-    active: int
-    acknowledged: int
-    shelved: int
-    critical: int
-    warning: int
-    info: int
+@dataclass
+class AlarmSummary:
+    """Counts from GET /api/v1/alarms/summary."""
+
+    active: int = 0
+    acknowledged: int = 0
+    shelved: int = 0
+    critical: int = 0
+    warning: int = 0
+    info: int = 0
 
 
-class Device(BaseModel):
+@dataclass
+class WriteResult:
+    """Response of POST /api/v1/tags/{id}/write (HTTP 202)."""
+
+    command_id: str
+    status: str  # 'pending' until the device acks
+    data_source_id: int
+    value: Union[float, str, bool, None] = None
+    created_at: Union[int, None] = None
+
+
+@dataclass
+class Screen:
+    """One screen (dashboard page)."""
+
     id: str
     name: str
-    protocol: str  # 'modbus' | 'opcua' | 's7' | 'enip' | 'dnp3' | 'bacnet' | 'mqtt'
-    enabled: bool
-    online: bool
-    ip: Optional[str] = None
-    port: Optional[int] = None
+    type: str = ""
+    sort_order: int = 0
 
 
-class Screen(BaseModel):
-    id: str
-    name: str
-    created_at: str
+@dataclass
+class OeeMetrics:
+    """OEE breakdown for one device."""
 
-
-class OeeMetrics(BaseModel):
     availability: float
     performance: float
     quality: float
     oee: float
-    period_start: str
-    period_end: str
-
-
-class DataPoint(BaseModel):
-    timestamp: str
-    value: Union[float, str, bool]
-    quality: str
+    total_running_secs: int
+    total_planned_secs: int
+    downtime_count: int
