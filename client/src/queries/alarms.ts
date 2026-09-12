@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Alarm, AlarmSummary, AlarmAuditEntry, AlarmAnalyticsEntry } from '../types'
+import type { Alarm, AlarmSummary, AlarmAuditEntry, AlarmAnalyticsEntry, AlarmJournalEntry } from '../types'
 import { queryKeys } from './keys'
 import { fetchJson, fetchOk } from './fetch'
 
@@ -35,6 +35,8 @@ export function useAlarms(
   })
 }
 
+/* ── Alarm journal (ISA-18.2 lifecycle history) ────────────────── */
+
 export function useAcknowledgeAlarm() {
   const qc = useQueryClient()
   return useMutation({
@@ -45,6 +47,7 @@ export function useAcknowledgeAlarm() {
       qc.invalidateQueries({ queryKey: ['alarms'] })
       qc.invalidateQueries({ queryKey: queryKeys.alarmSummary })
       qc.invalidateQueries({ queryKey: queryKeys.alarmAnalytics })
+      qc.invalidateQueries({ queryKey: ['alarmJournal'] })
     },
   })
 }
@@ -59,6 +62,7 @@ export function useAcknowledgeAllAlarms() {
       qc.invalidateQueries({ queryKey: ['alarms'] })
       qc.invalidateQueries({ queryKey: queryKeys.alarmSummary })
       qc.invalidateQueries({ queryKey: queryKeys.alarmAnalytics })
+      qc.invalidateQueries({ queryKey: ['alarmJournal'] })
     },
   })
 }
@@ -139,6 +143,17 @@ export function useAlarmAnalytics(params?: {
   })
 }
 
+/* ── Alarm journal (per-alarm ISA-18.2 history) ────────────────── */
+
+export function useAlarmJournal(alarmId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.alarmJournal(alarmId ?? undefined),
+    queryFn: () => fetchJson<AlarmJournalEntry[]>(`/api/v1/alarms/${alarmId}/journal`),
+    enabled: alarmId != null,
+    staleTime: 10_000,
+  })
+}
+
 /* ── Shelf / Unshelf mutations ──────────────────────────────────── */
 
 export function useShelfAlarm() {
@@ -158,6 +173,7 @@ export function useShelfAlarm() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['alarms'] })
       qc.invalidateQueries({ queryKey: queryKeys.alarmSummary })
+      qc.invalidateQueries({ queryKey: ['alarmJournal'] })
     },
   })
 }
@@ -171,6 +187,7 @@ export function useUnshelfAlarm() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['alarms'] })
       qc.invalidateQueries({ queryKey: queryKeys.alarmSummary })
+      qc.invalidateQueries({ queryKey: ['alarmJournal'] })
     },
   })
 }

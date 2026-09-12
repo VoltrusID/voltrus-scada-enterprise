@@ -58,6 +58,11 @@ impl Storage {
                 "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'created', 'system', ?2, ?3)",
                 rusqlite::params![id, format!("{{\"severity\":\"{}\",\"value\":{},\"threshold\":{},\"alarm_type\":\"{}\"}}", severity, value, threshold, alarm_type), now],
             );
+            // Journal: ISA-18.2 append-only lifecycle history.
+            let _ = conn.execute(
+                "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'triggered', ?2, NULL)",
+                rusqlite::params![id, now],
+            );
             Ok(id)
         })
         .await
@@ -77,6 +82,28 @@ impl Storage {
                 )
                 .unwrap_or(0);
             Ok(count)
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// Check if there is any unresolved alarm for this source_key, regardless
+    /// of severity. Used by the off-delay logic, which must not start its
+    /// clear pending unless an alarm is actually raised.
+    pub async fn has_any_unresolved_alarm(&self, source_key: &str) -> Result<bool> {
+        let conn = self.conn.clone();
+        let source_key = source_key.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let count: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM alarms
+                     WHERE source_key = ?1 AND resolved_at IS NULL",
+                    rusqlite::params![source_key],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            Ok(count > 0)
         })
         .await
         .context("Task join failed")?

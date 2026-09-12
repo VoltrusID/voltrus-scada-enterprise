@@ -398,4 +398,26 @@ pub(super) fn run_migrations(conn: &Connection) {
     // once the column exists.
     let _ = conn
         .execute_batch("ALTER TABLE api_keys ADD COLUMN role TEXT NOT NULL DEFAULT 'api'");
+
+    // Migration: ISA-18.2 alarm on/off delays. The threshold config lives on
+    // the tag that owns it (data_sources), so the delay values do too.
+    // 0 disables the delay and preserves the immediate historical behavior.
+    let _ = conn
+        .execute_batch("ALTER TABLE data_sources ADD COLUMN on_delay_secs INTEGER NOT NULL DEFAULT 0");
+    let _ = conn
+        .execute_batch("ALTER TABLE data_sources ADD COLUMN off_delay_secs INTEGER NOT NULL DEFAULT 0");
+
+    // Migration: append-only alarm journal. One row per lifecycle event
+    // (triggered, acknowledged, shelved, unshelved, resolved), written from
+    // both the evaluation loop and the management API paths.
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS alarm_journal (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alarm_id INTEGER NOT NULL REFERENCES alarms(id) ON DELETE CASCADE,
+            event TEXT NOT NULL,
+            at INTEGER NOT NULL,
+            actor TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_alarm_journal_alarm ON alarm_journal(alarm_id, at);",
+    );
 }

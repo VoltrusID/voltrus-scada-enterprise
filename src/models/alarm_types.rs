@@ -71,6 +71,17 @@ pub struct AlarmAnalyticsEntry {
     pub last_triggered_at: i64,
 }
 
+/// Append-only journal row for one alarm lifecycle event (ISA-18.2):
+/// triggered, acknowledged, shelved, unshelved, resolved.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct AlarmJournalEntry {
+    pub id: i64,
+    pub alarm_id: i64,
+    pub event: String,
+    pub at: i64,
+    pub actor: Option<String>,
+}
+
 // ── Notification settings ──
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

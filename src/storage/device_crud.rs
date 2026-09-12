@@ -146,7 +146,8 @@ impl Storage {
             let result = conn.query_row(
                 "SELECT id, key, name, unit, color, min_val, max_val,
                         warn_val, crit_val, base_val, sort_order, decimals,
-                        source_type, source_config, device_id, equipment_id, chart_type, path
+                        source_type, source_config, device_id, equipment_id, chart_type, path,
+                        on_delay_secs, off_delay_secs
                  FROM data_sources WHERE id = ?1",
                 rusqlite::params![id],
                 |row| {
@@ -169,6 +170,8 @@ impl Storage {
                         equipment_id: row.get(15)?,
                         chart_type: row.get(16)?,
                         path: row.get(17)?,
+                        on_delay_secs: row.get(18)?,
+                        off_delay_secs: row.get(19)?,
                     })
                 },
             );
@@ -191,7 +194,8 @@ impl Storage {
                 Some(sid) => (
                     "SELECT s.id, s.key, s.name, s.unit, s.color, s.min_val, s.max_val,
                             s.warn_val, s.crit_val, s.base_val, s.sort_order, s.decimals,
-                            s.source_type, s.source_config, s.device_id, s.equipment_id, s.chart_type, s.path
+                            s.source_type, s.source_config, s.device_id, s.equipment_id, s.chart_type, s.path,
+                            s.on_delay_secs, s.off_delay_secs
                      FROM data_sources s
                      JOIN screen_data_sources ss ON s.id = ss.data_source_id
                      WHERE ss.screen_id = ?1
@@ -201,7 +205,8 @@ impl Storage {
                 None => (
                     "SELECT id, key, name, unit, color, min_val, max_val,
                             warn_val, crit_val, base_val, sort_order, decimals,
-                            source_type, source_config, device_id, equipment_id, chart_type, path
+                            source_type, source_config, device_id, equipment_id, chart_type, path,
+                            on_delay_secs, off_delay_secs
                      FROM data_sources
                      ORDER BY sort_order",
                     vec![],
@@ -230,6 +235,8 @@ impl Storage {
                         equipment_id: row.get(15)?,
                         chart_type: row.get(16)?,
                         path: row.get(17)?,
+                        on_delay_secs: row.get(18)?,
+                        off_delay_secs: row.get(19)?,
                     })
                 })
                 .context("Query failed")?;
@@ -305,11 +312,10 @@ impl Storage {
                 "sort_order",
                 "decimals",
                 "source_type",
-                "source_config",
-                "device_id",
-                "equipment_id",
                 "chart_type",
                 "path",
+                "on_delay_secs",
+                "off_delay_secs",
             ];
             let mut parts = Vec::new();
             let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();

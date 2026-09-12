@@ -3,6 +3,7 @@
 #![allow(clippy::type_complexity)]
 
 mod ai_copilot;
+mod alarm_delay;
 mod analytics;
 mod api;
 mod asset;
@@ -461,6 +462,11 @@ async fn main() -> anyhow::Result<()> {
         let interval = app_config.persist_interval_secs;
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval));
+            // ISA-18.2 on/off delay state per source key. Starts empty on
+            // startup and recomputes from the current value — no stale
+            // pendings survive a restart.
+            let mut alarm_delays: std::collections::HashMap<String, crate::alarm_delay::DelayState> =
+                std::collections::HashMap::new();
             loop {
                 ticker.tick().await;
                 let snapshots = cache.get_all().await;
@@ -564,6 +570,12 @@ async fn main() -> anyhow::Result<()> {
                             None
                         };
 
+                        // ISA-18.2 on/off delays (seconds) from the source's
+                        // threshold config. 0 keeps the immediate behavior.
+                        let now = crate::timeutil::now_secs();
+                        let on_delay = source.on_delay_secs.max(0);
+                        let off_delay = source.off_delay_secs.max(0);
+
                         match cond {
                             Some((severity, threshold, alarm_type)) => {
                                 // Non-repeating: suppress while an unresolved alarm of this
@@ -576,7 +588,22 @@ async fn main() -> anyhow::Result<()> {
                                     .is_in_cooldown(&source.key, severity)
                                     .await
                                     .unwrap_or(false);
-                                if !has_unresolved && !in_cooldown {
+                                let mut may_fire = !has_unresolved && !in_cooldown;
+                                // ISA-18.2 on delay: the raised condition must persist
+                                // for on_delay seconds before the alarm fires. While
+                                // suppressed by an existing alarm or cooldown, drop any
+                                // pending so a fresh delay starts after it resolves.
+                                if on_delay > 0 {
+                                    if may_fire {
+                                        let state = alarm_delays.entry(source.key.clone()).or_default();
+                                        may_fire = crate::alarm_delay::update_delay(
+                                            state, true, on_delay, 0, now,
+                                        ) == crate::alarm_delay::DelayTransition::Fire;
+                                    } else if let Some(state) = alarm_delays.get_mut(&source.key) {
+                                        state.pending_since = None;
+                                    }
+                                }
+                                if may_fire {
                                     let msg = if alarm_type == "low" {
                                         format!(
                                             "{} dropped to {}{} ({} low: {}{})",
@@ -649,11 +676,43 @@ async fn main() -> anyhow::Result<()> {
                                 }
                             }
                             None => {
-                                // Value within all thresholds — resolve active alarms with
-                                // direction-aware deadband hysteresis.
-                                let _ = storage
-                                    .resolve_active_alarms(&source.key, Some(value))
-                                    .await;
+                                // Blip: the raised condition dropped before the on
+                                // delay elapsed — clear the pending, it never fires.
+                                if on_delay > 0
+                                    && let Some(state) = alarm_delays.get_mut(&source.key)
+                                {
+                                    state.pending_since = None;
+                                }
+                                // ISA-18.2 off delay: with off_delay > 0 an active alarm
+                                // stays raised until the normal condition persists that
+                                // long. With off_delay = 0 resolve immediately with
+                                // direction-aware deadband hysteresis (unchanged).
+                                let resolve_now = if off_delay > 0 {
+                                    let any_active = storage
+                                        .has_any_unresolved_alarm(&source.key)
+                                        .await
+                                        .unwrap_or(false);
+                                    if any_active {
+                                        let state = alarm_delays.entry(source.key.clone()).or_default();
+                                        crate::alarm_delay::update_delay(
+                                            state, false, 0, off_delay, now,
+                                        ) == crate::alarm_delay::DelayTransition::Resolve
+                                    } else {
+                                        // Nothing to resolve; also drop any stale
+                                        // clear pending from a restart.
+                                        if let Some(state) = alarm_delays.get_mut(&source.key) {
+                                            state.clear_pending_since = None;
+                                        }
+                                        false
+                                    }
+                                } else {
+                                    true
+                                };
+                                if resolve_now {
+                                    let _ = storage
+                                        .resolve_active_alarms(&source.key, Some(value))
+                                        .await;
+                                }
                             }
                         }
                     }

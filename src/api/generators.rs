@@ -174,6 +174,8 @@ mod tests {
             equipment_id: None,
             chart_type: "sparkline".to_string(),
             path: None,
+            on_delay_secs: 0,
+            off_delay_secs: 0,
         }
     }
 

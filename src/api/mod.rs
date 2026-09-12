@@ -733,6 +733,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/alarms/{id}/unshelf", post(alarms::unshelf_alarm))
         .route("/api/v1/alarms/audit", get(alarms::list_alarm_audit))
         .route(
+            "/api/v1/alarms/{id}/journal",
+            get(alarms::get_alarm_journal),
+        )
+        .route(
             "/api/v1/alarms/analytics",
             get(alarms::list_alarm_analytics),
         )

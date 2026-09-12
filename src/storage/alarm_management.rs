@@ -1,7 +1,7 @@
 use super::Storage;
 use anyhow::{Context, Result};
 
-use crate::models::{AlarmAnalyticsEntry, AlarmAuditEntry, AlarmSummary};
+use crate::models::{AlarmAnalyticsEntry, AlarmAuditEntry, AlarmJournalEntry, AlarmSummary};
 
 impl Storage {
     // ── Alarm lifecycle: resolve, acknowledge, shelf ──
@@ -85,6 +85,14 @@ impl Storage {
                 );
             }
 
+            // Journal: append-only lifecycle history for each resolved alarm.
+            for alarm_id in &alarm_ids {
+                let _ = conn.execute(
+                    "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'resolved', ?2, NULL)",
+                    rusqlite::params![alarm_id, now],
+                );
+            }
+
             Ok(())
         })
         .await
@@ -112,6 +120,11 @@ impl Storage {
             let _ = conn.execute(
                 "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'acknowledged', ?2, ?3, ?4)",
                 rusqlite::params![id, username, format!("{{\"cooldown_secs\":{}}}", cooldown_secs), now],
+            );
+            // Journal: append-only lifecycle history.
+            let _ = conn.execute(
+                "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'acknowledged', ?2, ?3)",
+                rusqlite::params![id, now, username],
             );
             Ok(())
         })
@@ -149,6 +162,11 @@ impl Storage {
                     "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'acknowledged', ?2, ?3, ?4)",
                     rusqlite::params![alarm_id, username, format!("{{\"cooldown_secs\":{}}}", cooldown_secs), now],
                 );
+                // Journal: append-only lifecycle history.
+                let _ = conn.execute(
+                    "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'acknowledged', ?2, ?3)",
+                    rusqlite::params![alarm_id, now, username],
+                );
             }
 
             Ok(())
@@ -182,6 +200,11 @@ impl Storage {
                 "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'shelved', ?2, ?3, ?4)",
                 rusqlite::params![id, shelved_by, format!("{{\"reason\":\"{}\",\"until\":{}}}", reason.replace('"', "\\\""), shelved_until), now],
             );
+            // Journal: append-only lifecycle history.
+            let _ = conn.execute(
+                "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'shelved', ?2, ?3)",
+                rusqlite::params![id, now, shelved_by],
+            );
             Ok(())
         })
         .await
@@ -210,6 +233,11 @@ impl Storage {
             // Create audit entry
             let _ = conn.execute(
                 "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'unshelved', 'system', '{}', ?2)",
+                rusqlite::params![id, now],
+            );
+            // Journal: append-only lifecycle history.
+            let _ = conn.execute(
+                "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'unshelved', ?2, NULL)",
                 rusqlite::params![id, now],
             );
             Ok(())
@@ -258,9 +286,72 @@ impl Storage {
                     "INSERT INTO alarm_audit_log (alarm_id, action, performed_by, details, created_at) VALUES (?1, 'auto_unshelved', 'system', '{}', ?2)",
                     rusqlite::params![id, now],
                 );
+
+                // Journal: append-only lifecycle history.
+                let _ = conn.execute(
+                    "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, 'unshelved', ?2, NULL)",
+                    rusqlite::params![id, now],
+                );
             }
 
             Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    // ── Alarm journal (ISA-18.2, append-only) ──
+
+    /// Append one lifecycle event to the alarm journal. Journal rows are never
+    /// updated or deleted; the table only grows.
+    pub async fn append_alarm_journal(
+        &self,
+        alarm_id: i64,
+        event: &str,
+        actor: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.clone();
+        let event = event.to_string();
+        let actor = actor.map(|a| a.to_string());
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let now = crate::timeutil::now_secs();
+            conn.execute(
+                "INSERT INTO alarm_journal (alarm_id, event, at, actor) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![alarm_id, event, now, actor],
+            )
+            .context("Insert alarm journal entry failed")?;
+            Ok(())
+        })
+        .await
+        .context("Task join failed")?
+    }
+
+    /// List journal entries for one alarm, oldest first.
+    pub async fn list_alarm_journal(&self, alarm_id: i64, limit: u32) -> Result<Vec<AlarmJournalEntry>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().unwrap();
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, alarm_id, event, at, actor FROM alarm_journal
+                     WHERE alarm_id = ?1
+                     ORDER BY at ASC, id ASC LIMIT ?2",
+                )
+                .context("Prepare journal query failed")?;
+            let rows = stmt
+                .query_map(rusqlite::params![alarm_id, limit], |row| {
+                    Ok(AlarmJournalEntry {
+                        id: row.get(0)?,
+                        alarm_id: row.get(1)?,
+                        event: row.get(2)?,
+                        at: row.get(3)?,
+                        actor: row.get(4)?,
+                    })
+                })
+                .context("Query journal failed")?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .context("Row mapping failed")
         })
         .await
         .context("Task join failed")?

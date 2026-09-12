@@ -10,6 +10,7 @@ import {
   useAlarmAnalytics,
   useShelfAlarm,
   useUnshelfAlarm,
+  useAlarmJournal,
 } from './queries'
 import { fmtTs } from './styles'
 import type { Alarm } from './types'
@@ -359,6 +360,35 @@ function AuditTab({ isMobile }: { isMobile: boolean }) {
   )
 }
 
+/* ── Per-alarm ISA-18.2 journal (History) ──────────────────────── */
+
+function AlarmHistory({ alarmId }: { alarmId: number }) {
+  const { data: entries = [], isLoading } = useAlarmJournal(alarmId)
+
+  if (isLoading) {
+    return <div style={{ marginTop: 8, fontSize: 10, color: 'var(--muted)' }}>Loading history...</div>
+  }
+  if (entries.length === 0) {
+    return <div style={{ marginTop: 8, fontSize: 10, color: 'var(--muted)' }}>No history</div>
+  }
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+      <div style={{
+        fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+        letterSpacing: '.04em', color: 'var(--muted)', marginBottom: 4,
+      }}>History</div>
+      {entries.map(entry => (
+        <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, marginBottom: 2 }}>
+          <span style={{ color: 'var(--muted)', minWidth: 52 }}>{fmtTs(entry.at * 1000)}</span>
+          <span style={{ fontWeight: 600, color: 'var(--fg)' }}>{entry.event}</span>
+          {entry.actor && <span style={{ color: 'var(--muted)' }}>by {entry.actor}</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* ── Alarm panel ──────────────────────────────────────────────── */
 
 interface Props {
@@ -381,6 +411,7 @@ export function AlarmPanel({ onClose }: Props) {
   const panelTab: PanelTab = (PANEL_TABS as readonly string[]).includes(routerSearch.tab as string) ? routerSearch.tab as PanelTab : 'alarms'
   const setPanelTab = (t: PanelTab) => navigate({ to: '/alarms', search: prev => ({ ...prev, tab: t }) })
   const [shelfTarget, setShelfTarget] = useState<number | null>(null)
+  const [historyTarget, setHistoryTarget] = useState<number | null>(null)
   const { data: alarms = [], isLoading } = useAlarms(filter)
   const ackMut = useAcknowledgeAlarm()
   const ackAllMut = useAcknowledgeAllAlarms()
@@ -543,12 +574,20 @@ export function AlarmPanel({ onClose }: Props) {
                               opacity: unshelfMut.isPending ? 0.6 : 1,
                             }}>Unshelf</button>
                           )}
+                          <button onClick={() => setHistoryTarget(historyTarget === alarm.id ? null : alarm.id)} aria-label={`Toggle history: ${alarm.source_name}`} aria-expanded={historyTarget === alarm.id} style={{
+                            padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            border: '1px solid var(--border)', background: 'transparent',
+                            color: historyTarget === alarm.id ? 'var(--cyan)' : 'var(--muted)',
+                          }}>History</button>
                         </div>
 
                         {/* Shelf form */}
                         {shelfTarget === alarm.id && (
                           <ShelfForm alarmId={alarm.id} onClose={() => setShelfTarget(null)} />
                         )}
+
+                        {/* ISA-18.2 journal */}
+                        {historyTarget === alarm.id && <AlarmHistory alarmId={alarm.id} />}
 
                         {alarm.acknowledged_at && (
                           <span style={{ fontSize: 11, color: 'var(--ok)' }}>&#10003; Acknowledged{alarm.acknowledged_by ? ` by ${alarm.acknowledged_by}` : ''}</span>

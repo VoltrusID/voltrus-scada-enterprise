@@ -209,3 +209,127 @@ async fn test_alarm_audit_log() {
     assert!(audit.iter().any(|e| e.action == "created"));
     assert!(audit.iter().any(|e| e.action == "acknowledged"));
 }
+
+#[tokio::test]
+async fn test_alarm_journal_records_every_transition() {
+    let storage = Storage::new_in_memory().unwrap();
+
+    // triggered (from create) → acknowledged → shelved → unshelved → resolved
+    let id = storage
+        .create_alarm_with_type("tag1", "warning", 75.0, 70.0, "Warning", 0.0, "high")
+        .await
+        .unwrap();
+    storage.acknowledge_alarm(id, "admin", 300).await.unwrap();
+    storage
+        .shelf_alarm(id, crate::timeutil::now_secs() + 60, "admin", "Maintenance")
+        .await
+        .unwrap();
+    storage.unshelf_alarm(id).await.unwrap();
+    storage
+        .resolve_active_alarms("tag1", Some(10.0))
+        .await
+        .unwrap();
+
+    let journal = storage.list_alarm_journal(id, 100).await.unwrap();
+    let events: Vec<&str> = journal.iter().map(|e| e.event.as_str()).collect();
+    assert_eq!(
+        events,
+        vec!["triggered", "acknowledged", "shelved", "unshelved", "resolved"]
+    );
+    // Actor is recorded for operator actions, NULL for system events.
+    assert_eq!(journal[1].actor.as_deref(), Some("admin"));
+    assert_eq!(journal[2].actor.as_deref(), Some("admin"));
+    assert_eq!(journal[0].actor, None);
+    assert_eq!(journal[4].actor, None);
+    // Timestamps are non-decreasing (append-only, ordered).
+    for pair in journal.windows(2) {
+        assert!(pair[0].at <= pair[1].at);
+    }
+}
+
+#[tokio::test]
+async fn test_acknowledge_all_writes_journal_rows() {
+    let storage = Storage::new_in_memory().unwrap();
+
+    let a = storage
+        .create_alarm("tag1", "warning", 75.0, 70.0, "Warning", 0.0)
+        .await
+        .unwrap();
+    let b = storage
+        .create_alarm("tag2", "critical", 95.0, 90.0, "Critical", 0.0)
+        .await
+        .unwrap();
+    storage.acknowledge_all("operator", 0).await.unwrap();
+
+    for id in [a, b] {
+        let journal = storage.list_alarm_journal(id, 100).await.unwrap();
+        assert!(journal.iter().any(|e| e.event == "triggered"));
+        assert!(journal
+            .iter()
+            .any(|e| e.event == "acknowledged" && e.actor.as_deref() == Some("operator")));
+    }
+}
+
+#[tokio::test]
+async fn test_auto_unshelf_writes_journal_row() {
+    let storage = Storage::new_in_memory().unwrap();
+
+    let id = storage
+        .create_alarm("tag1", "warning", 75.0, 70.0, "Warning", 0.0)
+        .await
+        .unwrap();
+    let now = crate::timeutil::now_secs();
+    storage
+        .shelf_alarm(id, now - 10, "admin", "Expired")
+        .await
+        .unwrap();
+    storage.auto_unshelf_expired_alarms().await.unwrap();
+
+    let journal = storage.list_alarm_journal(id, 100).await.unwrap();
+    assert!(journal.iter().any(|e| e.event == "unshelved"));
+}
+
+#[tokio::test]
+async fn test_isa_delay_migration_up_and_down() {
+    // Up: a fresh in-memory database runs the full migration set, so the
+    // delay columns and the journal table must exist.
+    let storage = Storage::new_in_memory().unwrap();
+    let conn = storage.conn.clone();
+    {
+        let conn = conn.lock().unwrap();
+        let col_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('data_sources')
+                 WHERE name IN ('on_delay_secs', 'off_delay_secs')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(col_count, 2, "ISA delay columns must exist after migration");
+        let table_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'alarm_journal'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(table_count, 1);
+
+        // Down: the exact rollback statements must be valid SQL against the
+        // migrated schema (SQLite >= 3.35 supports DROP COLUMN).
+        conn.execute_batch(
+            "ALTER TABLE data_sources DROP COLUMN on_delay_secs;
+             ALTER TABLE data_sources DROP COLUMN off_delay_secs;
+             DROP TABLE IF EXISTS alarm_journal;",
+        )
+        .unwrap();
+        let table_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'alarm_journal'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(table_count, 0);
+    }
+}

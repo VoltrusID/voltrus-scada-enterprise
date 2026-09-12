@@ -44,6 +44,7 @@ use axum::response::Html;
         crate::api::alarms::list_alarm_audit,
         crate::api::alarms::list_alarm_analytics,
         crate::api::alarms::get_alarm_summary,
+        crate::api::alarms::get_alarm_journal,
         // Commands
         crate::api::commands::write_tag,
         crate::api::commands::get_command_status,
@@ -294,6 +295,7 @@ use axum::response::Html;
         crate::models::AlarmAuditEntry,
         crate::models::AlarmSummary,
         crate::models::AlarmAnalyticsEntry,
+        crate::models::AlarmJournalEntry,
         crate::models::ShelfAlarmRequest,
         crate::api::alarms::AlarmListQuery,
         // Command schemas
