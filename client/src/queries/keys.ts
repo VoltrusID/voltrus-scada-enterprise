@@ -13,6 +13,7 @@ export const queryKeys = {
   alarmSummary:  ['alarmSummary'] as const,
   alarmAudit:    (alarmId?: number) => ['alarmAudit', alarmId] as const,
   alarmAnalytics: ['alarmAnalytics'] as const,
+  alarmJournal:  (alarmId?: number) => ['alarmJournal', alarmId] as const,
   canvasLayouts: (screenId: string) => ['canvasLayouts', screenId] as const,
   twinConnections: (screenId: string) => ['twinConnections', screenId] as const,
   modbusDevices:  ['modbusDevices'] as const,

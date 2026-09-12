@@ -104,6 +104,12 @@ pub struct DataSource {
     pub equipment_id: Option<String>,
     pub chart_type: String,
     pub path: Option<String>,
+    /// ISA-18.2 on/off delay seconds for alarm evaluation. 0 = immediate
+    /// (historical behavior). Set via PUT /api/v1/data-sources/{id}.
+    #[serde(default)]
+    pub on_delay_secs: i64,
+    #[serde(default)]
+    pub off_delay_secs: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

@@ -130,6 +130,14 @@ export interface AlarmAuditEntry {
   created_at: number
 }
 
+export interface AlarmJournalEntry {
+  id: number
+  alarm_id: number
+  event: string
+  at: number
+  actor: string | null
+}
+
 export interface AlarmAnalyticsEntry {
   source_key: string
   source_name: string

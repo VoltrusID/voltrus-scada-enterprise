@@ -274,3 +274,24 @@ pub async fn get_alarm_summary(
     let summary = state.storage.get_alarm_summary().await?;
     Ok(Json(summary))
 }
+
+/// GET /api/v1/alarms/{id}/journal — append-only ISA-18.2 lifecycle history
+#[utoipa::path(
+    get,
+    path = "/api/v1/alarms/{id}/journal",
+    params(
+        ("id" = i64, Path, description = "Alarm ID")
+    ),
+    responses(
+        (status = 200, body = Vec<AlarmJournalEntry>),
+    ),
+    tag = "Alarms",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
+pub async fn get_alarm_journal(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    let entries = state.storage.list_alarm_journal(id, 200).await?;
+    Ok(Json(entries))
+}
