@@ -23,15 +23,17 @@ pub async fn admin_only_middleware(
     next.run(req).await
 }
 
-/// Allows admin AND demo roles. Used for routes that demo users can access
-/// (device config, screens, layouts, commands, flows, etc.) but not truly
-/// admin-only routes (user management, roles, API keys, security, compliance).
+/// Allows admin, demo, and integration roles. Used for routes that demo users
+/// can access (device config, screens, layouts, commands, flows, etc.) but not
+/// truly admin-only routes (user management, roles, API keys, security,
+/// compliance). "integration" is the write-capable API key role; plain "api"
+/// keys stay read-only and are rejected here.
 pub async fn demo_allowed_middleware(
     Extension(auth): Extension<AuthUser>,
     req: Request,
     next: Next,
 ) -> impl IntoResponse {
-    if auth.role != "admin" && auth.role != "demo" {
+    if auth.role != "admin" && auth.role != "demo" && auth.role != "integration" {
         return (
             StatusCode::FORBIDDEN,
             Json(json!({"error": "admin access required"})),
@@ -64,12 +66,24 @@ pub async fn cookie_auth_middleware(
     // 1. Try API key authentication (X-API-Key header or ?api_key= query param)
     if let Some(api_key) = extract_api_key(&req) {
         match state.storage.validate_api_key(&api_key).await {
-            Ok(Some((id, permissions))) => {
+            Ok(Some((id, permissions, key_role))) => {
+                // Fail closed: only "integration" is privileged. Unknown or
+                // legacy role values behave exactly like the read-only "api"
+                // role and can never escalate to admin/demo.
+                let role = if key_role == "integration" {
+                    "integration"
+                } else {
+                    "api"
+                };
                 req.extensions_mut().insert(AuthUser {
                     username: format!("api_key:{}", id),
-                    role: "api".to_string(),
+                    role: role.to_string(),
                 });
-                req.extensions_mut().insert(ApiKeyAuth { id, permissions });
+                req.extensions_mut().insert(ApiKeyAuth {
+                    id,
+                    permissions,
+                    role: role.to_string(),
+                });
                 return next.run(req).await;
             }
             _ => {
@@ -141,13 +155,16 @@ pub async fn cookie_auth_middleware(
     }
 }
 
-/// API key authentication info.
+/// API key authentication info, inserted for requests authenticated via
+/// X-API-Key / ?api_key=.
 /// Note: permissions field is stored for future use but not yet enforced.
-/// All valid API keys currently grant full read access to protected endpoints.
+/// `role` is the key's effective role ("api" = read-only, "integration" =
+/// also allowed on demo-allowed operational write routes).
 #[derive(Clone, Debug)]
 pub struct ApiKeyAuth {
     pub id: i64,
     pub permissions: String,
+    pub role: String,
 }
 
 /// Extract API key from X-API-Key header or ?api_key= query parameter.

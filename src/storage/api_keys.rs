@@ -11,16 +11,19 @@ pub struct ApiKeyInfo {
     pub last_used_at: Option<i64>,
     pub expires_at: Option<i64>,
     pub permissions: String,
+    pub role: String,
 }
 
 impl Storage {
     /// Create a new API key. Returns (id, plain_text_key). The plain key is shown only once.
+    /// `role` is "api" (read-only) or "integration" (also allowed on operational write routes).
     pub async fn create_api_key(
         &self,
         name: &str,
         created_by: &str,
         expires_at: Option<i64>,
         permissions: &str,
+        role: &str,
     ) -> Result<(i64, String)> {
         use rand::Rng;
         use sha2::{Digest, Sha256};
@@ -41,22 +44,24 @@ impl Storage {
         let name = name.to_string();
         let created_by = created_by.to_string();
         let permissions = permissions.to_string();
+        let role = role.to_string();
 
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             conn.execute(
-                "INSERT INTO api_keys (name, key_hash, key_prefix, created_at, created_by, expires_at, permissions)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                rusqlite::params![name, key_hash, key_prefix, now, created_by, expires_at, permissions],
+                "INSERT INTO api_keys (name, key_hash, key_prefix, created_at, created_by, expires_at, permissions, role)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![name, key_hash, key_prefix, now, created_by, expires_at, permissions, role],
             ).context("Insert api_key failed")?;
             let id = conn.last_insert_rowid();
             Ok((id, plain_key))
         }).await.context("Task join failed")?
     }
 
-    /// Validate an API key by hashing it and looking it up. Returns (id, permissions) if valid.
-    pub async fn validate_api_key(&self, key: &str) -> Result<Option<(i64, String)>> {
+    /// Validate an API key by hashing it and looking it up.
+    /// Returns (id, permissions, role) if valid.
+    pub async fn validate_api_key(&self, key: &str) -> Result<Option<(i64, String, String)>> {
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
@@ -69,19 +74,20 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT id, permissions, expires_at FROM api_keys WHERE key_hash = ?1")
+                .prepare("SELECT id, permissions, expires_at, role FROM api_keys WHERE key_hash = ?1")
                 .context("Prepare failed")?;
             let result = stmt
                 .query_row(rusqlite::params![key_hash], |row| {
                     let id: i64 = row.get(0)?;
                     let permissions: String = row.get(1)?;
                     let expires_at: Option<i64> = row.get(2)?;
-                    Ok((id, permissions, expires_at))
+                    let role: String = row.get(3)?;
+                    Ok((id, permissions, expires_at, role))
                 })
                 .ok();
 
             match result {
-                Some((id, permissions, expires_at)) => {
+                Some((id, permissions, expires_at, role)) => {
                     // Check expiry
                     if let Some(exp) = expires_at
                         && exp < now
@@ -93,7 +99,7 @@ impl Storage {
                         "UPDATE api_keys SET last_used_at = ?1 WHERE id = ?2",
                         rusqlite::params![now, id],
                     );
-                    Ok(Some((id, permissions)))
+                    Ok(Some((id, permissions, role)))
                 }
                 None => Ok(None),
             }
@@ -108,7 +114,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, name, key_prefix, created_at, created_by, last_used_at, expires_at, permissions
+                "SELECT id, name, key_prefix, created_at, created_by, last_used_at, expires_at, permissions, role
                  FROM api_keys ORDER BY created_at DESC"
             ).context("Prepare failed")?;
             let rows = stmt.query_map([], |row| {
@@ -121,6 +127,7 @@ impl Storage {
                     last_used_at: row.get(5)?,
                     expires_at: row.get(6)?,
                     permissions: row.get(7)?,
+                    role: row.get(8)?,
                 })
             }).context("Query failed")?;
             rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
