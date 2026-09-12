@@ -331,6 +331,7 @@ export function AppInner() {
       base_val: s.base_val, decimals: s.decimals, source_type: s.source_type,
       color: s.color, chart_type: s.chart_type, source_config: s.source_config,
       device_id: s.device_id, sort_order: s.sort_order,
+      on_delay_secs: s.on_delay_secs, off_delay_secs: s.off_delay_secs,
     }
     await addSensorMut.mutateAsync(dup)
   }

@@ -59,6 +59,7 @@ export {
   useAlarmAudit,
   useAlarmAnalytics,
   useShelfAlarm,
+  useAlarmJournal,
   useUnshelfAlarm,
 } from './alarms'
 
