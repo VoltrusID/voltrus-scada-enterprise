@@ -14,6 +14,11 @@ pub struct CreateApiKeyRequest {
     pub expires_at: Option<i64>,
     #[serde(default = "default_permissions")]
     pub permissions: String,
+    /// Key role. Defaults to "api" (read-only). "integration" keys also pass
+    /// operational write routes. "admin"/"demo" are rejected: keys never get
+    /// interactive-session privileges.
+    #[serde(default = "default_role")]
+    pub role: String,
 }
 
 fn default_permissions() -> String {
@@ -43,6 +48,14 @@ pub struct ApiKeyCreatedResponse {
     ),
     security(("api_key" = []), ("cookie_auth" = []))
 )]
+fn default_role() -> String {
+    "api".to_string()
+}
+
+/// Roles an API key may hold. Anything outside this set is rejected at
+/// creation; the middleware additionally fails closed on unknown values.
+const KEY_ROLES: &[&str] = &["api", "integration"];
+
 pub async fn create_api_key(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -56,6 +69,20 @@ pub async fn create_api_key(
             .into_response());
     }
 
+    if !KEY_ROLES.contains(&body.role.as_str()) {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "error": format!(
+                    "invalid role {:?}; allowed roles: {}",
+                    body.role,
+                    KEY_ROLES.join(", ")
+                )
+            })),
+        )
+            .into_response());
+    }
+
     let (id, plain_key) = state
         .storage
         .create_api_key(
@@ -63,6 +90,7 @@ pub async fn create_api_key(
             &auth.username,
             body.expires_at,
             &body.permissions,
+            &body.role,
         )
         .await?;
 
@@ -70,13 +98,14 @@ pub async fn create_api_key(
         action: "create_api_key".to_string(),
         username: auth.username.clone(),
         resource: format!("api_key:{}", id),
-        details: Some(format!("name={}", body.name)),
+        details: Some(format!("name={}, role={}", body.name, body.role)),
     });
 
     Ok(Json(json!({
         "ok": true,
         "id": id,
         "name": body.name,
+        "role": body.role,
         "key": plain_key,
         "warning": "Store this key securely. It will not be shown again.",
         "note": "Permissions are stored for future use. All valid API keys currently grant full read access."
@@ -145,12 +174,18 @@ mod tests {
     }
 
     #[test]
+    fn test_default_role() {
+        assert_eq!(default_role(), "api");
+    }
+
+    #[test]
     fn test_create_api_key_request_deserialize() {
         let json_str = r#"{"name": "test-key"}"#;
         let req: CreateApiKeyRequest = serde_json::from_str(json_str).unwrap();
         assert_eq!(req.name, "test-key");
         assert_eq!(req.expires_at, None);
         assert_eq!(req.permissions, "[]");
+        assert_eq!(req.role, "api");
     }
 
     #[test]
@@ -160,5 +195,13 @@ mod tests {
         assert_eq!(req.name, "export-key");
         assert_eq!(req.expires_at, Some(9999999999));
         assert_eq!(req.permissions, "[\"data:read\",\"data:export\"]");
+        assert_eq!(req.role, "api");
+    }
+
+    #[test]
+    fn test_create_api_key_request_with_integration_role() {
+        let json_str = r#"{"name": "ci-key", "role": "integration"}"#;
+        let req: CreateApiKeyRequest = serde_json::from_str(json_str).unwrap();
+        assert_eq!(req.role, "integration");
     }
 }
