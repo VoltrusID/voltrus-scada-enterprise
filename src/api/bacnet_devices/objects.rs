@@ -181,6 +181,7 @@ pub async fn remove_object(
 /// POST /api/v1/bacnet/devices/{id}/browse
 #[utoipa::path(
     post,
+    operation_id = "bacnet_browse_device",
     path = "/api/v1/bacnet/devices/{id}/browse",
     params(
         ("id" = i64, Path, description = "Device ID")

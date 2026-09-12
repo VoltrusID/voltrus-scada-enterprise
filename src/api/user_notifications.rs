@@ -8,13 +8,23 @@ use super::{AppError, AppState, AuthUser};
 
 // ── Query params ──
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListNotificationsQuery {
     pub unread_only: Option<bool>,
 }
 
 // ── Handlers ──
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/user-notifications",
+    tag = "Notifications",
+    params(ListNotificationsQuery),
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_notifications(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -44,6 +54,19 @@ pub async fn list_notifications(
     })))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/user-notifications/{id}/read",
+    tag = "Notifications",
+    params(
+        ("id" = i64, Path, description = "Notification ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 404),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn mark_read(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -78,6 +101,19 @@ pub async fn mark_read(
     Ok(Json(json!({ "ok": true })).into_response())
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/user-notifications/{id}",
+    tag = "Notifications",
+    params(
+        ("id" = i64, Path, description = "Notification ID")
+    ),
+    responses(
+        (status = 204),
+        (status = 404),
+    ),
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn dismiss_notification(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,

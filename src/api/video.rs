@@ -10,6 +10,16 @@ use crate::models::*;
 // ── Camera CRUD ──
 
 /// GET /api/v1/cameras
+#[utoipa::path(
+    get,
+    path = "/api/v1/cameras",
+    responses(
+        (status = 200, body = Vec<serde_json::Value>),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_cameras(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -48,6 +58,18 @@ pub async fn list_cameras(
 }
 
 /// POST /api/v1/cameras
+#[utoipa::path(
+    post,
+    path = "/api/v1/cameras",
+    request_body = crate::models::CreateCameraRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_camera(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -123,6 +145,21 @@ pub async fn create_camera(
 }
 
 /// PUT /api/v1/cameras/{id}
+#[utoipa::path(
+    put,
+    path = "/api/v1/cameras/{id}",
+    params(
+        ("id" = i64, Path, description = "Camera ID")
+    ),
+    request_body = crate::models::UpdateCameraRequest,
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_camera(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -174,6 +211,19 @@ pub async fn update_camera(
 }
 
 /// DELETE /api/v1/cameras/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/cameras/{id}",
+    params(
+        ("id" = i64, Path, description = "Camera ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_camera(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -209,6 +259,20 @@ pub async fn delete_camera(
 // ── Snapshot endpoints ──
 
 /// POST /api/v1/cameras/{id}/snapshot
+#[utoipa::path(
+    post,
+    path = "/api/v1/cameras/{id}/snapshot",
+    params(
+        ("id" = i64, Path, description = "Camera ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 404),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn trigger_snapshot(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -300,6 +364,19 @@ pub async fn trigger_snapshot(
 }
 
 /// GET /api/v1/cameras/{id}/snapshots
+#[utoipa::path(
+    get,
+    path = "/api/v1/cameras/{id}/snapshots",
+    params(
+        ("id" = i64, Path, description = "Camera ID")
+    ),
+    responses(
+        (status = 200, body = Vec<crate::models::CameraSnapshot>),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_snapshots(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -320,6 +397,20 @@ pub async fn list_snapshots(
 }
 
 /// DELETE /api/v1/cameras/{id}/snapshots/{snapshot_id}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/cameras/{id}/snapshots/{snapshot_id}",
+    params(
+        ("id" = i64, Path, description = "Camera ID"),
+        ("snapshot_id" = i64, Path, description = "Snapshot ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn delete_snapshot(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,
@@ -350,6 +441,20 @@ pub async fn delete_snapshot(
 /// GET /api/v1/cameras/{id}/stream
 ///
 /// Returns the RTSP stream URL for the camera (client-side playback).
+#[utoipa::path(
+    get,
+    path = "/api/v1/cameras/{id}/stream",
+    params(
+        ("id" = i64, Path, description = "Camera ID")
+    ),
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 404),
+        (status = 403),
+    ),
+    tag = "Video",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_stream_info(
     State(state): State<AppState>,
     Extension(user): Extension<AuthUser>,

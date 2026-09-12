@@ -17,7 +17,7 @@ fn default_float64() -> String {
     "float64".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Dnp3Device {
     pub id: i64,
     pub name: String,
@@ -39,7 +39,7 @@ pub struct Dnp3Device {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Dnp3Point {
     pub id: i64,
     pub device_id: i64,
@@ -78,7 +78,7 @@ pub struct Dnp3PointConfig {
     pub scale: f64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateDnp3DeviceRequest {
     pub name: String,
     pub ip: String,
@@ -97,7 +97,7 @@ pub struct CreateDnp3DeviceRequest {
     pub enabled: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateDnp3DeviceRequest {
     pub name: Option<String>,
     pub ip: Option<String>,
@@ -110,7 +110,7 @@ pub struct UpdateDnp3DeviceRequest {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateDnp3PointRequest {
     pub group_num: u8,
     pub variation: u8,

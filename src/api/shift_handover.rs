@@ -9,7 +9,7 @@ use crate::models::*;
 
 // ── Query params ──
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListShiftHandoversQuery {
     pub shift_date: Option<String>,
     pub shift_period: Option<String>,
@@ -99,6 +99,17 @@ fn shift_time_range(shift_date: &str, shift_period: &str) -> (Option<i64>, Optio
 
 // ── Handlers ──
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/shift-handover",
+    request_body = crate::models::CreateShiftHandoverRequest,
+    responses(
+        (status = 201, body = serde_json::Value),
+        (status = 500),
+    ),
+    tag = "Shift Handover",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn create_shift_handover(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
@@ -150,6 +161,16 @@ pub async fn create_shift_handover(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/shift-handover",
+    params(ListShiftHandoversQuery),
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Shift Handover",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn list_shift_handovers(
     State(state): State<AppState>,
     Query(params): Query<ListShiftHandoversQuery>,
@@ -165,6 +186,19 @@ pub async fn list_shift_handovers(
     })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/shift-handover/{id}",
+    params(
+        ("id" = i64, Path, description = "Shift handover ID")
+    ),
+    responses(
+        (status = 200, body = crate::models::ShiftHandover),
+        (status = 404),
+    ),
+    tag = "Shift Handover",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_shift_handover(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -178,6 +212,15 @@ pub async fn get_shift_handover(
     Ok(Json(json!(handover)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/shift-handover/auto-report",
+    responses(
+        (status = 200, body = serde_json::Value),
+    ),
+    tag = "Shift Handover",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn auto_shift_report(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {

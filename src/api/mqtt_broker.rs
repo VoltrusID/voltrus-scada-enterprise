@@ -8,7 +8,61 @@ use serde_json::json;
 use crate::api::{AppError, AppState, AuthUser};
 use crate::mqtt_broker::{self, BrokerStatus};
 
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttConfigSummary {
+    pub port: u16,
+    pub max_connections: u32,
+    pub auth_enabled: bool,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttStatusResponse {
+    pub status: String,
+    pub connected_clients: usize,
+    pub clients: Vec<crate::mqtt_broker::ConnectedClient>,
+    pub config: Option<MqttConfigSummary>,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttConfigUpdateResponse {
+    pub message: String,
+    pub config: Option<MqttConfigSummary>,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttActionStatusResponse {
+    pub message: String,
+    pub status: String,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttTopicMessagesResponse {
+    pub topic: String,
+    pub messages: Vec<crate::mqtt_broker::RecentMessage>,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttMessagesResponse {
+    pub messages: Vec<crate::mqtt_broker::RecentMessage>,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct MqttPublishResponse {
+    pub message: String,
+    pub topic: String,
+}
+
 /// GET /api/v1/mqtt-broker/status
+#[utoipa::path(
+    get,
+    path = "/api/v1/mqtt-broker/status",
+    responses(
+        (status = 200, body = MqttStatusResponse),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_status(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -47,26 +101,38 @@ pub async fn get_status(
     })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateMqttConfigRequest {
     pub port: Option<u16>,
     pub max_connections: Option<u32>,
     pub auth: Option<MqttAuthUpdate>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct MqttAuthUpdate {
     pub enabled: Option<bool>,
     pub users: Option<Vec<MqttUserUpdate>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct MqttUserUpdate {
     pub username: String,
     pub password: String,
 }
 
 /// PUT /api/v1/mqtt-broker/config
+#[utoipa::path(
+    put,
+    path = "/api/v1/mqtt-broker/config",
+    request_body = UpdateMqttConfigRequest,
+    responses(
+        (status = 200, body = MqttConfigUpdateResponse),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn update_config(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -143,6 +209,16 @@ pub async fn update_config(
 }
 
 /// POST /api/v1/mqtt-broker/start
+#[utoipa::path(
+    post,
+    path = "/api/v1/mqtt-broker/start",
+    responses(
+        (status = 200, body = MqttActionStatusResponse),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn start_broker(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -175,6 +251,16 @@ pub async fn start_broker(
 }
 
 /// POST /api/v1/mqtt-broker/stop
+#[utoipa::path(
+    post,
+    path = "/api/v1/mqtt-broker/stop",
+    responses(
+        (status = 200, body = MqttActionStatusResponse),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn stop_broker(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -201,6 +287,16 @@ pub async fn stop_broker(
 }
 
 /// GET /api/v1/mqtt-broker/topics
+#[utoipa::path(
+    get,
+    path = "/api/v1/mqtt-broker/topics",
+    responses(
+        (status = 200, body = serde_json::Value),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_topics(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -219,12 +315,26 @@ pub async fn get_topics(
     Ok(Json(mqtt_broker::get_topic_tree(&broker.topic_tracker).await))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct TopicMessagesQuery {
     pub limit: Option<usize>,
 }
 
 /// GET /api/v1/mqtt-broker/topics/:topic/messages
+#[utoipa::path(
+    get,
+    path = "/api/v1/mqtt-broker/topics/{topic}/messages",
+    params(
+        ("topic" = String, Path, description = "Topic name"),
+        TopicMessagesQuery
+    ),
+    responses(
+        (status = 200, body = MqttTopicMessagesResponse),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_topic_messages(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -253,12 +363,23 @@ pub async fn get_topic_messages(
     })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct MessagesQuery {
     pub limit: Option<usize>,
 }
 
 /// GET /api/v1/mqtt-broker/messages
+#[utoipa::path(
+    get,
+    path = "/api/v1/mqtt-broker/messages",
+    params(MessagesQuery),
+    responses(
+        (status = 200, body = MqttMessagesResponse),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn get_messages(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
@@ -285,13 +406,25 @@ pub async fn get_messages(
     })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct PublishRequest {
     pub topic: String,
     pub payload: String,
 }
 
 /// POST /api/v1/mqtt-broker/publish
+#[utoipa::path(
+    post,
+    path = "/api/v1/mqtt-broker/publish",
+    request_body = PublishRequest,
+    responses(
+        (status = 200, body = MqttPublishResponse),
+        (status = 400),
+        (status = 403),
+    ),
+    tag = "MQTT Broker",
+    security(("api_key" = []), ("cookie_auth" = []))
+)]
 pub async fn publish_message(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,

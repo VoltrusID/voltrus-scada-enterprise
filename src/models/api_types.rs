@@ -59,13 +59,13 @@ pub struct ProcessInfo {
 
 // ── Request/Response types ──
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct LoginResponse {
     pub ok: bool,
     pub username: String,
@@ -74,7 +74,7 @@ pub struct LoginResponse {
     pub must_change_password: bool,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateUserRequest {
     pub username: String,
     pub password: String,
@@ -86,13 +86,13 @@ pub fn default_user_role() -> String {
     "user".to_string()
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateUserRequest {
     pub role: Option<String>,
     pub password: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct ChangePasswordRequest {
     pub old_password: String,
     pub new_password: String,
@@ -123,7 +123,7 @@ pub struct BrandingSettings {
     pub logo: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct DataSourceData {
     pub id: i64,
     pub key: String,
@@ -134,15 +134,16 @@ pub struct DataSourceData {
     pub status: String,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct HistoryResponse {
     pub sensors: Vec<DataSourceSummary>,
+    #[schema(value_type = Object)]
     pub data: serde_json::Value,
     pub range: String,
     pub interval: u64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct DataSourceSummary {
     pub id: i64,
     pub key: String,
@@ -155,7 +156,7 @@ pub struct DataSourceSummary {
     pub source_type: String,
 }
 
-#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct DataQuery {
     pub screen: Option<String>,
     pub device: Option<String>,
@@ -194,7 +195,7 @@ pub struct ExportQuery {
 }
 
 /// A single telemetry row for export responses.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct TelemetryExportRow {
     pub timestamp: i64,
     pub device: String,
@@ -203,7 +204,7 @@ pub struct TelemetryExportRow {
 }
 
 /// Paginated meta information for export responses.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ExportMeta {
     pub total: i64,
     pub limit: usize,
@@ -213,7 +214,7 @@ pub struct ExportMeta {
 }
 
 /// The standard envelope for JSON export responses.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
 pub struct ExportResponse {
     pub data: Vec<TelemetryExportRow>,
     pub meta: ExportMeta,
