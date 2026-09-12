@@ -391,4 +391,11 @@ pub(super) fn run_migrations(conn: &Connection) {
     // Idempotent — ignored once the column exists.
     let _ = conn
         .execute_batch("ALTER TABLE scada_equipment ADD COLUMN config TEXT NOT NULL DEFAULT '{}'");
+
+    // Migration: API key roles. Adds a per-key role column ('api' default =
+    // read-only, unchanged legacy behavior; 'integration' = write-capable key
+    // that also passes demo-allowed operational routes). Idempotent — ignored
+    // once the column exists.
+    let _ = conn
+        .execute_batch("ALTER TABLE api_keys ADD COLUMN role TEXT NOT NULL DEFAULT 'api'");
 }
