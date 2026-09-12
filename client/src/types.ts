@@ -7,6 +7,8 @@ export interface SensorConfig {
   equipment_id: string | null;
   chart_type: string;
   path: string | null;
+  on_delay_secs: number;
+  off_delay_secs: number;
 }
 
 export interface SensorData {

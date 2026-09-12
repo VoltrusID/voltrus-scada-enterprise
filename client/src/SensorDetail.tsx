@@ -165,7 +165,14 @@ export function SensorDetail({ sensor, onBack, historyRange, onRangeChange, hist
           </div>
         ))}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
-          {[{ l: 'Warn', v: sensor.warn_val, c: 'var(--warn)' }, { l: 'Crit', v: sensor.crit_val, c: 'var(--crit)' }].map((t, i) => (
+          {[
+            { l: 'Warn', v: sensor.warn_val, c: 'var(--warn)' },
+            { l: 'Crit', v: sensor.crit_val, c: 'var(--crit)' },
+            ...((sensor.on_delay_secs > 0 || sensor.off_delay_secs > 0) ? [
+              { l: 'On delay', v: `${sensor.on_delay_secs}s`, c: 'var(--muted)' },
+              { l: 'Off delay', v: `${sensor.off_delay_secs}s`, c: 'var(--muted)' },
+            ] : []),
+          ].map((t, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10 }}>
               <span style={{ color: 'var(--muted)' }}>{t.l}</span>
               <span style={{ fontFamily: "var(--font-mono)", color: t.c }}>{t.v}{sensor.unit ? sensor.unit : ''}</span>

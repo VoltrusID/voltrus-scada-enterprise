@@ -69,6 +69,15 @@ export function EditPanel({ sensor, activeScreen, onSave, onDelete, onClose, sho
                 </div>
               </div>
             )}
+            {!hideNumberFields && (
+              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', marginTop: 4, paddingTop: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>ISA-18.2 alarm delays (seconds)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <label style={labelStyle}><span style={labelTextStyle}>on delay (s)</span><input type="number" min="0" step="1" value={form.on_delay_secs ?? 0} onChange={e => setForm({ ...form, on_delay_secs: parseFloat(e.target.value) || 0 })} placeholder="0" style={monoInputStyle} /></label>
+                  <label style={labelStyle}><span style={labelTextStyle}>off delay (s)</span><input type="number" min="0" step="1" value={form.off_delay_secs ?? 0} onChange={e => setForm({ ...form, off_delay_secs: parseFloat(e.target.value) || 0 })} placeholder="0" style={monoInputStyle} /></label>
+                </div>
+              </div>
+            )}
             <label style={labelStyle}><span style={labelTextStyle}>color</span><input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} style={{ height: 32, padding: 2, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6 }} /></label>
             <label style={labelStyle}><span style={labelTextStyle}>chart type</span><select value={form.chart_type || 'sparkline'} onChange={e => setForm({ ...form, chart_type: e.target.value })} style={inputStyle}>{CHART_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
             {(form.chart_type || 'sparkline') === 'image' && (
