@@ -45,3 +45,6 @@ data.db-wal
 # Config overrides
 config.dev.yaml
 config.dev-2.yaml
+
+# Python bytecode
+__pycache__/
