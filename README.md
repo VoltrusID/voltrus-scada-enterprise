@@ -250,6 +250,7 @@ voltrus/                          # Core application (this repo)
 │   │   └── twin/                 # 3D digital twin (Three.js)
 │   └── vite.config.ts
 ├── scenarios/                    # Integration test scenarios
+├── sdks/                         # TS + Python client SDKs (source of truth) — published to github.com/VoltrusID/voltrus-gateway, see AGENTS.md
 ├── deploy/                       # Systemd service file
 ├── scripts/
 │   └── release-local.sh          # Cross-compile + R2 upload
