@@ -16,8 +16,8 @@
   "homepage": "https://voltrus.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dzulfikar08/voltrus",
-    "directory": "sdks/typescript"
+    "url": "https://github.com/VoltrusID/voltrus-gateway",
+    "directory": "sdk/typescript"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -166,6 +166,15 @@ class VoltrusClient:
         """Who am I? Returns {'authenticated': bool, 'username', 'role'}."""
         return self._request("GET", "/api/v1/auth/me")
 
+    def change_password(self, old_password: str, new_password: str) -> Dict[str, Any]:
+        """Change the logged-in user's password. Required on first login
+        when :meth:`login` returns ``must_change_password: True``."""
+        return self._request(
+            "POST",
+            "/api/v1/auth/change-password",
+            body={"old_password": old_password, "new_password": new_password},
+        )
+
     # ── System ──────────────────────────────────────────────
 
     def health(self) -> Dict[str, Any]:

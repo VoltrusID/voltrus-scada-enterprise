@@ -27,8 +27,10 @@ rm -rf "$DST/sdk/typescript" "$DST/sdk/python"
 cp -R "$SRC/sdks/typescript" "$DST/sdk/typescript"
 cp -R "$SRC/sdks/python" "$DST/sdk/python"
 # strip build artifacts
-rm -rf "$DST/sdk/typescript/node_modules" "$DST/sdk/typescript/dist" \
-       "$DST/sdk/python/voltrus/__pycache__" "$DST/sdk/python/build" "$DST/sdk/python/dist"
+rm -rf "$DST/sdk/typescript/node_modules" "$DST/sdk/typescript/dist"
+       find "$DST" -name '__pycache__' -type d -exec rm -rf {} +
+find "$DST" -name '*.pyc' -delete
+find "$DST" -name '*.egg-info' -type d -exec rm -rf {} +
 ```
 
 Then, in `$DST`:

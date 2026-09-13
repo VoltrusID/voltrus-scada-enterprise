@@ -251,6 +251,7 @@ pub async fn delete_modbus_device(
 ) -> Result<impl IntoResponse, AppError> {
     state.storage.delete_modbus_device(&id).await?;
     state.poller_manager.stop(&id).await;
+    state.cache.remove(&id).await;
 
     // Sync to asset inventory
     crate::asset::sync::on_device_deleted(&state.storage.asset(), "modbus", &id).await;

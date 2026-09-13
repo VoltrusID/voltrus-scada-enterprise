@@ -216,6 +216,7 @@ pub async fn delete_device(
     // Stop poller if running
     let device_key = format!("bacnet_{}", id);
     state.poller_manager.stop(&device_key).await;
+    state.cache.remove(&device_key).await;
 
     state.storage.delete_bacnet_device(id).await?;
 
