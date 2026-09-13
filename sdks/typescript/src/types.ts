@@ -400,6 +400,8 @@ export interface ModbusDevice {
 }
 
 export interface ModbusDeviceInput {
+  /** Unique device identifier, chosen by the client (e.g. "pm5560_main"). */
+  id: string;
   name: string;
   ip: string;
   port?: number;
