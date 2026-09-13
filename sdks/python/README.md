@@ -253,6 +253,18 @@ polling, transient errors logged and retried instead of crashing, and clean
 SIGINT/SIGTERM shutdown. Create a dedicated API key per integration so
 access can be audited and revoked independently.
 
+## Troubleshooting
+
+**Version compatibility** — these SDKs target the Voltrus v1 HTTP API and are tested against server 0.47.x.
+
+**Empty live data on a fresh install** — Engineering-tier licenses do not auto-start device polling. Sign in as admin and start polling from the UI, or `POST /api/v1/engineering/polling/start`.
+
+**401 Invalid credentials** — on first boot the server generates a random admin password and prints it to the server log once (`GENERATED ADMIN PASSWORD`). Change it on first login.
+
+**403 admin access required** — API keys are read-only (`role: api`). Writes (device changes, tag writes, alarm acknowledgment) need a session login as an admin user.
+
+**415 Expected request with Content-Type: application/json after login** — fixed in current versions; upgrade if cookie-authenticated POSTs fail this way.
+
 ## License
 
 MIT

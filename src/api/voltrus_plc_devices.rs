@@ -175,6 +175,7 @@ pub async fn delete_device(
 
     let device_id = id.to_string();
     state.poller_manager.stop(&device_id).await;
+    state.cache.remove(&device_id).await;
     state.storage.delete_voltrus_plc_device(id).await?;
 
     // Sync to asset inventory

@@ -246,6 +246,7 @@ pub async fn delete_device(
     // Stop poller if running
     let device_key = format!("s7_{}", id);
     state.poller_manager.stop(&device_key).await;
+    state.cache.remove(&device_key).await;
 
     state.storage.delete_s7_device(id).await?;
 

@@ -122,14 +122,18 @@ cargo build --release
 cargo build --release --no-default-features --features "snmp_scan,modbus,opcua,mqtt-broker,bacnet,dnp3,ethernet-ip,s7"
 
 # Configure
-cp config.yaml config.yaml
-# Edit config.yaml with your device details
+# Edit config.yaml: devices, auth.jwt_secret, server.port
 
 # Run
 ./target/release/voltrus config.yaml
 
 # Open http://localhost:3000
-# Default login: admin / admin (change on first login)
+#
+# First boot generates a random admin password — printed ONCE to the server
+# log (look for GENERATED ADMIN PASSWORD). Change it on first login.
+#
+# Engineering tier: device polling is NOT auto-started. Start it from the
+# UI (Admin → Polling) or POST /api/v1/engineering/polling/start.
 ```
 
 ### Cross-Compilation & Release

@@ -14,7 +14,7 @@ dependencies = ["urllib3>=2.0"]
 [project.urls]
 Homepage = "https://voltrus.com"
 Documentation = "https://voltrus.com/docs"
-Repository = "https://github.com/dzulfikar08/voltrus"
+Repository = "https://github.com/VoltrusID/voltrus-gateway"
 
 [tool.setuptools]
 packages = ["voltrus"]

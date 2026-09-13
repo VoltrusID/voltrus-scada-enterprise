@@ -4,8 +4,9 @@
 # Kill:    tmux kill-session -t voltrus-sims
 # Attach:  tmux attach -t voltrus-sims
 
+cd "$(dirname "$0")"
 SESSION="voltrus-sims"
-CONFIG="${1:-test-config.yaml}"
+CONFIG="${1:-scenarios/factory-floor/voltrus.yaml}"
 
 # Colors
 GREEN='\033[0;32m'

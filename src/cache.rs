@@ -228,6 +228,14 @@ impl DeviceCache {
         let _ = self.trigger.send(true);
     }
 
+    /// Drop a device from the cache entirely. Called when a device is deleted:
+    /// without this the device keeps appearing as online in `/api/v1/live`
+    /// until process restart.
+    pub async fn remove(&self, device_id: &str) {
+        self.protocols.write().await.remove(device_id);
+        self.devices.write().await.remove(device_id);
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<DeviceSnapshot> {
         self.snapshot_tx.subscribe()
     }

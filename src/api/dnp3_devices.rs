@@ -261,6 +261,7 @@ pub async fn delete_device(
     // Stop poller if running
     let device_key = format!("dnp3_{}", id);
     state.poller_manager.stop(&device_key).await;
+    state.cache.remove(&device_key).await;
 
     // Sync to asset inventory
     crate::asset::sync::on_device_deleted(&state.storage.asset(), "dnp3", &id.to_string()).await;
