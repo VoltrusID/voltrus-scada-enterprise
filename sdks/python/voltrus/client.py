@@ -103,10 +103,13 @@ class VoltrusClient:
             kwargs["fields"] = {k: v for k, v in params.items() if v is not None}
         if body is not None:
             kwargs["body"] = json.dumps(body)
+        headers: Dict[str, str] = {}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
         if self._cookies:
-            kwargs["headers"] = {
-                "Cookie": "; ".join(f"{k}={v}" for k, v in self._cookies.items())
-            }
+            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in self._cookies.items())
+        if headers:
+            kwargs["headers"] = headers
 
         resp = self._http.request(method, self._url(path), **kwargs)
         if resp.status >= 400:
