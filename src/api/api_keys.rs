@@ -36,6 +36,14 @@ pub struct ApiKeyCreatedResponse {
     pub note: String,
 }
 
+fn default_role() -> String {
+    "api".to_string()
+}
+
+/// Roles an API key may hold. Anything outside this set is rejected at
+/// creation; the middleware additionally fails closed on unknown values.
+const KEY_ROLES: &[&str] = &["api", "integration"];
+
 #[utoipa::path(
     post,
     path = "/api/v1/api-keys",
@@ -48,14 +56,6 @@ pub struct ApiKeyCreatedResponse {
     ),
     security(("api_key" = []), ("cookie_auth" = []))
 )]
-fn default_role() -> String {
-    "api".to_string()
-}
-
-/// Roles an API key may hold. Anything outside this set is rejected at
-/// creation; the middleware additionally fails closed on unknown values.
-const KEY_ROLES: &[&str] = &["api", "integration"];
-
 pub async fn create_api_key(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
