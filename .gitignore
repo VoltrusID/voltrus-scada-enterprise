@@ -36,6 +36,7 @@ license-activation.bin
 test-activation.bin
 test-all-protocols.db*
 test-solar-farm.db*
+factory-floor.db*
 pki-opcua-sim/
 pki/
 release-artifacts/
