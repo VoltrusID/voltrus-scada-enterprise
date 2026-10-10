@@ -22,7 +22,10 @@ TAG="v${VERSION}"
 R2_BUCKET="voltrus-releases"
 D1_DB="voltrus-releases-db"
 BUILD_DIR="target/release-artifacts"
-VERSION_NUM="$(echo "$VERSION" | sed 's/[^0-9]//g' | sed 's/^0*//')"
+# D1 build number must sort like semver: 1.0.0 -> 1000000, 0.47.0 -> 47000.
+# (Concatenating digits made 1.0.0 -> 100 sort below 0.47.0 -> 470.)
+IFS=. read -r _V_MAJ _V_MIN _V_PAT <<< "${VERSION%%-*}"
+VERSION_NUM=$(( 10#${_V_MAJ:-0} * 1000000 + 10#${_V_MIN:-0} * 1000 + 10#${_V_PAT:-0} ))
 FD_LIMIT=65536
 NOTARIZE="${NOTARIZE:-0}"
 
