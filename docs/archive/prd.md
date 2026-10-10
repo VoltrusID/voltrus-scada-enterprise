@@ -1,3 +1,5 @@
+> Archived 2026-10-10: original v1 PRD (Modbus TCP -> HTTP, 2 devices) superseded by the multi-protocol platform described in README.md.
+
 Good call going with HTTP first—this keeps your system simple, observable, and cheap. I’ll give you a concise but production-minded PRD you can actually build from.
 
 ⸻

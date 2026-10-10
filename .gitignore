@@ -12,6 +12,12 @@ client/.env
 
 # Backup tarballs from restore operations
 voltrus-pre-restore-*.tar.gz
+*-backup-*.tar.gz
+
+# SQLite databases (runtime/dev data, never commit)
+*.db
+*.db-shm
+*.db-wal
 
 # Claude agent worktrees
 .claude/worktrees/
