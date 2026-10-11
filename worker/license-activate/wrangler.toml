@@ -20,6 +20,11 @@ database_name = "voltrus-licenses"
 database_id = "fdbe7ce9-aa43-479a-b026-26cd2f2d2bb9"
 
 [[d1_databases]]
+binding = "CONSOLE_DB"
+database_name = "voltrus-console"
+database_id = "e17ec780-a087-4eec-ac1c-4d80bfc7a3d4"
+
+[[d1_databases]]
 binding = "RELEASES_DB"
 database_name = "voltrus-releases-db"
 database_id = "52bce831-4d79-4b11-b016-71492fa46c31"

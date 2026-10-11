@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database;
+  /** voltrus-console D1: console-issued VLT-* licenses and their device seats. */
+  CONSOLE_DB: D1Database;
   RELEASES_DB: D1Database;
   RELEASES_BUCKET: R2Bucket;
   EMAIL: SendEmail;

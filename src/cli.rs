@@ -270,8 +270,14 @@ async fn handle_online_activate(args: &[String]) -> bool {
             std::process::exit(1);
         });
 
-    if !resp.status().is_success() {
-        eprintln!("Activation server returned HTTP {}", resp.status());
+    let status = resp.status();
+    if !status.is_success() {
+        // Refusals (seats in use, revoked, unknown key) carry {"error": "..."}; show it.
+        let body: serde_json::Value = resp.json().await.unwrap_or_default();
+        match body["error"].as_str() {
+            Some(err) => eprintln!("Activation failed: {err}"),
+            None => eprintln!("Activation server returned HTTP {status}"),
+        }
         std::process::exit(1);
     }
 

@@ -5,7 +5,7 @@ import type { Env } from "./env";
 
 interface LicenseRequest {
   license_key: string;
-  fingerprint: { hash: string };
+  fingerprint: { hash: string; components?: Record<string, string> };
 }
 
 interface BindingRow {
@@ -190,6 +190,9 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
   if (!request_data) {
     return jsonResponse({ success: false, error: "Invalid request file" }, 400);
   }
+  if (/^\s*VLT-/i.test(request_data.license_key)) {
+    return activateConsoleLicense(request_data, env);
+  }
   const existing = await env.DB.prepare(
     "SELECT fingerprint_hash, revoked, tier, device_limit FROM license_bindings WHERE license_key = ?"
   ).bind(request_data.license_key).first<{ fingerprint_hash: string; revoked: number; tier: string | null; device_limit: number | null }>();
@@ -223,6 +226,52 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
     ).bind(request_data.license_key, request_data.fingerprint.hash, tier, device_limit).run();
   }
   const activation = await generateActivation(request_data, env, expires_at, tier, device_limit);
+  return jsonResponse({ success: true, activation_file: activation }, 200);
+}
+
+// Console-issued VLT-* licenses (console.voltrus.id card and saldo purchases) live in the
+// voltrus-console D1, like the MacTools apps' VLT activations. Device seats are console
+// license_activations rows, so "release" on the console Licenses page frees the host.
+async function activateConsoleLicense(request_data: LicenseRequest, env: Env): Promise<Response> {
+  const code = request_data.license_key.trim().toUpperCase();
+  const lic = await env.CONSOLE_DB.prepare(
+    "SELECT id, status, expires_at, seat_limit, tier FROM licenses WHERE code = ? AND app_slug = 'scada'"
+  ).bind(code).first<{ id: string; status: string; expires_at: number | null; seat_limit: number | null; tier: string | null }>();
+  if (!lic) {
+    return jsonResponse({ success: false, error: "License key not found" }, 403);
+  }
+  if (lic.status !== "active") {
+    return jsonResponse({ success: false, error: "License is not active" }, 403);
+  }
+  if (lic.expires_at && lic.expires_at < Date.now()) {
+    return jsonResponse({ success: false, error: "License is expired" }, 403);
+  }
+  const device = request_data.fingerprint.hash;
+  const seated = await env.CONSOLE_DB.prepare(
+    "SELECT id FROM license_activations WHERE license_id = ? AND device_id = ?"
+  ).bind(lic.id, device).first<{ id: string }>();
+  if (!seated) {
+    const seats = lic.seat_limit ?? 1;
+    const used = await env.CONSOLE_DB.prepare("SELECT COUNT(*) AS n FROM license_activations WHERE license_id = ?")
+      .bind(lic.id)
+      .first<{ n: number }>();
+    if ((used?.n ?? 0) >= seats) {
+      return jsonResponse(
+        { success: false, error: `All ${seats} seat(s) are in use. Release a device on console.voltrus.id/licenses first.` },
+        403
+      );
+    }
+    const host = request_data.fingerprint.components?.hostname;
+    await env.CONSOLE_DB.prepare(
+      "INSERT OR IGNORE INTO license_activations (id, license_id, device_id, label, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(crypto.randomUUID(), lic.id, device, `SCADA ${host || device.slice(0, 8)}`, Date.now()).run();
+  }
+  // VLT SCADA licenses predating tiers came from the single $249 entry (Starter) product.
+  const tier = lic.tier ?? "starter";
+  console.log(`Activation (console): license=${code}, rebind=${!!seated}, tier=${tier}`);
+  const expiresAt = lic.expires_at ? new Date(lic.expires_at).toISOString() : null;
+  // Sign the key exactly as the host sent it: the binary matches it against its own config.
+  const activation = await generateActivation(request_data, env, expiresAt, tier, null);
   return jsonResponse({ success: true, activation_file: activation }, 200);
 }
 async function handleAdminPanel(request: Request, env: Env): Promise<Response> {
