@@ -9,6 +9,9 @@ pub struct AppConfig {
     pub devices: Vec<DeviceConfig>,
     #[serde(default = "default_server_port")]
     pub server_port: u16,
+    /// Interface to listen on. Default all interfaces; "127.0.0.1" keeps it behind a reverse proxy or tunnel.
+    #[serde(default = "default_server_host")]
+    pub server_host: String,
     #[serde(default = "default_db_path")]
     pub db_path: String,
     #[serde(default = "default_persist_interval")]
@@ -176,6 +179,9 @@ fn default_cookie_secure() -> bool {
 
 fn default_server_port() -> u16 {
     3000
+}
+fn default_server_host() -> String {
+    "0.0.0.0".to_string()
 }
 fn default_db_path() -> String {
     "data.db".to_string()
