@@ -1,6 +1,18 @@
 import type { WidgetManifest, ScadaWidgetType, WidgetRegistryEntry } from './types'
 
 const manifests: Record<ScadaWidgetType, WidgetManifest> = {
+  // HMI library symbol; which one is in config.symbol. Placed from the Symbols tab, not the tag picker.
+  symbol: {
+    type: 'symbol',
+    displayName: 'Symbol',
+    icon: '◇',
+    defaultWidth: 90,
+    defaultHeight: 90,
+    minBindings: 0,
+    maxBindings: 1,
+    compatibleDataTypes: [],
+    configSchema: [],
+  },
   gauge: {
     type: 'gauge',
     displayName: 'Gauge',
@@ -67,7 +79,6 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
     maxBindings: 1,
     compatibleDataTypes: ['analog'],
     configSchema: [
-      { key: 'fillColor', label: 'Fill Color', type: 'color', default: '#3b82f6' },
       { key: 'showPercentage', label: 'Show %', type: 'boolean', default: true },
     ],
   },
@@ -158,9 +169,6 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
         { value: 'horizontal', label: 'Horizontal' },
         { value: 'vertical', label: 'Vertical' },
       ] },
-      { key: 'pipeColor', label: 'Pipe Color', type: 'color', default: '#3b82f6' },
-      { key: 'flowSpeed', label: 'Flow Speed', type: 'number', default: 2, min: 0, max: 10 },
-      { key: 'thickness', label: 'Thickness', type: 'number', default: 8, min: 4, max: 24 },
     ],
   },
   slider: {
@@ -420,7 +428,6 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
     maxBindings: 1,
     compatibleDataTypes: ['analog'],
     configSchema: [
-      { key: 'fillColor', label: 'Fill Color', type: 'color', default: '#3b82f6' },
       { key: 'showPercentage', label: 'Show %', type: 'boolean', default: true },
     ],
   },

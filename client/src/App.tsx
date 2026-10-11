@@ -155,8 +155,8 @@ export function AppInner() {
   const twinLayouts = twinLayoutsData?.items ?? []
   const twinCamera = twinLayoutsData?.camera
   const { data: twinConnections = [] } = useTwinConnections(activeScreen, authed)
-  const { data: scadaEquipment = [] } = useScadaEquipment(activeScreen, authed && viewMode === 'scada')
-  const { data: scadaConnections = [] } = useScadaConnections(activeScreen, authed && viewMode === 'scada')
+  const { data: scadaEquipment = [], isFetched: scadaEquipmentFetched } = useScadaEquipment(activeScreen, authed && viewMode === 'scada')
+  const { data: scadaConnections = [], isFetched: scadaConnectionsFetched } = useScadaConnections(activeScreen, authed && viewMode === 'scada')
   const { data: serverCanvasLayouts = [] } = useCanvasLayouts(activeScreen, authed)
   const canvasLayouts = localCanvasLayouts ?? serverCanvasLayouts
   const { data: shortcuts = {} } = useShortcuts(authed)
@@ -560,6 +560,7 @@ export function AppInner() {
               shortcuts={shortcuts}
               scadaEquipment={scadaEquipment}
               scadaConnections={scadaConnections}
+              scadaLoaded={scadaEquipmentFetched && scadaConnectionsFetched}
               twinLayouts={twinLayouts}
               twinCamera={twinCamera}
               twinConnections={twinConnections}

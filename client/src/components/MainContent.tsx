@@ -28,6 +28,7 @@ interface Props {
   shortcuts: Record<number, string>
   scadaEquipment: any[]
   scadaConnections: any[]
+  scadaLoaded: boolean
   twinLayouts: any[]
   twinCamera: any
   twinConnections: any[]
@@ -46,7 +47,7 @@ export function MainContent({
   viewMode, mode, screenSensors, effectiveLayouts, canvasLayouts,
   editMode, activeScreen, gap, editingId, setEditingId, setSelectedSensor,
   onLayoutChange, onCanvasLayoutChange, onSave, onDelete,
-  forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections,
+  forcedBreakpoint, shortcuts, scadaEquipment, scadaConnections, scadaLoaded,
   twinLayouts, twinCamera, twinConnections, sensors,
   saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
   saveTwinConnectionsMut, updateSensorMut, fetchOk, isAdmin,
@@ -111,8 +112,13 @@ export function MainContent({
           activeScreen={activeScreen}
           scadaEquipment={scadaEquipment}
           scadaConnections={scadaConnections}
-          onSaveEquipment={(items: any[]) => saveScadaEquipmentMut.mutate({ screenId: activeScreen, items })}
-          onSaveConnections={(items: any[]) => saveScadaConnectionsMut.mutate({ screenId: activeScreen, items })}
+          loaded={scadaLoaded}
+          onSave={async (screenId: string, equipment: any[], connections: any[]) => {
+            await Promise.all([
+              saveScadaEquipmentMut.mutateAsync({ screenId, items: equipment }),
+              saveScadaConnectionsMut.mutateAsync({ screenId, items: connections }),
+            ])
+          }}
           onSensorClick={(id: number) => setSelectedSensor(id)}
           isAdmin={isAdmin}
           toolbarSlotSetter={scadaToolbarSlotSetter}

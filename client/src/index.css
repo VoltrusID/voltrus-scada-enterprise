@@ -32,6 +32,26 @@
   --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, monospace;
   --font-ui-size: 13px;
   --font-mono-size: 12px;
+  /* HMI palette (ISA-101): grey equipment, colour reserved for state + alarms */
+  --hmi-stage: #15181d;
+  --hmi-area: rgba(255,255,255,.025);
+  --hmi-body-hi: #8b939e;
+  --hmi-body-mid: #5b636e;
+  --hmi-body-lo: #30363e;
+  --hmi-stroke: #a7afb9;
+  --hmi-detail: #1c2026;
+  --hmi-pipe-hi: #9aa2ac;
+  --hmi-pipe-lo: #3c424a;
+  --hmi-run: #34c47a;
+  --hmi-fault: #f04646;
+  --hmi-warn: #f5b21b;
+  --hmi-stale: #d65ce8;
+  --hmi-liquid-hi: #6aa9e6;
+  --hmi-liquid-lo: #1f5fa8;
+  --hmi-bulk-hi: #cdb68a;
+  --hmi-bulk-lo: #8a7148;
+  --hmi-lcd: #0b1610;
+  --hmi-badge: #0d0f12;
 }
 
 /* ── Light theme ── */
@@ -54,6 +74,25 @@
   --input-bg: #ffffff;
   --code-bg: #f3f4f6;
   --hover-overlay: rgba(0,0,0,.04);
+  --hmi-stage: #dfe2e6;
+  --hmi-area: rgba(255,255,255,.45);
+  --hmi-body-hi: #fbfbfc;
+  --hmi-body-mid: #d5d9de;
+  --hmi-body-lo: #a3a9b1;
+  --hmi-stroke: #4a5059;
+  --hmi-detail: #6b717a;
+  --hmi-pipe-hi: #e9ecef;
+  --hmi-pipe-lo: #8d939b;
+  --hmi-run: #1f9d57;
+  --hmi-fault: #d92d2d;
+  --hmi-warn: #d99000;
+  --hmi-stale: #b936c9;
+  --hmi-liquid-hi: #7db6ea;
+  --hmi-liquid-lo: #2a6bb5;
+  --hmi-bulk-hi: #d9c49b;
+  --hmi-bulk-lo: #9a8056;
+  --hmi-lcd: #102018;
+  --hmi-badge: #1d2127;
 }
 
 html, body, #root {
@@ -339,4 +378,17 @@ nav[role="navigation"] button:hover {
   .main-content {
     padding: 0 10px 38px !important;
   }
+}
+
+/* ── HMI symbol animations ── */
+.hmi-spin { transform-box: fill-box; transform-origin: center; animation: hmi-spin 1.4s linear infinite; }
+.hmi-agitate { transform-box: fill-box; transform-origin: center; animation: hmi-agitate .6s ease-in-out infinite alternate; }
+.hmi-flow { animation: hmi-flow .9s linear infinite; }
+.hmi-blink { animation: hmi-blink 1s steps(2, jump-none) infinite; }
+@keyframes hmi-spin { to { transform: rotate(360deg); } }
+@keyframes hmi-agitate { from { transform: scaleX(1); } to { transform: scaleX(-1); } }
+@keyframes hmi-flow { to { stroke-dashoffset: -24; } }
+@keyframes hmi-blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .hmi-spin, .hmi-agitate, .hmi-flow { animation: none; }
 }
