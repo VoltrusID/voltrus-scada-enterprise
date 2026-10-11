@@ -41,6 +41,7 @@ interface Props {
   fetchOk: any
   isAdmin: boolean
   scadaToolbarSlotSetter?: (slot: React.ReactNode) => void
+  screenName?: string
 }
 
 export function MainContent({
@@ -51,7 +52,7 @@ export function MainContent({
   twinLayouts, twinCamera, twinConnections, sensors,
   saveScadaEquipmentMut, saveScadaConnectionsMut, saveTwinLayoutMut,
   saveTwinConnectionsMut, updateSensorMut, fetchOk, isAdmin,
-  scadaToolbarSlotSetter,
+  scadaToolbarSlotSetter, screenName,
 }: Props) {
   const queryClient = useQueryClient()
 
@@ -156,6 +157,10 @@ export function MainContent({
             connections: connections.map((c: any) => ({ from_id: c.from, to_id: c.to })),
           })
         }}
+        scadaEquipment={scadaEquipment}
+        scadaConnections={scadaConnections}
+        screenName={screenName}
+        onSensorClick={(id: number) => setSelectedSensor(id)}
         onSaveCamera={(camera: any) => {
           const actualId = activeScreen === 'all' ? '__overview' : activeScreen
           fetchOk(`/api/v1/screens/${actualId}/twin-camera`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(camera) })

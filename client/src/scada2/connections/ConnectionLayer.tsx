@@ -137,7 +137,7 @@ function roundedPath(pts: Pt[], r = 10): string {
 }
 
 /** Only a run signal counts: an explicit run tag, or the primary tag of a state-bound symbol (pump, valve…). */
-function isRunning(w: WidgetInstance | undefined, values: Record<string, SensorData>): boolean {
+export function isRunning(w: WidgetInstance | undefined, values: Record<string, SensorData>): boolean {
   if (!w) return false
   const r = resolveSymbol(w)
   const cfg = r?.config ?? w.config ?? {}

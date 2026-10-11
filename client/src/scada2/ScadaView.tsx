@@ -6,6 +6,7 @@ import { ScadaPalette, PANEL_WIDTH } from './ScadaPalette'
 import { WidgetInspector, ConnectionInspector, ScreenInspector, INSPECTOR_WIDTH, widgetTitle } from './ScadaInspector'
 import { ConnectionLayer, CONNECTION_TYPES } from './connections/ConnectionLayer'
 import { historyReducer, emptyHistory, createWidget, createConnection, type ScadaLayoutState } from './engine/widgetState'
+import { loadLayoutFromAPI } from './engine/layout'
 import { SYMBOL_MAP, SYMBOLS } from './hmi/symbols'
 import { SymbolThumb } from './hmi/SymbolView'
 import { Faceplate } from './hmi/Faceplate'
@@ -66,38 +67,6 @@ const FACEPLATE_TYPES = new Set<ScadaWidgetType>([
   ...EQUIPMENT_TYPES, 'gauge', 'indicator', 'bar', 'status_light', 'big_number', 'meter', 'semicircle_gauge', 'donut',
   'led_display', 'trend', 'progress_bar', 'on_off',
 ])
-
-function loadLayoutFromAPI(equipment: ScadaEquipmentItem[], connections: ScadaConnectionItem[]): ScadaLayoutState {
-  // Stacking order travels in config.z: the server returns rows sorted by id, not insertion order.
-  const parsed = equipment.map((eq, i) => {
-    const config = JSON.parse(eq.config || '{}') as Record<string, any>
-    const z = typeof config.z === 'number' ? config.z : i
-    delete config.z
-    return { eq, config, z }
-  }).sort((a, b) => a.z - b.z)
-  const widgets = parsed.map(({ eq, config }) => {
-    const bindings: number[] = JSON.parse(eq.sensor_bindings || '[]')
-    return {
-      id: eq.equipment_id,
-      type: eq.equipment_type as ScadaWidgetType,
-      sensorId: bindings[0] ?? null,
-      sensorIds: bindings,
-      x: eq.x,
-      y: eq.y,
-      width: eq.width,
-      height: eq.height,
-      config,
-    }
-  })
-  const conns: ConnectionInstance[] = connections.map(c => ({
-    id: c.connection_id,
-    fromWidgetId: c.from_equipment,
-    toWidgetId: c.to_equipment,
-    connectionType: c.connection_type as ConnectionInstance['connectionType'],
-    waypoints: JSON.parse(c.waypoints || '[]'),
-  }))
-  return { widgets, connections: conns }
-}
 
 function toAPI(layout: ScadaLayoutState, sensors: SensorConfig[]) {
   const equipment: ScadaEquipmentItem[] = layout.widgets.map((w, i) => ({

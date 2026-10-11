@@ -155,8 +155,8 @@ export function AppInner() {
   const twinLayouts = twinLayoutsData?.items ?? []
   const twinCamera = twinLayoutsData?.camera
   const { data: twinConnections = [] } = useTwinConnections(activeScreen, authed)
-  const { data: scadaEquipment = [], isFetched: scadaEquipmentFetched } = useScadaEquipment(activeScreen, authed && viewMode === 'scada')
-  const { data: scadaConnections = [], isFetched: scadaConnectionsFetched } = useScadaConnections(activeScreen, authed && viewMode === 'scada')
+  const { data: scadaEquipment = [], isFetched: scadaEquipmentFetched } = useScadaEquipment(activeScreen, authed && (viewMode === 'scada' || viewMode === 'twin'))
+  const { data: scadaConnections = [], isFetched: scadaConnectionsFetched } = useScadaConnections(activeScreen, authed && (viewMode === 'scada' || viewMode === 'twin'))
   const { data: serverCanvasLayouts = [] } = useCanvasLayouts(activeScreen, authed)
   const canvasLayouts = localCanvasLayouts ?? serverCanvasLayouts
   const { data: shortcuts = {} } = useShortcuts(authed)
@@ -567,6 +567,7 @@ export function AppInner() {
               sensors={sensors}
               saveScadaEquipmentMut={saveScadaEquipmentMut}
               scadaToolbarSlotSetter={setScadaToolbarSlot}
+              screenName={screens.find(sc => sc.id === activeScreen)?.name}
               saveScadaConnectionsMut={saveScadaConnectionsMut}
               saveTwinLayoutMut={saveTwinLayoutMut}
               saveTwinConnectionsMut={saveTwinConnectionsMut}
