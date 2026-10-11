@@ -5,7 +5,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api/v1': 'http://localhost:3100'
+      // Server serves the built client same-origin in production, so every
+      // API path (/api/v1, /api/license, /api/simulation, ...) must reach it
+      // in dev too. ws: true forwards the /api/v1/ws live-data socket.
+      '/api': {
+        target: 'http://localhost:3100',
+        ws: true,
+      }
     }
   },
   build: {
