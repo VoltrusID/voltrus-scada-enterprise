@@ -62,6 +62,10 @@ allow = [
 ]
 confidence-threshold = 0.8
 
+# Our own workspace crates are proprietary (license-file = LICENSE) and never published.
+[licenses.private]
+ignore = true
+
 [sources]
 unknown-registry = "warn"
 unknown-git = "warn"

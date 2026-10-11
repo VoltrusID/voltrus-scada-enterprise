@@ -1,0 +1,9 @@
+Copyright (c) 2026 JoyoDigitama. All rights reserved.
+
+This software and its source code are proprietary and confidential.
+No part of it may be copied, modified, distributed, sublicensed, or used
+except under a valid commercial license issued by JoyoDigitama
+(see https://voltrus.id).
+
+The client SDKs published separately under sdks/ (VoltrusID/voltrus-gateway)
+are licensed under the MIT License; this notice does not apply to them.

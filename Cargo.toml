@@ -10,7 +10,8 @@ opt-level = 3
 name = "voltrus"
 version = "0.47.0"
 edition = "2024"
-license = "MIT"
+license-file = "LICENSE"
+publish = false
 default-run = "voltrus"
 
 [[bin]]
