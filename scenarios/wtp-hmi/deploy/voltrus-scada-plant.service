@@ -1,0 +1,21 @@
+[Unit]
+Description=Voltrus SCADA demo plant simulator (Modbus TCP on 127.0.0.1:5030)
+After=network.target
+
+[Service]
+Type=simple
+User=voltrus-scada
+Group=voltrus-scada
+WorkingDirectory=/opt/voltrus-scada
+ExecStart=/usr/bin/python3 /opt/voltrus-scada/plant-sim.py --port 5030
+Restart=always
+RestartSec=3
+MemoryMax=100M
+CPUQuota=25%
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

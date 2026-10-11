@@ -1,0 +1,29 @@
+[Unit]
+Description=Voltrus SCADA demo (demo.voltrus.id)
+After=network.target voltrus-scada-plant.service
+Wants=voltrus-scada-plant.service
+
+[Service]
+Type=simple
+User=voltrus-scada
+Group=voltrus-scada
+WorkingDirectory=/opt/voltrus-scada
+ExecStart=/opt/voltrus-scada/voltrus config.yaml
+Restart=always
+RestartSec=5
+Environment=RUST_LOG=info
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+# Shared host (MQTT broker, WA gateway): cap what the demo can take.
+MemoryMax=400M
+CPUQuota=100%
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/voltrus-scada
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

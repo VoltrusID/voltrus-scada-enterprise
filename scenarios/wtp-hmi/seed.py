@@ -73,14 +73,18 @@ WRITABLE = ['p101a_run', 'p101b_run', 'xv101_open', 'coag_pump_run', 'flash_mixe
 class Api:
     def __init__(self, base):
         self.base = base.rstrip('/')
-        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.jar = http.cookiejar.CookieJar()
+        self.op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
 
     def call(self, method, path, body=None):
         req = urllib.request.Request(self.base + path, method=method, data=None if body is None else json.dumps(body).encode(),
                                      headers={'Content-Type': 'application/json'})
         with self.op.open(req) as r:
             raw = r.read()
-            return json.loads(raw) if raw else None
+        # Servers behind TLS (cookie_secure: true) mark the session cookie Secure; seeding talks plain HTTP on localhost.
+        for c in self.jar:
+            c.secure = False
+        return json.loads(raw) if raw else None
 
 
 # ── Layout helpers ──
@@ -293,6 +297,8 @@ def main():
     ap.add_argument('--url', default='http://localhost:3100')
     ap.add_argument('--password')
     ap.add_argument('--log', help='server log holding the generated first-run admin password')
+    ap.add_argument('--new-password', default=NEW_PASSWORD, help='password set on first login (use a strong one on public hosts)')
+    ap.add_argument('--start-polling', action='store_true', help='start Engineering-mode polling after seeding')
     a = ap.parse_args()
     api = Api(a.url)
 
@@ -300,7 +306,7 @@ def main():
     if not pw and a.log:
         m = re.findall(r'GENERATED ADMIN PASSWORD: (\S+)', open(a.log, errors='ignore').read())
         pw = m[-1] if m else None
-    for candidate in [pw, NEW_PASSWORD]:
+    for candidate in [pw, a.new_password]:
         if not candidate:
             continue
         try:
@@ -312,8 +318,8 @@ def main():
     else:
         raise SystemExit('login failed: pass --password or --log')
     if r.get('must_change_password'):
-        api.call('POST', '/api/v1/auth/change-password', {'old_password': pw, 'new_password': NEW_PASSWORD})
-        print(f'admin password changed to {NEW_PASSWORD}')
+        api.call('POST', '/api/v1/auth/change-password', {'old_password': pw, 'new_password': a.new_password})
+        print('admin password changed' + (f' to {a.new_password}' if a.new_password == NEW_PASSWORD else ''))
 
     sources = api.call('GET', '/api/v1/data-sources')
     ids = {s['key']: s['id'] for s in sources if s['key'] in TAGS}
@@ -352,6 +358,10 @@ def main():
         api.call('PUT', f'/api/v1/screens/{sid}/scada-equipment', {'items': s.items})
         api.call('PUT', f'/api/v1/screens/{sid}/scada-connections', {'items': s.conns})
         print(f'screen {name!r} ({sid}): {len(s.items)} items, {len(s.conns)} connections')
+
+    if a.start_polling:
+        r = api.call('POST', '/api/v1/engineering/polling/start')
+        print(f'polling: {r}')
 
 
 if __name__ == '__main__':

@@ -1047,7 +1047,7 @@ async fn main() -> anyhow::Result<()> {
     api::stream::spawn_data_broadcaster(cache.clone(), storage.clone(), Some(ws_manager.clone()));
     let app = api::create_router(state);
 
-    let addr = format!("0.0.0.0:{}", app_config.server_port);
+    let addr = format!("{}:{}", app_config.server_host, app_config.server_port);
     tracing::info!("Server listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
