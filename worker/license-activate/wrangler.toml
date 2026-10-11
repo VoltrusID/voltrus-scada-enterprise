@@ -1,0 +1,33 @@
+# Deployed as voltrus-license-activate (activate.voltrus.id, dl-voltrus-scada.voltrus.id).
+# Secrets: ADMIN_TOKEN, ED25519_PRIVATE_KEY, POLAR_API_KEY, POLAR_ORG_ID, POLAR_WEBHOOK_SECRET.
+name = "voltrus-license-activate"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+account_id = "b7e6f8457bd39fa37a7eea5249799754"
+workers_dev = false
+
+routes = [
+  { pattern = "activate.voltrus.id", custom_domain = true },
+  { pattern = "dl-voltrus-scada.voltrus.id", custom_domain = true },
+]
+
+[triggers]
+crons = ["23 3 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "voltrus-licenses"
+database_id = "fdbe7ce9-aa43-479a-b026-26cd2f2d2bb9"
+
+[[d1_databases]]
+binding = "RELEASES_DB"
+database_name = "voltrus-releases-db"
+database_id = "52bce831-4d79-4b11-b016-71492fa46c31"
+
+[[r2_buckets]]
+binding = "RELEASES_BUCKET"
+bucket_name = "voltrus-releases"
+
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = ["noreply@mail.voltrus.id"]
