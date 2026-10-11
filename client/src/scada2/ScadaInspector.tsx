@@ -106,6 +106,40 @@ export const WidgetInspector: React.FC<WidgetProps> = ({ widget, sensors, onUpda
   )
 }
 
+const SHORTCUTS: [string, string][] = [
+  ['V / C', 'Select / connect tool'],
+  ['Ctrl+Z · Ctrl+Shift+Z', 'Undo / redo'],
+  ['Ctrl+C · Ctrl+V · Ctrl+D', 'Copy / paste / duplicate'],
+  ['Arrows · Shift+Arrows', 'Nudge 1 / 10 px'],
+  ['[ · ]', 'Send to back / front'],
+  ['Del', 'Delete selection'],
+  ['Ctrl+ + · Ctrl+ - · Ctrl+0', 'Zoom in / out / fit'],
+  ['Ctrl+S', 'Save'],
+]
+
+/** Shown when nothing is selected, so the inspector column (and the stage scale) stays put while editing. */
+export const ScreenInspector: React.FC<{ widgets: number; connections: number; tags: number }> = ({ widgets, connections, tags }) => (
+  <div style={panel}>
+    <Header title="Screen" subtitle={`${widgets} items · ${connections} connections · ${tags} tags bound`} />
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      <Section title="Build">
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.55 }}>
+          Drag equipment from <b>Symbols</b>, or drop a tag from <b>Tags</b> to pick how to show it.
+          Select an item to bind tags and set its behaviour; use the connect tool to pipe nozzles together.
+        </div>
+      </Section>
+      <Section title="Shortcuts">
+        {SHORTCUTS.map(([k, d]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11, padding: '3px 0' }}>
+            <span style={{ color: 'var(--text-dim)' }}>{d}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{k}</span>
+          </div>
+        ))}
+      </Section>
+    </div>
+  </div>
+)
+
 export const ConnectionInspector: React.FC<ConnectionProps> = ({ connection, widgets, onUpdate, onDelete }) => {
   const name = (id: string) => {
     const w = widgets.find(x => x.id === id)

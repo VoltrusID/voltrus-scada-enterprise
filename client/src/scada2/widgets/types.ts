@@ -12,7 +12,7 @@ export type ScadaWidgetType =
   | 'motor' | 'valve' | 'pump' | 'push_button'
   | 'bar_chart' | 'pie_chart' | 'multi_trend'
   | 'annunciator' | 'pid_faceplate' | 'horizontal_tank' | 'progress_bar'
-  | 'symbol'
+  | 'symbol' | 'area'
 
 // ── Config field schema ──
 

@@ -218,7 +218,8 @@ const fan: SymbolDef = {
 
 const motor: SymbolDef = {
   key: 'motor', name: 'Electric Motor', category: 'Rotating', viewBox: [120, 80], size: [120, 80], binding: 'state',
-  ports: { right: [117, 40] },
+  // Shaft on the right; supply cable into the terminal box on top.
+  ports: { right: [117, 40], top: [59.5, 2] },
   render: p => (
     <Frame p={p}>
       <rect x="28" y="64" width="13" height="12" fill={url(p.uid, 'cv')} {...outline(p.state)} />
@@ -445,6 +446,106 @@ const filter: SymbolDef = {
   ),
 }
 
+const clarifier: SymbolDef = {
+  key: 'clarifier', name: 'Clarifier', category: 'Process', viewBox: [220, 100], size: [240, 110], binding: 'value',
+  ports: { left: [0, 30], right: [220, 22], bottom: [110, 98] },
+  fields: [{ key: 'runSensorId', label: 'Rake Drive Run Tag', type: 'tag', default: null }],
+  render: p => {
+    const basin = 'M14 14 L206 14 L206 58 L124 86 L96 86 L14 58 Z'
+    const turning = p.runState === 'running'
+    return (
+      <Frame p={p}>
+        <clipPath id={`${p.uid}-clip`}><path d={basin} /></clipPath>
+        <rect x="0" y="23" width="18" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+        <rect x="203" y="15" width="17" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+        <rect x="102" y="84" width="16" height="14" fill={url(p.uid, 'ph')} {...outline(p.state)} />
+        <path d={basin} fill={url(p.uid, 'lq')} opacity={0.85} />
+        <g clipPath={`url(#${p.uid}-clip)`}>
+          <path d="M14 66 L96 92 L124 92 L206 66 L206 100 L14 100 Z" fill={url(p.uid, 'bk')} opacity={0.9} />
+          <rect x="14" y="14" width="192" height="3" fill="#fff" opacity={0.3} />
+        </g>
+        <rect x="94" y="14" width="32" height="38" fill="var(--hmi-body-mid)" opacity={0.6} stroke="var(--hmi-detail)" strokeWidth={1} {...thin} />
+        <line x1="110" y1="4" x2="110" y2="80" stroke="var(--hmi-stroke)" strokeWidth={2.5} />
+        <g className={turning ? 'hmi-agitate' : undefined}>
+          <path d="M110 80 L40 60 M110 80 L180 60" stroke={turning ? 'var(--hmi-run)' : 'var(--hmi-body-hi)'} strokeWidth={3} strokeLinecap="round" />
+        </g>
+        <path d={basin} fill="none" {...outline(p.state)} />
+        <rect x="8" y="10" width="204" height="5" fill={url(p.uid, 'cv')} {...outline(p.state)} />
+        <rect x="96" y="0" width="28" height="11" rx="2" fill={url(p.uid, 'cv')} {...outline(p.state)} />
+        <circle cx="110" cy="5.5" r="3" fill={turning ? 'var(--hmi-run)' : 'var(--hmi-detail)'} />
+      </Frame>
+    )
+  },
+}
+
+const dosingPump: SymbolDef = {
+  key: 'dosing_pump', name: 'Dosing Pump', category: 'Rotating', viewBox: [100, 90], size: [84, 76], binding: 'state',
+  ports: { left: [0, 58], right: [100, 58] },
+  render: p => (
+    <Frame p={p}>
+      <path d="M22 78 L78 78 L86 89 L14 89 Z" fill={url(p.uid, 'cv')} {...outline(p.state)} />
+      <rect x="0" y="51" width="24" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+      <rect x="76" y="51" width="24" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+      <rect x="20" y="36" width="60" height="44" rx="6" fill={url(p.uid, 'cv')} {...outline(p.state)} />
+      <path d="M34 58 L50 46 L66 58 L50 70 Z" fill={accent(p.state)} stroke="var(--hmi-detail)" strokeWidth={1} {...thin} />
+      <rect x="38" y="4" width="24" height="34" rx="4" fill={url(p.uid, 'ch')} {...outline(p.state)} />
+      <line x1="44" x2="56" y1="14" y2="14" stroke="var(--hmi-detail)" strokeWidth={1.5} {...thin} />
+      <line x1="44" x2="56" y1="22" y2="22" stroke="var(--hmi-detail)" strokeWidth={1.5} {...thin} />
+      <Lamp p={p} cx={50} cy={30} />
+    </Frame>
+  ),
+}
+
+const gravityFilter: SymbolDef = {
+  key: 'gravity_filter', name: 'Gravity Filter', category: 'Process', viewBox: [140, 120], size: [140, 120], binding: 'value',
+  ports: { left: [0, 26], right: [140, 106], bottom: [70, 120] },
+  fields: [{ key: 'runSensorId', label: 'Backwash Tag', type: 'tag', default: null }],
+  render: p => {
+    const washing = p.runState === 'running'
+    return (
+      <Frame p={p}>
+        <clipPath id={`${p.uid}-clip`}><rect x="14" y="10" width="112" height="90" /></clipPath>
+        <rect x="0" y="19" width="16" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+        <rect x="124" y="99" width="16" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+        <rect x="63" y="104" width="14" height="16" fill={url(p.uid, 'ph')} {...outline(p.state)} />
+        <rect x="14" y="10" width="112" height="96" fill={url(p.uid, 'ch')} />
+        <g clipPath={`url(#${p.uid}-clip)`}>
+          <rect x="14" y={washing ? 14 : 22} width="112" height={washing ? 40 : 32} fill={url(p.uid, 'lq')} opacity={0.85}
+            style={{ transition: 'y .6s ease, height .6s ease' }} />
+          <rect x="14" y="54" width="112" height="22" fill={url(p.uid, 'bk')} />
+          <rect x="14" y="76" width="112" height="14" fill="var(--hmi-body-lo)" />
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(i => (
+            <circle key={i} cx={20 + i * 8} cy={60 + (i % 3) * 5} r={1.4} fill="var(--hmi-bulk-lo)" />
+          ))}
+          {washing && [24, 46, 70, 94, 116].map((x, i) => (
+            <path key={x} d={`M${x} 50 L${x} 26 M${x - 4} 31 L${x} 25 L${x + 4} 31`} stroke="#fff" strokeWidth={1.5} fill="none"
+              opacity={0.7} className="hmi-blink" style={{ animationDelay: `${i * 0.15}s` }} {...thin} />
+          ))}
+        </g>
+        <line x1="14" x2="126" y1="90" y2="90" stroke="var(--hmi-detail)" strokeWidth={1} strokeDasharray="3 3" {...thin} />
+        <rect x="14" y="10" width="112" height="96" fill="none" {...outline(p.state)} />
+        <rect x="104" y="0" width="22" height="10" rx="2" fill={washing ? 'var(--hmi-liquid-hi)' : url(p.uid, 'cv')} {...outline(p.state)} />
+      </Frame>
+    )
+  },
+}
+
+const flowMeter: SymbolDef = {
+  key: 'flow_meter', name: 'Mag Flowmeter', category: 'Instruments', viewBox: [100, 70], size: [96, 66], binding: 'value',
+  ports: { left: [0, 46], right: [100, 46] },
+  render: p => (
+    <Frame p={p}>
+      <rect x="0" y="39" width="100" height="14" fill={url(p.uid, 'pv')} {...outline(p.state)} />
+      <rect x="20" y="30" width="7" height="32" rx="1.5" fill={url(p.uid, 'ch')} {...outline(p.state)} />
+      <rect x="73" y="30" width="7" height="32" rx="1.5" fill={url(p.uid, 'ch')} {...outline(p.state)} />
+      <rect x="31" y="32" width="38" height="28" rx="12" fill={url(p.uid, 'cv')} {...outline(p.state)} />
+      <rect x="40" y="2" width="20" height="30" rx="3" fill={url(p.uid, 'ch')} {...outline(p.state)} />
+      <rect x="43" y="7" width="14" height="10" rx="1.5" fill="var(--hmi-lcd)" />
+      <text x="50" y="47" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700} fill="var(--hmi-detail)">FT</text>
+    </Frame>
+  ),
+}
+
 const breaker: SymbolDef = {
   key: 'breaker', name: 'Circuit Breaker', category: 'Electrical', viewBox: [60, 100], size: [54, 90], binding: 'state',
   ports: { top: [30, 0], bottom: [30, 100] },
@@ -638,12 +739,12 @@ const pipeTee: SymbolDef = {
 }
 
 export const SYMBOLS: SymbolDef[] = [
-  pump, fan, motor, compressor, conveyor,
+  pump, dosingPump, fan, motor, compressor, conveyor,
   valve, controlValve, checkValve,
   tank, tankHorizontal, silo, mixer,
-  heatExchanger, filter,
+  clarifier, gravityFilter, heatExchanger, filter,
   breaker, transformer, generator, solar, battery, inverter, meter, busbar,
-  instrument,
+  instrument, flowMeter,
   pipe, pipeVertical, pipeElbow, pipeTee,
 ]
 

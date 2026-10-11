@@ -28,7 +28,36 @@ function facingSide(w: WidgetInstance, toward: Pt): PortSide {
   return dy >= 0 ? 'bottom' : 'top'
 }
 
-/** Orthogonal route between equipment nozzles: straight when aligned, otherwise one dog-leg at the midpoint. */
+const SIDES: PortSide[] = ['left', 'right', 'top', 'bottom']
+const HORIZONTAL = (s: PortSide) => s === 'left' || s === 'right'
+
+/** Sides a symbol has nozzles on, in its own (unrotated) frame mapped to the stage. Plain widgets connect anywhere. */
+function nozzleSides(w: WidgetInstance): PortSide[] {
+  const r = resolveSymbol(w)
+  const ports = r?.def.ports
+  if (!r || !ports || r.def.stretch) return SIDES
+  const rot = ((((Number(r.config.rotation ?? 0)) % 360) + 360) % 360) / 90
+  const cw: Record<PortSide, PortSide> = { left: 'top', top: 'right', right: 'bottom', bottom: 'left' }
+  const mirror: Record<PortSide, PortSide> = { left: 'right', right: 'left', top: 'top', bottom: 'bottom' }
+  return (Object.keys(ports) as PortSide[]).map(side => {
+    let s = r.config.flipX ? mirror[side] : side
+    for (let i = 0; i < rot; i++) s = cw[s]
+    return s
+  })
+}
+
+/** Nozzle on `w` to use toward `other`: the preferred axis first, and only sides that face the other end. */
+function pickSide(w: WidgetInstance, other: WidgetInstance, horizontalFirst: boolean): PortSide {
+  const [cx, cy] = center(w)
+  const [ox, oy] = center(other)
+  const h: PortSide = ox >= cx ? 'right' : 'left'
+  const v: PortSide = oy >= cy ? 'bottom' : 'top'
+  const avail = nozzleSides(w)
+  const order = horizontalFirst ? [h, v] : [v, h]
+  return order.find(s => avail.includes(s)) ?? order[0]
+}
+
+/** Orthogonal route between equipment nozzles: straight, L or Z shaped, using only nozzles the symbols have. */
 export function routeConnection(a: WidgetInstance, b: WidgetInstance, waypoints: Pt[]): Pt[] {
   if (waypoints.length > 0) {
     const first = waypoints[0]
@@ -38,18 +67,44 @@ export function routeConnection(a: WidgetInstance, b: WidgetInstance, waypoints:
   const [ax, ay] = center(a)
   const [bx, by] = center(b)
   const horizontal = Math.abs(bx - ax) >= Math.abs(by - ay)
-  const sa: PortSide = horizontal ? (bx >= ax ? 'right' : 'left') : (by >= ay ? 'bottom' : 'top')
-  const sb: PortSide = horizontal ? (bx >= ax ? 'left' : 'right') : (by >= ay ? 'top' : 'bottom')
-  const pa = portPoint(a, sa)
-  const pb = portPoint(b, sb)
-  if (horizontal) {
+  const sa = pickSide(a, b, horizontal)
+  const sb = pickSide(b, a, horizontal)
+  let pa = portPoint(a, sa)
+  let pb = portPoint(b, sb)
+  // Busbars and straight pipes are tapped where the other end lines up, not at their midpoint.
+  if (isRun(a) && !isRun(b)) pa = tapPoint(a, pb)
+  else if (isRun(b) && !isRun(a)) pb = tapPoint(b, pa)
+  if (isRun(a) !== isRun(b)) {
+    if (Math.abs(pa[0] - pb[0]) < 0.5 || Math.abs(pa[1] - pb[1]) < 0.5) return [pa, pb]
+  }
+  if (HORIZONTAL(sa) && HORIZONTAL(sb)) {
     if (Math.abs(pa[1] - pb[1]) < 0.5) return [pa, pb]
     const mx = Math.round((pa[0] + pb[0]) / 2)
     return simplify([pa, [mx, pa[1]], [mx, pb[1]], pb])
   }
-  if (Math.abs(pa[0] - pb[0]) < 0.5) return [pa, pb]
-  const my = Math.round((pa[1] + pb[1]) / 2)
-  return simplify([pa, [pa[0], my], [pb[0], my], pb])
+  if (!HORIZONTAL(sa) && !HORIZONTAL(sb)) {
+    if (Math.abs(pa[0] - pb[0]) < 0.5) return [pa, pb]
+    const my = Math.round((pa[1] + pb[1]) / 2)
+    return simplify([pa, [pa[0], my], [pb[0], my], pb])
+  }
+  // One horizontal nozzle, one vertical: a single elbow.
+  return simplify(HORIZONTAL(sa) ? [pa, [pb[0], pa[1]], pb] : [pa, [pa[0], pb[1]], pb])
+}
+
+/** A stretched symbol (busbar, straight pipe) that can be tapped anywhere along its length. */
+function isRun(w: WidgetInstance): boolean {
+  return !!resolveSymbol(w)?.def.stretch
+}
+
+/** Point on the run's long edge nearest `toward`. */
+function tapPoint(w: WidgetInstance, toward: Pt): Pt {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+  if (w.width >= w.height) {
+    const x = clamp(toward[0], w.x, w.x + w.width)
+    return [x, toward[1] >= w.y + w.height / 2 ? w.y + w.height : w.y]
+  }
+  const y = clamp(toward[1], w.y, w.y + w.height)
+  return [toward[0] >= w.x + w.width / 2 ? w.x + w.width : w.x, y]
 }
 
 function simplify(pts: Pt[]): Pt[] {

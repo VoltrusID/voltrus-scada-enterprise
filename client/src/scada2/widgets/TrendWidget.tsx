@@ -1,15 +1,17 @@
 import React, { useRef, useEffect } from 'react'
+import { useChartValues } from '../../store/dashboardStore'
 import { registerWidget, WIDGET_MANIFESTS } from './registry'
 import type { WidgetProps } from './types'
 
 const TrendWidget: React.FC<WidgetProps> = (props) => {
-  const { instance, sensor, data } = props
+  const { instance, sensor } = props
   const config = instance.config ?? {}
   const lineColor = config.lineColor ?? 'var(--cyan)'
-  const pointsCount = config.pointsCount ?? 60
+  const pointsCount = config.pointsCount ?? 180
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const bufferRef = useRef<number[]>([])
+  // The store keeps the live series per tag, backfilled from history on load, so trends start full.
+  const series = useChartValues(instance.sensorId ?? '', 'live')
 
   const resolveColor = (color: string): string => {
     if (color.startsWith('var(')) {
@@ -21,16 +23,6 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
     }
     return color
   }
-
-  useEffect(() => {
-    const val = data?.value
-    if (val !== undefined && val !== null) {
-      bufferRef.current.push(val)
-      if (bufferRef.current.length > pointsCount) {
-        bufferRef.current.shift()
-      }
-    }
-  }, [data?.value, pointsCount])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -56,10 +48,10 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
     const resolvedBorder = resolveColor('var(--border)')
     const resolvedFg = resolveColor('var(--fg)')
 
-    const buf = bufferRef.current
+    const buf = series.slice(-pointsCount)
 
     // Always draw grid
-    const pad = { top: 8, right: 8, bottom: 14, left: 32 }
+    const pad = { top: 18, right: 8, bottom: 14, left: 32 }
     const plotW = w - pad.left - pad.right
     const plotH = h - pad.top - pad.bottom
 
@@ -77,11 +69,20 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
         if (v < yMin) yMin = v
         if (v > yMax) yMax = v
       }
-      const yRange = yMax - yMin || 1
+      // At least 5 % of the tag's range, so a near-flat signal doesn't fill the plot with noise.
+      const minSpan = Math.abs((sensor?.max_val ?? 0) - (sensor?.min_val ?? 0)) * 0.05 || 1e-6
+      if (yMax - yMin < minSpan) {
+        const mid = (yMax + yMin) / 2
+        yMin = mid - minSpan / 2
+        yMax = mid + minSpan / 2
+      }
+      const yRange = yMax - yMin
       yMin -= yRange * 0.05
       yMax += yRange * 0.05
     }
     const totalRange = yMax - yMin || 1
+    // Enough decimals that the five grid labels differ.
+    const axisDecimals = Math.min(4, Math.max(0, Math.ceil(-Math.log10(totalRange / 4))))
 
     // Grid lines (4 horizontal)
     ctx.font = `${9 * 1}px Inter, sans-serif`
@@ -103,7 +104,7 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
 
       ctx.fillStyle = resolvedMuted
       ctx.globalAlpha = 0.6
-      ctx.fillText(val.toFixed(val % 1 === 0 ? 0 : 1), pad.left - 4, y)
+      ctx.fillText(val.toFixed(axisDecimals), pad.left - 4, y)
       ctx.globalAlpha = 1
     }
 
@@ -191,7 +192,17 @@ const TrendWidget: React.FC<WidgetProps> = (props) => {
     ctx.fillStyle = resolvedFg
     ctx.fillText(valText, pad.left + plotW, 2)
 
-  }, [data?.value, lineColor, pointsCount, sensor])
+    if (config.showName !== false && sensor?.name) {
+      ctx.font = '600 10px Inter, sans-serif'
+      ctx.textAlign = 'left'
+      ctx.fillStyle = resolvedMuted
+      const room = plotW - ctx.measureText(valText).width - 12
+      let name = sensor.name
+      while (name.length > 4 && ctx.measureText(name).width > room) name = name.slice(0, -2)
+      ctx.fillText(name === sensor.name ? name : name + '…', pad.left, 2)
+    }
+
+  }, [series, lineColor, pointsCount, sensor, config.showName])
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>

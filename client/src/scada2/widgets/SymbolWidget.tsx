@@ -7,7 +7,7 @@ import type { SymbolDef } from '../hmi/symbols'
 const SymbolWidget = (props: WidgetProps) => {
   const r = resolveSymbol(props.instance)
   if (!r) return null
-  return <SymbolView {...props} def={r.def} instance={{ ...props.instance, config: r.config }} defaultWritable={r.defaultWritable} />
+  return <SymbolView {...props} def={r.def} instance={{ ...props.instance, config: r.config }} />
 }
 
 /**

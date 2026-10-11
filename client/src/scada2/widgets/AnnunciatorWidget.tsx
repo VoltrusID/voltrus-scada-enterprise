@@ -39,49 +39,34 @@ const AnnunciatorWidget: React.FC<WidgetProps> = (props) => {
   })
 
   const severityColor = (s: 'crit' | 'warn' | null) =>
-    s === 'crit' ? 'var(--crit)' : s === 'warn' ? 'var(--warn)' : 'var(--border)'
+    s === 'crit' ? 'var(--hmi-fault)' : s === 'warn' ? 'var(--hmi-warn)' : 'var(--border)'
 
-  const severityBg = (s: 'crit' | 'warn' | null) =>
-    s === 'crit' ? 'rgba(239,68,68,0.08)' : s === 'warn' ? 'rgba(234,179,8,0.06)' : 'transparent'
-
+  // Annunciator windows: quiet when normal, filled and (critical) flashing when in alarm.
   return (
     <div style={{
-      width: '100%', height: '100%', overflow: 'auto',
-      display: 'grid',
-      gridTemplateColumns: `repeat(auto-fill, minmax(120px, 1fr))`,
-      gap: 3,
-      padding: 3,
-      alignContent: 'start',
+      width: '100%', height: '100%', overflow: 'auto', display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 4, alignContent: 'start',
     }}>
       {items.map((item, i) => {
         const color = severityColor(item.severity)
-        const bg = severityBg(item.severity)
         return (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '4px 6px', borderRadius: 4,
-            border: `1px solid ${color}`,
-            backgroundColor: bg,
-            opacity: item.isAlarm ? 1 : 0.5,
-            transition: 'opacity 0.3s ease, border-color 0.3s ease',
+          <div key={i} className={item.severity === 'crit' ? 'hmi-blink' : undefined} style={{
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, minHeight: 40,
+            padding: '5px 8px', borderRadius: 3, border: `1px solid ${color}`,
+            background: item.isAlarm ? `color-mix(in srgb, ${color} 20%, transparent)` : 'var(--hmi-badge)',
+            transition: 'border-color 0.3s ease, background-color 0.3s ease',
           }}>
             <div style={{
-              width: 8, height: 8, borderRadius: '50%',
-              backgroundColor: item.isAlarm ? color : 'var(--border)',
-              boxShadow: item.isAlarm ? `0 0 6px ${color}` : 'none',
-              flexShrink: 0,
-              transition: 'background-color 0.3s ease',
-            }} />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{
-                fontSize: 8, color: 'var(--fg)', fontWeight: 600,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {item.sensor.name}
-              </div>
-              <div style={{ fontSize: 7, color: 'var(--muted)' }}>
-                {item.value !== undefined ? `${item.value.toFixed(item.sensor.decimals ?? 1)} ${item.sensor.unit ?? ''}` : '--'}
-              </div>
+              fontSize: 11, fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              color: item.isAlarm ? 'var(--fg)' : 'var(--text-dim)',
+            }}>
+              {item.sensor.name}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: item.isAlarm ? 'var(--fg)' : 'var(--text-muted)' }}>
+                {item.value !== undefined ? `${item.value.toFixed(item.sensor.decimals ?? 1)} ${item.sensor.unit ?? ''}` : '----'}
+              </span>
+              {item.isAlarm && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', color }}>{item.severity === 'crit' ? 'ALARM' : 'WARN'}</span>}
             </div>
           </div>
         )
