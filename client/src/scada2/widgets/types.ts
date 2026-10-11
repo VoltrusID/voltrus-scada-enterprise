@@ -12,10 +12,11 @@ export type ScadaWidgetType =
   | 'motor' | 'valve' | 'pump' | 'push_button'
   | 'bar_chart' | 'pie_chart' | 'multi_trend'
   | 'annunciator' | 'pid_faceplate' | 'horizontal_tank' | 'progress_bar'
+  | 'symbol'
 
 // ── Config field schema ──
 
-export type ConfigFieldType = 'string' | 'number' | 'boolean' | 'select' | 'color'
+export type ConfigFieldType = 'string' | 'number' | 'boolean' | 'select' | 'color' | 'tag'
 
 export interface ConfigFieldDef {
   key: string

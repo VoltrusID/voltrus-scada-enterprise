@@ -32,9 +32,8 @@ export function useSaveScadaEquipment() {
         body: JSON.stringify({ items }),
       })
     },
-    onSuccess: (_, { screenId }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.scadaEquipment(screenId) })
-    },
+    // Returned so mutateAsync resolves only after the refetch lands.
+    onSuccess: (_, { screenId }) => qc.invalidateQueries({ queryKey: queryKeys.scadaEquipment(screenId) }),
   })
 }
 
@@ -49,8 +48,6 @@ export function useSaveScadaConnections() {
         body: JSON.stringify({ items }),
       })
     },
-    onSuccess: (_, { screenId }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.scadaConnections(screenId) })
-    },
+    onSuccess: (_, { screenId }) => qc.invalidateQueries({ queryKey: queryKeys.scadaConnections(screenId) }),
   })
 }

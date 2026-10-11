@@ -1,12 +1,13 @@
 import React, { useReducer, useState, useCallback, useRef, useEffect } from 'react'
-import type { ScadaWidgetType, ScadaCanvasState, ConnectionInstance } from './widgets/types'
+import type { ScadaWidgetType, ConnectionInstance, WidgetInstance } from './widgets/types'
 import { WIDGET_MANIFESTS, getCompatibleWidgetTypes, getWidgetComponent } from './widgets/registry'
-import type { ConfigFieldDef } from './widgets/types'
-import { ScadaCanvas } from './ScadaCanvas'
-import { ScadaPalette } from './ScadaPalette'
-import { ConnectionLayer } from './connections/ConnectionLayer'
-import { layoutReducer, createWidget, createConnection } from './engine/widgetState'
-import type { ScadaLayoutState } from './engine/widgetState'
+import { ScadaCanvas, STAGE_W, STAGE_H, type DropPayload } from './ScadaCanvas'
+import { ScadaPalette, PANEL_WIDTH } from './ScadaPalette'
+import { WidgetInspector, ConnectionInspector, INSPECTOR_WIDTH, widgetTitle } from './ScadaInspector'
+import { ConnectionLayer, CONNECTION_TYPES } from './connections/ConnectionLayer'
+import { historyReducer, emptyHistory, createWidget, createConnection, type ScadaLayoutState } from './engine/widgetState'
+import { SYMBOL_MAP, SYMBOLS } from './hmi/symbols'
+import { SymbolThumb } from './hmi/SymbolView'
 import type { SensorConfig, SensorData, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
 import { useDashboardSelector } from '../store/dashboardStore'
 import { wsWriteTag } from '../api/websocket'
@@ -14,17 +15,16 @@ import { writeTag } from '../api/commands'
 import { toast } from '../components/Toast'
 
 // Import all widgets to trigger registration
+import './widgets/SymbolWidget'
 import './widgets/IndicatorWidget'
 import './widgets/GaugeWidget'
 import './widgets/BarWidget'
 import './widgets/StatusLightWidget'
-import './widgets/TankLevelWidget'
 import './widgets/OnOffWidget'
 import './widgets/LabelWidget'
 import './widgets/TrendWidget'
 import './widgets/BigNumberWidget'
 import './widgets/DataTableWidget'
-import './widgets/PipeWidget'
 import './widgets/SliderWidget'
 import './widgets/NumberInputWidget'
 import './widgets/ToggleWidget'
@@ -32,16 +32,12 @@ import './widgets/MeterWidget'
 import './widgets/SemicircleGaugeWidget'
 import './widgets/DonutWidget'
 import './widgets/LEDDisplayWidget'
-import './widgets/MotorWidget'
-import './widgets/ValveWidget'
-import './widgets/PumpWidget'
 import './widgets/PushButtonWidget'
 import './widgets/BarChartWidget'
 import './widgets/PieChartWidget'
 import './widgets/MultiTrendWidget'
 import './widgets/AnnunciatorWidget'
 import './widgets/PIDFaceplateWidget'
-import './widgets/HorizontalTankWidget'
 import './widgets/ProgressBarWidget'
 
 interface Props {
@@ -49,26 +45,30 @@ interface Props {
   activeScreen: string
   scadaEquipment: ScadaEquipmentItem[]
   scadaConnections: ScadaConnectionItem[]
-  onSaveEquipment: (items: ScadaEquipmentItem[]) => void
-  onSaveConnections: (items: ScadaConnectionItem[]) => void
+  /** Both queries have returned for the active screen; editing before that would overwrite it with nothing. */
+  loaded: boolean
+  /** Resolves once both PUTs and their refetches have finished. */
+  onSave: (screenId: string, equipment: ScadaEquipmentItem[], connections: ScadaConnectionItem[]) => Promise<void>
   onSensorClick: (sensorId: number) => void
   isAdmin: boolean
   toolbarSlotSetter?: (slot: React.ReactNode) => void
 }
 
-const initialCanvasState: ScadaCanvasState = {
-  editMode: false,
-  activeTool: 'select',
-  selectedId: null,
-  connectFrom: null,
-  pendingSensor: null,
-}
+type Selection = { kind: 'widget' | 'connection'; id: string } | null
+type Tool = 'select' | 'connect'
 
-function loadLayoutFromAPI(
-  equipment: ScadaEquipmentItem[],
-  connections: ScadaConnectionItem[],
-): ScadaLayoutState {
-  const widgets = equipment.map(eq => {
+// Clicking these in runtime opens the bound tag's detail panel.
+const EQUIPMENT_TYPES = new Set<ScadaWidgetType>(['symbol', 'pump', 'motor', 'valve', 'tank_level', 'horizontal_tank', 'pipe'])
+
+function loadLayoutFromAPI(equipment: ScadaEquipmentItem[], connections: ScadaConnectionItem[]): ScadaLayoutState {
+  // Stacking order travels in config.z: the server returns rows sorted by id, not insertion order.
+  const parsed = equipment.map((eq, i) => {
+    const config = JSON.parse(eq.config || '{}') as Record<string, any>
+    const z = typeof config.z === 'number' ? config.z : i
+    delete config.z
+    return { eq, config, z }
+  }).sort((a, b) => a.z - b.z)
+  const widgets = parsed.map(({ eq, config }) => {
     const bindings: number[] = JSON.parse(eq.sensor_bindings || '[]')
     return {
       id: eq.equipment_id,
@@ -79,10 +79,9 @@ function loadLayoutFromAPI(
       y: eq.y,
       width: eq.width,
       height: eq.height,
-      config: (JSON.parse(eq.config || '{}') as Record<string, any>),
+      config,
     }
   })
-
   const conns: ConnectionInstance[] = connections.map(c => ({
     id: c.connection_id,
     fromWidgetId: c.from_equipment,
@@ -90,94 +89,204 @@ function loadLayoutFromAPI(
     connectionType: c.connection_type as ConnectionInstance['connectionType'],
     waypoints: JSON.parse(c.waypoints || '[]'),
   }))
-
   return { widgets, connections: conns }
 }
 
+function toAPI(layout: ScadaLayoutState, sensors: SensorConfig[]) {
+  const equipment: ScadaEquipmentItem[] = layout.widgets.map((w, i) => ({
+    equipment_id: w.id,
+    equipment_type: w.type as any,
+    equipment_name: w.config?.label || sensors.find(s => s.id === w.sensorId)?.name || widgetTitle(w),
+    x: w.x,
+    y: w.y,
+    width: w.width,
+    height: w.height,
+    rotation: Number(w.config?.rotation ?? 0),
+    sensor_bindings: JSON.stringify(w.sensorIds ?? (w.sensorId != null ? [w.sensorId] : [])),
+    config: JSON.stringify({ ...w.config, z: i }),
+  }))
+  const connections: ScadaConnectionItem[] = layout.connections.map(c => ({
+    connection_id: c.id,
+    from_equipment: c.fromWidgetId,
+    to_equipment: c.toWidgetId,
+    waypoints: JSON.stringify(c.waypoints),
+    connection_type: c.connectionType,
+  }))
+  return { equipment, connections }
+}
+
+/** Keep a widget's box on the stage. */
+const clampPos = (x: number, y: number, w: number, h: number) => ({
+  x: Math.max(0, Math.min(STAGE_W - w, x)),
+  y: Math.max(0, Math.min(STAGE_H - h, y)),
+})
+
+const newId = (p: string) => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+const isTyping = (t: EventTarget | null) =>
+  t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))
+
+const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2]
+
 export const ScadaView: React.FC<Props> = ({
-  sensors, activeScreen, scadaEquipment, scadaConnections,
-  onSaveEquipment, onSaveConnections, onSensorClick, isAdmin,
-  toolbarSlotSetter,
+  sensors, activeScreen, scadaEquipment, scadaConnections, loaded,
+  onSave, onSensorClick, isAdmin, toolbarSlotSetter,
 }) => {
-  const currentValues = useDashboardSelector(s => s.currentValues)
-  const [layout, dispatch] = useReducer(layoutReducer, { widgets: [], connections: [] })
-  const [canvasState, setCanvasState] = useState<ScadaCanvasState>(initialCanvasState)
-  const dirtyRef = useRef(false)
+  const currentValues = useDashboardSelector(s => s.currentValues) as Record<string, SensorData>
+  const [history, dispatch] = useReducer(historyReducer, emptyHistory)
+  const layout = history.present
+  const dirty = history.present !== history.saved
 
-  // Load layout when screen changes
+  const [editMode, setEditMode] = useState(false)
+  const [tool, setTool] = useState<Tool>('select')
+  const [connectType, setConnectType] = useState<ConnectionInstance['connectionType']>('flow')
+  const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
+  const [selection, setSelection] = useState<Selection>(null)
+  const [pendingSensor, setPendingSensor] = useState<{ sensorId: number; x: number; y: number } | null>(null)
+  const [zoom, setZoom] = useState<'fit' | number>('fit')
+  const [scale, setScale] = useState(1)
+  const [showGrid, setShowGrid] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const clipboard = useRef<WidgetInstance | null>(null)
+  const loadedScreen = useRef<string | null>(null)
+  const savingRef = useRef(false)
+  /** Screen whose auto-save failed on switch; its edits stay on screen until a manual save succeeds. */
+  const autoSaveFailed = useRef<string | null>(null)
+
+  /** Persist `snapshot` to `screenId`. Only marks clean if that screen is still the one being edited. */
+  const saveLayout = useCallback(async (screenId: string, snapshot: ScadaLayoutState, auto = false): Promise<boolean> => {
+    savingRef.current = true
+    setSaving(true)
+    try {
+      const { equipment, connections } = toAPI(snapshot, sensors)
+      await onSave(screenId, equipment, connections)
+      if (loadedScreen.current === screenId) dispatch({ type: 'MARK_SAVED', snapshot })
+      if (autoSaveFailed.current === screenId) autoSaveFailed.current = null
+      return true
+    } catch (err: any) {
+      // Set before `saving` flips so the reload effect never retries a failed auto-save.
+      if (auto) autoSaveFailed.current = screenId
+      toast.error(auto
+        ? `Screen not saved: ${err?.message || 'request failed'}. Edits kept on screen; press Save to retry.`
+        : `Screen not saved: ${err?.message || 'request failed'}`)
+      return false
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }, [sensors, onSave])
+
+  // Latest values for the unmount auto-save below.
+  const latest = useRef({ dirty, layout, saveLayout })
+  latest.current = { dirty, layout, saveLayout }
+
+  // Load the server copy when the screen changes. Unsaved edits on the previous screen are saved first;
+  // background refetches never clobber edits, and are ignored while our own save is in flight.
   useEffect(() => {
-    const loaded = loadLayoutFromAPI(scadaEquipment, scadaConnections)
-    dispatch({ type: 'LOAD_LAYOUT', widgets: loaded.widgets, connections: loaded.connections })
-    dirtyRef.current = false
-  }, [activeScreen, scadaEquipment, scadaConnections])
-
-  // ── Handlers ──
-
-  const handleToggleEdit = useCallback(() => {
-    setCanvasState(prev => ({
-      ...prev,
-      editMode: !prev.editMode,
-      activeTool: 'select',
-      connectFrom: null,
-      pendingSensor: null,
-    }))
-  }, [])
-
-  const handleToolChange = useCallback((tool: ScadaCanvasState['activeTool']) => {
-    setCanvasState(prev => ({ ...prev, activeTool: tool, connectFrom: null }))
-  }, [])
-
-  const handleSelectWidget = useCallback((id: string | null) => {
-    setCanvasState(prev => ({ ...prev, selectedId: id }))
-
-    // Connect mode: clicking a second widget creates a connection
-    if (id && canvasState.activeTool === 'connect' && canvasState.editMode) {
-      if (canvasState.connectFrom && canvasState.connectFrom !== id) {
-        dispatch({ type: 'ADD_CONNECTION', connection: createConnection(canvasState.connectFrom, id, 'power') })
-        dirtyRef.current = true
-        setCanvasState(prev => ({ ...prev, connectFrom: null }))
-      } else {
-        setCanvasState(prev => ({ ...prev, connectFrom: id }))
-      }
+    if (!loaded || savingRef.current) return
+    const sameScreen = loadedScreen.current === activeScreen
+    if (sameScreen && autoSaveFailed.current === activeScreen) autoSaveFailed.current = null
+    if (sameScreen && dirty) return
+    if (!sameScreen && dirty && loadedScreen.current) {
+      // Save the previous screen first; this effect re-runs when the save settles (`saving` dep).
+      // If it failed, keep its edits on screen rather than drop them; a manual Save retries.
+      const prev = loadedScreen.current
+      if (autoSaveFailed.current === prev) return
+      void saveLayout(prev, layout, true)
+      return
     }
+    const next = loadLayoutFromAPI(scadaEquipment, scadaConnections)
+    // The refetch after our own save echoes what's on screen; keep undo history and selection.
+    if (sameScreen && JSON.stringify(next) === JSON.stringify(layout)) return
+    loadedScreen.current = activeScreen
+    dispatch({ type: 'LOAD_LAYOUT', widgets: next.widgets, connections: next.connections })
+    setSelection(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScreen, scadaEquipment, scadaConnections, loaded, saving])
 
-    // Delete mode
-    if (id && canvasState.activeTool === 'delete' && canvasState.editMode) {
-      dispatch({ type: 'REMOVE_WIDGET', id })
-      dirtyRef.current = true
-      setCanvasState(prev => ({ ...prev, selectedId: null }))
-    }
-  }, [canvasState.activeTool, canvasState.editMode, canvasState.connectFrom])
-
-  const handleMoveWidget = useCallback((id: string, x: number, y: number) => {
-    dispatch({ type: 'MOVE_WIDGET', id, x, y })
-    dirtyRef.current = true
+  // Leaving the SCADA view (unmount) with unsaved edits: save them rather than drop them.
+  useEffect(() => () => {
+    const { dirty, layout, saveLayout } = latest.current
+    if (dirty && loadedScreen.current) void saveLayout(loadedScreen.current, layout)
   }, [])
 
-  const handleResizeWidget = useCallback((id: string, x: number, y: number, width: number, height: number) => {
-    dispatch({ type: 'RESIZE_WIDGET', id, x, y, width, height })
-    dirtyRef.current = true
+  const selectedWidget = selection?.kind === 'widget' ? layout.widgets.find(w => w.id === selection.id) : undefined
+  const selectedConn = selection?.kind === 'connection' ? layout.connections.find(c => c.id === selection.id) : undefined
+
+  // ── Mutations ──
+
+  const addWidget = useCallback((w: WidgetInstance) => {
+    dispatch({ type: 'ADD_WIDGET', widget: w })
+    setSelection({ kind: 'widget', id: w.id })
   }, [])
 
-  const handleDropSensor = useCallback((sensorId: number, x: number, y: number) => {
-    setCanvasState(prev => ({ ...prev, pendingSensor: { sensorId, x, y } }))
-  }, [])
+  /** Default spot for click-to-add: stage centre, cascading so items don't stack exactly. */
+  const placeAt = (w: number, h: number) => {
+    const n = layout.widgets.length % 8
+    return clampPos(Math.round((STAGE_W / 2 - w / 2 + n * 20) / 10) * 10, Math.round((STAGE_H / 2 - h / 2 + n * 20) / 10) * 10, w, h)
+  }
+
+  const addSymbol = useCallback((key: string, x?: number, y?: number, sensorId: number | null = null) => {
+    const def = SYMBOL_MAP[key]
+    if (!def) return
+    const [w, h] = def.size
+    const pos = x != null && y != null ? clampPos(x, y, w, h) : placeAt(w, h)
+    const widget = createWidget('symbol', sensorId, pos.x, pos.y, w, h)
+    widget.config = { symbol: key }
+    addWidget(widget)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addWidget, layout.widgets.length])
+
+  const addWidgetType = useCallback((type: ScadaWidgetType, x?: number, y?: number, sensorId: number | null = null) => {
+    const m = WIDGET_MANIFESTS[type]
+    const pos = x != null && y != null ? clampPos(x, y, m.defaultWidth, m.defaultHeight) : placeAt(m.defaultWidth, m.defaultHeight)
+    addWidget(createWidget(type, sensorId, pos.x, pos.y, m.defaultWidth, m.defaultHeight))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addWidget, layout.widgets.length])
+
+  const handleDrop = useCallback((p: DropPayload, x: number, y: number) => {
+    if (p.kind === 'symbol') addSymbol(p.key, x, y)
+    else if (p.kind === 'widget') addWidgetType(p.type as ScadaWidgetType, x, y)
+    else setPendingSensor({ sensorId: p.id, x, y })
+  }, [addSymbol, addWidgetType])
 
   const handlePickWidgetType = useCallback((type: ScadaWidgetType) => {
-    if (!canvasState.pendingSensor) return
-    const { sensorId, x, y } = canvasState.pendingSensor
-    const manifest = WIDGET_MANIFESTS[type]
-    const widget = createWidget(type, sensorId, x, y, manifest.defaultWidth, manifest.defaultHeight)
-    dispatch({ type: 'ADD_WIDGET', widget })
-    dirtyRef.current = true
-    setCanvasState(prev => ({ ...prev, pendingSensor: null }))
-  }, [canvasState.pendingSensor])
+    if (!pendingSensor) return
+    addWidgetType(type, pendingSensor.x, pendingSensor.y, pendingSensor.sensorId)
+    setPendingSensor(null)
+  }, [pendingSensor, addWidgetType])
 
-  const handleCancelPick = useCallback(() => {
-    setCanvasState(prev => ({ ...prev, pendingSensor: null }))
-  }, [])
+  const handlePickSymbol = useCallback((key: string) => {
+    if (!pendingSensor) return
+    addSymbol(key, pendingSensor.x, pendingSensor.y, pendingSensor.sensorId)
+    setPendingSensor(null)
+  }, [pendingSensor, addSymbol])
 
-  // Write value to tag via WebSocket (direct write), fall back to REST API
+  const deleteSelection = useCallback(() => {
+    if (!selection) return
+    dispatch(selection.kind === 'widget' ? { type: 'REMOVE_WIDGET', id: selection.id } : { type: 'REMOVE_CONNECTION', id: selection.id })
+    setSelection(null)
+  }, [selection])
+
+  const pasteWidget = useCallback((src: WidgetInstance) => {
+    addWidget({ ...src, id: newId('w'), ...clampPos(src.x + 20, src.y + 20, src.width, src.height), config: { ...src.config } })
+  }, [addWidget])
+
+  const handleSelectWidget = useCallback((id: string) => {
+    if (tool === 'connect') {
+      if (connectFrom && connectFrom !== id) {
+        const conn = createConnection(connectFrom, id, connectType)
+        dispatch({ type: 'ADD_CONNECTION', connection: conn })
+        setConnectFrom(null)
+        setSelection({ kind: 'connection', id: conn.id })
+      } else {
+        setConnectFrom(id)
+      }
+      return
+    }
+    setSelection({ kind: 'widget', id })
+  }, [tool, connectFrom, connectType])
+
   const handleWriteValue = useCallback(async (_widgetId: string, sensorId: number, value: number) => {
     try {
       if (wsWriteTag(sensorId, value)) return
@@ -187,373 +296,330 @@ export const ScadaView: React.FC<Props> = ({
     }
   }, [])
 
-  // Delete a connection
-  const handleDeleteConnection = useCallback((id: string) => {
-    dispatch({ type: 'REMOVE_CONNECTION', id })
-    dirtyRef.current = true
-  }, [])
-
-  // Save: convert widget layout back to API format
   const handleSave = useCallback(() => {
-    const equipment: ScadaEquipmentItem[] = layout.widgets.map(w => ({
-      equipment_id: w.id,
-      equipment_type: w.type as any,
-      equipment_name: sensors.find(s => s.id === w.sensorId)?.name ?? w.type,
-      x: w.x,
-      y: w.y,
-      width: w.width,
-      height: w.height,
-      rotation: 0,
-      sensor_bindings: JSON.stringify(w.sensorIds ?? (w.sensorId != null ? [w.sensorId] : [])),
-      config: JSON.stringify(w.config ?? {}),
-    }))
+    if (!savingRef.current && loadedScreen.current) void saveLayout(loadedScreen.current, layout)
+  }, [saveLayout, layout])
 
-    const connections: ScadaConnectionItem[] = layout.connections.map(c => ({
-      connection_id: c.id,
-      from_equipment: c.fromWidgetId,
-      to_equipment: c.toWidgetId,
-      waypoints: JSON.stringify(c.waypoints),
-      connection_type: c.connectionType,
-    }))
+  const resetTransient = () => { setTool('select'); setConnectFrom(null); setPendingSensor(null); setSelection(null) }
 
-    onSaveEquipment(equipment)
-    onSaveConnections(connections)
-    dirtyRef.current = false
-  }, [layout, sensors, onSaveEquipment, onSaveConnections])
+  const toggleEdit = useCallback(async () => {
+    if (!editMode && !loaded) return
+    // Done saves; stay in edit mode if the save fails so nothing is lost.
+    if (editMode && dirty && loadedScreen.current && !(await saveLayout(loadedScreen.current, layout))) return
+    resetTransient()
+    setZoom('fit')
+    setEditMode(e => !e)
+  }, [editMode, dirty, loaded, layout, saveLayout])
 
-  // Palette tag click: in edit mode, show type picker; in live mode, open sensor detail
-  const handlePaletteSelect = useCallback((sensorId: number) => {
-    if (canvasState.editMode) {
-      setCanvasState(prev => ({ ...prev, pendingSensor: { sensorId, x: 200, y: 200 } }))
-    } else {
-      onSensorClick(sensorId)
+  const zoomBy = useCallback((dir: 1 | -1) => {
+    const cur = zoom === 'fit' ? scale : zoom
+    const next = dir > 0 ? ZOOM_STEPS.find(z => z > cur + 0.001) : [...ZOOM_STEPS].reverse().find(z => z < cur - 0.001)
+    if (next) setZoom(next)
+  }, [zoom, scale])
+
+  // ── Keyboard ──
+
+  useEffect(() => {
+    if (!editMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e.target)) return
+      const mod = e.ctrlKey || e.metaKey
+      const k = e.key.toLowerCase()
+      if (mod && k === 's') { e.preventDefault(); handleSave(); return }
+      if (mod && k === 'z') { e.preventDefault(); dispatch({ type: e.shiftKey ? 'REDO' : 'UNDO' }); return }
+      if (mod && k === 'y') { e.preventDefault(); dispatch({ type: 'REDO' }); return }
+      if (mod && k === 'c' && selectedWidget) { clipboard.current = selectedWidget; return }
+      if (mod && k === 'v' && clipboard.current) { e.preventDefault(); pasteWidget(clipboard.current); clipboard.current = { ...clipboard.current, x: clipboard.current.x + 20, y: clipboard.current.y + 20 }; return }
+      if (mod && k === 'd' && selectedWidget) { e.preventDefault(); pasteWidget(selectedWidget); return }
+      if (mod && (k === '=' || k === '+')) { e.preventDefault(); zoomBy(1); return }
+      if (mod && k === '-') { e.preventDefault(); zoomBy(-1); return }
+      if (mod && k === '0') { e.preventDefault(); setZoom('fit'); return }
+      if (mod) return
+      if (k === 'escape') { resetTransient(); return }
+      if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelection(); return }
+      if (k === 'v') { setTool('select'); setConnectFrom(null); return }
+      if (k === 'c') { setTool('connect'); setSelection(null); return }
+      if (selectedWidget && (k === ']' || k === '[')) { dispatch({ type: 'REORDER_WIDGET', id: selectedWidget.id, to: k === ']' ? 'front' : 'back' }); return }
+      if (selectedWidget && k.startsWith('arrow')) {
+        e.preventDefault()
+        const step = e.shiftKey ? 10 : 1
+        const dx = k === 'arrowleft' ? -step : k === 'arrowright' ? step : 0
+        const dy = k === 'arrowup' ? -step : k === 'arrowdown' ? step : 0
+        dispatch({
+          type: 'MOVE_WIDGET', id: selectedWidget.id, coalesce: `nudge:${selectedWidget.id}`,
+          x: Math.max(0, Math.min(STAGE_W - selectedWidget.width, selectedWidget.x + dx)),
+          y: Math.max(0, Math.min(STAGE_H - selectedWidget.height, selectedWidget.y + dy)),
+        })
+      }
     }
-  }, [canvasState.editMode, onSensorClick])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode, selectedWidget, handleSave, deleteSelection, pasteWidget, zoomBy])
 
-  // Toolbar icon button style helper
-  const tBtn = (active: boolean, color?: string): React.CSSProperties => ({
-    padding: '3px 8px', borderRadius: 5, display: 'inline-flex', alignItems: 'center', gap: 4,
-    border: `1px solid ${active ? (color ?? 'var(--cyan)') : 'var(--border)'}`,
-    background: active ? `${color ?? 'var(--cyan)'}15` : 'transparent',
-    color: active ? (color ?? 'var(--cyan)') : 'var(--fg)',
-    cursor: 'pointer', fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap',
-  })
+  // Warn before closing the tab with unsaved work.
+  useEffect(() => {
+    if (!editMode || !dirty) return
+    const onUnload = (e: BeforeUnloadEvent) => { e.preventDefault() }
+    window.addEventListener('beforeunload', onUnload)
+    return () => window.removeEventListener('beforeunload', onUnload)
+  }, [editMode, dirty])
 
-  const IS = { width: 14, height: 14, flexShrink: 0 } as const
+  // ── Toolbar (rendered into the parent view toolbar) ──
 
-  // Push toolbar into parent ViewToolbar via slot
   useEffect(() => {
     if (!toolbarSlotSetter) return
     if (!isAdmin) { toolbarSlotSetter(null); return }
-
+    const sep = <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px' }} />
     toolbarSlotSetter(
-      <>
-        {canvasState.editMode && (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {editMode && (
           <>
-            <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
-            <button onClick={() => handleToolChange('select')} title="Select" style={tBtn(canvasState.activeTool === 'select')}>
-              <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></svg>
-              Select
-            </button>
-            <button onClick={() => handleToolChange('connect')} title="Connect" style={tBtn(canvasState.activeTool === 'connect', 'var(--ok)')}>
-              <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              Connect
-            </button>
-            <button onClick={() => handleToolChange('delete')} title="Delete Widget" style={tBtn(canvasState.activeTool === 'delete', '#ef4444')}>
-              <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-              Del Widget
-            </button>
-            <button onClick={() => handleToolChange('delete_connection')} title="Delete Line" style={tBtn(canvasState.activeTool === 'delete_connection', '#f97316')}>
-              <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-              Del Line
-            </button>
-            <div style={{ width: 1, height: 16, background: 'var(--border)' }} />
-            <button onClick={handleSave} disabled={!dirtyRef.current} title="Save" style={{
-              ...tBtn(!!dirtyRef.current, 'var(--cyan)'),
-              opacity: dirtyRef.current ? 1 : 0.4,
-              cursor: dirtyRef.current ? 'pointer' : 'not-allowed',
-            }}>
-              <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Save
-            </button>
+            {sep}
+            <IconBtn title="Undo (Ctrl+Z)" disabled={history.past.length === 0} onClick={() => dispatch({ type: 'UNDO' })}>
+              <path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+            </IconBtn>
+            <IconBtn title="Redo (Ctrl+Shift+Z)" disabled={history.future.length === 0} onClick={() => dispatch({ type: 'REDO' })}>
+              <path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+            </IconBtn>
+            {sep}
+            <IconBtn title="Select (V)" active={tool === 'select'} onClick={() => { setTool('select'); setConnectFrom(null) }}>
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" />
+            </IconBtn>
+            <IconBtn title="Connect (C) — click source, then target" active={tool === 'connect'} onClick={() => { setTool('connect'); setSelection(null) }}>
+              <circle cx="5" cy="6" r="2.5" /><circle cx="19" cy="18" r="2.5" /><path d="M7.5 6H12v12h4.5" />
+            </IconBtn>
+            {tool === 'connect' && (
+              <select value={connectType} onChange={e => setConnectType(e.target.value as ConnectionInstance['connectionType'])}
+                style={{ fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--fg)' }}>
+                {CONNECTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            )}
+            {sep}
+            <IconBtn title="Toggle grid" active={showGrid} onClick={() => setShowGrid(g => !g)}>
+              <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+            </IconBtn>
+            <IconBtn title="Zoom out (Ctrl+-)" onClick={() => zoomBy(-1)}><path d="M5 12h14" /></IconBtn>
+            <button onClick={() => setZoom('fit')} title="Fit to window (Ctrl+0)" style={{
+              minWidth: 46, padding: '3px 4px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent',
+              color: zoom === 'fit' ? 'var(--cyan)' : 'var(--fg)', fontSize: 11, fontFamily: 'var(--font-mono)', cursor: 'pointer',
+            }}>{Math.round(scale * 100)}%</button>
+            <IconBtn title="Zoom in (Ctrl++)" onClick={() => zoomBy(1)}><path d="M12 5v14M5 12h14" /></IconBtn>
+            {sep}
+            <button onClick={handleSave} disabled={!dirty || saving} title="Save (Ctrl+S)" style={{
+              padding: '3px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+              border: `1px solid ${dirty ? 'var(--cyan)' : 'var(--border)'}`,
+              background: dirty ? 'color-mix(in srgb, var(--cyan) 14%, transparent)' : 'transparent',
+              color: dirty ? 'var(--cyan)' : 'var(--muted)', cursor: dirty ? 'pointer' : 'default',
+            }}>{saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}</button>
           </>
         )}
-        <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 4px' }} />
-        <button onClick={handleToggleEdit} title={canvasState.editMode ? 'Exit edit mode' : 'Enter edit mode'} style={{
-          padding: '3px 8px', borderRadius: 5, display: 'inline-flex', alignItems: 'center', gap: 4,
-          border: `1px solid ${canvasState.editMode ? 'var(--warn)' : 'var(--border)'}`,
-          background: canvasState.editMode ? 'rgba(245,158,11,.1)' : 'transparent',
-          color: canvasState.editMode ? 'var(--warn)' : 'var(--fg)',
-          cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
-        }}>
-          {canvasState.editMode
-            ? <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            : <svg style={IS} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          }
-          {canvasState.editMode ? 'Done' : 'Edit'}
-        </button>
-      </>
+        {sep}
+        <button onClick={toggleEdit} disabled={!loaded || saving} title={editMode ? 'Save and leave edit mode' : loaded ? 'Edit screen' : 'Loading screen…'} style={{
+          padding: '3px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+          border: `1px solid ${editMode ? 'var(--warn)' : 'var(--border)'}`,
+          background: editMode ? 'color-mix(in srgb, var(--warn) 12%, transparent)' : 'transparent',
+          color: editMode ? 'var(--warn)' : 'var(--fg)',
+        }}>{editMode ? 'Done' : 'Edit'}</button>
+      </div>,
     )
     return () => toolbarSlotSetter(null)
-  }, [canvasState.editMode, canvasState.activeTool, dirtyRef.current, isAdmin, toolbarSlotSetter])
+  }, [editMode, tool, connectType, showGrid, zoom, scale, dirty, saving, loaded, history.past.length, history.future.length, isAdmin, toolbarSlotSetter, handleSave, toggleEdit, zoomBy])
+
+  const rightOpen = editMode && (!!pendingSensor || !!selectedWidget || !!selectedConn)
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ flex: 1, position: 'relative' }}>
-        <ScadaPalette
-          visible={canvasState.editMode}
-          sensors={sensors}
-          onSelect={handlePaletteSelect}
-        />
-        <div style={{
-          position: 'absolute', top: 0, left: 0, bottom: 0,
-          ...(canvasState.pendingSensor || (canvasState.editMode && canvasState.selectedId) ? { right: 300 } : { right: 0 }),
-          transition: 'right 0.2s ease',
-        }}>
+      <div style={{ flex: 1, position: 'relative', minHeight: 420 }}>
+        {editMode && (
+          <ScadaPalette
+            sensors={sensors}
+            onAddSymbol={key => addSymbol(key)}
+            onAddWidget={type => addWidgetType(type)}
+            onPickTag={id => setPendingSensor({ sensorId: id, ...placeAt(100, 100) })}
+          />
+        )}
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: editMode ? PANEL_WIDTH : 0, right: rightOpen ? INSPECTOR_WIDTH : 0 }}>
           <ScadaCanvas
             layout={layout}
             sensors={sensors}
             currentValues={currentValues}
-            editMode={canvasState.editMode}
-            selectedId={canvasState.selectedId}
-            onSelectWidget={handleSelectWidget}
-            onMoveWidget={handleMoveWidget}
-            onResizeWidget={handleResizeWidget}
-            onDropSensor={handleDropSensor}
+            editMode={editMode}
+            selectedId={selection?.kind === 'widget' ? selection.id : connectFrom}
+            zoom={editMode ? zoom : 'fit'}
+            showGrid={showGrid}
+            cursor={tool === 'connect' ? 'crosshair' : undefined}
+            locked={tool === 'connect'}
+            onScaleChange={setScale}
+            onSelectWidget={editMode ? handleSelectWidget : (id => {
+              const w = layout.widgets.find(x => x.id === id)
+              if (w && w.sensorId != null && EQUIPMENT_TYPES.has(w.type)) onSensorClick(w.sensorId)
+            })}
+            onMoveWidget={(id, x, y) => dispatch({ type: 'MOVE_WIDGET', id, x, y })}
+            onResizeWidget={(id, x, y, width, height) => dispatch({ type: 'RESIZE_WIDGET', id, x, y, width, height })}
+            onDrop={handleDrop}
             onWriteValue={handleWriteValue}
-            onClickEmpty={() => setCanvasState(prev => ({ ...prev, selectedId: null }))}
+            onClickEmpty={() => { setSelection(null); setConnectFrom(null) }}
+            onPointerMove={editMode && connectFrom ? (x, y) => setPointer({ x, y }) : undefined}
           >
             <ConnectionLayer
               widgets={layout.widgets}
               connections={layout.connections}
-              editMode={canvasState.editMode}
-              onDeleteConnection={canvasState.editMode ? handleDeleteConnection : undefined}
+              currentValues={currentValues}
+              editMode={editMode}
+              selectedId={selection?.kind === 'connection' ? selection.id : null}
+              onSelect={tool === 'select' ? id => setSelection({ kind: 'connection', id }) : undefined}
+              pending={connectFrom && pointer ? { fromId: connectFrom, ...pointer } : null}
             />
           </ScadaCanvas>
+          {editMode && tool === 'connect' && (
+            <div style={{
+              position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 15,
+              padding: '5px 12px', borderRadius: 999, fontSize: 11, background: 'var(--card)', border: '1px solid var(--border)',
+              color: 'var(--text-dim)', boxShadow: 'var(--shadow)',
+            }}>
+              {connectFrom ? 'Now click the target equipment · Esc to cancel' : 'Click the source equipment'}
+            </div>
+          )}
+          {editMode && layout.widgets.length === 0 && (
+            <div style={{
+              position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none',
+              color: 'var(--muted)', fontSize: 13, textAlign: 'center', lineHeight: 1.6,
+            }}>
+              <div>Drag equipment from the <b>Symbols</b> tab to start this screen.<br />Bind tags in the inspector on the right.</div>
+            </div>
+          )}
         </div>
 
-        {/* Right sidebar: type picker OR config panel */}
-        {canvasState.pendingSensor && (
+        {editMode && pendingSensor && (
           <WidgetTypeSidebar
-            sensorId={canvasState.pendingSensor.sensorId}
+            sensorId={pendingSensor.sensorId}
             sensors={sensors}
             onSelect={handlePickWidgetType}
-            onClose={handleCancelPick}
+            onSelectSymbol={handlePickSymbol}
+            onClose={() => setPendingSensor(null)}
           />
         )}
-        {!canvasState.pendingSensor && canvasState.editMode && canvasState.selectedId && (() => {
-          const widget = layout.widgets.find(w => w.id === canvasState.selectedId)
-          if (!widget) return null
-          return (
-            <WidgetConfigSidebar
-              widget={widget}
-              sensors={sensors}
-              onUpdateConfig={(config) => {
-                dispatch({ type: 'UPDATE_WIDGET_CONFIG', id: widget.id, config })
-                dirtyRef.current = true
-              }}
-              onClose={() => setCanvasState(prev => ({ ...prev, selectedId: null }))}
-            />
-          )
-        })()}
+        {editMode && !pendingSensor && selectedWidget && (
+          <WidgetInspector
+            key={selectedWidget.id}
+            widget={selectedWidget}
+            sensors={sensors}
+            onUpdate={(updates, coalesce) => dispatch({ type: 'UPDATE_WIDGET', id: selectedWidget.id, updates, coalesce })}
+            onUpdateConfig={(config, coalesce) => dispatch({ type: 'UPDATE_WIDGET_CONFIG', id: selectedWidget.id, config, coalesce })}
+            onDuplicate={() => pasteWidget(selectedWidget)}
+            onReorder={to => dispatch({ type: 'REORDER_WIDGET', id: selectedWidget.id, to })}
+            onDelete={deleteSelection}
+          />
+        )}
+        {editMode && !pendingSensor && selectedConn && (
+          <ConnectionInspector
+            connection={selectedConn}
+            widgets={layout.widgets}
+            onUpdate={updates => dispatch({ type: 'UPDATE_CONNECTION', id: selectedConn.id, updates })}
+            onDelete={deleteSelection}
+          />
+        )}
       </div>
     </div>
   )
 }
 
-// ── Right sidebar: Widget Type Picker ──
-
-const sidebarStyle: React.CSSProperties = {
-  position: 'absolute', top: 0, right: 0, bottom: 0, width: 300,
-  background: 'var(--card)', borderLeft: '1px solid var(--border)',
-  display: 'flex', flexDirection: 'column', zIndex: 20,
-  overflow: 'hidden',
+function IconBtn({ title, onClick, active, disabled, children }: {
+  title: string; onClick: () => void; active?: boolean; disabled?: boolean; children: React.ReactNode
+}) {
+  return (
+    <button onClick={onClick} title={title} aria-label={title} disabled={disabled} style={{
+      width: 26, height: 24, display: 'inline-grid', placeItems: 'center', borderRadius: 5, padding: 0,
+      border: `1px solid ${active ? 'var(--cyan)' : 'var(--border)'}`,
+      background: active ? 'color-mix(in srgb, var(--cyan) 14%, transparent)' : 'transparent',
+      color: active ? 'var(--cyan)' : 'var(--fg)', opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer',
+    }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {children}
+      </svg>
+    </button>
+  )
 }
+
+// ── Right sidebar: pick a visualization for a dropped tag ──
 
 const WidgetTypeSidebar: React.FC<{
   sensorId: number
   sensors: SensorConfig[]
   onSelect: (type: ScadaWidgetType) => void
+  onSelectSymbol: (key: string) => void
   onClose: () => void
-}> = ({ sensorId, sensors, onSelect, onClose }) => {
+}> = ({ sensorId, sensors, onSelect, onSelectSymbol, onClose }) => {
   const sensor = sensors.find(s => s.id === sensorId)
-  const isAnalog = sensor ? (sensor.max_val !== sensor.min_val) : true
-  const types = getCompatibleWidgetTypes(isAnalog)
+  const isAnalog = sensor ? sensor.max_val !== sensor.min_val : true
+  // Equipment is offered as library symbols (operator writes opt-in), not as the legacy writable widget types.
+  const types = getCompatibleWidgetTypes(isAnalog).filter(t => !EQUIPMENT_TYPES.has(t))
+  const symbols = SYMBOLS.filter(s => s.binding === 'state' || (isAnalog && s.binding !== 'none'))
 
   const sampleSensor: SensorConfig = sensor ?? {
     id: sensorId, key: 'sample', name: 'Sample', unit: '', min_val: 0, max_val: 100, warn_val: 75, crit_val: 90,
-  } as any
-
+  } as SensorConfig
   const sampleData: SensorData = {
     id: sensorId, key: sampleSensor.key,
     value: ((sampleSensor.max_val ?? 100) - (sampleSensor.min_val ?? 0)) * 0.6 + (sampleSensor.min_val ?? 0),
     warn: sampleSensor.warn_val ?? 75, crit: sampleSensor.crit_val ?? 90, source_type: '', status: '',
   }
-  const sampleValues: Record<string, SensorData> = { [sampleSensor.key]: sampleData }
+  const sampleValues: Record<string, SensorData> = { [String(sensorId)]: sampleData }
 
   return (
-    <div style={sidebarStyle}>
-      <div style={{
-        padding: '10px 12px', borderBottom: '1px solid var(--border)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-      }}>
+    <div style={{
+      position: 'absolute', top: 0, right: 0, bottom: 0, width: INSPECTOR_WIDTH, zIndex: 20,
+      background: 'var(--card)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>Choose Visualization</div>
-          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{sensor?.name ?? `Tag #${sensorId}`}</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Choose visualization</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{sensor?.name ?? `Tag #${sensorId}`}</div>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>x</button>
+        <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', margin: '2px 2px 6px' }}>Equipment</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginBottom: 12 }}>
+          {symbols.map(s => (
+            <button key={s.key} onClick={() => onSelectSymbol(s.key)} title={s.name} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '6px 2px', borderRadius: 6, cursor: 'pointer',
+              border: '1px solid var(--border)', background: 'var(--hmi-stage)', color: 'var(--text-dim)', fontSize: 9, lineHeight: 1.1,
+            }}>
+              <SymbolThumb def={s} size={34} />
+              <span>{s.name}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', margin: '2px 2px 6px' }}>Widgets</div>
         {types.map(type => {
           const m = WIDGET_MANIFESTS[type]
           const Comp = getWidgetComponent(type)
           return (
-            <div
-              key={type}
-              onClick={() => onSelect(type)}
+            <div key={type} onClick={() => onSelect(type)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: 8, borderRadius: 6, marginBottom: 4, cursor: 'pointer',
-                border: '1px solid var(--border)', transition: 'border-color 0.15s',
+                display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 6, marginBottom: 4, cursor: 'pointer',
+                border: '1px solid var(--border)',
               }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--cyan)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--cyan)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
             >
-              {/* Mini preview */}
-              <div style={{
-                width: 72, height: 48, flexShrink: 0, borderRadius: 4,
-                overflow: 'hidden', background: 'var(--bg)', border: '1px solid var(--border)',
-              }}>
+              <div style={{ width: 72, height: 52, flexShrink: 0, borderRadius: 4, overflow: 'hidden', background: 'var(--hmi-stage)', border: '1px solid var(--border)', pointerEvents: 'none' }}>
                 {Comp && (
                   <Comp
-                    instance={{
-                      id: '__preview__', type, sensorId, sensorIds: [sensorId],
-                      x: 0, y: 0, width: 72, height: 48, config: {},
-                    }}
-                    sensor={sampleSensor}
-                    data={sampleData}
-                    sensors={[sampleSensor]}
-                    currentValues={sampleValues}
-                    editMode={false}
-                    selected={false}
+                    instance={{ id: '__preview__', type, sensorId, sensorIds: [sensorId], x: 0, y: 0, width: 72, height: 52, config: {} }}
+                    sensor={sampleSensor} data={sampleData} sensors={[sampleSensor]} currentValues={sampleValues}
+                    editMode={false} selected={false}
                   />
                 )}
               </div>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 500 }}>{m.displayName}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.icon} {m.compatibleDataTypes.join(', ')}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.compatibleDataTypes.join(' · ')}</div>
               </div>
             </div>
           )
         })}
-      </div>
-    </div>
-  )
-}
-
-// ── Right sidebar: Widget Config ──
-
-const WidgetConfigSidebar: React.FC<{
-  widget: import('./widgets/types').WidgetInstance
-  sensors: SensorConfig[]
-  onUpdateConfig: (config: Record<string, any>) => void
-  onClose: () => void
-}> = ({ widget, sensors, onUpdateConfig, onClose }) => {
-  const manifest = WIDGET_MANIFESTS[widget.type]
-  const sensor = widget.sensorId != null ? sensors.find(s => s.id === widget.sensorId) : undefined
-  const schema: ConfigFieldDef[] = manifest?.configSchema ?? []
-  const config = widget.config ?? {}
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '5px 7px', borderRadius: 4, fontSize: 12,
-    border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)', boxSizing: 'border-box',
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase',
-    letterSpacing: '.04em', display: 'block', marginBottom: 3,
-  }
-
-  return (
-    <div style={sidebarStyle}>
-      <div style={{
-        padding: '10px 12px', borderBottom: '1px solid var(--border)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-      }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600 }}>{manifest?.displayName ?? widget.type}</div>
-          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{sensor?.name ?? 'No sensor'}</div>
-        </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>x</button>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-        <div style={{ marginBottom: 12 }}>
-          <span style={labelStyle}>Type</span>
-          <div style={{ fontSize: 12, textTransform: 'capitalize' }}>{widget.type.replace(/_/g, ' ')}</div>
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <span style={labelStyle}>Position</span>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{widget.x}, {widget.y} — {widget.width}x{widget.height}</div>
-        </div>
-        {schema.length > 0 && (
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-            <div style={{ ...labelStyle, marginBottom: 8 }}>Configuration</div>
-            {schema.map(field => {
-              const val = config[field.key] ?? field.default
-              return (
-                <div key={field.key} style={{ marginBottom: 10 }}>
-                  <span style={labelStyle}>{field.label}</span>
-                  {field.type === 'boolean' ? (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={!!val}
-                        onChange={e => onUpdateConfig({ [field.key]: e.target.checked })}
-                      />
-                      <span style={{ fontSize: 12 }}>{val ? 'On' : 'Off'}</span>
-                    </label>
-                  ) : field.type === 'color' ? (
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input
-                        type="color"
-                        value={val.startsWith('var(') ? '#22d3ee' : val}
-                        onChange={e => onUpdateConfig({ [field.key]: e.target.value })}
-                        style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
-                      />
-                      <input
-                        value={val}
-                        onChange={e => onUpdateConfig({ [field.key]: e.target.value })}
-                        style={inputStyle}
-                      />
-                    </div>
-                  ) : field.type === 'select' ? (
-                    <select
-                      value={val}
-                      onChange={e => onUpdateConfig({ [field.key]: e.target.value })}
-                      style={inputStyle}
-                    >
-                      {field.options?.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type === 'number' ? 'number' : 'text'}
-                      value={val}
-                      min={field.min}
-                      max={field.max}
-                      step={field.type === 'number' ? 'any' : undefined}
-                      onChange={e => onUpdateConfig({
-                        [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
-                      })}
-                      style={inputStyle}
-                    />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
     </div>
   )
