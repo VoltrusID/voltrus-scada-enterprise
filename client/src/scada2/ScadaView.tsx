@@ -3,11 +3,13 @@ import type { ScadaWidgetType, ConnectionInstance, WidgetInstance } from './widg
 import { WIDGET_MANIFESTS, getCompatibleWidgetTypes, getWidgetComponent } from './widgets/registry'
 import { ScadaCanvas, STAGE_W, STAGE_H, type DropPayload } from './ScadaCanvas'
 import { ScadaPalette, PANEL_WIDTH } from './ScadaPalette'
-import { WidgetInspector, ConnectionInspector, INSPECTOR_WIDTH, widgetTitle } from './ScadaInspector'
+import { WidgetInspector, ConnectionInspector, ScreenInspector, INSPECTOR_WIDTH, widgetTitle } from './ScadaInspector'
 import { ConnectionLayer, CONNECTION_TYPES } from './connections/ConnectionLayer'
 import { historyReducer, emptyHistory, createWidget, createConnection, type ScadaLayoutState } from './engine/widgetState'
 import { SYMBOL_MAP, SYMBOLS } from './hmi/symbols'
 import { SymbolThumb } from './hmi/SymbolView'
+import { Faceplate } from './hmi/Faceplate'
+import { AlarmBanner } from './AlarmBanner'
 import type { SensorConfig, SensorData, ScadaEquipmentItem, ScadaConnectionItem } from '../types'
 import { useDashboardSelector } from '../store/dashboardStore'
 import { wsWriteTag } from '../api/websocket'
@@ -16,6 +18,7 @@ import { toast } from '../components/Toast'
 
 // Import all widgets to trigger registration
 import './widgets/SymbolWidget'
+import './widgets/AreaWidget'
 import './widgets/IndicatorWidget'
 import './widgets/GaugeWidget'
 import './widgets/BarWidget'
@@ -57,8 +60,12 @@ interface Props {
 type Selection = { kind: 'widget' | 'connection'; id: string } | null
 type Tool = 'select' | 'connect'
 
-// Clicking these in runtime opens the bound tag's detail panel.
 const EQUIPMENT_TYPES = new Set<ScadaWidgetType>(['symbol', 'pump', 'motor', 'valve', 'tank_level', 'horizontal_tank', 'pipe'])
+// Clicking these at runtime opens a faceplate for the bound tag. Operator controls (slider, toggle…) keep their own clicks.
+const FACEPLATE_TYPES = new Set<ScadaWidgetType>([
+  ...EQUIPMENT_TYPES, 'gauge', 'indicator', 'bar', 'status_light', 'big_number', 'meter', 'semicircle_gauge', 'donut',
+  'led_display', 'trend', 'progress_bar', 'on_off',
+])
 
 function loadLayoutFromAPI(equipment: ScadaEquipmentItem[], connections: ScadaConnectionItem[]): ScadaLayoutState {
   // Stacking order travels in config.z: the server returns rows sorted by id, not insertion order.
@@ -147,6 +154,7 @@ export const ScadaView: React.FC<Props> = ({
   const [scale, setScale] = useState(1)
   const [showGrid, setShowGrid] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [faceplateId, setFaceplateId] = useState<string | null>(null)
   const clipboard = useRef<WidgetInstance | null>(null)
   const loadedScreen = useRef<string | null>(null)
   const savingRef = useRef(false)
@@ -201,6 +209,7 @@ export const ScadaView: React.FC<Props> = ({
     loadedScreen.current = activeScreen
     dispatch({ type: 'LOAD_LAYOUT', widgets: next.widgets, connections: next.connections })
     setSelection(null)
+    setFaceplateId(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeScreen, scadaEquipment, scadaConnections, loaded, saving])
 
@@ -296,6 +305,18 @@ export const ScadaView: React.FC<Props> = ({
     }
   }, [])
 
+  /** Operator command from a faceplate. Errors are toasted; resolves whether the write was accepted. */
+  const sendCommand = useCallback(async (sensorId: number, value: number): Promise<boolean> => {
+    try {
+      if (!wsWriteTag(sensorId, value)) await writeTag(sensorId, value)
+      toast.success('Command sent')
+      return true
+    } catch (err: any) {
+      toast.error(err.message || 'Write failed')
+      return false
+    }
+  }, [])
+
   const handleSave = useCallback(() => {
     if (!savingRef.current && loadedScreen.current) void saveLayout(loadedScreen.current, layout)
   }, [saveLayout, layout])
@@ -307,6 +328,7 @@ export const ScadaView: React.FC<Props> = ({
     // Done saves; stay in edit mode if the save fails so nothing is lost.
     if (editMode && dirty && loadedScreen.current && !(await saveLayout(loadedScreen.current, layout))) return
     resetTransient()
+    setFaceplateId(null)
     setZoom('fit')
     setEditMode(e => !e)
   }, [editMode, dirty, loaded, layout, saveLayout])
@@ -425,7 +447,9 @@ export const ScadaView: React.FC<Props> = ({
     return () => toolbarSlotSetter(null)
   }, [editMode, tool, connectType, showGrid, zoom, scale, dirty, saving, loaded, history.past.length, history.future.length, isAdmin, toolbarSlotSetter, handleSave, toggleEdit, zoomBy])
 
-  const rightOpen = editMode && (!!pendingSensor || !!selectedWidget || !!selectedConn)
+  // The inspector column is always reserved in edit mode: opening it on select would rescale the stage under the pointer.
+  const rightOpen = editMode
+  const faceplateWidget = !editMode && faceplateId ? layout.widgets.find(w => w.id === faceplateId) : undefined
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -444,7 +468,7 @@ export const ScadaView: React.FC<Props> = ({
             sensors={sensors}
             currentValues={currentValues}
             editMode={editMode}
-            selectedId={selection?.kind === 'widget' ? selection.id : connectFrom}
+            selectedId={editMode ? (selection?.kind === 'widget' ? selection.id : connectFrom) : faceplateWidget?.id ?? null}
             zoom={editMode ? zoom : 'fit'}
             showGrid={showGrid}
             cursor={tool === 'connect' ? 'crosshair' : undefined}
@@ -452,13 +476,13 @@ export const ScadaView: React.FC<Props> = ({
             onScaleChange={setScale}
             onSelectWidget={editMode ? handleSelectWidget : (id => {
               const w = layout.widgets.find(x => x.id === id)
-              if (w && w.sensorId != null && EQUIPMENT_TYPES.has(w.type)) onSensorClick(w.sensorId)
+              if (w && w.sensorId != null && FACEPLATE_TYPES.has(w.type)) setFaceplateId(cur => (cur === id ? null : id))
             })}
             onMoveWidget={(id, x, y) => dispatch({ type: 'MOVE_WIDGET', id, x, y })}
             onResizeWidget={(id, x, y, width, height) => dispatch({ type: 'RESIZE_WIDGET', id, x, y, width, height })}
             onDrop={handleDrop}
             onWriteValue={handleWriteValue}
-            onClickEmpty={() => { setSelection(null); setConnectFrom(null) }}
+            onClickEmpty={() => { setSelection(null); setConnectFrom(null); setFaceplateId(null) }}
             onPointerMove={editMode && connectFrom ? (x, y) => setPointer({ x, y }) : undefined}
           >
             <ConnectionLayer
@@ -471,6 +495,17 @@ export const ScadaView: React.FC<Props> = ({
               pending={connectFrom && pointer ? { fromId: connectFrom, ...pointer } : null}
             />
           </ScadaCanvas>
+          {faceplateWidget && (
+            <Faceplate
+              key={faceplateWidget.id}
+              widget={faceplateWidget}
+              sensors={sensors}
+              currentValues={currentValues}
+              onCommand={sendCommand}
+              onOpenDetail={onSensorClick}
+              onClose={() => setFaceplateId(null)}
+            />
+          )}
           {editMode && tool === 'connect' && (
             <div style={{
               position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 15,
@@ -511,6 +546,13 @@ export const ScadaView: React.FC<Props> = ({
             onDelete={deleteSelection}
           />
         )}
+        {editMode && !pendingSensor && !selectedWidget && !selectedConn && (
+          <ScreenInspector
+            widgets={layout.widgets.length}
+            connections={layout.connections.length}
+            tags={new Set(layout.widgets.flatMap(w => w.sensorIds ?? [])).size}
+          />
+        )}
         {editMode && !pendingSensor && selectedConn && (
           <ConnectionInspector
             connection={selectedConn}
@@ -520,6 +562,7 @@ export const ScadaView: React.FC<Props> = ({
           />
         )}
       </div>
+      {!editMode && <AlarmBanner />}
     </div>
   )
 }

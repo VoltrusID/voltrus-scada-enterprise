@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Rnd } from 'react-rnd'
 import type { SensorConfig, SensorData } from '../../types'
 import type { WidgetInstance } from './types'
@@ -22,7 +22,7 @@ interface WidgetShellProps {
 }
 
 // SVG symbols draw strokes right at their edge, so they must not be clipped.
-const UNCLIPPED = new Set(['symbol', 'pump', 'motor', 'valve', 'tank_level', 'horizontal_tank', 'pipe'])
+const UNCLIPPED = new Set(['area', 'symbol', 'pump', 'motor', 'valve', 'tank_level', 'horizontal_tank', 'pipe'])
 
 const handle: React.CSSProperties = {
   width: 8, height: 8, background: 'var(--card)', border: '1.5px solid var(--cyan)', borderRadius: 2,
@@ -41,9 +41,14 @@ export default function WidgetShell({
 }: WidgetShellProps) {
   const [hover, setHover] = useState(false)
 
+  // A click selects; only a real pointer drag moves. Selecting opens the inspector and can rescale
+  // the stage mid-click, which react-rnd would otherwise report as a drag to a bogus position.
+  const dragged = useRef(false)
   const handleDragStop = useCallback(
     (_e: unknown, d: { x: number; y: number }) => {
-      if (d.x !== instance.x || d.y !== instance.y) onMove(instance.id, Math.round(d.x), Math.round(d.y))
+      const moved = dragged.current
+      dragged.current = false
+      if (moved && (d.x !== instance.x || d.y !== instance.y)) onMove(instance.id, Math.round(d.x), Math.round(d.y))
     },
     [onMove, instance.id, instance.x, instance.y],
   )
@@ -58,7 +63,8 @@ export default function WidgetShell({
   const WidgetComponent = getWidgetComponent(instance.type)
   if (!WidgetComponent) return null
 
-  const outline = !editMode ? 'none'
+  // At runtime `selected` marks the equipment whose faceplate is open.
+  const outline = !editMode ? (selected ? '1.5px solid var(--cyan)' : 'none')
     : selected ? '1.5px solid var(--cyan)'
     : hover ? '1px dashed color-mix(in srgb, var(--cyan) 60%, transparent)'
     : '1px dashed transparent'
@@ -70,6 +76,8 @@ export default function WidgetShell({
       scale={scale}
       disableDragging={!editMode || locked}
       enableResizing={editMode && selected && !locked}
+      onDragStart={() => { dragged.current = false }}
+      onDrag={() => { dragged.current = true }}
       onDragStop={handleDragStop}
       onResizeStop={handleResizeStop}
       minWidth={16}

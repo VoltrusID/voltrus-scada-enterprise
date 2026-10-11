@@ -13,6 +13,21 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
     compatibleDataTypes: [],
     configSchema: [],
   },
+  // ISA-101 process area: a titled frame drawn behind a group of equipment.
+  area: {
+    type: 'area',
+    displayName: 'Process Area',
+    icon: '▭',
+    defaultWidth: 480,
+    defaultHeight: 320,
+    minBindings: 0,
+    maxBindings: 0,
+    compatibleDataTypes: [],
+    configSchema: [
+      { key: 'title', label: 'Title', type: 'string', default: 'Process Area' },
+      { key: 'subtitle', label: 'Subtitle', type: 'string', default: '' },
+    ],
+  },
   gauge: {
     type: 'gauge',
     displayName: 'Gauge',
@@ -109,6 +124,11 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
     configSchema: [
       { key: 'text', label: 'Text', type: 'string', default: 'Label' },
       { key: 'fontSize', label: 'Font Size', type: 'number', default: 14, min: 8, max: 48 },
+      { key: 'align', label: 'Align', type: 'select', default: 'center', options: [
+        { value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' },
+      ] },
+      { key: 'bold', label: 'Bold', type: 'boolean', default: false },
+      { key: 'muted', label: 'Muted', type: 'boolean', default: false },
     ],
   },
   trend: {
@@ -122,7 +142,8 @@ const manifests: Record<ScadaWidgetType, WidgetManifest> = {
     compatibleDataTypes: ['analog'],
     configSchema: [
       { key: 'lineColor', label: 'Line Color', type: 'color', default: 'var(--cyan)' },
-      { key: 'pointsCount', label: 'Points', type: 'number', default: 60, min: 10, max: 300 },
+      { key: 'pointsCount', label: 'Points', type: 'number', default: 180, min: 10, max: 180 },
+      { key: 'showName', label: 'Show Tag Name', type: 'boolean', default: true },
     ],
   },
   big_number: {

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { SensorConfig, SensorData, DataPoint, LIVE_PTS } from '../types'
-import { expandCompactData } from '../utils'
+import { expandCompactData, alarmStatus } from '../utils'
 import { useWSData } from './useWSData'
 import { useSystemInfo, fetchJson } from '../queries'
 import { useDashboardStoreActions, useHistoryReady } from '../store/dashboardStore'
@@ -57,7 +57,7 @@ export function useDashboardData(
             value: last?.value ?? s.base_val,
             warn: s.warn_val, crit: s.crit_val,
             source_type: s.source_type,
-            status: 'normal',
+            status: last ? alarmStatus(s, last.value) : 'normal',
           }
           updates.push({ id: String(s.id), points: trimmed, value: fakeValue })
         }

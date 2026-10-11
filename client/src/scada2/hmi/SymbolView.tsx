@@ -1,5 +1,4 @@
 import { useId } from 'react'
-import type React from 'react'
 import type { SensorConfig, SensorData } from '../../types'
 import type { WidgetProps } from '../widgets/types'
 import type { EquipState, SymbolDef } from './symbols'
@@ -17,15 +16,23 @@ function formatValue(data: SensorData | undefined, sensor: SensorConfig | undefi
 
 export interface SymbolViewProps extends WidgetProps {
   def: SymbolDef
-  /** Legacy pump/valve/motor widgets toggled on click; new symbols must opt in. */
-  defaultWritable?: boolean
 }
 
-/** Renders an HMI symbol bound to live tags: state, level, label and an alarm-aware value badge. */
-export function SymbolView({ def, defaultWritable = false, instance, sensor, data, currentValues, editMode, onWriteValue }: SymbolViewProps) {
-  const uid = 's' + useId().replace(/[^a-zA-Z0-9]/g, '')
-  const config = instance.config ?? {}
-  const bound = instance.sensorId != null
+export interface SymbolLiveState {
+  state: EquipState
+  level: number | null
+  runState: EquipState
+  /** Run tag alone (ignores the fault override): a faulted pump that is still running must offer Stop. */
+  running: boolean
+  alarm: 'crit' | 'warn' | null
+}
+
+/** Live state of a symbol from its bound tags. Shared by the symbol drawing and its faceplate. */
+export function symbolLiveState(
+  def: SymbolDef, config: Record<string, any>, sensorId: number | null,
+  sensor: SensorConfig | undefined, data: SensorData | undefined, currentValues: Record<string, SensorData>,
+): SymbolLiveState {
+  const bound = sensorId != null
   const threshold = Number(config.onThreshold ?? (def.binding === 'none' ? 0 : 0.5))
 
   // Fault tag overrides everything; then the primary binding decides.
@@ -47,38 +54,42 @@ export function SymbolView({ def, defaultWritable = false, instance, sensor, dat
   if (config.runSensorId != null) runState = tagState(currentValues[String(config.runSensorId)], 0.5)
   else if (def.binding === 'none' && bound) runState = tagState(data, threshold)
 
+  const alarm = bound && data ? (data.status === 'crit' ? 'crit' : data.status === 'warn' ? 'warn' : null) : null
+  const running = bound && tagState(data, threshold) === 'running'
+  return { state, level, runState, running, alarm }
+}
+
+/** Operator start/stop is offered for state-bound symbols that opted in (legacy pump/valve/motor widgets did by default). */
+export function symbolWritable(def: SymbolDef, config: Record<string, any>, defaultWritable: boolean): boolean {
+  return def.binding === 'state' && !!(config.writable ?? defaultWritable)
+}
+
+/** Renders an HMI symbol bound to live tags: state, level, label and an alarm-aware value badge. Clicking it at runtime opens its faceplate. */
+export function SymbolView({ def, instance, sensor, data, currentValues, editMode }: SymbolViewProps) {
+  const uid = 's' + useId().replace(/[^a-zA-Z0-9]/g, '')
+  const config = instance.config ?? {}
+  const bound = instance.sensorId != null
+  const { state, level, runState, alarm } = symbolLiveState(def, config, instance.sensorId, sensor, data, currentValues)
+
   const value = formatValue(data, sensor)
   const unit = sensor?.unit ?? ''
 
   const label: string = config.label ?? ''
   const rows = footerRows(def, config, bound)
-  const alarm = bound && data ? (data.status === 'crit' ? 'crit' : data.status === 'warn' ? 'warn' : null) : null
 
   const rotation = Number(config.rotation ?? 0)
   const flip = !!config.flipX
   const transform = [rotation ? `rotate(${rotation}deg)` : '', flip ? 'scaleX(-1)' : ''].filter(Boolean).join(' ')
-
-  const writable = !editMode && !!onWriteValue && def.binding === 'state' && (config.writable ?? defaultWritable) && bound && !!data
-  // Start/stop follows the run tag alone: a faulted pump that is still running must offer Stop.
-  const running = bound && tagState(data, threshold) === 'running'
-  const handleClick = (e: React.MouseEvent) => {
-    if (!writable) return
-    e.stopPropagation()
-    const what = label || sensor?.name || def.name
-    if (!window.confirm(`${running ? 'Stop' : 'Start'} ${what}?`)) return
-    onWriteValue!(running ? 0 : 1)
-  }
+  const inspectable = !editMode && bound
 
   const [vw, vh] = def.viewBox
 
   return (
     <div
-      onClick={handleClick}
       style={{
         width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        cursor: writable ? 'pointer' : undefined, userSelect: 'none',
+        cursor: inspectable ? 'pointer' : undefined, userSelect: 'none',
       }}
-      title={writable ? `Click to ${running ? 'stop' : 'start'}` : undefined}
     >
       <div style={{ flex: 1, minHeight: 0, width: '100%', position: 'relative' }}>
         <svg
@@ -97,12 +108,12 @@ export function SymbolView({ def, defaultWritable = false, instance, sensor, dat
         }}>
           {rows.label && (
             <div style={{
-              height: FOOTER.label, lineHeight: `${FOOTER.label}px`, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)',
+              height: FOOTER.label, lineHeight: `${FOOTER.label}px`, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', textShadow: HALO,
               letterSpacing: '.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
             }}>{label}</div>
           )}
           {rows.value && <ValueBadge value={value} unit={unit} alarm={alarm} stale={!data} />}
-          {rows.status && <StatusChip state={state} />}
+          {rows.status && <StatusChip def={def} state={state} />}
         </div>
       )}
     </div>
@@ -131,11 +142,24 @@ const STATUS_TEXT: Record<EquipState, string> = {
   idle: '—', running: 'RUNNING', stopped: 'STOPPED', fault: 'FAULT', stale: 'NO DATA',
 }
 
-function StatusChip({ state }: { state: EquipState }) {
-  const color = state === 'running' ? 'var(--hmi-run)' : state === 'fault' ? 'var(--hmi-fault)' : state === 'stale' ? 'var(--hmi-stale)' : 'var(--text-muted)'
+/** Words for on/off that fit the equipment: valves open, breakers close, rotating kit runs. */
+export function stateText(def: SymbolDef, state: EquipState): string {
+  if (def.category === 'Valves') return state === 'running' ? 'OPEN' : state === 'stopped' ? 'CLOSED' : STATUS_TEXT[state]
+  if (def.key === 'breaker') return state === 'running' ? 'CLOSED' : state === 'stopped' ? 'OPEN' : STATUS_TEXT[state]
+  return STATUS_TEXT[state]
+}
+
+export function stateColor(state: EquipState): string {
+  return state === 'running' ? 'var(--hmi-run)' : state === 'fault' ? 'var(--hmi-fault)' : state === 'stale' ? 'var(--hmi-stale)' : 'var(--text-muted)'
+}
+
+// Keeps footer text legible where a pipe passes behind it.
+const HALO = '0 0 2px var(--hmi-stage), 0 0 3px var(--hmi-stage), 0 0 4px var(--hmi-stage)'
+
+function StatusChip({ def, state }: { def: SymbolDef; state: EquipState }) {
   return (
-    <div style={{ height: FOOTER.status, lineHeight: `${FOOTER.status}px`, fontSize: 9, fontWeight: 700, letterSpacing: '.08em', color, whiteSpace: 'nowrap' }}>
-      {STATUS_TEXT[state]}
+    <div style={{ height: FOOTER.status, lineHeight: `${FOOTER.status}px`, fontSize: 9, fontWeight: 700, letterSpacing: '.08em', color: stateColor(state), whiteSpace: 'nowrap', textShadow: HALO }}>
+      {stateText(def, state)}
     </div>
   )
 }

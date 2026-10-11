@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import type { SensorConfig, SensorData } from '../types'
 import { type TagUpdate, onWsReady } from '../api/websocket'
 import { useDashboardStoreActions } from '../store/dashboardStore'
+import { alarmStatus } from '../utils'
 
 const LIVE_PTS = 300
 
@@ -38,7 +39,8 @@ export function useWSData(authed: boolean, sensors: SensorConfig[]) {
         warn: sensor.warn_val,
         crit: sensor.crit_val,
         source_type: sensor.source_type,
-        status: u.quality || 'normal',
+        // WS quality is comm quality (always good/normal); widgets read status as the alarm level.
+        status: isOffline ? (u.quality || 'normal') : alarmStatus(sensor, u.value),
       }
 
       const prevArr = dataUpdates.has(k) ? dataUpdates.get(k)!.points : (state.dataMap[k] ?? [])
