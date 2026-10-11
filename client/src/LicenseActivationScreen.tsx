@@ -57,6 +57,15 @@ const LINK: React.CSSProperties = {
   transition: 'border-color 0.15s',
 }
 
+// Console checkouts (same Polar products as voltrus.id/voltrus-scada pricing). Keys arrive by email after purchase.
+const CONSOLE_CHECKOUT = 'https://console.voltrus.id/checkout/p/'
+const TIERS = [
+  { name: 'Edge', price: '$49', note: 'Up to 15 devices', id: '0f36bf0f-ecfe-4318-a993-50cf1d5235a8' },
+  { name: 'Starter', price: '$249', note: 'Up to 50 devices', id: 'fb085b89-6be9-4e08-b202-edb5d7de360a' },
+  { name: 'Professional', price: '$499', note: 'Unlimited devices, OPC-UA, RBAC', id: '8b82c7d0-24ef-4246-a5b4-eb2c85935b19' },
+  { name: 'Enterprise', price: '$999', note: 'Every feature: SSO, S7, EtherNet/IP', id: '79bdecb0-6a5c-484e-b421-e608ea5d6898' },
+]
+
 export function LicenseActivationScreen() {
   const [status, setStatus] = useState<LicenseStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -128,9 +137,36 @@ export function LicenseActivationScreen() {
 
         {/* Steps */}
         <div style={{ padding: '28px 36px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Step 1 */}
+          {/* Step 0: get a key */}
           <div style={{ display: 'flex', gap: 14 }}>
             <div style={STEP_NUM}>1</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>Get a license key</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                {TIERS.map(t => (
+                  <a key={t.id} href={CONSOLE_CHECKOUT + t.id} target="_blank" rel="noopener noreferrer" style={{
+                    display: 'flex', flexDirection: 'column', gap: 2, padding: '10px 12px', borderRadius: 8, textDecoration: 'none',
+                    border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg)',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#22c55e' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                  >
+                    <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
+                      {t.name}<span style={{ color: '#22c55e' }}>{t.price}</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{t.note} · lifetime</span>
+                  </a>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8, lineHeight: 1.5 }}>
+                Server online? Skip the file steps: <code style={INLINE_CODE}>./voltrus --online-activate YOUR_LICENSE_KEY</code>
+              </div>
+            </div>
+          </div>
+
+          {/* Step 1 */}
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={STEP_NUM}>2</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>Generate a license request on your server</div>
               <code style={CODE_BLOCK}>./voltrus --generate-request YOUR_LICENSE_KEY</code>
@@ -139,7 +175,7 @@ export function LicenseActivationScreen() {
 
           {/* Step 2 */}
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={STEP_NUM}>2</div>
+            <div style={STEP_NUM}>3</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
                 Copy <code style={INLINE_CODE}>license-request.bin</code> to a PC with internet access
@@ -149,7 +185,7 @@ export function LicenseActivationScreen() {
 
           {/* Step 3 */}
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={STEP_NUM}>3</div>
+            <div style={STEP_NUM}>4</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
                 Upload and activate at{' '}
@@ -162,7 +198,7 @@ export function LicenseActivationScreen() {
 
           {/* Step 4 */}
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={STEP_NUM}>4</div>
+            <div style={STEP_NUM}>5</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>
                 Copy <code style={INLINE_CODE}>license-activation.bin</code> back to your server
@@ -172,7 +208,7 @@ export function LicenseActivationScreen() {
 
           {/* Step 5 */}
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={STEP_NUM}>5</div>
+            <div style={STEP_NUM}>6</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>Import the activation file</div>
               <code style={CODE_BLOCK}>./voltrus --import-activation license-activation.bin</code>
@@ -181,7 +217,7 @@ export function LicenseActivationScreen() {
 
           {/* Step 6 */}
           <div style={{ display: 'flex', gap: 14 }}>
-            <div style={STEP_NUM}>6</div>
+            <div style={STEP_NUM}>7</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>
                 Refresh this page or click <strong>Check Again</strong> below
@@ -201,7 +237,7 @@ export function LicenseActivationScreen() {
           gap: 12,
         }}>
           <a
-            href="https://voltrus.id/#pricing"
+            href="https://console.voltrus.id/checkout/p/8b82c7d0-24ef-4246-a5b4-eb2c85935b19"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -218,7 +254,7 @@ export function LicenseActivationScreen() {
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-            Purchase a License
+            Buy Professional
           </a>
           <button
             onClick={checkLicense}
