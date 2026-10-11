@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { SensorConfig, SensorData, TwinEquipment, EquipmentType } from './types'
-import { SolarPanelModel } from './twin/SolarPanelModel'
-import { InverterModel } from './twin/InverterModel'
-import { GatewayModel } from './twin/GatewayModel'
+import { SolarArrayModel, CabinetModel, type ModelProps } from './twin3d/models'
+import { TwinEnvironment } from './twin3d/Stage'
+import { PlantTwin } from './twin3d/PlantTwin'
+import { loadLayoutFromAPI } from './scada2/engine/layout'
+import { resolveSymbol } from './scada2/hmi/resolve'
+import type { ScadaEquipmentItem, ScadaConnectionItem } from './types'
 import { ConnectionLines } from './twin/ConnectionLines'
 import { EquipmentLabel } from './twin/EquipmentLabel'
 import { EquipmentPalette } from './twin/EquipmentPalette'
@@ -29,19 +32,11 @@ interface Props {
   onSaveLayouts: (equipment: TwinEquipment[]) => void
   onSaveConnections: (connections: FlowConnection[]) => void
   onSaveCamera: (camera: { x: number; y: number; z: number }) => void
-}
-
-function GroundPlane() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-      <planeGeometry args={[20, 20]} />
-      <meshStandardMaterial color="#0b1210" />
-    </mesh>
-  )
-}
-
-function GridHelper() {
-  return <gridHelper args={[20, 20, '#1a3324', '#152820']} />
+  /** The screen's SCADA layout: when it has equipment, the 3D view builds the plant twin from it. */
+  scadaEquipment?: ScadaEquipmentItem[]
+  scadaConnections?: ScadaConnectionItem[]
+  screenName?: string
+  onSensorClick?: (sensorId: number) => void
 }
 
 const ROTATION_STEP = Math.PI / 12 // 15 degrees
@@ -139,7 +134,30 @@ function DraggableEquipment({ equipment, onDragEnd, onRotate, onClick, sensors, 
   )
 }
 
-export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections, onSaveCamera }: Props) {
+export function DigitalTwinView(props: Props) {
+  const { scadaEquipment = [], scadaConnections = [], sensors, screenName, onSensorClick } = props
+  const plant = useMemo(() => loadLayoutFromAPI(scadaEquipment, scadaConnections), [scadaEquipment, scadaConnections])
+  const hasPlant = plant.widgets.some(w => resolveSymbol(w) != null)
+  const [free, setFree] = useState(false)
+  if (hasPlant && !free) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 150px)', minHeight: 560 }}>
+        <PlantTwin
+          widgets={plant.widgets}
+          connections={plant.connections}
+          sensors={sensors}
+          screenName={screenName ?? '3D Plant Twin'}
+          onOpenDetail={id => onSensorClick?.(id)}
+          onFreeLayout={() => setFree(true)}
+        />
+      </div>
+    )
+  }
+  return <FreeLayoutTwin {...props} onBackToPlant={hasPlant ? () => setFree(false) : undefined} />
+}
+
+/** Hand-placed equipment twin for screens without a SCADA layout. */
+function FreeLayoutTwin({ sensors, twinLayouts, twinCamera, twinConnections, onEquipmentClick, onSwitchToCards, onSensorUpdate, onSaveLayouts, onSaveConnections, onSaveCamera, onBackToPlant }: Props & { onBackToPlant?: () => void }) {
   const currentValues = useDashboardSelector(s => s.currentValues)
   const [equipment, setEquipment] = useState<TwinEquipment[]>(DEFAULT_EQUIPMENT.map(e => ({ ...e })))
   const [twinEditMode, setTwinEditMode] = useState(false)
@@ -158,18 +176,6 @@ export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera
       return false
     }
   })
-
-  if (!webglSupported) {
-    return (
-      <div style={{ height: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, gap: 12, color: 'var(--fg)' }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>WebGL Not Supported</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Your browser does not support WebGL, which is required for the 3D view.</div>
-        {onSwitchToCards && (
-          <button onClick={onSwitchToCards} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13 }}>Switch to Card View</button>
-        )}
-      </div>
-    )
-  }
 
   useEffect(() => {
     if (twinCamera) {
@@ -234,6 +240,18 @@ export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera
     setConnections(prev => prev.filter(c => !(c.from === from && c.to === to)))
   }, [])
 
+  if (!webglSupported) {
+    return (
+      <div style={{ height: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, gap: 12, color: 'var(--fg)' }}>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>WebGL Not Supported</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Your browser does not support WebGL, which is required for the 3D view.</div>
+        {onSwitchToCards && (
+          <button onClick={onSwitchToCards} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13 }}>Switch to Card View</button>
+        )}
+      </div>
+    )
+  }
+
   const renderModel = (eq: TwinEquipment) => {
     const eqSensors = getSensorsForEquipment(eq.id)
     let statusColor: string | undefined
@@ -248,16 +266,14 @@ export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera
       })
       statusColor = hasCrit ? '#ef4444' : hasWarn ? '#eab308' : undefined
     }
-    const common = {
-      position: [0, 0, 0] as [number, number, number],
-      rotation: 0,
-      color: statusColor,
-      onClick: () => { onEquipmentClick(eq.id) },
+    const p: ModelProps = {
+      w: 3, d: 2, h: 2, level: null, value: '', config: {}, runState: 'idle',
+      state: statusColor === '#ef4444' ? 'fault' : eqSensors.length ? 'running' : 'idle',
     }
     switch (eq.type) {
-      case 'solar_panel': return <SolarPanelModel {...common} />
-      case 'inverter': return <InverterModel {...common} />
-      case 'gateway': return <GatewayModel {...common} />
+      case 'solar_panel': return <SolarArrayModel {...p} />
+      case 'inverter': return <CabinetModel {...p} w={1.6} d={1.4} screen />
+      case 'gateway': return <CabinetModel {...p} w={1} d={1} />
     }
   }
 
@@ -267,6 +283,12 @@ export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera
     <div style={{ position: 'relative', width: '100%', height: 'calc(100vh - 180px)', minHeight: 500, background: '#0b1210', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
       {twinEditMode && <EquipmentPalette equipment={equipment} onAdd={handleAddEquipment} onRemove={handleRemoveEquipment} />}
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+        {onBackToPlant && !twinEditMode && (
+          <button onClick={onBackToPlant} style={{
+            padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            border: '1px solid #06b6d4', background: 'rgba(6,182,212,0.15)', color: '#06b6d4', fontFamily: 'Inter, sans-serif',
+          }}>Plant twin</button>
+        )}
         <button onClick={() => {
           if (twinEditMode) {
             onSaveLayouts(equipment)
@@ -363,13 +385,11 @@ export function DigitalTwinView({ sensors, activeScreen, twinLayouts, twinCamera
         <Canvas
           camera={{ position: twinCamera ? [twinCamera.x, twinCamera.y, twinCamera.z] : [6, 6, 6], fov: 50 }}
           frameloop="always"
+          shadows
           dpr={[1, 2]}
           onCreated={({ camera }) => { camera.lookAt(0, 0, 0); cameraRef.current = camera }}
         >
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[5, 8, 5]} intensity={0.8} />
-          <GroundPlane />
-          <GridHelper />
+          <TwinEnvironment size={14} />
           <OrbitControls makeDefault enabled={!twinEditMode} enableDamping dampingFactor={0.1} maxPolarAngle={Math.PI / 2.2} onChange={() => {
             if (!cameraRef.current || twinEditMode) return
             const [sx, sy, sz] = savedCameraPos.current
