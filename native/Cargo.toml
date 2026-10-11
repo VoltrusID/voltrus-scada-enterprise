@@ -2,7 +2,8 @@
 name = "voltrus-scada-native"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license-file = "LICENSE"
+publish = false
 description = "Voltrus SCADA native operator console — GPU-accelerated with GPUI"
 
 [[bin]]
