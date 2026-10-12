@@ -36,3 +36,6 @@ bucket_name = "voltrus-releases"
 [[send_email]]
 name = "EMAIL"
 allowed_sender_addresses = ["noreply@mail.voltrus.id"]
+
+[observability]
+enabled = true
