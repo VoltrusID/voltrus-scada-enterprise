@@ -344,22 +344,8 @@ type PolarValidation =
 
 interface PolarValidatedKey {
   id: string;
-  benefit_id: string;
-  customer_id: string;
   status: string;
   expires_at: string | null;
-}
-
-interface PolarProduct {
-  id: string;
-  name: string;
-  metadata?: Record<string, string | number | boolean>;
-}
-
-interface PolarGrant {
-  order_id: string | null;
-  subscription_id: string | null;
-  properties?: { license_key_id?: string };
 }
 
 // Keys whose product carries no tier keep the pre-tier behaviour.
@@ -396,51 +382,19 @@ async function validatePolarLicense(key: string, env: Env, incrementUsage: boole
     if (data.status === "revoked" || data.status === "disabled") {
       return { valid: false, error: `License key is ${data.status}` };
     }
-    const product = await resolveKeyProduct(env, data);
-    if (!product) {
-      console.log(`Polar validate: key=${key}, status=${data.status}, product=unresolved`);
-      return { valid: true, expires_at: data.expires_at, tier: null, device_limit: null };
+    // The console owns the Polar token and the catalog: it resolves the purchase behind the key.
+    // A failed lookup leaves the tier unresolved; it never blocks activation of a valid key.
+    let tier: string | null = null;
+    try {
+      tier = await env.CONSOLE.polarKeyTier(data.id);
+    } catch (e) {
+      console.error(`console tier lookup failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const metadata = product.metadata ?? {};
-    const tier = typeof metadata.tier === "string" && metadata.tier ? metadata.tier : DEFAULT_TIER;
-    const limit = metadata.device_limit != null ? parseInt(String(metadata.device_limit), 10) : NaN;
-    const device_limit = Number.isFinite(limit) ? limit : null;
-    console.log(`Polar validate: key=${key}, status=${data.status}, product=${product.id} (${product.name}), tier=${tier}`);
-    return { valid: true, expires_at: data.expires_at, tier, device_limit };
+    console.log(`Polar validate: key=${key}, status=${data.status}, tier=${tier ?? "unresolved"}`);
+    return { valid: true, expires_at: data.expires_at, tier, device_limit: null };
   } catch (e) {
     return { valid: false, error: `Polar.sh validation failed: ${e instanceof Error ? e.message : String(e)}` };
   }
-}
-
-// Polar's validate response names the benefit, not the product, and one license-key benefit can be
-// shared by several products (the SCADA tiers share one). The purchase decides the tier:
-// key -> its benefit grant -> the order (or subscription) that granted it -> that product.
-async function resolveKeyProduct(env: Env, key: PolarValidatedKey): Promise<PolarProduct | null> {
-  const grantsRes = await polarFetch(
-    env,
-    `/v1/benefits/${key.benefit_id}/grants?customer_id=${key.customer_id}&is_granted=true&limit=100`
-  );
-  if (!grantsRes.ok) {
-    console.error(`Polar grants lookup failed: ${grantsRes.status} ${await grantsRes.text()}`);
-    return null;
-  }
-  const grants = await grantsRes.json<{ items: PolarGrant[] }>();
-  const grant = grants.items.find((g) => g.properties?.license_key_id === key.id);
-  const source = grant?.order_id
-    ? `/v1/orders/${grant.order_id}`
-    : grant?.subscription_id
-      ? `/v1/subscriptions/${grant.subscription_id}`
-      : null;
-  if (!source) {
-    console.error(`No order or subscription grants license key ${key.id}`);
-    return null;
-  }
-  const purchaseRes = await polarFetch(env, source);
-  if (!purchaseRes.ok) {
-    console.error(`Polar purchase lookup failed: ${source} ${purchaseRes.status} ${await purchaseRes.text()}`);
-    return null;
-  }
-  return (await purchaseRes.json<{ product: PolarProduct | null }>()).product;
 }
 async function generateActivation(
   request_data: LicenseRequest,

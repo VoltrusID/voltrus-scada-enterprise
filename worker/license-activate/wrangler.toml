@@ -2,7 +2,7 @@
 # Secrets: ADMIN_TOKEN, ED25519_PRIVATE_KEY, POLAR_API_KEY, POLAR_ORG_ID, POLAR_WEBHOOK_SECRET.
 name = "voltrus-license-activate"
 main = "src/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-04-03"
 account_id = "b7e6f8457bd39fa37a7eea5249799754"
 workers_dev = false
 
@@ -28,6 +28,11 @@ database_id = "e17ec780-a087-4eec-ac1c-4d80bfc7a3d4"
 binding = "RELEASES_DB"
 database_name = "voltrus-releases-db"
 database_id = "52bce831-4d79-4b11-b016-71492fa46c31"
+
+[[services]]
+binding = "CONSOLE"
+service = "voltrus-console"
+entrypoint = "LicenseTiers"
 
 [[r2_buckets]]
 binding = "RELEASES_BUCKET"
