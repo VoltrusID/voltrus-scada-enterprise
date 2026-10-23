@@ -48,13 +48,13 @@ pub fn spawn_data_broadcaster(
             // Skip all work when there are no WS consumers
             let has_ws = ws_manager
                 .as_ref()
-                .map_or(false, |ws| ws.connection_count() > 0);
+                .is_some_and(|ws| ws.connection_count() > 0);
             if !has_ws {
                 continue;
             }
 
             let snapshots = cache.get_all().await;
-            let now = crate::timeutil::now_secs() as i64;
+            let now = crate::timeutil::now_secs();
             let sensors = super::data::evaluate_data_sources(&data_sources, &snapshots, now as f64);
 
             // Broadcast WS batch — reuse encode buffer across ticks

@@ -94,7 +94,7 @@ async fn try_poll(
                 group_end += 1;
             }
 
-            let total = (end_addr - start_addr) as u16;
+            let total = end_addr - start_addr;
 
             let read_result = if area == "input" {
                 tokio::time::timeout(
@@ -119,8 +119,8 @@ async fn try_poll(
                         start_addr,
                         code
                     );
-                    for j in i..group_end {
-                        metrics.insert(sorted_regs[j].name.clone(), f64::NAN);
+                    for reg in &sorted_regs[i..group_end] {
+                        metrics.insert(reg.name.clone(), f64::NAN);
                     }
                     i = group_end;
                     continue;
@@ -137,8 +137,7 @@ async fn try_poll(
                 }
             };
 
-            for j in i..group_end {
-                let reg = &sorted_regs[j];
+            for reg in &sorted_regs[i..group_end] {
                 let offset = (reg.protocol_address() - start_addr) as usize;
                 let count = reg.register_count() as usize;
                 if offset + count > response.len() {

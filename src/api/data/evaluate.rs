@@ -66,13 +66,13 @@ pub(crate) fn evaluate_data_sources(
                 .unwrap_or((None, None));
             let status = if value.is_nan() {
                 "offline".to_string()
-            } else if ds.crit_val > 0.0 && value >= ds.crit_val {
+            } else if (ds.crit_val > 0.0 && value >= ds.crit_val)
+                || low_crit.is_some_and(|lc| value <= lc)
+            {
                 "critical".to_string()
-            } else if low_crit.is_some_and(|lc| value <= lc) {
-                "critical".to_string()
-            } else if ds.warn_val > 0.0 && value >= ds.warn_val {
-                "warning".to_string()
-            } else if low_warn.is_some_and(|lw| value <= lw) {
+            } else if (ds.warn_val > 0.0 && value >= ds.warn_val)
+                || low_warn.is_some_and(|lw| value <= lw)
+            {
                 "warning".to_string()
             } else {
                 "normal".to_string()

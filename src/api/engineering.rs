@@ -75,10 +75,10 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
             let device_limit = state.license_tier.max_devices();
             let mut started_count: u32 = 0;
             for config in &device_configs {
-                if let Some(limit) = device_limit {
-                    if started_count >= limit {
-                        break;
-                    }
+                if let Some(limit) = device_limit
+                    && started_count >= limit
+                {
+                    break;
                 }
                 state.poller_manager.start(config.clone()).await;
                 started_count += 1;
@@ -132,10 +132,10 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
             let mut started_count: u32 = 0;
             let device_limit = state.license_tier.max_devices();
             for config in &device_configs {
-                if let Some(limit) = device_limit {
-                    if started_count >= limit {
-                        break;
-                    }
+                if let Some(limit) = device_limit
+                    && started_count >= limit
+                {
+                    break;
                 }
                 state.poller_manager.start(config.clone()).await;
                 started_count += 1;

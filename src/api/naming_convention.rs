@@ -46,10 +46,8 @@ pub async fn get_naming_convention(
     for s in &settings {
         match s.key.as_str() {
             "naming_template" => template = s.value.clone(),
-            "naming_regex" => {
-                if !s.value.is_empty() {
-                    custom_regex = Some(s.value.clone());
-                }
+            "naming_regex" if !s.value.is_empty() => {
+                custom_regex = Some(s.value.clone());
             }
             _ => {}
         }

@@ -181,12 +181,12 @@ impl CommandQueue {
                         .await?;
 
                     // Update the cache so the new value is visible immediately
-                    if let Some(ds) = ds {
-                        if let Ok(value) = cmd.value.parse::<f64>() {
-                            self.cache
-                                .set_metric_value(&cache_device_id, &ds.key, value)
-                                .await;
-                        }
+                    if let Some(ds) = ds
+                        && let Ok(value) = cmd.value.parse::<f64>()
+                    {
+                        self.cache
+                            .set_metric_value(&cache_device_id, &ds.key, value)
+                            .await;
                     }
                 }
                 false => {

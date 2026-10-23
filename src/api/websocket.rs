@@ -168,7 +168,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, cookie_token: Option<
                     Some(frame) => {
                         let result = match frame {
                             WsFrame::Binary(bytes) => {
-                                sink.send(Message::Binary(bytes.into())).await
+                                sink.send(Message::Binary(bytes)).await
                             }
                             WsFrame::Message(server_msg) => {
                                 send_msg(&mut sink, &server_msg).await

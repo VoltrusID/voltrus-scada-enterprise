@@ -175,8 +175,7 @@ impl<'a> FeedInstantiator<'a> {
                     section
                         .equipment_group
                         .to_lowercase()
-                        .replace(' ', "_")
-                        .replace('/', "_"),
+                        .replace([' ', '/'], "_"),
                     idx
                 );
 
@@ -284,7 +283,7 @@ impl<'a> FeedInstantiator<'a> {
     fn screen_id(&self, screen: &crate::wizard::feed::FeedScreen) -> String {
         format!(
             "feed_{}_{}",
-            &self.template.id,
+            self.template.id,
             screen.name.to_lowercase().replace(' ', "_")
         )
     }
@@ -386,9 +385,8 @@ fn parse_range(range: &str) -> (f64, f64) {
 
     // Find the separator dash — need to handle negative numbers like "-1-10"
     // Strategy: find the last '-' that is preceded by a digit (not at start)
-    let parts: Vec<&str> = if cleaned.starts_with('-') {
+    let parts: Vec<&str> = if let Some(rest) = cleaned.strip_prefix('-') {
         // Leading negative: "-1-10" → split at second dash
-        let rest = &cleaned[1..];
         if let Some(pos) = rest.find('-') {
             vec![&cleaned[..pos + 1], &rest[pos + 1..]]
         } else {
@@ -421,10 +419,10 @@ fn parse_setpoint(setpoint: &str) -> f64 {
     let s = s.strip_prefix("-+").unwrap_or(s);
 
     // Handle percentage like "90%"
-    if let Some(stripped) = s.strip_suffix('%') {
-        if let Ok(val) = stripped.trim().parse::<f64>() {
-            return val;
-        }
+    if let Some(stripped) = s.strip_suffix('%')
+        && let Ok(val) = stripped.trim().parse::<f64>()
+    {
+        return val;
     }
 
     // Try to extract the leading numeric value from strings like "2.0 bar", "180°C", "0.3 NTU"
