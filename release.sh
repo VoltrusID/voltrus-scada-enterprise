@@ -14,6 +14,8 @@ set -euo pipefail
 #   ./release.sh --build-only     # build only, skip upload (alias: --skip-upload)
 #   ./release.sh --upload-only    # skip build, upload existing artifacts
 #   ./release.sh --dry-run        # build all, then print the upload plan; nothing remote runs
+#   ./release.sh --host           # native glibc build of the host (linux-x86_64 layout) to check the
+#                                 #   packaging; never uploads (implies --skip-upload)
 #   ./release.sh --target linux-x86_64 [...]   # limit to one platform (also: macos-arm64,
 #                                              #   linux-arm64, windows-x86_64)
 #
@@ -61,12 +63,14 @@ error() { echo -e "${RED}[✗]${NC} $*" >&2; exit 1; }
 BUILD=true
 UPLOAD=true
 DRY_RUN=false
+HOST_BUILD=false
 TARGET_FILTER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --build-only|--skip-upload) UPLOAD=false ;;
     --upload-only) BUILD=false ;;
     --dry-run) DRY_RUN=true ;;
+    --host) HOST_BUILD=true; UPLOAD=false ;;
     --target)
       shift
       TARGET_FILTER="${1:-}"
@@ -78,7 +82,9 @@ while [[ $# -gt 0 ]]; do
 done
 [ "$DRY_RUN" = true ] && [ "$BUILD" = false ] && info "Dry run with --upload-only: only the upload plan is printed"
 
-if [ -n "$TARGET_FILTER" ]; then
+if [ "$HOST_BUILD" = true ]; then
+  TARGETS=("linux-x86_64|x86_64-unknown-linux-gnu|")
+elif [ -n "$TARGET_FILTER" ]; then
   FILTERED=()
   for entry in "${TARGETS[@]}"; do
     IFS='|' read -r name _ _ <<< "$entry"
@@ -92,9 +98,9 @@ fi
 if [ "$BUILD" = true ]; then
   command -v node >/dev/null 2>&1 || error "node not found"
   command -v npm >/dev/null 2>&1 || error "npm not found"
-  command -v zig >/dev/null 2>&1 || error "zig not found. Install: brew install zig"
+  [ "$HOST_BUILD" = true ] || command -v zig >/dev/null 2>&1 || error "zig not found. Install: brew install zig"
   command -v cargo >/dev/null 2>&1 || error "cargo not found"
-  command cargo zigbuild --help >/dev/null 2>&1 || error "cargo-zigbuild not found. Install: cargo install cargo-zigbuild"
+  [ "$HOST_BUILD" = true ] || command cargo zigbuild --help >/dev/null 2>&1 || error "cargo-zigbuild not found. Install: cargo install cargo-zigbuild"
   [ -f core/Cargo.toml ] || git submodule update --init core
   [ -f core/Cargo.toml ] || error "core submodule missing: run git submodule update --init core"
 fi
@@ -138,7 +144,7 @@ build_target() {
   # Build (native for macOS, zigbuild for cross). The official `voltrus` binary comes
   # from the enterprise crate, modbus-sim from core.
   local build_cmd="cargo zigbuild"
-  [[ "$target" == *"-apple-"* ]] && build_cmd="cargo build"
+  { [[ "$target" == *"-apple-"* ]] || [ "$HOST_BUILD" = true ]; } && build_cmd="cargo build"
   bash -c "ulimit -n ${FD_LIMIT} && cd enterprise && ${build_cmd} --release --locked --target ${target} --bin voltrus"
   bash -c "ulimit -n ${FD_LIMIT} && ${build_cmd} --release --locked --manifest-path core/Cargo.toml --target ${target} --bin modbus-sim"
 
