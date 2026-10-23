@@ -1,6 +1,6 @@
 mod crypto;
 mod handlers;
-mod sso;
+mod providers;
 mod token;
 mod users;
 
@@ -9,7 +9,7 @@ mod tests;
 
 pub use crypto::*;
 pub use handlers::*;
-pub use sso::*;
+pub use providers::*;
 pub use token::*;
 pub use users::*;
 

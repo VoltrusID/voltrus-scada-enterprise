@@ -4,11 +4,9 @@ import { useNavigate, useRouterState, Outlet } from '@tanstack/react-router'
 import { SensorConfig, ScreenLayouts, CanvasLayoutItem, LayoutItem } from './types'
 import { LoginScreen } from './LoginScreen'
 import { ChangePasswordScreen } from './ChangePasswordScreen'
-import { LicenseActivationScreen } from './LicenseActivationScreen'
 import { AddSensorDialog } from './AddSensorDialog'
 import { ConfirmDialog, PromptDialog } from './ScreenDialog'
 import { useAlarmAudio } from './useAlarmAudio'
-import { BrandingDialog, DEFAULT_BRANDING, type BrandingSettings } from './BrandingDialog'
 import { AppHeader } from './components/AppHeader'
 import { ToastContainer } from './components/Toast'
 import { ViewToolbar } from './components/ViewToolbar'
@@ -20,10 +18,10 @@ import { useKeyboardNavigation } from './hooks/useKeyboardNavigation'
 import { useKioskMode } from './hooks/useKioskMode'
 import { useDashboardSystemInfo, useDashboardStoreActions } from './store/dashboardStore'
 import { createDashboardStore, DashboardStoreProvider } from './store/dashboardStore'
-import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useBranding, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useSaveBranding, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk, fetchJson } from './queries'
-import { LicenseContext, type LicenseInfo } from './LicenseContext'
-import { EngineeringBanner } from './EngineeringBanner'
-import { HaBanner } from './components/HaBanner'
+import { useSensors, useScreenSensors, useScreens, useLayouts, useTwinLayouts, useTwinConnections, useCanvasLayouts, useShortcuts, useNavShortcuts, useActiveAlarmCount, useUpdateSensor, useDeleteSensor, useAddSensor, useSaveLayout, useSaveTwinLayout, useSaveTwinConnections, useSaveCanvasLayout, useSaveShortcuts, useSaveNavShortcuts, useCreateScreen, useRenameScreen, useDeleteScreen, useAddSensorToScreen, useRemoveSensorFromScreen, useScadaEquipment, useScadaConnections, useSaveScadaEquipment, useSaveScadaConnections, fetchOk, fetchJson } from './queries'
+import { LicenseContext } from './LicenseContext'
+import { useLicenseStatus } from './queries/license'
+import { edition, useEditionBranding, DEFAULT_BRANDING } from './edition'
 import { OverlayScreen } from './components/OverlayScreen'
 import { VoltrusWebSocket, setWsInstance } from './api/websocket'
 import { ThemeProvider } from './ThemeContext'
@@ -53,10 +51,6 @@ const ScriptEditor = lazy(() => import('./components/ScriptEditor').then(m => ({
 export function AppInner() {
   const queryClient = useQueryClient()
   const { t, ready: i18nReady } = useTranslation()
-
-  // ── License state ────────────────────────────────────────────────
-  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null)
-  const [showLicenseActivation, setShowLicenseActivation] = useState(false)
 
   // ── Auth state ───────────────────────────────────────────────────
   const [authed, setAuthed] = useState(false)
@@ -161,7 +155,8 @@ export function AppInner() {
   const canvasLayouts = localCanvasLayouts ?? serverCanvasLayouts
   const { data: shortcuts = {} } = useShortcuts(authed)
   const { data: navShortcuts = {} } = useNavShortcuts(authed)
-  const { data: branding = DEFAULT_BRANDING } = useBranding()
+  const licenseInfo = useLicenseStatus()
+  const branding = useEditionBranding(licenseInfo) ?? DEFAULT_BRANDING
   const { data: activeAlarms = { count: 0 } } = useActiveAlarmCount(authed)
 
   // ── Mutation hooks ───────────────────────────────────────────────
@@ -176,7 +171,6 @@ export function AppInner() {
   const saveScadaConnectionsMut = useSaveScadaConnections()
   const saveShortcutsMut = useSaveShortcuts()
   const saveNavShortcutsMut = useSaveNavShortcuts()
-  const saveBrandingMut = useSaveBranding()
   const createScreenMut = useCreateScreen()
   const renameScreenMut = useRenameScreen()
   const deleteScreenMut = useDeleteScreen()
@@ -269,13 +263,6 @@ export function AppInner() {
 
   const effectiveLayouts = defaultLayouts ?? screenLayouts
 
-  // ── License check ────────────────────────────────────────────────
-  useEffect(() => {
-    fetchJson<any>('/api/license/status')
-      .then(d => { setLicenseInfo(d) })
-      .catch(() => { setLicenseInfo({ status: 'Unactivated', tier: 'engineering', feature_flags: {}, message: 'Failed to contact license server.' }) })
-  }, [])
-
   // ── Auth ─────────────────────────────────────────────────────────
   useEffect(() => {
     fetchJson<any>('/api/v1/auth/me').then(d => {
@@ -298,11 +285,13 @@ export function AppInner() {
     } catch (e: any) { setLoginError(e.message || 'Login failed') }
   }
 
+  const handleExternalLogin = (d: { username?: string; role?: string; must_change_password?: boolean }) => {
+    connectWS(); setAuthed(true); setAuthRole(d.role || 'user'); setAuthUser(d.username || ''); setMustChangePassword(!!d.must_change_password)
+  }
+
   const handleLogout = async () => { disconnectWS(); storeActions.clearData(); await fetchOk('/api/v1/auth/logout', { method: 'POST' }).catch(() => {}); setAuthed(false); setAuthRole('user'); setAuthUser('') }
 
   // ── Handlers ─────────────────────────────────────────────────────
-
-  const handleSaveBranding = (settings: BrandingSettings) => saveBrandingMut.mutate(settings)
 
   const handleSave = async (s: SensorConfig, shortcut?: string | null) => {
     await updateSensorMut.mutateAsync(s)
@@ -424,13 +413,8 @@ export function AppInner() {
 
   // ── Render gates ─────────────────────────────────────────────────
   if (!i18nReady) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>Loading...</div>
-  if (licenseInfo === null) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>{t('license.checking')}</div>
-  const licenseStatus = licenseInfo.status
-  const isLicensed = licenseStatus === 'Valid' || licenseStatus === 'Engineering' || licenseStatus === 'EngineeringPollingStopped'
-  if (!isLicensed) return <LicenseActivationScreen />
-  if (showLicenseActivation) return <LicenseActivationScreen />
   if (authLoading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--muted)', fontFamily: 'var(--font-ui)' }}>{t('common.loading')}</div>
-  if (!authed) return <LoginScreen onLogin={handleLogin} error={loginError} branding={branding} />
+  if (!authed) return <LoginScreen onLogin={handleLogin} onExternalLogin={handleExternalLogin} error={loginError} branding={branding} />
 
   if (mustChangePassword) {
     const handleChangePassword = async (oldPassword: string, newPassword: string) => {
@@ -444,14 +428,11 @@ export function AppInner() {
     <LicenseContext.Provider value={licenseInfo}>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <a href="#main-content" className="skip-to-content">Skip to content</a>
-      {(licenseStatus === 'Engineering' || licenseStatus === 'EngineeringPollingStopped') && (
-        <EngineeringBanner licenseInfo={licenseInfo} onActivate={() => setShowLicenseActivation(true)} />
-      )}
-      <HaBanner />
+      {edition.Banners && <edition.Banners />}
       <header role="banner">
       <AppHeader
         branding={branding} editMode={editMode}
-        onBrandingClick={() => { if (editMode) setShowBrandingDialog(true) }}
+        onBrandingClick={() => { if (editMode && edition.branding) setShowBrandingDialog(true) }}
         activeAlarmCount={activeAlarms.count}
         effectiveNavShortcuts={effectiveNavShortcuts}
         showShortcutsPanel={showShortcutsPanel}
@@ -609,7 +590,7 @@ export function AppInner() {
         )}
         {screenPrompt && <PromptDialog {...screenPrompt} onClose={() => setScreenPrompt(null)} />}
         {screenConfirm && <ConfirmDialog {...screenConfirm} onClose={() => setScreenConfirm(null)} />}
-        {showBrandingDialog && <BrandingDialog branding={branding} onSave={handleSaveBranding} onClose={() => setShowBrandingDialog(false)} />}
+        {showBrandingDialog && edition.branding && <edition.branding.Dialog branding={branding} onClose={() => setShowBrandingDialog(false)} />}
         {_routePage === 'alarms' && <Suspense fallback={null}><AlarmPanel onClose={() => navigate({ to: '/' })} /></Suspense>}
         {_routePage === 'commands' && <Suspense fallback={null}><CommandPanel onClose={() => navigate({ to: '/' })} isAdmin={isAdminOrDemo} /></Suspense>}
         {showExportPanel && <Suspense fallback={null}><DataExportPanel onClose={() => setShowExportPanel(false)} /></Suspense>}

@@ -1,33 +1,25 @@
 use super::tier::LicenseTier;
-use super::*;
+use serde::Serialize;
 
-// ── License Status ──
+// ── Licence status ──
 
+/// Why the current tier is what it is.
+///
+/// Only `Valid` unlocks add-on features. Every other status runs as Community:
+/// an invalid, expired or missing licence never blocks the core.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status")]
 pub enum LicenseStatus {
+    /// Open core without an add-on edition.
+    Community,
     Valid {
         license_key: String,
+        /// `None` for lifetime keys.
         expires_at: Option<String>,
         days_remaining: Option<i64>,
         tier: Option<String>,
-        device_limit: Option<u32>,
-    },
-    Engineering {
-        started_at: i64,
-        polling_elapsed_secs: i64,
-        polling_remaining_secs: i64,
-        daily_budget_secs: i64,
-        daily_used_secs: i64,
-        polling_active: bool,
-        tier: LicenseTier,
-        feature_flags: serde_json::Value,
-    },
-    EngineeringPollingStopped {
-        started_at: i64,
-        daily_budget_secs: i64,
-        daily_used_secs: i64,
-        message: String,
+        /// True while a lapsed monthly key is inside its 7 day grace period.
+        grace: bool,
     },
     Unactivated {
         message: String,
@@ -50,34 +42,15 @@ pub enum LicenseStatus {
 }
 
 impl LicenseStatus {
-    pub fn is_valid(&self) -> bool {
-        matches!(
-            self,
-            LicenseStatus::Valid { .. }
-                | LicenseStatus::Engineering { .. }
-                | LicenseStatus::EngineeringPollingStopped { .. }
-        )
-    }
-
-    /// Extracts the LicenseTier from Valid or Engineering status.
-    /// Defaults to Engineering for all other statuses.
+    /// The tier this status unlocks. Anything but `Valid` is Community.
     pub fn tier(&self) -> LicenseTier {
         match self {
             LicenseStatus::Valid { tier, .. } => LicenseTier::from_tier_str(tier.as_deref()),
-            LicenseStatus::Engineering { tier, .. } => tier.clone(),
-            LicenseStatus::EngineeringPollingStopped { .. } => LicenseTier::Engineering,
-            _ => LicenseTier::Engineering,
+            _ => LicenseTier::Community,
         }
     }
 
-    /// Returns feature flags for Valid or Engineering status, empty object otherwise.
     pub fn feature_flags(&self) -> serde_json::Value {
-        match self {
-            LicenseStatus::Valid { tier, .. } => {
-                LicenseTier::from_tier_str(tier.as_deref()).to_feature_flags()
-            }
-            LicenseStatus::Engineering { feature_flags, .. } => feature_flags.clone(),
-            _ => serde_json::json!({}),
-        }
+        self.tier().to_feature_flags()
     }
 }

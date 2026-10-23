@@ -1,5 +1,3 @@
-use base64::Engine;
-
 use crate::config;
 use crate::storage::Storage;
 
@@ -12,12 +10,6 @@ voltrus — Industrial Modbus monitoring dashboard
 USAGE:
     voltrus [CONFIG_PATH]              Start server (default: config.yaml)
     voltrus --help                     Show this help
-    voltrus --license-status [CONFIG]  Check current license status
-    voltrus --generate-request <KEY>   Generate license-request.bin
-    voltrus --import-activation <FILE> [CONFIG]
-                                            Import license-activation.bin
-    voltrus --online-activate <KEY> [CONFIG]
-                                            Activate directly via internet
     voltrus --reset-admin-password [CONFIG]
                                             Reset admin password (prints new password)
     voltrus --dump-openapi [CONFIG]    Print OpenAPI 3.1 spec as JSON and exit
@@ -66,23 +58,15 @@ IMPORT OPTIONS:
     <FILE>             Path to the .voltrus-scada archive to import
     --config <PATH>    Config file path for db_path lookup (default: config.yaml)
     --dry-run          Validate archive without writing to database
-    --force            Skip tier compatibility checks
 
 OPTIONS:
     --help                        Show this help message
-    --license-status              Print license status as JSON (exit 1 if invalid)
-    --generate-request <KEY>      Generate a license request file for offline activation
-    --import-activation <FILE>    Import a signed activation file from the activation server
-    --online-activate <KEY>       Connect to activation server and activate in one step
-                                  (requires internet access)
     --reset-admin-password        Generate a new random password for admin user
 
 EXAMPLES:
     voltrus                              # Start with config.yaml
     voltrus /etc/voltrus/prod.yaml       # Start with custom config
-    voltrus --online-activate VOLTRUS-XXXX   # Activate online
     voltrus --reset-admin-password       # Reset lost admin password
-    voltrus --license-status             # Check license
     voltrus backup                       # Create backup in current directory
     voltrus backup --output /tmp/bak.tar.gz  # Custom output path
     voltrus restore backup.tar.gz        # Restore from archive
@@ -96,23 +80,25 @@ EXAMPLES:
     voltrus export --output /tmp/project.voltrus-scada
     voltrus import project.voltrus-scada     # Import project from archive
     voltrus import project.voltrus-scada --dry-run  # Validate without importing
-    voltrus import project.voltrus-scada --force     # Skip tier checks
 ";
 
 /// Handle CLI subcommands. Returns true if a subcommand was handled (should exit).
-pub async fn handle_cli(args: &[String]) -> bool {
+pub async fn handle_cli(args: &[String], ext: &dyn crate::edition::Extension) -> bool {
     if args.len() <= 1 {
         return false;
+    }
+
+    // Subcommands owned by an add-on edition (licensing and so on).
+    if ext.handle_cli(args).await {
+        return true;
     }
 
     match args[1].as_str() {
         "--help" | "-h" => {
             print!("{}", HELP_TEXT);
+            print!("{}", ext.cli_help());
             std::process::exit(0);
         }
-        "--generate-request" => handle_generate_request(args),
-        "--import-activation" => handle_import_activation(args).await,
-        "--online-activate" => handle_online_activate(args).await,
         "--reset-admin-password" => handle_reset_admin_password(args).await,
         "config" => handle_config(args),
         "edr" => handle_edr(args),
@@ -126,211 +112,12 @@ pub async fn handle_cli(args: &[String]) -> bool {
         "export" => handle_export(args),
         "import" => handle_import(args),
         "--dump-openapi" => handle_dump_openapi(),
-        "--license-status" => handle_license_status(args).await,
         other if other.starts_with('-') => {
             eprintln!("Unknown option: {}", other);
             eprintln!("Run '{} --help' for usage.", args[0]);
             std::process::exit(1);
         }
         _ => false,
-    }
-}
-
-fn handle_generate_request(args: &[String]) -> bool {
-    if args.len() < 3 {
-        eprintln!("Usage: {} --generate-request <LICENSE_KEY>", args[0]);
-        std::process::exit(1);
-    }
-    match crate::license::request::generate_request(&args[2]) {
-        Ok(path) => {
-            println!("License request written to: {}", path);
-            true
-        }
-        Err(e) => {
-            eprintln!("Error: {e}");
-            std::process::exit(1);
-        }
-    }
-}
-
-async fn handle_import_activation(args: &[String]) -> bool {
-    if args.len() < 3 {
-        eprintln!(
-            "Usage: {} --import-activation <PATH> [CONFIG_PATH]",
-            args[0]
-        );
-        std::process::exit(1);
-    }
-    let activation_path = &args[2];
-    let config_path = args.get(3).map(|s| s.as_str()).unwrap_or("config.yaml");
-    let app_config = config::load_config(config_path).unwrap_or_else(|e| {
-        eprintln!("Config error: {e}");
-        std::process::exit(1);
-    });
-    let storage =
-        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-            .unwrap_or_else(|e| {
-                eprintln!("DB error: {e}");
-                std::process::exit(1);
-            });
-    let activation = crate::license::activation::import_activation_file(activation_path)
-        .unwrap_or_else(|e| {
-            eprintln!("Activation error: {e}");
-            std::process::exit(1);
-        });
-    let fingerprint = crate::license::fingerprint::collect_fingerprint();
-    let row = crate::models::LicenseActivationRow {
-        license_key: activation.license_key.clone(),
-        fingerprint_hash: fingerprint.hash(),
-        activation_blob: std::fs::read(activation_path).unwrap_or_else(|e| {
-            eprintln!("Read error: {e}");
-            std::process::exit(1);
-        }),
-        fingerprint_hostname: fingerprint.hostname,
-        fingerprint_cpu: fingerprint.cpu,
-        fingerprint_disk_serial: fingerprint.disk_serial,
-        fingerprint_mac: fingerprint.mac,
-        fingerprint_machine_id: fingerprint.machine_id,
-        activated_at: activation.issued_at,
-        expires_at: activation.expires_at,
-        tier: activation.tier,
-        device_limit: activation.device_limit,
-    };
-    match storage.store_license_activation(&row).await {
-        Ok(()) => {
-            println!("License activated successfully: {}", activation.license_key);
-            true
-        }
-        Err(e) => {
-            eprintln!("Store error: {e}");
-            std::process::exit(1);
-        }
-    }
-}
-
-async fn handle_online_activate(args: &[String]) -> bool {
-    if args.len() < 3 {
-        eprintln!(
-            "Usage: {} --online-activate <LICENSE_KEY> [CONFIG_PATH]",
-            args[0]
-        );
-        std::process::exit(1);
-    }
-    let license_key = &args[2];
-    let config_path = args.get(3).map(|s| s.as_str()).unwrap_or("config.yaml");
-    let app_config = config::load_config(config_path).unwrap_or_else(|e| {
-        eprintln!("Config error: {e}");
-        std::process::exit(1);
-    });
-    let storage =
-        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-            .unwrap_or_else(|e| {
-                eprintln!("DB error: {e}");
-                std::process::exit(1);
-            });
-
-    eprintln!("Generating license request...");
-    let request_data = {
-        let path = crate::license::request::generate_request(license_key).unwrap_or_else(|e| {
-            eprintln!("Request error: {e}");
-            std::process::exit(1);
-        });
-        let data = std::fs::read(&path).unwrap_or_else(|e| {
-            eprintln!("Read error: {e}");
-            std::process::exit(1);
-        });
-        std::fs::remove_file(&path).ok();
-        data
-    };
-
-    eprintln!("Contacting activation server...");
-    let client = reqwest::Client::new();
-    let file_part = reqwest::multipart::Part::bytes(request_data.clone())
-        .file_name("license-request.bin")
-        .mime_str("application/octet-stream")
-        .unwrap_or_else(|e| {
-            eprintln!("MIME error: {e}");
-            std::process::exit(1);
-        });
-    let form = reqwest::multipart::Form::new()
-        .text("license_key", license_key.clone())
-        .part("file", file_part);
-
-    let resp = client
-        .post("https://activate.voltrus.id/activate")
-        .multipart(form)
-        .timeout(std::time::Duration::from_secs(30))
-        .send()
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!(
-                "Failed to connect to activation server: {}. Ensure you have internet access.",
-                e
-            );
-            std::process::exit(1);
-        });
-
-    let status = resp.status();
-    if !status.is_success() {
-        // Refusals (seats in use, revoked, unknown key) carry {"error": "..."}; show it.
-        let body: serde_json::Value = resp.json().await.unwrap_or_default();
-        match body["error"].as_str() {
-            Some(err) => eprintln!("Activation failed: {err}"),
-            None => eprintln!("Activation server returned HTTP {status}"),
-        }
-        std::process::exit(1);
-    }
-
-    let result: serde_json::Value = resp.json().await.unwrap_or_else(|e| {
-        eprintln!("Parse error: {e}");
-        std::process::exit(1);
-    });
-    if !result["success"].as_bool().unwrap_or(false) {
-        let err = result["error"].as_str().unwrap_or("Unknown error");
-        eprintln!("Activation failed: {}", err);
-        std::process::exit(1);
-    }
-
-    let activation_b64 = result["activation_file"].as_str().unwrap_or_else(|| {
-        eprintln!("Activation server did not return activation file");
-        std::process::exit(1);
-    });
-    let activation_blob = base64::engine::general_purpose::STANDARD
-        .decode(activation_b64)
-        .unwrap_or_else(|e| {
-            eprintln!("Decode error: {e}");
-            std::process::exit(1);
-        });
-
-    let activation = crate::license::activation::verify_activation_signature(&activation_blob)
-        .unwrap_or_else(|e| {
-            eprintln!("Signature error: {e}");
-            std::process::exit(1);
-        });
-    let fingerprint = crate::license::fingerprint::collect_fingerprint();
-    let row = crate::models::LicenseActivationRow {
-        license_key: activation.license_key.clone(),
-        fingerprint_hash: fingerprint.hash(),
-        activation_blob,
-        fingerprint_hostname: fingerprint.hostname,
-        fingerprint_cpu: fingerprint.cpu,
-        fingerprint_disk_serial: fingerprint.disk_serial,
-        fingerprint_mac: fingerprint.mac,
-        fingerprint_machine_id: fingerprint.machine_id,
-        activated_at: activation.issued_at,
-        expires_at: activation.expires_at,
-        tier: activation.tier,
-        device_limit: activation.device_limit,
-    };
-    match storage.store_license_activation(&row).await {
-        Ok(()) => {
-            println!("License activated successfully: {}", activation.license_key);
-            true
-        }
-        Err(e) => {
-            eprintln!("Store error: {e}");
-            std::process::exit(1);
-        }
     }
 }
 
@@ -459,9 +246,9 @@ fn handle_hw_report(args: &[String]) -> bool {
     println!("Tier Compatibility:");
     let tiers = [
         ("Engineering", &compatibility.engineering),
-        ("Starter ($249)", &compatibility.starter),
-        ("Professional ($499)", &compatibility.professional),
-        ("Enterprise ($999)", &compatibility.enterprise),
+        ("Starter", &compatibility.starter),
+        ("Professional", &compatibility.professional),
+        ("Enterprise", &compatibility.enterprise),
     ];
     for (name, assessment) in &tiers {
         let status = if assessment.compatible {
@@ -755,15 +542,7 @@ fn handle_config(args: &[String]) -> bool {
                         eprintln!("DB error: {e}");
                         std::process::exit(1);
                     });
-            // Check license synchronously (blocking context in non-async fn)
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            let status = rt.block_on(crate::license::verify_license(&storage));
-            if !status.is_valid() || !status.tier().backup_restore() {
-                eprintln!(
-                    "Config export requires a valid Starter+ license (backup_restore feature)."
-                );
-                std::process::exit(1);
-            }
+            let _rt = tokio::runtime::Runtime::new().unwrap();
             match crate::config_export::export_config(&storage, path) {
                 Ok(_) => {
                     println!("Config exported to {path}/");
@@ -787,14 +566,7 @@ fn handle_config(args: &[String]) -> bool {
                         eprintln!("DB error: {e}");
                         std::process::exit(1);
                     });
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            let status = rt.block_on(crate::license::verify_license(&storage));
-            if !status.is_valid() || !status.tier().backup_restore() {
-                eprintln!(
-                    "Config import requires a valid Starter+ license (backup_restore feature)."
-                );
-                std::process::exit(1);
-            }
+            let _rt = tokio::runtime::Runtime::new().unwrap();
             match crate::config_export::import_config(&storage, path) {
                 Ok(_) => {
                     println!("Config imported from {path}/");
@@ -882,17 +654,12 @@ async fn handle_discover(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage =
+    let _storage =
         Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
             .unwrap_or_else(|e| {
                 eprintln!("DB error: {e}");
                 std::process::exit(1);
             });
-    let status = crate::license::verify_license(&storage).await;
-    if !status.is_valid() || !status.tier().auto_discovery() {
-        eprintln!("Network discovery requires a valid Starter+ license (auto_discovery feature).");
-        std::process::exit(1);
-    }
     eprintln!("Scanning {} port {} for Modbus TCP devices...", range, port);
     match crate::discovery::scan_network(&range, port, 500).await {
         Ok(devices) => {
@@ -1035,31 +802,6 @@ fn handle_restore(args: &[String]) -> bool {
         Ok(_) => true,
         Err(e) => {
             eprintln!("Restore failed: {e}");
-            std::process::exit(1);
-        }
-    }
-}
-
-async fn handle_license_status(args: &[String]) -> bool {
-    let config_path = args.get(2).map(|s| s.as_str()).unwrap_or("config.yaml");
-    let app_config = config::load_config(config_path).unwrap_or_else(|e| {
-        eprintln!("Config error: {e}");
-        std::process::exit(1);
-    });
-    let storage =
-        Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
-            .unwrap_or_else(|e| {
-                eprintln!("DB error: {e}");
-                std::process::exit(1);
-            });
-    let status = crate::license::verify_license(&storage).await;
-    match serde_json::to_string_pretty(&status) {
-        Ok(json) => {
-            println!("{}", json);
-            std::process::exit(if status.is_valid() { 0 } else { 1 });
-        }
-        Err(e) => {
-            eprintln!("Serialize error: {e}");
             std::process::exit(1);
         }
     }
@@ -1362,26 +1104,19 @@ fn handle_export(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage =
+    let _storage =
         Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
             .unwrap_or_else(|e| {
                 eprintln!("DB error: {e}");
                 std::process::exit(1);
             });
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let status = rt.block_on(crate::license::verify_license(&storage));
-    if !status.is_valid() {
-        eprintln!("Project export requires a valid license.");
-        std::process::exit(1);
-    }
-    let tier = status.tier();
-    match crate::project_export::export_project(&app_config.db_path, &output_path, &tier) {
+    let _rt = tokio::runtime::Runtime::new().unwrap();
+    match crate::project_export::export_project(&app_config.db_path, &output_path) {
         Ok(manifest) => {
             println!("Project exported to: {}", output_path);
             println!("  Devices: {}", manifest.device_count);
             println!("  Tags:    {}", manifest.tag_count);
             println!("  Screens: {}", manifest.screen_count);
-            println!("  Tier:    {}", manifest.tier_at_export);
             true
         }
         Err(e) => {
@@ -1395,7 +1130,6 @@ fn handle_import(args: &[String]) -> bool {
     let mut config_path = "config.yaml".to_string();
     let mut input_path: Option<String> = None;
     let mut dry_run = false;
-    let mut force = false;
     let mut i = 2;
     while i < args.len() {
         match args[i].as_str() {
@@ -1411,14 +1145,10 @@ fn handle_import(args: &[String]) -> bool {
                 dry_run = true;
                 i += 1;
             }
-            "--force" => {
-                force = true;
-                i += 1;
-            }
             flag if flag.starts_with('-') => {
                 eprintln!("Unknown import option: {}", flag);
                 eprintln!(
-                    "Usage: {} import <FILE> [--config <PATH>] [--dry-run] [--force]",
+                    "Usage: {} import <FILE> [--config <PATH>] [--dry-run]",
                     args[0]
                 );
                 std::process::exit(1);
@@ -1427,7 +1157,7 @@ fn handle_import(args: &[String]) -> bool {
                 if input_path.is_some() {
                     eprintln!("Unexpected argument: {}", arg);
                     eprintln!(
-                        "Usage: {} import <FILE> [--config <PATH>] [--dry-run] [--force]",
+                        "Usage: {} import <FILE> [--config <PATH>] [--dry-run]",
                         args[0]
                     );
                     std::process::exit(1);
@@ -1441,7 +1171,7 @@ fn handle_import(args: &[String]) -> bool {
         Some(p) => p,
         None => {
             eprintln!(
-                "Usage: {} import <FILE> [--config <PATH>] [--dry-run] [--force]",
+                "Usage: {} import <FILE> [--config <PATH>] [--dry-run]",
                 args[0]
             );
             std::process::exit(1);
@@ -1451,26 +1181,14 @@ fn handle_import(args: &[String]) -> bool {
         eprintln!("Config error: {e}");
         std::process::exit(1);
     });
-    let storage =
+    let _storage =
         Storage::new_with_key(&app_config.db_path, app_config.db_encryption_key.as_deref())
             .unwrap_or_else(|e| {
                 eprintln!("DB error: {e}");
                 std::process::exit(1);
             });
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let status = rt.block_on(crate::license::verify_license(&storage));
-    if !status.is_valid() {
-        eprintln!("Project import requires a valid license.");
-        std::process::exit(1);
-    }
-    let tier = status.tier();
-    match crate::project_export::import_project(
-        &app_config.db_path,
-        &input_path,
-        dry_run,
-        force,
-        &tier,
-    ) {
+    let _rt = tokio::runtime::Runtime::new().unwrap();
+    match crate::project_export::import_project(&app_config.db_path, &input_path, dry_run) {
         Ok(manifest) => {
             if dry_run {
                 println!("Dry-run validation passed for: {}", input_path);
@@ -1480,7 +1198,6 @@ fn handle_import(args: &[String]) -> bool {
             println!("  Devices: {}", manifest.device_count);
             println!("  Tags:    {}", manifest.tag_count);
             println!("  Screens: {}", manifest.screen_count);
-            println!("  Tier:    {}", manifest.tier_at_export);
             if dry_run {
                 println!("  (no data was written — use without --dry-run to import)");
             }

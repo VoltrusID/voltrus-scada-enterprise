@@ -195,7 +195,7 @@ class VoltrusClient:
         return self._request("GET", "/api/v1/system/features")
 
     def get_license_status(self) -> Dict[str, Any]:
-        """License tier and status."""
+        """Edition tier ("community", "integrator", "enterprise") and licence status."""
         return self._request("GET", "/api/license/status")
 
     # ── Live data & tags ────────────────────────────────────

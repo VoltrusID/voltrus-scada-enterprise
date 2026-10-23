@@ -1,5 +1,4 @@
 use axum::response::Html;
-use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
 #[derive(OpenApi)]
@@ -18,9 +17,6 @@ use utoipa::{Modify, OpenApi};
         crate::api::auth::auth_me,
         crate::api::auth::get_csrf_token,
         crate::api::auth::list_auth_providers,
-        crate::api::auth::saml_metadata,
-        crate::api::auth::saml_acs,
-        crate::api::auth::ldap_login,
         crate::api::auth::change_password,
         crate::api::auth::seed,
         crate::api::auth::list_users,
@@ -28,9 +24,7 @@ use utoipa::{Modify, OpenApi};
         crate::api::auth::update_user_handler,
         crate::api::auth::delete_user_handler,
         // Settings
-        crate::api::settings::get_branding,
         crate::api::settings::get_alarm_cooldown,
-        crate::api::settings::update_branding,
         crate::api::settings::update_alarm_cooldown,
         // License
         crate::api::license::get_license_status,
@@ -217,20 +211,6 @@ use utoipa::{Modify, OpenApi};
         crate::api::analytics::update_custom_metric,
         crate::api::analytics::delete_custom_metric,
         crate::api::analytics::evaluate_all_custom_metrics,
-        // Hub
-        crate::api::hub::list_sites,
-        crate::api::hub::create_site,
-        crate::api::hub::update_site,
-        crate::api::hub::delete_site,
-        crate::api::hub::start_site_connection,
-        crate::api::hub::stop_site_connection,
-        crate::api::hub::get_hub_status,
-        // Reports
-        crate::api::reports::list_reports,
-        crate::api::reports::create_report,
-        crate::api::reports::update_report,
-        crate::api::reports::delete_report,
-        crate::api::reports::generate_report,
         // Recipes
         crate::api::recipes::list_recipes,
         crate::api::recipes::create_recipe,
@@ -244,16 +224,6 @@ use utoipa::{Modify, OpenApi};
         crate::api::rbac::update_role,
         crate::api::rbac::delete_role,
         crate::api::rbac::assign_user_role,
-        // Compliance
-        crate::api::compliance::get_compliance_config,
-        crate::api::compliance::update_compliance_config,
-        crate::api::compliance::create_electronic_signature,
-        crate::api::compliance::list_electronic_signatures,
-        // Security
-        crate::api::security::list_security_events,
-        crate::api::security::export_security_csv,
-        crate::api::security::get_security_thresholds,
-        crate::api::security::update_security_thresholds,
         // Annotations
         crate::api::annotations::create_annotation,
         crate::api::annotations::list_annotations,
@@ -265,15 +235,6 @@ use utoipa::{Modify, OpenApi};
         crate::api::shift_handover::list_shift_handovers,
         crate::api::shift_handover::get_shift_handover,
         crate::api::shift_handover::auto_shift_report,
-        // Video
-        crate::api::video::list_cameras,
-        crate::api::video::create_camera,
-        crate::api::video::update_camera,
-        crate::api::video::delete_camera,
-        crate::api::video::trigger_snapshot,
-        crate::api::video::list_snapshots,
-        crate::api::video::delete_snapshot,
-        crate::api::video::get_stream_info,
         // Compression
         crate::api::compression::get_compression_stats,
         crate::api::compression::get_compression_config,
@@ -285,11 +246,8 @@ use utoipa::{Modify, OpenApi};
         crate::models::ProcessInfo,
         crate::models::LiveResponse,
         crate::models::LoginResponse,
-        crate::models::BrandingSettings,
         crate::models::LoginRequest,
         crate::models::ChangePasswordRequest,
-        crate::api::auth::SamlAcsRequest,
-        crate::api::auth::LdapLoginRequest,
         // Alarm schemas
         crate::models::Alarm,
         crate::models::AlarmAuditEntry,
@@ -384,13 +342,6 @@ use utoipa::{Modify, OpenApi};
         crate::models::CreateCustomMetricRequest,
         crate::models::UpdateCustomMetricRequest,
         // Hub schemas
-        crate::models::HubSite,
-        crate::models::CreateHubSiteRequest,
-        crate::models::UpdateHubSiteRequest,
-        // Report schemas
-        crate::models::Report,
-        crate::models::CreateReportRequest,
-        crate::models::UpdateReportRequest,
         // Recipe schemas
         crate::models::Recipe,
         crate::models::CreateRecipeRequest,
@@ -400,11 +351,6 @@ use utoipa::{Modify, OpenApi};
         crate::models::CreateRoleRequest,
         crate::models::UpdateRoleRequest,
         crate::models::AssignRoleRequest,
-        // Compliance schemas
-        crate::compliance::ComplianceConfig,
-        crate::compliance::UpdateComplianceConfigRequest,
-        crate::compliance::CreateSignatureRequest,
-        crate::compliance::ElectronicSignature,
         // Security schemas
         crate::models::SecurityEvent,
         crate::models::SecurityThresholds,
@@ -416,10 +362,6 @@ use utoipa::{Modify, OpenApi};
         crate::models::ShiftHandover,
         crate::models::CreateShiftHandoverRequest,
         // Video schemas
-        crate::models::Camera,
-        crate::models::CameraSnapshot,
-        crate::models::CreateCameraRequest,
-        crate::models::UpdateCameraRequest,
         // Compression schemas
         crate::api::compression::CompressionStatsResponse,
         crate::api::compression::CompressionConfigResponse,
@@ -482,15 +424,10 @@ use utoipa::{Modify, OpenApi};
         (name = "Stream", description = "Server-Sent Events real-time stream"),
         (name = "OEE", description = "Overall Equipment Effectiveness metrics"),
         (name = "Analytics", description = "Data aggregation and comparison"),
-        (name = "Hub", description = "Multi-site hub management"),
-        (name = "Reports", description = "Report generation and scheduling"),
         (name = "Recipes", description = "Recipe and parameter management"),
         (name = "RBAC", description = "Role-based access control"),
-        (name = "Compliance", description = "FDA 21 CFR Part 11 compliance"),
-        (name = "Security", description = "IEC 62443 security audit events"),
         (name = "Annotations", description = "Data point annotations"),
         (name = "Shift Handover", description = "Shift handover logs and reports"),
-        (name = "Video", description = "RTSP camera management"),
         (name = "API Keys", description = "API key management"),
         (name = "Settings", description = "Application settings"),
         (name = "License", description = "License status"),

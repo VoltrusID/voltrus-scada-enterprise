@@ -1,269 +1,172 @@
-# Voltrus
+# Voltrus SCADA
 
-**Industrial monitoring that doesn't get in your way.**
+Self-hosted SCADA and industrial monitoring in a single Rust binary, with a
+React web client. Poll PLCs and meters, keep the history in SQLite, build
+dashboards and run alarms, on your own hardware and with no cloud account.
 
-A lightweight, self-contained SCADA/IoT platform built with Rust and React. Single binary, multi-protocol, zero cloud dependency.
+This repository is the open-source **Core**, licensed under
+[AGPL-3.0-or-later](LICENSE). A separate closed-source **Enterprise add-on**
+(single sign-on, 21 CFR Part 11, hot standby and more) is sold per site.
+See [Core vs Enterprise](#core-vs-enterprise).
 
-Built by [JoyoDigitama](https://joyodigitama.com).
+Built by [JoyoDigitama](https://joyodigitama.com). Website and pricing:
+<https://voltrus.id/voltrus-scada>.
 
----
+## Core features
 
-## Features
+* **Protocols:** Modbus TCP, OPC UA, Siemens S7, EtherNet/IP (CIP), DNP3,
+  BACnet/IP, and an embedded MQTT broker. SNMP network scan for asset discovery.
+  Each protocol is a Cargo feature, all on by default.
+* **Dashboards:** responsive grid, free-form canvas, 3D digital twin and a 2D
+  SCADA diagram editor, with per-screen layouts.
+* **Alarms:** warning and critical thresholds, priorities, shelving, deadband,
+  on and off delay, acknowledgement, alarm analytics, email, webhook and push
+  notifications.
+* **Historian:** raw, hourly and daily tiers with automatic downsampling and
+  CSV archive, trends, SPC charts, annotations, CSV and Excel import and export.
+* **Automation:** visual flow engine, JavaScript scripts (QuickJS), recipes,
+  a command queue with write read-back, simulation mode.
+* **API:** REST with an OpenAPI document, plus TypeScript and Python SDKs in
+  [`sdks/`](sdks) (MIT licensed).
+* **Operations:** OEE and downtime, shift handover, asset inventory with NIS2
+  export, config snapshots, backup and restore.
+* **Security:** local accounts with Argon2, role-based access control, API
+  keys, rate limiting, CSRF protection, intrusion detection, audit log.
+* **No limits and no licence key:** unlimited devices, tags and retention.
 
-### Multi-Protocol Polling
+## Core vs Enterprise
 
-| Protocol | Feature Flag | Default |
-|----------|-------------|---------|
-| Modbus TCP | `modbus` | Yes |
-| OPC-UA | `opcua` | Yes |
-| Siemens S7 | `s7` | Yes |
-| BACnet/IP | `bacnet` | Yes |
-| DNP3 | `dnp3` | Yes |
-| EtherNet/IP (CIP) | `ethernet-ip` | Yes |
-| MQTT Broker (embedded) | `mqtt-broker` | Yes |
-| SNMP Network Scan | `snmp_scan` | Yes |
+Core is complete for one site. The Enterprise add-on is unlocked per site by a
+licence key; a lapsed or missing key never limits Core.
 
-### Dashboard Views
+| | Core (this repo) | Integrator | Enterprise |
+|---|:-:|:-:|:-:|
+| Everything listed above, all protocols, no limits | yes | yes | yes |
+| White-label branding and theme editor | | yes | yes |
+| Scheduled PDF reports and SMS alarms | | yes | yes |
+| Multi-site hub | | yes | yes |
+| Single sign-on (AD, Azure AD, Okta, SAML, OIDC, LDAP) | | | yes |
+| 21 CFR Part 11 mode (e-signatures, record checksums) | | | yes |
+| IEC 62443 security audit mode | | | yes |
+| Hot standby with automatic failover | | | yes |
+| RTSP video cameras | | | yes |
+| Support | community | standard | priority SLA |
 
-| View | Description |
-|------|-------------|
-| **Grid** | Responsive card grid with drag-and-drop layout and sparkline charts |
-| **Canvas** | Free-form layout — drag sensors anywhere, resize freely |
-| **3D Digital Twin** | Three.js-powered 3D scene with solar panels, inverters, and custom equipment |
-| **2D SCADA** | Industrial diagram editor with transformers, breakers, meters, switches, and motors |
+Integrator and Enterprise are sold as a lifetime licence or monthly, per site.
+Current prices: <https://voltrus.id/voltrus-scada>. Official Voltrus binaries
+are Core plus the add-on. Details of the split and how it is built:
+[docs/open-core.md](docs/open-core.md).
 
-All views support per-screen persistence with independent responsive breakpoints (Desktop/Tablet/Mobile).
+## Quick start
 
-### Flow Engine
-
-Visual automation builder — chain together filtering, threshold checks, script execution, MQTT publish, and notification nodes. Design automations in the browser, run them on the edge.
-
-### Script Engine
-
-Write JavaScript directly in the browser editor, test with sample input, and deploy to the flow engine. Powered by [Boa](https://boajs.dev/) (pure Rust, no C dependencies). Sandboxed with runtime limits and security restrictions.
-
-### Alarms & Notifications
-
-- Threshold-based alerts (warning/critical) with configurable cooldown
-- Audio notifications with mute control
-- Alarm panel with acknowledgment tracking
-- Email notifications (SMTP)
-- Shift handover logging
-
-### Data Retention
-
-| Tier | Resolution | Default Retention |
-|------|-----------|-------------------|
-| Raw | Original polling interval | 7 days |
-| Hourly | 1-hour aggregates | 90 days |
-| Daily | 1-day aggregates | Forever |
-
-Automatic downsampling runs in the background. Raw data archived to `archive/YYYY-MM-DD.csv.gz` before deletion.
-
-### Security
-
-- JWT cookie-based sessions with Argon2 password hashing
-- OIDC/SSO integration (Keycloak, Auth0, Azure AD)
-- LDAP and SAML authentication
-- Role-based access control (admin/user)
-- Rate limiting, CSRF protection, intrusion detection
-- Audit logging
-
-### Other Features
-
-- **Tag browser** — organize and browse all data points across devices
-- **Asset inventory** — OT asset management with hierarchy and metadata
-- **Config snapshots** — point-in-time config backup and restore
-- **Data export** — CSV/JSON export with time range selection
-- **Data import** — CSV import wizard, Node-RED flow import, Modbus and BACnet device files (drag and drop on the device pages) from Modbus Poll and BACnet Explorer
-- **Keyboard shortcuts** — fully customizable per-user
-- **Custom branding** — title, subtitle, logo
-- **Multi-language** — i18n with locale files
-- **License tiers** — Trial, Starter, Professional, Enterprise with ed25519 signing
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│  Browser (React 19 SPA + Three.js)          │
-│  Grid │ Canvas │ 3D Twin │ 2D SCADA         │
-│         SSE / REST / WebSocket               │
-├─────────────────────────────────────────────┤
-│  Rust Backend (Axum + Tokio)                │
-│  ┌──────────┐ ┌────────┐ ┌───────────────┐  │
-│  │ Protocol │ │ Auth   │ │ Flow Engine   │  │
-│  │ Pollers  │ │(JWT+   │ │ + Scripts     │  │
-│  │(9 protos)│ │ OIDC)  │ │ (boa_engine)  │  │
-│  └────┬─────┘ └────────┘ └───────────────┘  │
-│       ▼              ┌───────────────┐       │
-│  ┌─────────┐         │ Retention      │       │
-│  │ Device  │         │ (downsample,   │       │
-│  │ Cache   │         │  archive)      │       │
-│  └────┬────┘         └───────────────┘       │
-│       ▼                                     │
-│  ┌───────────────┐                          │
-│  │ SQLite        │                          │
-│  │ (auto-migrate)│                          │
-│  └───────────────┘                          │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## Quick Start
+You need Rust (stable, edition 2024) and Node.js 22 or newer.
 
 ```bash
-# Build (includes all protocols + scripts)
+# 1. Build the web client into ./static
+cd client && npm ci && npm run build && cd ..
+
+# 2. Build the server (all protocols and scripts)
 cargo build --release
 
-# Build without scripts (saves ~15 MB)
-cargo build --release --no-default-features --features "snmp_scan,modbus,opcua,mqtt-broker,bacnet,dnp3,ethernet-ip,s7"
-
-# Configure
-# Edit config.yaml: devices, auth.jwt_secret, server.port
-
-# Run
+# 3. Edit config.yaml (devices, auth_secret), then run
 ./target/release/voltrus config.yaml
-
-# Open http://localhost:3000
-#
-# First boot generates a random admin password — printed ONCE to the server
-# log (look for GENERATED ADMIN PASSWORD). Change it on first login.
-#
-# Engineering tier: device polling is NOT auto-started. Start it from the
-# UI (Admin → Polling) or POST /api/v1/engineering/polling/start.
 ```
 
-### Cross-Compilation & Release
+Open <http://localhost:3000>. The first start generates a random admin
+password and prints it once to the server log (look for
+`GENERATED ADMIN PASSWORD`). Change it after the first sign-in.
+
+Prebuilt Core binaries for Linux (x86_64, aarch64) and macOS are attached to
+each [release](https://github.com/VoltrusID/voltrus-scada/releases). They
+include the web client. Unpack, edit `config.yaml.example`, run `./voltrus`.
+
+To build with fewer protocols:
 
 ```bash
-# Requires: zig, cargo-zigbuild, bun, wrangler
-
-# Single target
-rustup target add x86_64-unknown-linux-musl
-bash -c 'ulimit -n 65536 && cargo zigbuild --release --target x86_64-unknown-linux-musl'
-
-# Full release (all platforms + R2 upload)
-./scripts/release-local.sh
-
-# Options
-./scripts/release-local.sh --target aarch64       # macOS ARM64 only
-./scripts/release-local.sh --target linux-x86_64   # Linux x86_64 only
-./scripts/release-local.sh --skip-upload          # Build only, skip R2 upload
-NOTARIZE=1 ./scripts/release-local.sh              # With macOS notarization
+cargo build --release --no-default-features --features "modbus,opcua,mqtt-broker"
 ```
 
-### Deploy to VPS
+### Configuration
 
-```bash
-# Build + deploy in one step
-./deploy-vps.sh
-
-# Options
-./deploy-vps.sh --build-only     # build only
-./deploy-vps.sh --deploy-only    # deploy existing build
-./deploy-vps.sh --frontend-only  # rebuild frontend only
-```
-
-### Frontend Development
-
-```bash
-cd client
-bun install
-bun run dev        # dev server at localhost:5173, proxies API to :3100
-bun run build      # production build → ../static/
-```
-
----
-
-## Configuration
-
-Everything is configured through a single `config.yaml`:
+One YAML file. A minimal example:
 
 ```yaml
-server:
-  port: 3000
-  cors_origins: []
-
-database:
-  path: data.db
-
-auth:
-  jwt_secret: "change-me-in-production"
-  token_expire_hours: 24
-  oidc:                          # Optional — omit for local-only auth
-    issuer: "https://keycloak.example/realms/myrealm"
-    client_id: "voltrus"
-    client_secret: "secret"
-
-retention:
-  raw_days: 7
-  hourly_days: 90
-  daily_keep_forever: true
-  archive_dir: archive
-  check_interval_hours: 6
+server_port: 3000
+db_path: "data.db"
+persist_interval_secs: 5
+# auth_secret: <random string, at least 16 characters>
 
 devices:
-  - name: "Power Meter 1"
-    address: "192.168.1.100:502"
+  - id: "meter_1"
+    ip: "192.168.1.10"
+    port: 502
     unit_id: 1
     interval_ms: 1000
     registers:
-      - name: "Voltage_L1"
-        address: 0
-        type: Float32
-        endian: Big
+      - name: "voltage"
+        address: 40001
+        type: "float32"
 ```
 
----
+[`config.yaml`](config.yaml) lists more options (retention tiers, SMTP, MQTT
+broker, networks). Devices can also be managed from the web UI.
 
-## Tech Stack
+### Simulators and scenarios
 
-**Backend:** Rust (Axum, Tokio, rusqlite) — single binary, no runtime
+`cargo run --features modbus --bin modbus-sim` and the other `*-sim` binaries
+start fake devices. [`scenarios/`](scenarios) has ready-made plants (solar farm,
+data centre, factory floor, oil and gas well, water treatment).
 
-**Frontend:** React 19 + TypeScript + Vite 8 (Rolldown) + Three.js — inline CSS, zero framework dependency
+## Network behaviour
 
-**License Server:** Cloudflare Worker + D1
+Core makes no outbound connections on its own. It does not check for updates,
+send telemetry or contact any Voltrus server. It only connects to what you
+configure: your devices, your SMTP server, your webhooks and MQTT brokers, and
+an AI provider if you enable the optional AI copilot with your own key.
+The API documentation page loads its viewer script from a public CDN.
 
-**Landing Page:** Static HTML on Cloudflare Pages
+## Development
 
----
+```bash
+cargo fmt --all -- --check
+cargo clippy -- -D warnings
+cargo test
 
-## Project Structure
-
-```
-voltrus/                          # Core application (this repo)
-├── src/                          # Rust backend
-│   ├── main.rs                   # Entry point
-│   ├── api/                      # ~94 route handlers
-│   ├── storage/                  # SQLite persistence (~40 modules)
-│   ├── flow_engine/              # Visual automation engine
-│   ├── script_engine.rs          # JS sandbox (boa_engine)
-│   ├── auth/                     # Local, OIDC, LDAP, SAML
-│   ├── security/                 # Rate limiting, CSRF, audit
-│   └── bin/                      # Simulator binaries
-├── client/                       # React frontend
-│   ├── src/
-│   │   ├── App.tsx               # Root component
-│   │   ├── queries/              # React Query hooks (~55 files)
-│   │   ├── api/                  # WebSocket client, commands
-│   │   ├── components/           # Reusable UI components
-│   │   ├── views/                # Page-level views
-│   │   └── twin/                 # 3D digital twin (Three.js)
-│   └── vite.config.ts
-├── scenarios/                    # Integration test scenarios
-├── sdks/                         # TS + Python client SDKs (source of truth) — published to github.com/VoltrusID/voltrus-gateway, see AGENTS.md
-├── deploy/                       # Systemd service file
-├── scripts/
-│   └── release-local.sh          # Cross-compile + R2 upload
-├── deploy-vps.sh                 # Build + deploy to VPS
-└── Cargo.toml
+cd client
+npm ci
+npm run dev        # Vite dev server on :5173
+npx tsc --noEmit
+npm test
 ```
 
----
+The server is a library plus the `voltrus` binary in one crate. The
+[extension seam](src/edition.rs) is how an add-on edition plugs in.
 
-## License
+```
+src/            Rust server (api/, storage/, protocol drivers, flow engine, ...)
+client/         React web client (src/edition/ is the add-on seam)
+sdks/           TypeScript and Python SDKs (MIT)
+native/         experimental native operator console (GPUI)
+scenarios/      simulated plants for testing
+deploy/         example systemd unit
+docs/           open-core split, notes
+```
 
-Proprietary — © JoyoDigitama. All rights reserved.
+## Contributing
+
+Contributions are welcome. Sign off every commit (`git commit -s`) and read
+[CONTRIBUTING.md](CONTRIBUTING.md), which explains the DCO and the licence grant
+that lets the project keep offering the Enterprise add-on. Report security
+problems privately, see [SECURITY.md](SECURITY.md).
+
+## Licence and trademark
+
+Copyright (c) 2026 JoyoDigitama. Licensed under the GNU Affero General Public
+License v3.0 or later, see [LICENSE](LICENSE) and [NOTICE](NOTICE). The SDKs in
+`sdks/` are MIT licensed. If you run a modified version for others over a
+network, AGPL section 13 requires you to offer them the source.
+
+"Voltrus" and the Voltrus logo are trademarks of JoyoDigitama. The AGPL does
+not grant trademark rights: forks must use another name. Product and protocol
+names (Modbus, Siemens, Allen-Bradley, BACnet and others) are used only to
+describe compatibility and belong to their owners.

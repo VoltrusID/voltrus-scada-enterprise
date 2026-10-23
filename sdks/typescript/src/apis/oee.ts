@@ -10,7 +10,7 @@ import type {
   ShiftConfig,
 } from '../types';
 
-/** OEE endpoints. Require a license tier with OEE enabled. */
+/** OEE endpoints. */
 export class OeeApi {
   constructor(private readonly http: HttpClient) {}
 

@@ -1,16 +1,15 @@
-pub mod activation;
-pub mod fingerprint;
-pub mod request;
+//! Entitlement model.
+//!
+//! The open core has no licence checks of its own. It only carries the
+//! vocabulary an add-on edition uses to say which add-on features are unlocked:
+//! [`LicenseTier`] (what is enabled) and [`LicenseStatus`] (why).
+//! A plain core build always runs as [`LicenseTier::Community`].
+
 pub mod status;
 pub mod tier;
-pub mod verification;
 
 #[cfg(test)]
 mod tests;
 
-pub(crate) use crate::storage::Storage;
-pub(crate) use serde::Serialize;
-
 pub use status::*;
 pub use tier::*;
-pub use verification::*;

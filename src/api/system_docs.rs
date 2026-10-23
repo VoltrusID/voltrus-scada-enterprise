@@ -24,8 +24,6 @@ pub async fn get_topology(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_professional(&state)?;
-
     let devices = state.storage.list_devices().await.map_err(AppError)?;
     let data_sources = state
         .storage
@@ -221,8 +219,6 @@ pub async fn get_tag_xref(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_professional(&state)?;
-
     let devices = state.storage.list_devices().await.map_err(AppError)?;
     let data_sources = state
         .storage
@@ -403,8 +399,6 @@ pub async fn get_automation_docs(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_professional(&state)?;
-
     let scripts = state.storage.list_scripts().await.map_err(AppError)?;
     let flows = state.storage.list_flows().await.map_err(AppError)?;
 
@@ -509,8 +503,6 @@ pub async fn export_docs(
     Extension(_auth): Extension<AuthUser>,
     Query(_query): Query<ExportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_professional(&state)?;
-
     // Gather all data by calling internal logic
     let topology = build_topology(&state).await?;
     let tag_xref = build_tag_xref(&state).await?;
@@ -556,8 +548,6 @@ pub async fn get_config_diff(
     Extension(_auth): Extension<AuthUser>,
     Query(query): Query<ConfigDiffQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_professional(&state)?;
-
     let from = state
         .storage
         .get_config_snapshot(query.from)
@@ -592,19 +582,6 @@ pub struct ConfigDiffQuery {
 }
 
 // ── Helpers ──
-
-fn require_professional(state: &AppState) -> Result<(), AppError> {
-    if !matches!(
-        state.license_tier,
-        crate::license::tier::LicenseTier::Professional
-            | crate::license::tier::LicenseTier::Enterprise
-    ) {
-        return Err(AppError(anyhow::anyhow!(
-            "System documentation requires Professional tier ($499) or above"
-        )));
-    }
-    Ok(())
-}
 
 struct System;
 impl System {

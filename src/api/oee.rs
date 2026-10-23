@@ -9,18 +9,6 @@ use serde_json::json;
 
 use crate::api::AppState;
 
-fn oee_required(state: &AppState) -> Option<(HttpStatus, Json<serde_json::Value>)> {
-    if !state.license_tier.oee() {
-        return Some((
-            HttpStatus::FORBIDDEN,
-            Json(json!({
-                "error": "OEE requires Starter tier or higher. Upgrade at https://voltrus.id"
-            })),
-        ));
-    }
-    None
-}
-
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct OeeMetricsQuery {
     pub device_id: String,
@@ -52,10 +40,6 @@ pub async fn get_oee_metrics(
     State(state): State<AppState>,
     Query(q): Query<OeeMetricsQuery>,
 ) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     let now = crate::timeutil::now_secs();
     let to = q.to.unwrap_or(now);
     let from = q.from.unwrap_or(to - 8 * 3600); // default 8-hour window
@@ -94,10 +78,6 @@ pub async fn list_downtime(
     State(state): State<AppState>,
     Query(q): Query<DowntimeQuery>,
 ) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     match state
         .storage
         .list_downtime_events(q.device_id.as_deref(), q.from, q.to)
@@ -129,10 +109,6 @@ pub async fn create_downtime(
     State(state): State<AppState>,
     Json(req): Json<crate::models::CreateDowntimeEventRequest>,
 ) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     let device_id = req.device_id.trim();
     if device_id.is_empty() {
         return (
@@ -201,10 +177,6 @@ pub async fn close_downtime(
     Path(id): Path<i64>,
     Json(req): Json<crate::models::CloseDowntimeEventRequest>,
 ) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     match state
         .storage
         .close_downtime_event(id, req.reason.as_deref())
@@ -231,10 +203,6 @@ pub async fn close_downtime(
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn list_shifts(State(state): State<AppState>) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     match state.storage.list_shifts().await {
         Ok(shifts) => (HttpStatus::OK, Json(json!(shifts))).into_response(),
         Err(e) => (
@@ -262,10 +230,6 @@ pub async fn create_shift(
     State(state): State<AppState>,
     Json(req): Json<crate::models::CreateShiftRequest>,
 ) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     let name = req.name.trim().to_string();
     if name.is_empty() {
         return (
@@ -359,10 +323,6 @@ pub async fn create_shift(
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn delete_shift(State(state): State<AppState>, Path(id): Path<i64>) -> impl IntoResponse {
-    if let Some((status, body)) = oee_required(&state) {
-        return (status, body).into_response();
-    }
-
     match state.storage.delete_shift(id).await {
         Ok(()) => (HttpStatus::NO_CONTENT, "").into_response(),
         Err(e) => (

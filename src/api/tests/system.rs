@@ -42,29 +42,6 @@ async fn test_health_open() {
 }
 
 #[tokio::test]
-async fn test_branding_default() {
-    let app = test_app();
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/settings/branding")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["title"], "Voltrus");
-    assert_eq!(json["subtitle"], "Monitoring Dashboard");
-}
-
-#[tokio::test]
 async fn test_license_tier_header_in_response() {
     let app = test_app();
 
@@ -84,6 +61,5 @@ async fn test_license_tier_header_in_response() {
         .headers()
         .get("x-license-tier")
         .expect("X-License-Tier header should be present");
-    // serde_json serializes LicenseTier::Professional as "professional"
-    assert_eq!(tier_header, "\"professional\"");
+    assert_eq!(tier_header, "community");
 }

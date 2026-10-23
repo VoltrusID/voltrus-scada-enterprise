@@ -100,35 +100,7 @@ impl PollerManager {
         Some(crate::sim_engine::SimConfig { data_type, params })
     }
 
-    #[cfg(feature = "gateway-modbus")]
-    pub async fn start(&self, config: DeviceConfig) {
-        let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "modbus").await;
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let interval_ms = config.interval_ms;
-        let tags: Vec<voltrus_gateway::pb::TagAddress> = config
-            .registers
-            .iter()
-            .map(crate::gateway_client::register_to_tag)
-            .collect();
-        let did = device_id.clone();
-        let handle = tokio::spawn(async move {
-            let endpoint = crate::gateway_client::gateway_endpoint();
-            match crate::gateway_client::connect_modbus(&endpoint, &config).await {
-                Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
-                        .await;
-                }
-                Err(e) => tracing::error!(error = %e, "modbus gateway connect failed"),
-            }
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    #[cfg(all(feature = "modbus", not(feature = "gateway-modbus")))]
+    #[cfg(feature = "modbus")]
     pub async fn start(&self, config: DeviceConfig) {
         let device_id = config.id.clone();
         self.cache.register_protocol(&device_id, "modbus").await;
@@ -151,35 +123,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
-    #[cfg(feature = "gateway-opcua")]
-    pub async fn start_opcua(&self, config: OpcUaDeviceConfig) {
-        let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "opcua").await;
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let interval_ms = config.interval_ms;
-        let tags: Vec<voltrus_gateway::pb::TagAddress> = config
-            .nodes
-            .iter()
-            .map(crate::gateway_client::node_to_tag)
-            .collect();
-        let did = device_id.clone();
-        let handle = tokio::spawn(async move {
-            let endpoint = crate::gateway_client::gateway_endpoint();
-            match crate::gateway_client::connect_opcua(&endpoint, &config).await {
-                Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
-                        .await;
-                }
-                Err(e) => tracing::error!(error = %e, "opcua gateway connect failed"),
-            }
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    #[cfg(all(feature = "opcua", not(feature = "gateway-opcua")))]
+    #[cfg(feature = "opcua")]
     pub async fn start_opcua(&self, config: OpcUaDeviceConfig) {
         let device_id = config.id.clone();
         self.cache.register_protocol(&device_id, "opcua").await;
@@ -193,35 +137,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
-    #[cfg(feature = "gateway-s7")]
-    pub async fn start_s7(&self, config: S7DeviceConfig) {
-        let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "s7").await;
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let interval_ms = config.interval_ms;
-        let tags: Vec<voltrus_gateway::pb::TagAddress> = config
-            .tags
-            .iter()
-            .map(crate::gateway_client::s7_tag_to_tag)
-            .collect();
-        let did = device_id.clone();
-        let handle = tokio::spawn(async move {
-            let endpoint = crate::gateway_client::gateway_endpoint();
-            match crate::gateway_client::connect_s7(&endpoint, &config).await {
-                Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
-                        .await;
-                }
-                Err(e) => tracing::error!(error = %e, "s7 gateway connect failed"),
-            }
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    #[cfg(all(feature = "s7", not(feature = "gateway-s7")))]
+    #[cfg(feature = "s7")]
     pub async fn start_s7(&self, config: S7DeviceConfig) {
         let device_id = config.id.clone();
         self.cache.register_protocol(&device_id, "s7").await;
@@ -235,51 +151,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
-    #[cfg(feature = "gateway-enip")]
-    pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
-        let device_id = config.id.clone();
-        self.cache
-            .register_protocol(&device_id, "ethernet_ip")
-            .await;
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let interval_ms = config.interval_ms;
-        // Gateway reads by CIP tag path (EnipTagAddress.name); remap path->display
-        // so the cache key matches the inline poller.
-        let name_override: HashMap<String, String> = config
-            .tags
-            .iter()
-            .map(|t| (t.tag_name.clone(), t.name.clone()))
-            .collect();
-        let tags: Vec<voltrus_gateway::pb::TagAddress> = config
-            .tags
-            .iter()
-            .map(crate::gateway_client::enip_tag_to_tag)
-            .collect();
-        let did = device_id.clone();
-        let handle = tokio::spawn(async move {
-            let endpoint = crate::gateway_client::gateway_endpoint();
-            match crate::gateway_client::connect_enip(&endpoint, &config).await {
-                Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(
-                        h,
-                        did,
-                        tags,
-                        interval_ms,
-                        cache,
-                        Some(name_override),
-                    )
-                    .await;
-                }
-                Err(e) => tracing::error!(error = %e, "enip gateway connect failed"),
-            }
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    #[cfg(all(feature = "ethernet-ip", not(feature = "gateway-enip")))]
+    #[cfg(feature = "ethernet-ip")]
     pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
         let device_id = config.id.clone();
         self.cache
@@ -305,35 +177,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
-    #[cfg(feature = "gateway-dnp3")]
-    pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
-        let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "dnp3").await;
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let interval_ms = config.event_scan_interval_ms.unwrap_or(1000);
-        let tags: Vec<voltrus_gateway::pb::TagAddress> = config
-            .points
-            .iter()
-            .map(crate::gateway_client::dnp3_point_to_tag)
-            .collect();
-        let did = device_id.clone();
-        let handle = tokio::spawn(async move {
-            let endpoint = crate::gateway_client::gateway_endpoint();
-            match crate::gateway_client::connect_dnp3(&endpoint, &config).await {
-                Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
-                        .await;
-                }
-                Err(e) => tracing::error!(error = %e, "dnp3 gateway connect failed"),
-            }
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    #[cfg(all(feature = "dnp3", not(feature = "gateway-dnp3")))]
+    #[cfg(feature = "dnp3")]
     pub async fn start_dnp3(&self, config: Dnp3DeviceConfig) {
         let device_id = config.id.clone();
         self.cache.register_protocol(&device_id, "dnp3").await;
@@ -347,35 +191,7 @@ impl PollerManager {
         self.handles.write().await.insert(device_id, handle);
     }
 
-    #[cfg(feature = "gateway-bacnet")]
-    pub async fn start_bacnet(&self, config: crate::models::BacnetDeviceConfig) {
-        let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "bacnet").await;
-        if self.is_running(&device_id).await {
-            self.stop(&device_id).await;
-        }
-        let cache = self.cache.clone();
-        let interval_ms = config.interval_ms;
-        let tags: Vec<voltrus_gateway::pb::TagAddress> = config
-            .objects
-            .iter()
-            .map(crate::gateway_client::bacnet_object_to_tag)
-            .collect();
-        let did = device_id.clone();
-        let handle = tokio::spawn(async move {
-            let endpoint = crate::gateway_client::gateway_endpoint();
-            match crate::gateway_client::connect_bacnet(&endpoint, &config).await {
-                Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
-                        .await;
-                }
-                Err(e) => tracing::error!(error = %e, "bacnet gateway connect failed"),
-            }
-        });
-        self.handles.write().await.insert(device_id, handle);
-    }
-
-    #[cfg(all(feature = "bacnet", not(feature = "gateway-bacnet")))]
+    #[cfg(feature = "bacnet")]
     pub async fn start_bacnet(&self, config: crate::models::BacnetDeviceConfig) {
         let device_id = config.id.clone();
         self.cache.register_protocol(&device_id, "bacnet").await;

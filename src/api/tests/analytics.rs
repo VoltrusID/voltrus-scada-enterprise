@@ -1,5 +1,3 @@
-use super::*;
-
 #[test]
 fn test_analytics_change_percent() {
     let current_avg = 110.0_f64;
@@ -35,12 +33,4 @@ fn test_recipe_values_json_parse() {
     assert_eq!(values.len(), 2);
     assert!((values["temp"] - 25.0).abs() < 0.001);
     assert!((values["pressure"] - 1.5).abs() < 0.001);
-}
-
-#[test]
-fn test_tier_simple_probe() {
-    // Probe test to verify tier tests compile and run
-    let tier = crate::license::LicenseTier::Starter;
-    assert!(tier.white_label());
-    assert!(!tier.rtsp_video());
 }

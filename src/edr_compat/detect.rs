@@ -19,7 +19,7 @@ struct KnownProduct {
 }
 
 /// Catalog of known OT-relevant EDR products.
-/// Source: r/SCADA — "xagt.exe (FireEye) deployed via AD to SCADA servers wasted CPU"
+/// Endpoint agents pushed by Active Directory can use significant CPU on SCADA servers.
 fn known_products() -> Vec<KnownProduct> {
     vec![
         KnownProduct {

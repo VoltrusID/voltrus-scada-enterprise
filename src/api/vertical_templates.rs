@@ -62,15 +62,9 @@ pub struct TemplateListResponse {
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn list_templates(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Query(query): Query<ListTemplatesQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.templates() {
-        return Err(AppError(anyhow::anyhow!(
-            "Vertical templates require Starter tier or above"
-        )));
-    }
-
     let templates = match query.industry {
         Some(ref industry) => definitions::templates_by_industry(industry),
         None => definitions::all_templates(),
@@ -105,16 +99,10 @@ pub async fn list_templates(
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn get_template(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.templates() {
-        return Err(AppError(anyhow::anyhow!(
-            "Vertical templates require Starter tier or above"
-        )));
-    }
-
     let template = definitions::get_template(&id)
         .ok_or_else(|| AppError(anyhow::anyhow!("Template not found: {}", id)))?;
 
@@ -134,12 +122,6 @@ pub async fn instantiate_template(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(body): Json<InstantiateRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.templates_write() {
-        return Err(AppError(anyhow::anyhow!(
-            "Template instantiation requires Professional tier or above"
-        )));
-    }
-
     let template = definitions::get_template(&id)
         .ok_or_else(|| AppError(anyhow::anyhow!("Template not found: {}", id)))?;
 
@@ -175,12 +157,6 @@ pub async fn preview_template(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<PreviewRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.templates() {
-        return Err(AppError(anyhow::anyhow!(
-            "Vertical templates require Starter tier or above"
-        )));
-    }
-
     let template = definitions::get_template(&body.template_id)
         .ok_or_else(|| AppError(anyhow::anyhow!("Template not found: {}", body.template_id)))?;
 

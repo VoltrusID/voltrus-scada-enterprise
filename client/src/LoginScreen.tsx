@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { BrandingSettings } from './BrandingDialog'
+import { edition, type BrandingSettings, type LoginProvidersProps } from './edition'
 
 const INPUT: React.CSSProperties = {
   width: '100%',
@@ -15,7 +15,9 @@ const INPUT: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-export function LoginScreen({ onLogin, error, branding }: { onLogin: (u: string, p: string) => void; error: string; branding: BrandingSettings }) {
+type LoginSession = LoginProvidersProps['onLoggedIn']
+
+export function LoginScreen({ onLogin, onExternalLogin, error, branding }: { onLogin: (u: string, p: string) => void; onExternalLogin: LoginSession; error: string; branding: BrandingSettings }) {
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [showPass, setShowPass] = useState(false)
@@ -154,6 +156,7 @@ export function LoginScreen({ onLogin, error, branding }: { onLogin: (u: string,
             Sign In
           </button>
         </form>
+        {edition.LoginProviders && <edition.LoginProviders onLoggedIn={onExternalLogin} />}
       </div>
     </div>
   )

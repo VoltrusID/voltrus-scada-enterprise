@@ -1,0 +1,25 @@
+{
+  "license": {
+    "checking": "正在检查许可证...",
+    "activate": "激活许可证",
+    "trialBanner": "您正在使用试用许可证。",
+    "expiredBanner": "您的试用许可证已过期。"
+  },
+  "reports": {
+    "title": "报告",
+    "generate": "生成报告",
+    "schedule": "计划"
+  },
+  "security": {
+    "title": "安全审计",
+    "events": "事件",
+    "thresholds": "阈值",
+    "exportCsv": "导出 CSV"
+  },
+  "compliance": {
+    "title": "合规",
+    "config": "配置",
+    "sign": "电子签名",
+    "signatures": "签名记录"
+  }
+}

@@ -1,6 +1,5 @@
 pub mod email;
 pub mod push;
-pub mod sms;
 pub mod webhook;
 
 use crate::models::Alarm;
@@ -109,28 +108,40 @@ pub async fn dispatch_alarm_notifications(
                 }
             }
             "sms" => {
-                if let Some(ref notifier) = email_notifier {
-                    // config is a JSON array of objects: [{"phone": "5551234567", "carrier": "att"}]
-                    let targets: Vec<serde_json::Value> =
-                        serde_json::from_str(&setting.config).unwrap_or_default();
-                    for target in &targets {
-                        let phone = target["phone"].as_str().unwrap_or("");
-                        let carrier = target["carrier"].as_str().unwrap_or("");
-                        if !phone.is_empty()
-                            && !carrier.is_empty()
-                            && let Err(e) = sms::send_sms_alarm(
-                                notifier.smtp_config(),
-                                phone,
-                                carrier,
-                                &alarm.message,
-                            )
-                            .await
-                        {
-                            tracing::error!("Failed to send SMS to {}@{}: {}", phone, carrier, e);
+                if let Some(sender) = crate::edition::sms_sender() {
+                    if let Some(ref notifier) = email_notifier {
+                        // config is a JSON array of objects: [{"phone": "5551234567", "carrier": "att"}]
+                        let targets: Vec<serde_json::Value> =
+                            serde_json::from_str(&setting.config).unwrap_or_default();
+                        for target in &targets {
+                            let phone = target["phone"].as_str().unwrap_or("");
+                            let carrier = target["carrier"].as_str().unwrap_or("");
+                            if !phone.is_empty()
+                                && !carrier.is_empty()
+                                && let Err(e) = sender
+                                    .send_alarm(
+                                        notifier.smtp_config(),
+                                        phone,
+                                        carrier,
+                                        &alarm.message,
+                                    )
+                                    .await
+                            {
+                                tracing::error!(
+                                    "Failed to send SMS to {}@{}: {}",
+                                    phone,
+                                    carrier,
+                                    e
+                                );
+                            }
                         }
+                    } else {
+                        tracing::warn!("SMS notification requested but SMTP is not configured");
                     }
                 } else {
-                    tracing::warn!("SMS notification requested but SMTP is not configured");
+                    tracing::warn!(
+                        "SMS notification requested but SMS delivery is not available in this edition"
+                    );
                 }
             }
             other => {

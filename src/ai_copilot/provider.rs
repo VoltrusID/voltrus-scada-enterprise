@@ -63,7 +63,30 @@ pub struct AiSettings {
 pub enum AiProviderImpl {
     OpenAi(OpenAiProvider),
     Anthropic(AnthropicProvider),
-    VoltrusAi(VoltrusAiProvider),
+    /// Hosted service supplied by an add-on edition (see [`crate::edition::HostedAi`]).
+    Hosted(HostedProvider),
+}
+
+/// A call to the hosted AI service registered by an add-on edition.
+pub struct HostedProvider {
+    pub api_key: String,
+    pub model: String,
+}
+
+impl HostedProvider {
+    pub async fn complete(&self, request: AiRequest) -> Result<AiResponse, AiError> {
+        match crate::edition::hosted_ai() {
+            Some(service) => service.complete(&self.api_key, &self.model, request).await,
+            None => Err(AiError::ProviderError(
+                "The hosted AI provider is not available in this edition. Use byok_openai or byok_anthropic."
+                    .into(),
+            )),
+        }
+    }
+
+    pub fn provider_name(&self) -> &str {
+        "voltrus_ai"
+    }
 }
 
 impl AiProviderImpl {
@@ -71,7 +94,7 @@ impl AiProviderImpl {
         match self {
             Self::OpenAi(p) => p.complete(request).await,
             Self::Anthropic(p) => p.complete(request).await,
-            Self::VoltrusAi(p) => p.complete(request).await,
+            Self::Hosted(p) => p.complete(request).await,
         }
     }
 
@@ -79,7 +102,7 @@ impl AiProviderImpl {
         match self {
             Self::OpenAi(p) => p.provider_name(),
             Self::Anthropic(p) => p.provider_name(),
-            Self::VoltrusAi(p) => p.provider_name(),
+            Self::Hosted(p) => p.provider_name(),
         }
     }
 }
@@ -100,8 +123,8 @@ pub fn resolve_provider(settings: &AiSettings) -> AiProviderImpl {
                 .clone()
                 .unwrap_or_else(|| "claude-sonnet-4-6".into()),
         }),
-        AiProviderType::VoltrusAi => AiProviderImpl::VoltrusAi(VoltrusAiProvider {
-            license_key: settings.api_key.clone(),
+        AiProviderType::VoltrusAi => AiProviderImpl::Hosted(HostedProvider {
+            api_key: settings.api_key.clone(),
             model: settings
                 .default_model
                 .clone()
@@ -279,74 +302,5 @@ impl AnthropicProvider {
 
     pub fn provider_name(&self) -> &str {
         "anthropic"
-    }
-}
-
-// ── Voltrus AI (hosted) ─────────────────────────────────────────────────
-
-pub struct VoltrusAiProvider {
-    pub license_key: String,
-    pub model: String,
-}
-
-#[derive(Deserialize)]
-struct VoltrusAiResponse {
-    content: String,
-    model: String,
-    usage: VoltrusAiUsage,
-}
-
-#[derive(Deserialize)]
-struct VoltrusAiUsage {
-    prompt_tokens: u32,
-    completion_tokens: u32,
-    total_tokens: u32,
-}
-
-impl VoltrusAiProvider {
-    pub async fn complete(&self, request: AiRequest) -> Result<AiResponse, AiError> {
-        let client = reqwest::Client::new();
-        let body = serde_json::json!({
-            "model": self.model,
-            "system_prompt": request.system_prompt,
-            "user_prompt": request.user_prompt,
-            "max_tokens": request.max_tokens.unwrap_or(2048),
-        });
-
-        let resp = client
-            .post("https://ai.voltrus.id/v1/completions")
-            .header("Authorization", format!("Bearer {}", self.license_key))
-            .header("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(60))
-            .json(&body)
-            .send()
-            .await?;
-
-        let status = resp.status();
-        if status.is_client_error() || status.is_server_error() {
-            let text = resp.text().await.unwrap_or_default();
-            return Err(AiError::ProviderError(format!(
-                "Voltrus AI error ({status}): {text}"
-            )));
-        }
-
-        let data: VoltrusAiResponse = resp.json().await.map_err(|e| {
-            AiError::MalformedResponse(format!("Failed to parse Voltrus AI response: {e}"))
-        })?;
-
-        Ok(AiResponse {
-            content: data.content,
-            model: data.model,
-            usage: TokenUsage {
-                prompt_tokens: data.usage.prompt_tokens,
-                completion_tokens: data.usage.completion_tokens,
-                total_tokens: data.usage.total_tokens,
-            },
-            provider: "voltrus_ai".into(),
-        })
-    }
-
-    pub fn provider_name(&self) -> &str {
-        "voltrus_ai"
     }
 }

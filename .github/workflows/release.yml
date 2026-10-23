@@ -1,285 +1,125 @@
 name: Release
 
+# Builds the Core binaries for each tagged version and attaches them to a GitHub
+# release. Push a tag like v0.48.0 (it must match the version in Cargo.toml).
+
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
+    tags: ["v*"]
 
 env:
-  R2_BUCKET: voltrus-releases
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.ver.outputs.version }}
-      should_release: ${{ steps.ver.outputs.should_release }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Read version from Cargo.toml
-        id: ver
-        run: |
-          VERSION="v$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-          if git fetch origin "refs/tags/$VERSION" 2>/dev/null && [ "$(git rev-parse "refs/tags/$VERSION" 2>/dev/null)" = "$(git rev-parse HEAD)" ]; then
-            echo "Tag $VERSION already exists at HEAD — skipping"
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "New version $VERSION — will release"
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          fi
-
-  # ── Linux x86_64 (musl, static) ──────────────────────────────
-  build-linux-x86_64:
-    needs: check-version
-    if: needs.check-version.outputs.should_release == 'true'
+  client:
+    name: Build web client
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: client/package-lock.json
-
-      - name: Build frontend
+      - name: Check tag matches Cargo.toml
+        run: |
+          v="v$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
+          [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match Cargo.toml version $v"; exit 1; }
+      - name: Build
         run: |
           cd client
           npm ci
           npm run build
-          mkdir -p ../static
-          cp -r dist/* ../static/
-
-      - name: Install musl target + tools
-        run: |
-          rustup target add x86_64-unknown-linux-musl
-          sudo apt-get update && sudo apt-get install -y musl-tools
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: actions/upload-artifact@v4
         with:
-          key: musl-x86_64
+          name: static
+          path: static
+          if-no-files-found: error
 
-      - name: Build release binaries
-        run: |
-          cargo build --release --target x86_64-unknown-linux-musl --bin voltrus --bin modbus-sim
-          strip target/x86_64-unknown-linux-musl/release/voltrus
-          strip target/x86_64-unknown-linux-musl/release/modbus-sim
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          cp target/x86_64-unknown-linux-musl/release/voltrus dist/
-          cp target/x86_64-unknown-linux-musl/release/modbus-sim dist/
-          cp config.yaml dist/config.yaml.example
-          cp deploy/voltrus.service dist/
-          cp -r static dist/static
-          tar -czf voltrus-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz -C dist .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-x86_64
-          path: voltrus-${{ needs.check-version.outputs.version }}-linux-x86_64.tar.gz
-
-  # ── Linux ARM64 (musl, static) ───────────────────────────────
-  build-linux-arm64:
-    needs: check-version
-    if: needs.check-version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
+  build:
+    name: ${{ matrix.name }}
+    needs: client
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            musl: true
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            musl: true
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            musl: false
+          - name: macos-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            musl: false
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: client/package-lock.json
+          targets: ${{ matrix.target }}
 
-      - name: Build frontend
-        run: |
-          cd client
-          npm ci
-          npm run build
-          mkdir -p ../static
-          cp -r dist/* ../static/
+      - name: Install musl tools
+        if: matrix.musl
+        run: sudo apt-get update && sudo apt-get install -y musl-tools clang
 
-      - name: Install cross-compilation toolchain
-        run: |
-          rustup target add aarch64-unknown-linux-musl
-          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          key: musl-arm64
+          key: ${{ matrix.target }}
 
-      - name: Build release binaries
-        run: |
-          cargo build --release --target aarch64-unknown-linux-musl --bin voltrus --bin modbus-sim
-          aarch64-linux-gnu-strip target/aarch64-unknown-linux-musl/release/voltrus
-          aarch64-linux-gnu-strip target/aarch64-unknown-linux-musl/release/modbus-sim
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} --bin voltrus --bin modbus-sim
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: static
+          path: static
 
       - name: Package
         run: |
-          mkdir -p dist
-          cp target/aarch64-unknown-linux-musl/release/voltrus dist/
-          cp target/aarch64-unknown-linux-musl/release/modbus-sim dist/
-          cp config.yaml dist/config.yaml.example
-          cp deploy/voltrus.service dist/
-          cp -r static dist/static
-          tar -czf voltrus-${{ needs.check-version.outputs.version }}-linux-arm64.tar.gz -C dist .
+          name="voltrus-core-${GITHUB_REF_NAME}-${{ matrix.name }}"
+          mkdir -p "dist/$name"
+          cp target/${{ matrix.target }}/release/voltrus target/${{ matrix.target }}/release/modbus-sim "dist/$name/"
+          cp -r static "dist/$name/static"
+          cp config.yaml "dist/$name/config.yaml.example"
+          cp deploy/voltrus.service LICENSE NOTICE THIRD-PARTY-LICENSES.md "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: linux-arm64
-          path: voltrus-${{ needs.check-version.outputs.version }}-linux-arm64.tar.gz
+          name: ${{ matrix.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
 
-  # ── Windows x86_64 (GNU, static) ─────────────────────────────
-  build-windows-x86_64:
-    needs: check-version
-    if: needs.check-version.outputs.should_release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-
-      - name: Build frontend
-        run: |
-          cd client
-          npm ci
-          npm run build
-          mkdir -p ../static
-          cp -r dist/* ../static/
-
-      - name: Install zig + cargo-zigbuild
-        run: |
-          wget -q https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
-          tar -xf zig-linux-x86_64-0.13.0.tar.xz
-          echo "$PWD/zig-linux-x86_64-0.13.0" >> "$GITHUB_PATH"
-          cargo install cargo-zigbuild
-
-      - name: Install target
-        run: rustup target add x86_64-pc-windows-gnu
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: windows-gnu
-
-      - name: Build release binaries
-        run: |
-          ulimit -n 65536
-          cargo zigbuild --release --target x86_64-pc-windows-gnu --bin voltrus --bin modbus-sim
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          cp target/x86_64-pc-windows-gnu/release/voltrus.exe dist/
-          cp target/x86_64-pc-windows-gnu/release/modbus-sim.exe dist/
-          cp config.yaml dist/config.yaml.example
-          cp -r static dist/static
-          cd dist && zip -r ../voltrus-${{ needs.check-version.outputs.version }}-windows-x86_64.zip .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-x86_64
-          path: voltrus-${{ needs.check-version.outputs.version }}-windows-x86_64.zip
-
-  # ── Security Scan ──────────────────────────────────────────
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: Run cargo audit
-        run: cargo audit
-
-      - name: Run cargo deny
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-  # ── Release + R2 Upload ────────────────────────────────────
   release:
-    needs: [check-version, build-linux-x86_64, build-linux-arm64, build-windows-x86_64, security-scan]
+    name: Publish release
+    needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    env:
-      VERSION: ${{ needs.check-version.outputs.version }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Collect archives
-        run: |
-          mkdir -p release-files
-          find artifacts -name '*.tar.gz' -exec cp {} release-files/ \;
-          find artifacts -name '*.zip' -exec cp {} release-files/ \;
-          ls -lh release-files/
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: ${{ env.VERSION }}
-          files: release-files/*
-          generate_release_notes: true
-
-      - name: Upload to R2
+          pattern: "*-*"
+          merge-multiple: true
+      - name: Create release
         env:
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          upload_to_r2() {
-            local file="$1"
-            local key="$2"
-            echo "Uploading $file -> $key"
-            http_code=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-              "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/objects/${key}" \
-              -H "Authorization: Bearer ${CF_API_TOKEN}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$file")
-            echo "  -> HTTP ${http_code}"
-          }
-
-          VERSION="${{ env.VERSION }}"
-
-          for file in release-files/*; do
-            basename=$(basename "$file")
-            # Upload under versioned path
-            upload_to_r2 "$file" "voltrus-${VERSION}/${basename}"
-            # Upload under latest/ path
-            upload_to_r2 "$file" "voltrus-latest/${basename}"
-          done
-
-          echo "All files uploaded to R2."
+          gh release create "${GITHUB_REF_NAME}" artifacts/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Voltrus SCADA Core ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --notes "Open-source Core under AGPL-3.0-or-later. These binaries are Core only (no Enterprise add-on, no licence key needed)."

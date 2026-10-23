@@ -1,8 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAnalyticsAggregate, useAnalyticsCompare } from './queries/analytics';
 import { useModbusDevices } from './queries/modbus';
-import { useLicense } from './LicenseContext';
-import { FeatureBadge } from './components/FeatureBadge';
 import { btnStyle } from './styles';
 
 const RANGES: { label: string; seconds: number }[] = [
@@ -45,9 +43,6 @@ function exportCsv(data: [number, { min: number; max: number; avg: number; count
 }
 
 export function AnalyticsPanel() {
-  const license = useLicense();
-  const isAnalyticsDisabled = license?.feature_flags?.analytics === false;
-
   const { data: devices } = useModbusDevices();
   const [deviceId, setDeviceId] = useState('');
   const [metric, setMetric] = useState('');
@@ -123,16 +118,6 @@ export function AnalyticsPanel() {
     }).join(' ');
     return `<polyline points="${pts}" fill="none" stroke="var(--cyan)" stroke-width="1.5" />`;
   }, [aggData]);
-
-  if (isAnalyticsDisabled) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-        <h2 style={{ marginBottom: 12 }}>Analytics</h2>
-        <p>This feature requires a Starter tier license or above.</p>
-        <p style={{ marginTop: 8 }}>Upgrade at <strong>voltrus.id</strong></p>
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>

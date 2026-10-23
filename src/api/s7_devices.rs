@@ -30,12 +30,6 @@ pub async fn list_devices(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     let devices = state.storage.list_s7_devices().await?;
     let mut result = Vec::new();
     for device in &devices {
@@ -76,12 +70,6 @@ pub async fn create_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     if req.name.is_empty() {
@@ -155,12 +143,6 @@ pub async fn update_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     state
@@ -237,12 +219,6 @@ pub async fn delete_device(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     // Stop poller if running
     let device_key = format!("s7_{}", id);
     state.poller_manager.stop(&device_key).await;
@@ -289,12 +265,6 @@ pub async fn list_tags(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     let tags = state.storage.list_s7_tags(id).await?;
     Ok(Json(tags))
 }
@@ -325,12 +295,6 @@ pub async fn add_tag(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     if req.tag_address.is_empty() {
@@ -409,12 +373,6 @@ pub async fn remove_tag(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     state.storage.delete_s7_tag(tag_id).await?;
 
     Ok(Json(json!({"ok": true})))
@@ -446,12 +404,6 @@ pub async fn start_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Load device from DB
@@ -540,12 +492,6 @@ pub async fn stop_device(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     let device_key = format!("s7_{}", id);
     state.poller_manager.stop(&device_key).await;
 
@@ -588,12 +534,6 @@ pub async fn browse_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.s7_protocol() {
-        return Err(AppError(anyhow::anyhow!(
-            "S7 protocol requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Load device from DB

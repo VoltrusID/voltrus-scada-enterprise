@@ -149,12 +149,6 @@
     "zh": "中文",
     "de": "Deutsch"
   },
-  "license": {
-    "checking": "Lizenz wird überprüft...",
-    "activate": "Lizenz aktivieren",
-    "trialBanner": "Sie nutzen eine Testlizenz.",
-    "expiredBanner": "Ihre Testlizenz ist abgelaufen."
-  },
   "system": {
     "title": "Systeminformationen",
     "hostname": "Hostname",
@@ -225,28 +219,11 @@
     "stop": "Stoppen",
     "test": "Testen"
   },
-  "reports": {
-    "title": "Berichte",
-    "generate": "Bericht erstellen",
-    "schedule": "Zeitplan"
-  },
   "oee": {
     "title": "OEE-Kennzahlen",
     "availability": "Verfügbarkeit",
     "performance": "Leistung",
     "quality": "Qualität"
-  },
-  "security": {
-    "title": "Sicherheitsaudit",
-    "events": "Ereignisse",
-    "thresholds": "Schwellenwerte",
-    "exportCsv": "CSV exportieren"
-  },
-  "compliance": {
-    "title": "Compliance",
-    "config": "Konfiguration",
-    "sign": "Elektronische Signatur",
-    "signatures": "Signaturen"
   },
   "annotations": {
     "title": "Anmerkungen",

@@ -27,12 +27,6 @@ pub async fn list_proposals(
     State(state): State<AppState>,
     Query(query): Query<ListProposalsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let proposals = state
         .storage
         .list_ai_proposals(
@@ -56,12 +50,6 @@ pub async fn get_proposal(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let proposal = state
         .storage
         .get_ai_proposal(id)
@@ -89,12 +77,6 @@ pub async fn approve_proposal(
     Path(id): Path<i64>,
     Json(body): Json<ReviewProposalBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let applied_config = body.applied_config.map(|v| v.to_string());
     state
         .storage
@@ -121,12 +103,6 @@ pub async fn reject_proposal(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     state
         .storage
         .update_ai_proposal_status(id, "rejected", Some(&auth.username), None)
@@ -147,12 +123,6 @@ pub async fn apply_proposal(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let proposal = state
         .storage
         .get_ai_proposal(id)

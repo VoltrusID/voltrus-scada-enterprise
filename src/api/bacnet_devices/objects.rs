@@ -25,12 +25,6 @@ pub async fn list_objects(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     let objects = state.storage.list_bacnet_objects(id).await?;
     Ok(Json(objects))
 }
@@ -59,12 +53,6 @@ pub async fn add_object(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Validate object type
@@ -158,12 +146,6 @@ pub async fn remove_object(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     state.storage.delete_bacnet_object(object_id).await?;
 
     state.audit_logger.log(crate::security::AuditEvent {
@@ -201,12 +183,6 @@ pub async fn browse_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Load device from DB

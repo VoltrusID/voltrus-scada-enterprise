@@ -46,19 +46,10 @@ pub async fn import_node_red(
 
     let conversion = converter::convert(&parse_result);
 
-    let device_limit = state.license_tier.max_devices();
     let total_new_devices = conversion.modbus_devices.len() as u32;
     let current_device_count = state.storage.count_modbus_devices().await.unwrap_or(0);
 
-    let mut warnings = conversion.warnings.clone();
-    if let Some(limit) = device_limit
-        && current_device_count + total_new_devices > limit
-    {
-        warnings.push(format!(
-                "Import would create {} Modbus device(s), exceeding the {} device limit. {} device(s) already exist.",
-                total_new_devices, limit, current_device_count
-            ));
-    }
+    let warnings = conversion.warnings.clone();
 
     Ok((
         StatusCode::OK,
@@ -90,7 +81,7 @@ pub async fn import_node_red(
             "license": {
                 "current_devices": current_device_count,
                 "new_devices": total_new_devices,
-                "limit": device_limit,
+                "limit": null,
             },
         })),
     ))

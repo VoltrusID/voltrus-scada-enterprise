@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod tests {
     use crate::compression::{
-        BitReader, BitWriter, GorillaBlock, gorilla_decode, gorilla_encode, rle_decode,
-        rle_deserialize, rle_encode, rle_serialize, varint_decode, varint_encode,
+        BitReader, BitWriter, gorilla_decode, gorilla_encode, rle_decode, rle_deserialize,
+        rle_encode, rle_serialize, varint_decode, varint_encode,
     };
 
     // -----------------------------------------------------------------------

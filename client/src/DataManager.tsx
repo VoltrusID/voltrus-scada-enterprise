@@ -7,35 +7,27 @@ import { UserManager } from './UserManager';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { PushSettings } from './PushSettings';
-import { HubManager } from './HubManager';
-import { ReportManager } from './ReportManager';
 import { OeePanel } from './OeePanel';
 import { AnalyticsPanel } from './AnalyticsPanel';
 import { RecipeManager } from './RecipeManager';
-import { CameraManager } from './CameraManager';
 import { S7DeviceManager } from './S7DeviceManager';
 import { EnipDeviceManager } from './EnipDeviceManager';
 import { Dnp3DeviceManager } from './Dnp3DeviceManager';
 import { BacnetDeviceManager } from './BacnetDeviceManager';
 import { GatewayManager } from './GatewayManager';
-import { SecurityAuditPanel } from './SecurityAuditPanel';
-import { CompliancePanel } from './CompliancePanel';
 import { RoleManager } from './RoleManager';
 import { useLicense } from './LicenseContext';
-import { FeatureBadge } from './components/FeatureBadge';
+import { edition, mergeTabs, type DataManagerTab } from './edition';
 import type { SensorConfig } from './types';
 
-type Tab = 'sources' | 'modbus' | 'opcua' | 's7' | 'enip' | 'dnp3' | 'bacnet' | 'gateway' | 'hub' | 'users' | 'notifications' | 'api-keys' | 'reports' | 'oee' | 'analytics' | 'recipes' | 'cameras' | 'security' | 'compliance' | 'roles';
-const TAB_VALUES: readonly Tab[] = ['sources', 'modbus', 'opcua', 's7', 'enip', 'dnp3', 'bacnet', 'gateway', 'hub', 'users', 'notifications', 'api-keys', 'reports', 'oee', 'analytics', 'recipes', 'cameras', 'security', 'compliance', 'roles'];
-const isTab = (v: unknown): v is Tab => typeof v === 'string' && (TAB_VALUES as readonly string[]).includes(v);
+const CORE_TAB_IDS = ['sources', 'modbus', 'opcua', 's7', 'enip', 'dnp3', 'bacnet', 'gateway', 'users', 'notifications', 'api-keys', 'oee', 'analytics', 'recipes', 'roles'] as const;
 
 interface NavItem {
-  id: Tab
+  id: string
   label: string
   icon: React.ReactNode
   admin?: boolean
   strictAdmin?: boolean
-  badge?: React.ReactNode
 }
 
 interface NavGroup {
@@ -45,13 +37,11 @@ interface NavGroup {
 
 const ICON_SIZE = 16
 
-const GROUPS: NavGroup[] = [
+const CORE_GROUPS: NavGroup[] = [
   {
     label: 'Data',
     items: [
       { id: 'sources', label: 'Sources', icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> },
-      { id: 'hub', label: 'Hub', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> },
-      { id: 'cameras', label: 'Cameras', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg> },
     ],
   },
   {
@@ -71,7 +61,6 @@ const GROUPS: NavGroup[] = [
     items: [
       { id: 'oee', label: 'OEE', icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
       { id: 'analytics', label: 'Analytics', icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
-      { id: 'reports', label: 'Reports', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
       { id: 'recipes', label: 'Recipes', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> },
     ],
   },
@@ -82,11 +71,27 @@ const GROUPS: NavGroup[] = [
       { id: 'roles', label: 'Roles', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
       { id: 'notifications', label: 'Notifications', admin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
       { id: 'api-keys', label: 'API Keys', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> },
-      { id: 'security', label: 'Security', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> },
-      { id: 'compliance', label: 'Compliance', admin: true, strictAdmin: true, icon: <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg> },
     ],
   },
 ]
+
+const LICENSE_ICON = <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg>
+
+// Tabs contributed by the enterprise module (empty in Community builds).
+const EXTRA_TABS: DataManagerTab[] = [
+  ...(edition.LicensePanel
+    ? [{
+        id: 'license', label: 'License', group: 'Admin', admin: true, strictAdmin: true, icon: LICENSE_ICON,
+        render: () => edition.LicensePanel ? <edition.LicensePanel /> : null,
+      }]
+    : []),
+  ...(edition.dataManagerTabs ?? []),
+]
+
+const GROUPS = mergeTabs(CORE_GROUPS, EXTRA_TABS)
+
+const isTab = (v: unknown): v is string =>
+  typeof v === 'string' && (CORE_TAB_IDS.some(id => id === v) || EXTRA_TABS.some(t => t.id === v))
 
 const SIDEBAR_WIDTH = 200
 const SIDEBAR_ITEM: React.CSSProperties = {
@@ -124,40 +129,10 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
 }) {
   const navigate = useNavigate();
   const routerSearch = useRouterState({ select: s => s.location.search }) as { tab?: string };
-  const tab: Tab = isTab(routerSearch.tab) ? routerSearch.tab : 'sources';
-  const setTab = (t: Tab) => navigate({ to: '/data', search: prev => ({ ...prev, tab: t }) });
+  const tab: string = isTab(routerSearch.tab) ? routerSearch.tab : 'sources';
+  const setTab = (t: string) => navigate({ to: '/data', search: prev => ({ ...prev, tab: t }) });
   const modalRef = useRef<HTMLDivElement>(null);
   const license = useLicense();
-  const isOpcUaDisabled = license?.feature_flags?.opcua_enabled === false;
-  const isHubDisabled = license?.feature_flags?.multi_site === false;
-  const isReportsDisabled = license?.feature_flags?.pdf_reporting === false;
-  const isOeeDisabled = license?.feature_flags?.oee === false;
-  const isAnalyticsDisabled = license?.feature_flags?.analytics === false;
-  const isRecipesDisabled = license?.feature_flags?.recipes === false;
-  const isCamerasDisabled = license?.feature_flags?.rtsp_video === false;
-  const isS7Disabled = license?.feature_flags?.s7_protocol === false;
-  const isEnipDisabled = license?.feature_flags?.ethernet_ip === false;
-  const isDnp3Disabled = license?.feature_flags?.dnp3 === false;
-  const isBacnetDisabled = license?.feature_flags?.bacnet === false;
-  const isComplianceDisabled = license?.feature_flags?.cfr_part_11 === false;
-  const isRbacDisabled = license?.feature_flags?.rbac === false;
-
-  const featureBadgeMap: Partial<Record<Tab, string>> = {
-    opcua: isOpcUaDisabled ? 'Professional' : undefined,
-    hub: isHubDisabled ? 'Professional' : undefined,
-    reports: isReportsDisabled ? 'Professional' : undefined,
-    oee: isOeeDisabled ? 'Starter' : undefined,
-    analytics: isAnalyticsDisabled ? 'Starter' : undefined,
-    recipes: isRecipesDisabled ? 'Professional' : undefined,
-    cameras: isCamerasDisabled ? 'Enterprise' : undefined,
-    s7: isS7Disabled ? 'Enterprise' : undefined,
-    enip: isEnipDisabled ? 'Enterprise' : undefined,
-    dnp3: isDnp3Disabled ? 'Enterprise' : undefined,
-    bacnet: isBacnetDisabled ? 'Enterprise' : undefined,
-    compliance: isComplianceDisabled ? 'Enterprise' : undefined,
-    roles: isRbacDisabled ? 'Enterprise' : undefined,
-  }
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -196,6 +171,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
   }, []);
 
   // Find active label
+  const extraTab = EXTRA_TABS.find(t => t.id === tab)
   const activeLabel = GROUPS.flatMap(g => g.items).find(i => i.id === tab)?.label ?? 'Data'
 
   return (
@@ -252,7 +228,6 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
                   >
                     <span style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: tab === item.id ? 1 : 0.5 }}>{item.icon}</span>
                     <span style={{ flex: 1 }}>{item.label}</span>
-                    {featureBadgeMap[item.id] && <FeatureBadge tier={featureBadgeMap[item.id]!} />}
                   </button>
                 ))}
               </div>
@@ -287,12 +262,6 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           {tab === 'opcua' && isAdmin && (
             <OpcUaDeviceManager onClose={onClose} embedded />
           )}
-          {tab === 'hub' && isAdmin && (
-            <HubManager onClose={onClose} embedded />
-          )}
-          {tab === 'reports' && isAdmin && (
-            <ReportManager onClose={onClose} embedded />
-          )}
           {tab === 'oee' && (
             <OeePanel />
           )}
@@ -301,9 +270,6 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           )}
           {tab === 'recipes' && isAdmin && (
             <RecipeManager />
-          )}
-          {tab === 'cameras' && isAdmin && (
-            <CameraManager onClose={onClose} embedded />
           )}
           {tab === 's7' && isAdmin && (
             <S7DeviceManager onClose={onClose} embedded />
@@ -320,12 +286,7 @@ export function DataManager({ sensors, onSave, onDelete, onAdd, onDuplicate, onC
           {tab === 'gateway' && isAdmin && (
             <GatewayManager onClose={onClose} embedded />
           )}
-          {tab === 'security' && isStrictAdmin && (
-            <SecurityAuditPanel onClose={onClose} embedded />
-          )}
-          {tab === 'compliance' && isStrictAdmin && (
-            <CompliancePanel onClose={onClose} embedded />
-          )}
+          {extraTab && (!extraTab.strictAdmin || isStrictAdmin) && (!extraTab.admin || isAdmin) && extraTab.render({ onClose, license })}
           {tab === 'roles' && isStrictAdmin && (
             <RoleManager onClose={onClose} embedded />
           )}

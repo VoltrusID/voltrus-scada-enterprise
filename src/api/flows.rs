@@ -64,11 +64,6 @@ pub async fn create_flow(
     Extension(auth): Extension<AuthUser>,
     Json(req): Json<Flow>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !state.license_tier.flow_engine() {
-        return Err(AppError(anyhow::anyhow!(
-            "Flow Engine requires Starter tier or above. Upgrade at https://voltrus.id"
-        )));
-    }
     let id = req.id.clone();
     state
         .storage
@@ -113,11 +108,6 @@ pub async fn update_flow(
     Path(id): Path<String>,
     Json(req): Json<Flow>,
 ) -> Result<StatusCode, AppError> {
-    if !state.license_tier.flow_engine() {
-        return Err(AppError(anyhow::anyhow!(
-            "Flow Engine requires Starter tier or above. Upgrade at https://voltrus.id"
-        )));
-    }
     state
         .storage
         .update_flow(&id, &req.name, req.enabled, &req.trigger_config, &req.nodes)
@@ -153,11 +143,6 @@ pub async fn delete_flow(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    if !state.license_tier.flow_engine() {
-        return Err(AppError(anyhow::anyhow!(
-            "Flow Engine requires Starter tier or above. Upgrade at https://voltrus.id"
-        )));
-    }
     state.storage.delete_flow(&id).await?;
     if let Some(engine) = &state.flow_engine {
         engine.remove_flow(&id).await;
@@ -189,11 +174,6 @@ pub async fn start_flow(
     Extension(auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    if !state.license_tier.flow_engine() {
-        return Err(AppError(anyhow::anyhow!(
-            "Flow Engine requires Starter tier or above. Upgrade at https://voltrus.id"
-        )));
-    }
     if let Some(engine) = &state.flow_engine
         && let Some(mut flow) = engine.get_flow(&id).await
     {
@@ -227,11 +207,6 @@ pub async fn stop_flow(
     Extension(_auth): Extension<AuthUser>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    if !state.license_tier.flow_engine() {
-        return Err(AppError(anyhow::anyhow!(
-            "Flow Engine requires Starter tier or above. Upgrade at https://voltrus.id"
-        )));
-    }
     if let Some(engine) = &state.flow_engine
         && let Some(mut flow) = engine.get_flow(&id).await
     {

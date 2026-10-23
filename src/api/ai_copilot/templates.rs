@@ -25,12 +25,6 @@ pub async fn list_templates(
     State(state): State<AppState>,
     Query(query): Query<ListTemplatesQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let templates = state
         .storage
         .list_equipment_templates(query.industry.as_deref())
@@ -50,12 +44,6 @@ pub async fn generate_from_template(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<models::TemplateInstantiateRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     // Look up template by ID via list + filter (no dedicated get method)
     let templates = state.storage.list_equipment_templates(None).await?;
     let template = templates

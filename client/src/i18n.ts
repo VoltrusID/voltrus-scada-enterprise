@@ -1,3 +1,4 @@
+import { edition, registerLocales } from './edition'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import HttpBackend from 'i18next-http-backend'
@@ -37,5 +38,7 @@ i18n
       useSuspense: false,
     },
   })
+
+registerLocales(i18n, edition.locales)
 
 export default i18n
