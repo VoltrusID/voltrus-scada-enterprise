@@ -1,7 +1,7 @@
 import { etc, sign } from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2";
 import { renderDay0, renderDay3, renderDay10, sendEmail, verifyUnsubToken } from "./email";
-import type { Env } from "./env";
+import type { Env, PolarKeyInfo } from "./env";
 
 interface LicenseRequest {
   license_key: string;
@@ -48,7 +48,10 @@ export default {
     const path = url.pathname;
     try {
       if (path === "/activate" && request.method === "POST") {
-        return await handleActivate(request, env);
+        return await handleActivate(request, env, "activate");
+      }
+      if (path === "/renew" && request.method === "POST") {
+        return await handleActivate(request, env, "renew");
       }
       if (path === "/admin" && request.method === "GET") {
         return await handleAdminPanel(request, env);
@@ -179,43 +182,70 @@ async function handleUnsubscribe(request: Request, env: Env): Promise<Response> 
   }
   return new Response("Invalid or expired unsubscribe link.", { status: 404 });
 }
-async function handleActivate(request: Request, env: Env): Promise<Response> {
-  const formData = await request.formData();
-  const file: unknown = formData.get("file");
+// "activate" binds a key to a device (spending one Polar usage the first time); "renew" signs a fresh
+// activation (new tier / expiry) for a key already bound to this same device and never binds.
+type ActivateMode = "activate" | "renew";
+
+// Every refusal carries a machine-readable `code` next to the human `error`:
+//   invalid_request, invalid_key, revoked, inactive, expired, not_activated, fingerprint_mismatch,
+//   seats_full, unavailable (transient: Polar or the console could not be read, retry later).
+function refuse(error: string, status: number, code: string): Response {
+  return jsonResponse({ success: false, error, code }, status);
+}
+
+function activationResponse(activation_file: string, tier: string, expiresAt: string | null | undefined): Response {
+  return jsonResponse(
+    { success: true, activation_file, tier, expires_at: expiresAt ? new Date(expiresAt).toISOString() : null },
+    200
+  );
+}
+
+// The request is the VOLREQ file the app builds for /activate (multipart field `file`), or the same
+// content as JSON: {"license_key": "...", "fingerprint": {"hash": "...", "components": {...}}}.
+async function readLicenseRequest(request: Request): Promise<LicenseRequest | Response> {
+  if ((request.headers.get("Content-Type") ?? "").includes("application/json")) {
+    const data: unknown = await request.json().catch(() => null);
+    const parsed = data ? parseLicenseRequest(data) : null;
+    return parsed ?? refuse("Invalid request", 400, "invalid_request");
+  }
+  const formData = await request.formData().catch(() => null);
+  const file: unknown = formData?.get("file");
   if (!(file instanceof Blob)) {
-    return jsonResponse({ success: false, error: "No file uploaded" }, 400);
+    return refuse("No file uploaded", 400, "invalid_request");
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const request_data = parseRequestFile(bytes);
-  if (!request_data) {
-    return jsonResponse({ success: false, error: "Invalid request file" }, 400);
-  }
+  return parseRequestFile(bytes) ?? refuse("Invalid request file", 400, "invalid_request");
+}
+
+async function handleActivate(request: Request, env: Env, mode: ActivateMode): Promise<Response> {
+  const request_data = await readLicenseRequest(request);
+  if (request_data instanceof Response) return request_data;
   if (/^\s*VLT-/i.test(request_data.license_key)) {
-    return activateConsoleLicense(request_data, env);
+    return activateConsoleLicense(request_data, env, mode);
   }
   const existing = await env.DB.prepare(
     "SELECT fingerprint_hash, revoked, tier, device_limit FROM license_bindings WHERE license_key = ?"
   ).bind(request_data.license_key).first<{ fingerprint_hash: string; revoked: number; tier: string | null; device_limit: number | null }>();
   if (existing?.revoked) {
-    return jsonResponse({ success: false, error: "License has been revoked" }, 403);
+    return refuse("License has been revoked", 403, "revoked");
+  }
+  if (!existing && mode === "renew") {
+    return refuse("License is not activated on this device. Activate it first.", 404, "not_activated");
   }
   if (existing && existing.fingerprint_hash !== request_data.fingerprint.hash) {
-    return jsonResponse(
-      { success: false, error: "License already bound to a different device. Contact support to transfer." },
-      403
-    );
+    return refuse("License already bound to a different device. Contact support to transfer.", 403, "fingerprint_mismatch");
   }
-  // Re-activating the bound device (lost activation file, tier upgrade) must not spend a Polar usage.
+  // Re-activating the bound device (lost activation file, tier upgrade, renewal) must not spend a Polar usage.
   const polarValid = await validatePolarLicense(request_data.license_key, env, !existing);
   if (!polarValid.valid) {
-    return jsonResponse({ success: false, error: polarValid.error }, 403);
+    return refuse(polarValid.error, polarValid.code === "unavailable" ? 503 : 403, polarValid.code);
   }
   // An unresolved purchase (Polar lookup failed) keeps the bound tier instead of resetting it.
   const resolved = polarValid.tier !== null;
   const tier = polarValid.tier ?? existing?.tier ?? DEFAULT_TIER;
   const device_limit = resolved ? polarValid.device_limit : existing ? existing.device_limit : null;
   const { expires_at } = polarValid;
-  console.log(`Activation: license_key=${request_data.license_key}, rebind=${!!existing}, resolved=${resolved}, tier=${tier}, device_limit=${device_limit}`);
+  console.log(`Activation: mode=${mode}, license_key=${request_data.license_key}, rebind=${!!existing}, resolved=${resolved}, tier=${tier}, device_limit=${device_limit}, expires_at=${expires_at}`);
   if (existing) {
     await env.DB.prepare("UPDATE license_bindings SET tier = ?, device_limit = ? WHERE license_key = ?")
       .bind(tier, device_limit, request_data.license_key)
@@ -226,40 +256,42 @@ async function handleActivate(request: Request, env: Env): Promise<Response> {
     ).bind(request_data.license_key, request_data.fingerprint.hash, tier, device_limit).run();
   }
   const activation = await generateActivation(request_data, env, expires_at, tier, device_limit);
-  return jsonResponse({ success: true, activation_file: activation }, 200);
+  return activationResponse(activation, tier, expires_at);
 }
 
 // Console-issued VLT-* licenses (console.voltrus.id card and saldo purchases) live in the
 // voltrus-console D1, like the MacTools apps' VLT activations. Device seats are console
 // license_activations rows, so "release" on the console Licenses page frees the host.
-async function activateConsoleLicense(request_data: LicenseRequest, env: Env): Promise<Response> {
+// A monthly SCADA license ends at its subscription period end (licenses.expires_at, extended by the
+// console on every paid renewal); a refund or cancellation revokes it or lets it lapse.
+async function activateConsoleLicense(request_data: LicenseRequest, env: Env, mode: ActivateMode): Promise<Response> {
   const code = request_data.license_key.trim().toUpperCase();
   const lic = await env.CONSOLE_DB.prepare(
     "SELECT id, status, expires_at, seat_limit, tier FROM licenses WHERE code = ? AND app_slug = 'scada'"
   ).bind(code).first<{ id: string; status: string; expires_at: number | null; seat_limit: number | null; tier: string | null }>();
   if (!lic) {
-    return jsonResponse({ success: false, error: "License key not found" }, 403);
+    return refuse("License key not found", 403, "invalid_key");
   }
   if (lic.status !== "active") {
-    return jsonResponse({ success: false, error: "License is not active" }, 403);
+    return refuse("License is not active", 403, lic.status === "revoked" ? "revoked" : "inactive");
   }
   if (lic.expires_at && lic.expires_at < Date.now()) {
-    return jsonResponse({ success: false, error: "License is expired" }, 403);
+    return refuse("License is expired", 403, "expired");
   }
   const device = request_data.fingerprint.hash;
   const seated = await env.CONSOLE_DB.prepare(
     "SELECT id FROM license_activations WHERE license_id = ? AND device_id = ?"
   ).bind(lic.id, device).first<{ id: string }>();
   if (!seated) {
+    if (mode === "renew") {
+      return refuse("License is not activated on this device. Activate it first.", 404, "not_activated");
+    }
     const seats = lic.seat_limit ?? 1;
     const used = await env.CONSOLE_DB.prepare("SELECT COUNT(*) AS n FROM license_activations WHERE license_id = ?")
       .bind(lic.id)
       .first<{ n: number }>();
     if ((used?.n ?? 0) >= seats) {
-      return jsonResponse(
-        { success: false, error: `All ${seats} seat(s) are in use. Release a device on console.voltrus.id/licenses first.` },
-        403
-      );
+      return refuse(`All ${seats} seat(s) are in use. Release a device on console.voltrus.id/licenses first.`, 403, "seats_full");
     }
     const host = request_data.fingerprint.components?.hostname;
     await env.CONSOLE_DB.prepare(
@@ -268,11 +300,11 @@ async function activateConsoleLicense(request_data: LicenseRequest, env: Env): P
   }
   // VLT SCADA licenses predating tiers came from the single $249 entry (Starter) product.
   const tier = lic.tier ?? "starter";
-  console.log(`Activation (console): license=${code}, rebind=${!!seated}, tier=${tier}`);
+  console.log(`Activation (console): mode=${mode}, license=${code}, rebind=${!!seated}, tier=${tier}`);
   const expiresAt = lic.expires_at ? new Date(lic.expires_at).toISOString() : null;
   // Sign the key exactly as the host sent it: the binary matches it against its own config.
   const activation = await generateActivation(request_data, env, expiresAt, tier, null);
-  return jsonResponse({ success: true, activation_file: activation }, 200);
+  return activationResponse(activation, tier, expiresAt);
 }
 async function handleAdminPanel(request: Request, env: Env): Promise<Response> {
   const auth = request.headers.get("Authorization");
@@ -326,21 +358,23 @@ async function handleTransfer(request: Request, env: Env): Promise<Response> {
 }
 function parseRequestFile(bytes: Uint8Array): LicenseRequest | null {
   const magic = new TextDecoder().decode(bytes.slice(0, 7));
-  if (magic !== "VOLREQ") return null;
+  if (magic !== "VOLREQ\x01") return null;
   try {
-    const json = new TextDecoder().decode(bytes.slice(7));
-    const data = JSON.parse(json);
-    if (!data || typeof data.license_key !== "string" || !data.license_key) return null;
-    if (!data.fingerprint || typeof data.fingerprint.hash !== "string" || !data.fingerprint.hash) return null;
-    return data;
+    return parseLicenseRequest(JSON.parse(new TextDecoder().decode(bytes.slice(7))));
   } catch {
     return null;
   }
 }
+function parseLicenseRequest(data: any): LicenseRequest | null {
+  if (!data || typeof data.license_key !== "string" || !data.license_key) return null;
+  if (!data.fingerprint || typeof data.fingerprint.hash !== "string" || !data.fingerprint.hash) return null;
+  return data;
+}
 // tier null: the key is valid but its purchase couldn't be resolved.
+// expires_at: monthly keys are valid to the paid period end of their subscription, lifetime keys never expire.
 type PolarValidation =
   | { valid: true; expires_at: string | null; tier: string | null; device_limit: number | null }
-  | { valid: false; error: string };
+  | { valid: false; error: string; code: "invalid_key" | "revoked" | "unavailable" };
 
 interface PolarValidatedKey {
   id: string;
@@ -372,28 +406,37 @@ async function validatePolarLicense(key: string, env: Env, incrementUsage: boole
       }),
     });
     if (res.status === 404) {
-      return { valid: false, error: "License key not found in Polar.sh" };
+      return { valid: false, error: "License key not found in Polar.sh", code: "invalid_key" };
     }
     if (!res.ok) {
       const err = await res.json<{ detail?: string }>().catch(() => ({ detail: undefined }));
-      return { valid: false, error: err.detail || `Polar.sh error: ${res.status}` };
+      return {
+        valid: false,
+        error: err.detail || `Polar.sh error: ${res.status}`,
+        code: res.status >= 500 ? "unavailable" : "invalid_key"
+      };
     }
     const data = await res.json<PolarValidatedKey>();
     if (data.status === "revoked" || data.status === "disabled") {
-      return { valid: false, error: `License key is ${data.status}` };
+      return { valid: false, error: `License key is ${data.status}`, code: "revoked" };
     }
-    // The console owns the Polar token and the catalog: it resolves the purchase behind the key.
-    // A failed lookup leaves the tier unresolved; it never blocks activation of a valid key.
-    let tier: string | null = null;
+    // The console owns the Polar token and the catalog: it resolves the purchase behind the key and,
+    // for a monthly key, the paid period end of its subscription. A failed lookup leaves the tier
+    // unresolved; it never blocks activation of a valid key.
+    let info: PolarKeyInfo | null = null;
     try {
-      tier = await env.CONSOLE.polarKeyTier(data.id);
+      info = await env.CONSOLE.polarKeyInfo(data.id);
     } catch (e) {
-      console.error(`console tier lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+      console.error(`console key lookup failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    console.log(`Polar validate: key=${key}, status=${data.status}, tier=${tier ?? "unresolved"}`);
-    return { valid: true, expires_at: data.expires_at, tier, device_limit: null };
+    // A monthly key without a readable period end must not be signed as a lifetime activation.
+    if (info?.recurring && !info.expires_at) {
+      return { valid: false, error: "Could not read the subscription period. Try again shortly.", code: "unavailable" };
+    }
+    console.log(`Polar validate: key=${key}, status=${data.status}, tier=${info?.tier ?? "unresolved"}, expires_at=${info?.expires_at ?? data.expires_at}`);
+    return { valid: true, expires_at: info?.expires_at ?? data.expires_at, tier: info?.tier ?? null, device_limit: null };
   } catch (e) {
-    return { valid: false, error: `Polar.sh validation failed: ${e instanceof Error ? e.message : String(e)}` };
+    return { valid: false, error: `Polar.sh validation failed: ${e instanceof Error ? e.message : String(e)}`, code: "unavailable" };
   }
 }
 async function generateActivation(
