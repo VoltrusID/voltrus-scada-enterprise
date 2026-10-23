@@ -21,6 +21,8 @@ pub struct RegisterExport {
     pub register_area: String,
     pub scale: f64,
     pub sort_order: i64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub zero_based: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

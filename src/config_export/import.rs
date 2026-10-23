@@ -35,7 +35,9 @@ pub fn import_config(storage: &Storage, input_dir: &str) -> Result<()> {
                     .iter()
                     .map(|r| crate::models::ModbusRegisterInput {
                         name: r.name.clone(),
-                        address: r.address,
+                        address: Some(r.address),
+                        offset: None,
+                        zero_based: r.zero_based,
                         register_type: r.register_type.clone(),
                         register_area: r.register_area.clone(),
                         scale: r.scale,

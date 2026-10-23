@@ -78,6 +78,7 @@ fn test_register_count_float64() {
         reg_type: RegisterType::Float64,
         scale: 1.0,
         register_area: "holding".into(),
+        zero_based: false,
     };
     assert_eq!(reg.register_count(), 4);
 }

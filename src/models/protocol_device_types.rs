@@ -49,6 +49,7 @@ impl ModbusDevice {
                     },
                     scale: r.scale,
                     register_area: r.register_area.clone(),
+                    zero_based: r.zero_based,
                 })
                 .collect(),
             readback: None,
@@ -68,6 +69,9 @@ pub struct ModbusRegister {
     pub register_area: String,
     pub scale: f64,
     pub sort_order: i64,
+    /// `address` is a 0-based offset (see `RegisterConfig::zero_based`).
+    #[serde(default)]
+    pub zero_based: bool,
 }
 
 #[cfg(feature = "modbus")]
@@ -91,13 +95,52 @@ pub struct CreateModbusDeviceRequest {
 #[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct ModbusRegisterInput {
     pub name: String,
-    pub address: u16,
+    /// Legacy address: a 0-based offset below 30001, or a 5-digit reference (30001 and up, 40001 and up).
+    /// Give either `address` or `offset`.
+    #[serde(default)]
+    pub address: Option<u16>,
+    /// Explicit 0-based offset in `register_area`, valid for the whole 0-65535 range. Replaces `address`.
+    #[serde(default)]
+    pub offset: Option<u16>,
+    /// With `address`: the value is a 0-based offset as is (what the API returns for a register stored with `offset`).
+    #[serde(default)]
+    pub zero_based: bool,
     #[serde(default = "default_reg_type_str")]
     pub register_type: String,
     #[serde(default = "default_scale")]
     pub scale: f64,
     #[serde(default = "default_register_area")]
     pub register_area: String,
+}
+
+#[cfg(feature = "modbus")]
+impl ModbusRegisterInput {
+    /// The address to store and whether it is a 0-based offset.
+    pub fn resolve_address(&self) -> Result<(u16, bool), String> {
+        match (self.address, self.offset) {
+            (Some(_), Some(_)) => Err(format!("register '{}': give address or offset, not both", self.name)),
+            (None, Some(offset)) => Ok((offset, true)),
+            (Some(address), None) => Ok((address, self.zero_based)),
+            (None, None) => Err(format!("register '{}': address or offset is required", self.name)),
+        }
+    }
+
+    /// Parse the `registers` array of a request body; a register that does not parse is an error, not skipped.
+    pub fn parse_all(body: &serde_json::Value) -> Result<Vec<ModbusRegisterInput>, String> {
+        let Some(items) = body.get("registers").and_then(|v| v.as_array()) else {
+            return Ok(Vec::new());
+        };
+        items
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let input: ModbusRegisterInput =
+                    serde_json::from_value(r.clone()).map_err(|e| format!("register {}: {e}", i + 1))?;
+                input.resolve_address()?;
+                Ok(input)
+            })
+            .collect()
+    }
 }
 
 #[cfg(feature = "modbus")]

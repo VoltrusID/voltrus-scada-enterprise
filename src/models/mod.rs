@@ -345,6 +345,7 @@ mod tests {
             reg_type: RegisterType::Uint16,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         assert_eq!(r.register_count(), 1);
 
@@ -354,6 +355,7 @@ mod tests {
             reg_type: RegisterType::Float32,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         assert_eq!(r.register_count(), 2);
     }
@@ -366,6 +368,7 @@ mod tests {
             reg_type: RegisterType::Float32,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         assert_eq!(r.protocol_address(), 0);
 
@@ -375,6 +378,7 @@ mod tests {
             reg_type: RegisterType::Float32,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         assert_eq!(r.protocol_address(), 2);
 
@@ -384,6 +388,7 @@ mod tests {
             reg_type: RegisterType::Float32,
             scale: 1.0,
             register_area: "input".into(),
+            zero_based: false,
         };
         assert_eq!(r.protocol_address(), 4);
 
@@ -393,6 +398,7 @@ mod tests {
             reg_type: RegisterType::Uint16,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         assert_eq!(r.protocol_address(), 10);
     }

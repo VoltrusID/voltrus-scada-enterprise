@@ -79,6 +79,9 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Device file import tests
+        run: npm test
+
       - name: Build production bundle
         run: npm run build
 

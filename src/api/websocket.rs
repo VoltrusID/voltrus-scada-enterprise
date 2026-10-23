@@ -419,6 +419,7 @@ async fn execute_direct_write(
                 reg_type: crate::models::RegisterType::Uint16,
                 scale: 1.0,
                 register_area: "holding".into(),
+                zero_based: false,
             };
             crate::modbus::write_tag(&state.modbus_pool, &config, &register, value).await
         }

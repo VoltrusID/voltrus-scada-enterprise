@@ -171,6 +171,8 @@ export interface ModbusRegister {
   register_area: string
   scale: number
   sort_order: number
+  /** `address` is a 0-based offset, not a 5-digit reference. */
+  zero_based?: boolean
 }
 
 // ── SCADA 2D view types ──

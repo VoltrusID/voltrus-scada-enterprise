@@ -238,6 +238,10 @@ pub struct RegisterConfig {
     pub scale: f64,
     #[serde(default = "default_register_area")]
     pub register_area: String,
+    /// `address` is the 0-based offset on the wire, whatever its value. When false (the default),
+    /// an address of 30001 or more is a 5-digit reference (30001 input, 40001 holding) and is converted.
+    #[serde(default)]
+    pub zero_based: bool,
 }
 
 pub fn default_register_area() -> String {
@@ -270,9 +274,12 @@ impl RegisterConfig {
         }
     }
 
-    /// Convert Modbus 5-digit address (e.g. 40001) to 0-based protocol address.
+    /// The 0-based address sent on the wire. A zero-based register is used as is; otherwise a Modbus
+    /// 5-digit reference (e.g. 40001) is converted and anything below 30001 is already 0-based.
     pub fn protocol_address(&self) -> u16 {
-        if self.address >= 40001 {
+        if self.zero_based {
+            self.address
+        } else if self.address >= 40001 {
             self.address - 40001
         } else if self.address >= 30001 {
             self.address - 30001

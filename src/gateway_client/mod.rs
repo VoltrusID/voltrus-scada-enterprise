@@ -41,7 +41,13 @@ pub struct GatewayHandle {
 }
 
 /// Map a SCADA Modbus `RegisterConfig` to a gateway `TagAddress`.
+///
+/// The gateway reads addresses of 30001 and up as 5-digit references, so a zero-based register above 30000
+/// cannot be expressed through it; the SCADA's own poller reads such registers correctly.
 pub fn register_to_tag(r: &RegisterConfig) -> pb::TagAddress {
+    if r.zero_based && r.address > 30000 {
+        tracing::warn!("Register {} has offset {}, which the gateway reads as a 5-digit reference", r.name, r.address);
+    }
     pb::TagAddress {
         address: Some(Address::Modbus(pb::ModbusTagAddress {
             name: r.name.clone(),
@@ -841,6 +847,7 @@ mod tests {
                 reg_type: RegisterType::Uint16,
                 scale: 1.0,
                 register_area: "holding".into(),
+                zero_based: false,
             }],
             readback: None,
             network: None,
@@ -881,6 +888,7 @@ mod tests {
             reg_type: RegisterType::Uint16,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         let res = write_modbus_register(&config, &reg, 55.0).await;
         assert!(res.success, "write failed: {:?}", res.error);
