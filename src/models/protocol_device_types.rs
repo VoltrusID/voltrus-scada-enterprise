@@ -1,9 +1,17 @@
 #![allow(dead_code)]
 
 #[cfg(feature = "modbus")]
-use super::{DeviceConfig, Endianness, RegisterConfig, RegisterType, default_interval, default_modbus_port, default_register_area, default_scale, default_unit_id};
+use super::{
+    DeviceConfig, Endianness, RegisterConfig, RegisterType, default_interval, default_modbus_port,
+    default_register_area, default_scale, default_unit_id,
+};
 
-#[cfg(any(feature = "modbus", feature = "opcua", feature = "s7", feature = "ethernet-ip"))]
+#[cfg(any(
+    feature = "modbus",
+    feature = "opcua",
+    feature = "s7",
+    feature = "ethernet-ip"
+))]
 use super::{default_interval_ms, default_true};
 
 #[cfg(feature = "modbus")]
@@ -118,10 +126,16 @@ impl ModbusRegisterInput {
     /// The address to store and whether it is a 0-based offset.
     pub fn resolve_address(&self) -> Result<(u16, bool), String> {
         match (self.address, self.offset) {
-            (Some(_), Some(_)) => Err(format!("register '{}': give address or offset, not both", self.name)),
+            (Some(_), Some(_)) => Err(format!(
+                "register '{}': give address or offset, not both",
+                self.name
+            )),
             (None, Some(offset)) => Ok((offset, true)),
             (Some(address), None) => Ok((address, self.zero_based)),
-            (None, None) => Err(format!("register '{}': address or offset is required", self.name)),
+            (None, None) => Err(format!(
+                "register '{}': address or offset is required",
+                self.name
+            )),
         }
     }
 
@@ -134,8 +148,8 @@ impl ModbusRegisterInput {
             .iter()
             .enumerate()
             .map(|(i, r)| {
-                let input: ModbusRegisterInput =
-                    serde_json::from_value(r.clone()).map_err(|e| format!("register {}: {e}", i + 1))?;
+                let input: ModbusRegisterInput = serde_json::from_value(r.clone())
+                    .map_err(|e| format!("register {}: {e}", i + 1))?;
                 input.resolve_address()?;
                 Ok(input)
             })

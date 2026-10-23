@@ -61,19 +61,14 @@ pub async fn poll_enip_device(config: EnipDeviceRuntimeConfig, cache: DeviceCach
 }
 
 /// Connect once, then poll in a loop until an error occurs.
-async fn try_connect_and_poll(
-    config: &EnipDeviceRuntimeConfig,
-    cache: &DeviceCache,
-) -> Result<()> {
+async fn try_connect_and_poll(config: &EnipDeviceRuntimeConfig, cache: &DeviceCache) -> Result<()> {
     let mut client = EthernetIpClient::new(&config.url);
     client
         .connect()
         .await
         .context("EtherNet/IP connect failed")?;
 
-    cache
-        .set_status(&config.id, DeviceStatus::Online)
-        .await;
+    cache.set_status(&config.id, DeviceStatus::Online).await;
 
     loop {
         let mut metrics = HashMap::new();

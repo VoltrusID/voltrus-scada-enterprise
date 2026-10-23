@@ -5,7 +5,10 @@ use axum::response::IntoResponse;
 use serde_json::json;
 
 use crate::api::{AppError, AppState, AuthUser};
-use crate::voltrus_plc::{write_tag, CreateVoltrusPlcDeviceRequest, CreateVoltrusPlcTagRequest, UpdateVoltrusPlcDeviceRequest, VoltrusPlcDeviceConfig};
+use crate::voltrus_plc::{
+    CreateVoltrusPlcDeviceRequest, CreateVoltrusPlcTagRequest, UpdateVoltrusPlcDeviceRequest,
+    VoltrusPlcDeviceConfig, write_tag,
+};
 
 // ── Device CRUD ──
 
@@ -78,7 +81,10 @@ pub async fn create_device(
         action: "create_voltrus_plc_device".to_string(),
         username: user.username.clone(),
         resource: format!("voltrus_plc_device:{}", id),
-        details: Some(format!("name={}, url={}, transport={}", req.name, req.url, req.transport)),
+        details: Some(format!(
+            "name={}, url={}, transport={}",
+            req.name, req.url, req.transport
+        )),
     });
 
     Ok((
@@ -179,7 +185,8 @@ pub async fn delete_device(
     state.storage.delete_voltrus_plc_device(id).await?;
 
     // Sync to asset inventory
-    crate::asset::sync::on_device_deleted(&state.storage.asset(), "voltrus-plc", &id.to_string()).await;
+    crate::asset::sync::on_device_deleted(&state.storage.asset(), "voltrus-plc", &id.to_string())
+        .await;
 
     state.audit_logger.log(crate::security::AuditEvent {
         action: "delete_voltrus_plc_device".to_string(),
@@ -223,8 +230,13 @@ pub async fn create_tag(
     }
 
     // Validate variable name — no path traversal or injection characters
-    if req.variable_name.contains(|c: char| c.is_whitespace() || c == '/' || c == '\\' || c == '\0' || c == '&') {
-        return Err(AppError(anyhow::anyhow!("Variable name contains invalid characters")));
+    if req
+        .variable_name
+        .contains(|c: char| c.is_whitespace() || c == '/' || c == '\\' || c == '\0' || c == '&')
+    {
+        return Err(AppError(anyhow::anyhow!(
+            "Variable name contains invalid characters"
+        )));
     }
 
     // Look up device name for data source key generation

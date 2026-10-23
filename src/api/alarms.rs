@@ -80,7 +80,10 @@ pub async fn list_alarms(
                 return false;
             }
             if let Some(shelved) = params.shelved {
-                let is_shelved = a.shelved_until.map(|t| t > crate::timeutil::now_secs()).unwrap_or(false);
+                let is_shelved = a
+                    .shelved_until
+                    .map(|t| t > crate::timeutil::now_secs())
+                    .unwrap_or(false);
                 if is_shelved != shelved {
                     return false;
                 }

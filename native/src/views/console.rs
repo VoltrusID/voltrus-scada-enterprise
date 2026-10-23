@@ -3,8 +3,7 @@
 use gpui::prelude::FluentBuilder as _;
 use gpui::*;
 use gpui_component::{
-    ActiveTheme, TitleBar,
-    h_flex,
+    ActiveTheme, TitleBar, h_flex,
     tab::{Tab, TabBar},
     v_flex,
 };
@@ -105,12 +104,14 @@ impl Render for Console {
                 ),
             )
             .child(
-                div().id("tab-content").flex_1().overflow_hidden().map(|this| {
-                    match self.tab {
+                div()
+                    .id("tab-content")
+                    .flex_1()
+                    .overflow_hidden()
+                    .map(|this| match self.tab {
                         0 => this.child(self.dashboard.clone()),
                         _ => this.child(self.alarms.clone()),
-                    }
-                }),
+                    }),
             )
             .child(
                 h_flex()
@@ -136,11 +137,7 @@ impl Render for Console {
                             .gap_2()
                             .child(self.user.clone())
                             .child("·")
-                            .child(
-                                div()
-                                    .text_color(cx.theme().green)
-                                    .child("Voltrus Native"),
-                            )
+                            .child(div().text_color(cx.theme().green).child("Voltrus Native"))
                             .child("GPU-accelerated (GPUI)"),
                     ),
             )

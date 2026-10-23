@@ -3,9 +3,9 @@ use crate::flow_engine::{
     message::Message, node::NodeConfig, run_log, state::FlowState, trigger::TriggerConfig,
 };
 use crate::storage::Storage;
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use dashmap::DashMap;
 use tokio::sync::{RwLock, broadcast};
 
 #[cfg(feature = "mqtt-broker")]
@@ -108,7 +108,8 @@ impl FlowEngine {
                                     let in_flight = in_flight.clone();
                                     let flow_id = flow.id.clone();
                                     tokio::spawn(async move {
-                                        run_flow(&flow, msg, state.as_ref(), &storage, &cache).await;
+                                        run_flow(&flow, msg, state.as_ref(), &storage, &cache)
+                                            .await;
                                         in_flight.remove(&flow_id);
                                     });
                                 }
@@ -162,7 +163,13 @@ impl FlowEngine {
                                         continue;
                                     }
                                     if flow.trigger.matches(&msg)
-                                        && gate_fire(&flow, &msg, &in_flight, &last_fired, &last_values)
+                                        && gate_fire(
+                                            &flow,
+                                            &msg,
+                                            &in_flight,
+                                            &last_fired,
+                                            &last_values,
+                                        )
                                     {
                                         let flow = flow.clone();
                                         let state = state.clone();
@@ -318,7 +325,8 @@ async fn run_flow(
     let start = std::time::Instant::now();
     // Execute process nodes (in array order) before output nodes so the grouped
     // canvas layout matches the real execution order.
-    let process_nodes: Vec<&NodeConfig> = flow.nodes.iter().filter(|n| !is_output_node(n)).collect();
+    let process_nodes: Vec<&NodeConfig> =
+        flow.nodes.iter().filter(|n| !is_output_node(n)).collect();
     let output_nodes: Vec<&NodeConfig> = flow.nodes.iter().filter(|n| is_output_node(n)).collect();
     for node in process_nodes.into_iter().chain(output_nodes) {
         let ctx = crate::flow_engine::node::NodeContext {
@@ -396,8 +404,9 @@ fn gate_fire(
     let now = std::time::Instant::now();
     // Debounce: minimum interval between firings (modbus + mqtt triggers).
     let debounce_ms = match &flow.trigger {
-        TriggerConfig::Modbus { debounce_ms, .. }
-        | TriggerConfig::Mqtt { debounce_ms, .. } => *debounce_ms,
+        TriggerConfig::Modbus { debounce_ms, .. } | TriggerConfig::Mqtt { debounce_ms, .. } => {
+            *debounce_ms
+        }
         TriggerConfig::Timer { .. } => None,
     };
     if let Some(ms) = debounce_ms {
@@ -408,7 +417,12 @@ fn gate_fire(
         }
     }
     // on_change_only (modbus): suppress unless the watched value actually changed.
-    if let TriggerConfig::Modbus { metric, on_change_only, .. } = &flow.trigger {
+    if let TriggerConfig::Modbus {
+        metric,
+        on_change_only,
+        ..
+    } = &flow.trigger
+    {
         if on_change_only.unwrap_or(false) {
             let current = metric
                 .as_deref()
@@ -416,7 +430,10 @@ fn gate_fire(
                 .and_then(|k| msg.payload.get("metrics").and_then(|m| m.get(k)))
                 .cloned()
                 .unwrap_or_else(|| {
-                    msg.payload.get("metrics").cloned().unwrap_or(serde_json::Value::Null)
+                    msg.payload
+                        .get("metrics")
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null)
                 });
             let changed = {
                 let prev = last_values.get(&flow.id);
@@ -448,7 +465,6 @@ fn node_id(node: &NodeConfig) -> String {
         NodeConfig::Dsl { id, .. } => id.clone(),
     }
 }
-
 
 #[cfg(all(test, feature = "mqtt-broker"))]
 mod mqtt_event_to_message_tests {
@@ -490,11 +506,25 @@ mod gate_fire_tests {
     use super::*;
 
     fn flow(id: &str, trigger: TriggerConfig) -> Flow {
-        Flow { id: id.to_string(), name: id.to_string(), enabled: true, trigger, nodes: vec![] }
+        Flow {
+            id: id.to_string(),
+            name: id.to_string(),
+            enabled: true,
+            trigger,
+            nodes: vec![],
+        }
     }
 
-    fn trackers() -> (Arc<DashMap<String, ()>>, Arc<DashMap<String, std::time::Instant>>, Arc<DashMap<String, serde_json::Value>>) {
-        (Arc::new(DashMap::new()), Arc::new(DashMap::new()), Arc::new(DashMap::new()))
+    fn trackers() -> (
+        Arc<DashMap<String, ()>>,
+        Arc<DashMap<String, std::time::Instant>>,
+        Arc<DashMap<String, serde_json::Value>>,
+    ) {
+        (
+            Arc::new(DashMap::new()),
+            Arc::new(DashMap::new()),
+            Arc::new(DashMap::new()),
+        )
     }
 
     #[test]
@@ -510,9 +540,15 @@ mod gate_fire_tests {
     #[test]
     fn debounce_suppresses_within_window() {
         let (in_flight, last_fired, last_values) = trackers();
-        let f = flow("f1", TriggerConfig::Modbus {
-            device_id: "*".into(), metric: None, debounce_ms: Some(10_000), on_change_only: Some(false),
-        });
+        let f = flow(
+            "f1",
+            TriggerConfig::Modbus {
+                device_id: "*".into(),
+                metric: None,
+                debounce_ms: Some(10_000),
+                on_change_only: Some(false),
+            },
+        );
         let msg = Message::new(serde_json::json!({"metrics": {"temp": 5}}));
         assert!(gate_fire(&f, &msg, &in_flight, &last_fired, &last_values));
         in_flight.remove("f1"); // previous run finished
@@ -522,9 +558,15 @@ mod gate_fire_tests {
     #[test]
     fn on_change_only_suppresses_unchanged() {
         let (in_flight, last_fired, last_values) = trackers();
-        let f = flow("f1", TriggerConfig::Modbus {
-            device_id: "*".into(), metric: Some("temp".into()), debounce_ms: None, on_change_only: Some(true),
-        });
+        let f = flow(
+            "f1",
+            TriggerConfig::Modbus {
+                device_id: "*".into(),
+                metric: Some("temp".into()),
+                debounce_ms: None,
+                on_change_only: Some(true),
+            },
+        );
         let m = |v: i64| Message::new(serde_json::json!({"metrics": {"temp": v}}));
         assert!(gate_fire(&f, &m(5), &in_flight, &last_fired, &last_values));
         in_flight.remove("f1");
@@ -534,8 +576,23 @@ mod gate_fire_tests {
 
     #[test]
     fn output_nodes_classified() {
-        assert!(is_output_node(&NodeConfig::HttpOut { id: "h".into(), url: "u".into(), headers: Default::default(), timeout_ms: 1, retry_count: 0 }));
-        assert!(is_output_node(&NodeConfig::WriteOut { id: "w".into(), data_source_id: 1, value_expr: None, policy: "immediate".into(), reason: "r".into() }));
-        assert!(!is_output_node(&NodeConfig::Filter { id: "f".into(), condition: "true".into() }));
+        assert!(is_output_node(&NodeConfig::HttpOut {
+            id: "h".into(),
+            url: "u".into(),
+            headers: Default::default(),
+            timeout_ms: 1,
+            retry_count: 0
+        }));
+        assert!(is_output_node(&NodeConfig::WriteOut {
+            id: "w".into(),
+            data_source_id: 1,
+            value_expr: None,
+            policy: "immediate".into(),
+            reason: "r".into()
+        }));
+        assert!(!is_output_node(&NodeConfig::Filter {
+            id: "f".into(),
+            condition: "true".into()
+        }));
     }
 }

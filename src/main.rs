@@ -183,10 +183,20 @@ async fn main() -> anyhow::Result<()> {
         let status = license::resolve_license_status(&storage).await;
         Arc::new(std::sync::RwLock::new(status))
     };
-    let license_tier = license_status.read().unwrap_or_else(|e| e.into_inner()).tier();
-    let feature_flags = license_status.read().unwrap_or_else(|e| e.into_inner()).feature_flags();
+    let license_tier = license_status
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .tier();
+    let feature_flags = license_status
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .feature_flags();
 
-    if !license_status.read().unwrap_or_else(|e| e.into_inner()).is_valid() {
+    if !license_status
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_valid()
+    {
         tracing::warn!(
             "License status: {:?} — skipping Modbus polling",
             license_status.read().unwrap_or_else(|e| e.into_inner())
@@ -196,10 +206,20 @@ async fn main() -> anyhow::Result<()> {
     // Log engineering mode status at startup
     {
         let ls = license_status.read().unwrap_or_else(|e| e.into_inner());
-        if let license::LicenseStatus::Engineering { polling_active, daily_budget_secs, daily_used_secs, polling_remaining_secs, .. } = &*ls {
+        if let license::LicenseStatus::Engineering {
+            polling_active,
+            daily_budget_secs,
+            daily_used_secs,
+            polling_remaining_secs,
+            ..
+        } = &*ls
+        {
             tracing::info!(
                 "Engineering mode: {}/{}s used, {}s remaining, polling_active={}",
-                daily_used_secs, daily_budget_secs, polling_remaining_secs, polling_active
+                daily_used_secs,
+                daily_budget_secs,
+                polling_remaining_secs,
+                polling_active
             );
         } else if let license::LicenseStatus::EngineeringPollingStopped { message, .. } = &*ls {
             tracing::warn!("Engineering mode: {}", message);
@@ -273,14 +293,21 @@ async fn main() -> anyhow::Result<()> {
         network::NetworkManager::new(app_config.networks.clone()),
     );
     #[cfg(feature = "modbus")]
-    if license_status.read().unwrap_or_else(|e| e.into_inner()).is_valid() {
+    if license_status
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_valid()
+    {
         // For Engineering mode, do NOT auto-start pollers.
         // Polling starts paused; user must use the start endpoint to begin.
         // For paid licenses (Valid status), auto-start pollers as usual.
         let is_engineering = {
             let ls = license_status.read().unwrap_or_else(|e| e.into_inner());
             matches!(&*ls, license::LicenseStatus::Engineering { .. })
-                | matches!(&*ls, license::LicenseStatus::EngineeringPollingStopped { .. })
+                | matches!(
+                    &*ls,
+                    license::LicenseStatus::EngineeringPollingStopped { .. }
+                )
         };
 
         if is_engineering {
@@ -298,7 +325,8 @@ async fn main() -> anyhow::Result<()> {
                     tracing::warn!(
                         "Device '{}' skipped — {} tier limit of {} devices reached. Upgrade at https://voltrus.id",
                         config.id,
-                        serde_json::to_string(&license_tier).unwrap_or_else(|_| "unknown".to_string()),
+                        serde_json::to_string(&license_tier)
+                            .unwrap_or_else(|_| "unknown".to_string()),
                         limit
                     );
                     continue;
@@ -465,8 +493,10 @@ async fn main() -> anyhow::Result<()> {
             // ISA-18.2 on/off delay state per source key. Starts empty on
             // startup and recomputes from the current value — no stale
             // pendings survive a restart.
-            let mut alarm_delays: std::collections::HashMap<String, crate::alarm_delay::DelayState> =
-                std::collections::HashMap::new();
+            let mut alarm_delays: std::collections::HashMap<
+                String,
+                crate::alarm_delay::DelayState,
+            > = std::collections::HashMap::new();
             loop {
                 ticker.tick().await;
                 let snapshots = cache.get_all().await;
@@ -526,12 +556,26 @@ async fn main() -> anyhow::Result<()> {
                                     }
                                 } else {
                                     *value_map
-                                        .get(&format!("{}:{}", source.device_id, crate::api::data::metric_name(&source.key, &source.device_id)))
+                                        .get(&format!(
+                                            "{}:{}",
+                                            source.device_id,
+                                            crate::api::data::metric_name(
+                                                &source.key,
+                                                &source.device_id
+                                            )
+                                        ))
                                         .unwrap_or(&source.base_val)
                                 }
                             } else {
                                 *value_map
-                                    .get(&format!("{}:{}", source.device_id, crate::api::data::metric_name(&source.key, &source.device_id)))
+                                    .get(&format!(
+                                        "{}:{}",
+                                        source.device_id,
+                                        crate::api::data::metric_name(
+                                            &source.key,
+                                            &source.device_id
+                                        )
+                                    ))
                                     .unwrap_or(&source.base_val)
                             }
                         } else {
@@ -595,7 +639,8 @@ async fn main() -> anyhow::Result<()> {
                                 // pending so a fresh delay starts after it resolves.
                                 if on_delay > 0 {
                                     if may_fire {
-                                        let state = alarm_delays.entry(source.key.clone()).or_default();
+                                        let state =
+                                            alarm_delays.entry(source.key.clone()).or_default();
                                         may_fire = crate::alarm_delay::update_delay(
                                             state, true, on_delay, 0, now,
                                         ) == crate::alarm_delay::DelayTransition::Fire;
@@ -607,12 +652,22 @@ async fn main() -> anyhow::Result<()> {
                                     let msg = if alarm_type == "low" {
                                         format!(
                                             "{} dropped to {}{} ({} low: {}{})",
-                                            source.name, value, source.unit, severity, threshold, source.unit
+                                            source.name,
+                                            value,
+                                            source.unit,
+                                            severity,
+                                            threshold,
+                                            source.unit
                                         )
                                     } else {
                                         format!(
                                             "{} reached {}{} ({}: {}{})",
-                                            source.name, value, source.unit, severity, threshold, source.unit
+                                            source.name,
+                                            value,
+                                            source.unit,
+                                            severity,
+                                            threshold,
+                                            source.unit
                                         )
                                     };
                                     match storage
@@ -693,7 +748,8 @@ async fn main() -> anyhow::Result<()> {
                                         .await
                                         .unwrap_or(false);
                                     if any_active {
-                                        let state = alarm_delays.entry(source.key.clone()).or_default();
+                                        let state =
+                                            alarm_delays.entry(source.key.clone()).or_default();
                                         crate::alarm_delay::update_delay(
                                             state, false, 0, off_delay, now,
                                         ) == crate::alarm_delay::DelayTransition::Resolve
@@ -811,18 +867,12 @@ async fn main() -> anyhow::Result<()> {
     // Spawn command queue processor (Starter tier and above)
     if license_tier.command_queue() {
         #[cfg(feature = "modbus")]
-        let queue = command_queue::CommandQueue::new(
-            storage.clone(),
-            cache.clone(),
-            modbus_pool.clone(),
-        )
-        .with_ws_manager(ws_manager.clone());
+        let queue =
+            command_queue::CommandQueue::new(storage.clone(), cache.clone(), modbus_pool.clone())
+                .with_ws_manager(ws_manager.clone());
         #[cfg(not(feature = "modbus"))]
-        let queue = command_queue::CommandQueue::new(
-            storage.clone(),
-            cache.clone(),
-        )
-        .with_ws_manager(ws_manager.clone());
+        let queue = command_queue::CommandQueue::new(storage.clone(), cache.clone())
+            .with_ws_manager(ws_manager.clone());
         // Capture the queue's MQTT broker slot before `queue` moves into the task.
         #[cfg(feature = "mqtt-broker")]
         {
@@ -947,8 +997,7 @@ async fn main() -> anyhow::Result<()> {
     };
     // Hand the running broker to the command queue so MQTT command writes can publish.
     #[cfg(feature = "mqtt-broker")]
-    if let (Some(handle), Some(broker)) =
-        (queue_broker_handle.as_ref(), mqtt_broker_state.as_ref())
+    if let (Some(handle), Some(broker)) = (queue_broker_handle.as_ref(), mqtt_broker_state.as_ref())
     {
         *handle.write().await = Some(broker.clone());
         tracing::info!("Command queue connected to MQTT broker for writes");

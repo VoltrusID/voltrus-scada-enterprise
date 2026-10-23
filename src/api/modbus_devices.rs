@@ -122,7 +122,8 @@ pub async fn create_modbus_device(
         }
     }
 
-    let registers = ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
+    let registers =
+        ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
     state
         .storage
@@ -191,7 +192,8 @@ pub async fn update_modbus_device(
 
     // If registers array is present, replace registers too
     if body.get("registers").and_then(|v| v.as_array()).is_some() {
-        let registers = ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
+        let registers =
+            ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
         state
             .storage
@@ -268,7 +270,8 @@ pub async fn replace_registers(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let registers = ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
+    let registers =
+        ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
     state
         .storage

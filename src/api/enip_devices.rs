@@ -92,7 +92,14 @@ pub async fn create_device(
 
     let id = state
         .storage
-        .create_enip_device(&req.name, &req.url, req.slot, req.interval_ms, req.enabled, req.assembly_instance)
+        .create_enip_device(
+            &req.name,
+            &req.url,
+            req.slot,
+            req.interval_ms,
+            req.enabled,
+            req.assembly_instance,
+        )
         .await?;
 
     // Sync to asset inventory

@@ -30,9 +30,7 @@ pub async fn websocket_handler(
     State(state): State<AppState>,
     jar: axum_extra::extract::cookie::CookieJar,
 ) -> impl IntoResponse {
-    let cookie_token = jar
-        .get("voltrus_token")
-        .map(|c| c.value().to_string());
+    let cookie_token = jar.get("voltrus_token").map(|c| c.value().to_string());
     ws.on_upgrade(move |socket| handle_socket(socket, state, cookie_token))
 }
 
@@ -443,7 +441,11 @@ fn parse_modbus_address(source_config: &str) -> Option<u16> {
     config
         .get("address")
         .and_then(|v| v.as_u64().map(|a| convert(a as u16)))
-        .or_else(|| config.get("register").and_then(|v| v.as_u64().map(|a| convert(a as u16))))
+        .or_else(|| {
+            config
+                .get("register")
+                .and_then(|v| v.as_u64().map(|a| convert(a as u16)))
+        })
 }
 
 // -- Helpers ----------------------------------------------------------------

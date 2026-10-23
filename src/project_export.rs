@@ -81,10 +81,14 @@ const IMPORT_TABLES: &[&str] = &[
 ///
 /// The function performs a consistent SQLite backup, counts entities, writes a
 /// manifest, and packs everything into a gzipped tar archive.
-pub fn export_project(db_path: &str, output_path: &str, tier: &LicenseTier) -> Result<ProjectManifest> {
+pub fn export_project(
+    db_path: &str,
+    output_path: &str,
+    tier: &LicenseTier,
+) -> Result<ProjectManifest> {
     // 1. Consistent SQLite snapshot via the backup API.
-    let temp_db = create_sqlite_snapshot(db_path)
-        .context("Failed to create SQLite snapshot for export")?;
+    let temp_db =
+        create_sqlite_snapshot(db_path).context("Failed to create SQLite snapshot for export")?;
 
     let result = (|| -> Result<ProjectManifest> {
         // 2. Open the snapshot and count entities.
@@ -114,8 +118,8 @@ pub fn export_project(db_path: &str, output_path: &str, tier: &LicenseTier) -> R
         };
 
         // 3. Build tar.gz archive.
-        let archive_file =
-            File::create(output_path).with_context(|| format!("Failed to create {}", output_path))?;
+        let archive_file = File::create(output_path)
+            .with_context(|| format!("Failed to create {}", output_path))?;
         let encoder = GzEncoder::new(archive_file, flate2::Compression::default());
         let mut builder = tar::Builder::new(encoder);
 
@@ -125,8 +129,8 @@ pub fn export_project(db_path: &str, output_path: &str, tier: &LicenseTier) -> R
             .context("Failed to add config.sqlite to archive")?;
 
         // Add manifest.json.
-        let manifest_json = serde_json::to_string_pretty(&manifest)
-            .context("Failed to serialize manifest")?;
+        let manifest_json =
+            serde_json::to_string_pretty(&manifest).context("Failed to serialize manifest")?;
         let mut header = tar::Header::new_gnu();
         let manifest_bytes = manifest_json.as_bytes();
         header.set_size(manifest_bytes.len() as u64);
@@ -186,10 +190,9 @@ pub fn import_project(
     if !manifest_path.exists() {
         bail!("manifest.json not found in archive — not a valid .voltrus-scada file");
     }
-    let manifest_bytes = fs::read(&manifest_path)
-        .context("Failed to read manifest.json")?;
-    let manifest: ProjectManifest = serde_json::from_slice(&manifest_bytes)
-        .context("Failed to parse manifest.json")?;
+    let manifest_bytes = fs::read(&manifest_path).context("Failed to read manifest.json")?;
+    let manifest: ProjectManifest =
+        serde_json::from_slice(&manifest_bytes).context("Failed to parse manifest.json")?;
 
     // 4. Validate config.sqlite exists in archive.
     let snapshot_path = temp_dir.path().join("config.sqlite");
@@ -258,9 +261,7 @@ pub fn import_project(
 
         // Try the proper CREATE TABLE approach: drop existing and recreate.
         // Actually, safer: delete existing rows and insert from export.
-        let _ = conn.execute_batch(&format!(
-            "DELETE FROM main.\"{table}\";"
-        ));
+        let _ = conn.execute_batch(&format!("DELETE FROM main.\"{table}\";"));
 
         // Get column list from the export table.
         let columns: Vec<String> = {
@@ -277,17 +278,23 @@ pub fn import_project(
             continue;
         }
 
-        let col_list = columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
-        let sel_list = columns.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+        let col_list = columns
+            .iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sel_list = columns
+            .iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
 
         let insert_sql = format!(
             "INSERT INTO main.\"{table}\" ({col_list}) SELECT {sel_list} FROM export_db.\"{table}\";"
         );
 
         if let Err(e) = conn.execute_batch(&insert_sql) {
-            tracing::warn!(
-                "Skipping table '{table}' during import: {e}"
-            );
+            tracing::warn!("Skipping table '{table}' during import: {e}");
         }
     }
 
@@ -357,11 +364,9 @@ fn create_sqlite_snapshot(db_path: &str) -> Result<String> {
 
 /// Count rows in a table (returns 0 if the table does not exist).
 fn count_rows(conn: &Connection, table: &str) -> usize {
-    conn.query_row(
-        &format!("SELECT count(*) FROM \"{table}\""),
-        [],
-        |row| row.get::<_, usize>(0),
-    )
+    conn.query_row(&format!("SELECT count(*) FROM \"{table}\""), [], |row| {
+        row.get::<_, usize>(0)
+    })
     .unwrap_or(0)
 }
 
@@ -374,9 +379,9 @@ fn now_iso8601() -> String {
             // Simple ISO-8601-ish formatting without depending on chrono.
             format!(
                 "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-                1970 + (secs / 31556952) as u32,   // approximate year
+                1970 + (secs / 31556952) as u32, // approximate year
                 1 + ((secs % 31556952) / 2629746) as u32, // approximate month
-                1 + ((secs % 2629746) / 86400) as u32,    // approximate day
+                1 + ((secs % 2629746) / 86400) as u32, // approximate day
                 (secs % 86400) / 3600,
                 (secs % 3600) / 60,
                 secs % 60,
@@ -391,24 +396,36 @@ mod tests {
 
     #[test]
     fn test_tier_compatibility_same_tier() {
-        assert!(check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Engineering).is_ok());
-        assert!(check_tier_compatibility(&LicenseTier::Enterprise, &LicenseTier::Enterprise).is_ok());
+        assert!(
+            check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Engineering).is_ok()
+        );
+        assert!(
+            check_tier_compatibility(&LicenseTier::Enterprise, &LicenseTier::Enterprise).is_ok()
+        );
     }
 
     #[test]
     fn test_tier_compatibility_higher_export() {
         // Exporting from Enterprise to Engineering should fail.
-        assert!(check_tier_compatibility(&LicenseTier::Enterprise, &LicenseTier::Engineering).is_err());
+        assert!(
+            check_tier_compatibility(&LicenseTier::Enterprise, &LicenseTier::Engineering).is_err()
+        );
         // Exporting from Professional to Starter should fail.
-        assert!(check_tier_compatibility(&LicenseTier::Professional, &LicenseTier::Starter).is_err());
+        assert!(
+            check_tier_compatibility(&LicenseTier::Professional, &LicenseTier::Starter).is_err()
+        );
     }
 
     #[test]
     fn test_tier_compatibility_lower_export() {
         // Exporting from Engineering to Enterprise should succeed.
-        assert!(check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Enterprise).is_ok());
+        assert!(
+            check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Enterprise).is_ok()
+        );
         // Exporting from Starter to Professional should succeed.
-        assert!(check_tier_compatibility(&LicenseTier::Starter, &LicenseTier::Professional).is_ok());
+        assert!(
+            check_tier_compatibility(&LicenseTier::Starter, &LicenseTier::Professional).is_ok()
+        );
         // Exporting from Edge to Starter should succeed (Edge rank 1 < Starter rank 2).
         assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Starter).is_ok());
     }
@@ -445,7 +462,12 @@ mod tests {
     fn test_export_and_import_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("test.db").to_str().unwrap().to_string();
-        let archive_path = dir.path().join("export.voltrus-scada").to_str().unwrap().to_string();
+        let archive_path = dir
+            .path()
+            .join("export.voltrus-scada")
+            .to_str()
+            .unwrap()
+            .to_string();
         let import_db_path = dir.path().join("import.db").to_str().unwrap().to_string();
 
         // Create source database with some test data.
@@ -460,8 +482,9 @@ mod tests {
                  INSERT INTO data_sources (tag) VALUES ('tag2');
                  INSERT INTO data_sources (tag) VALUES ('tag3');
                  CREATE TABLE screens (id INTEGER PRIMARY KEY, title TEXT);
-                 INSERT INTO screens (title) VALUES ('screen1');"
-            ).unwrap();
+                 INSERT INTO screens (title) VALUES ('screen1');",
+            )
+            .unwrap();
         }
 
         // Export.
@@ -478,33 +501,56 @@ mod tests {
             conn.execute_batch(
                 "CREATE TABLE devices (id INTEGER PRIMARY KEY, name TEXT);
                  CREATE TABLE data_sources (id INTEGER PRIMARY KEY, tag TEXT);
-                 CREATE TABLE screens (id INTEGER PRIMARY KEY, title TEXT);"
-            ).unwrap();
+                 CREATE TABLE screens (id INTEGER PRIMARY KEY, title TEXT);",
+            )
+            .unwrap();
         }
 
         // Dry-run import.
-        let dry_manifest = import_project(&import_db_path, &archive_path, true, false, &LicenseTier::Engineering).unwrap();
+        let dry_manifest = import_project(
+            &import_db_path,
+            &archive_path,
+            true,
+            false,
+            &LicenseTier::Engineering,
+        )
+        .unwrap();
         assert_eq!(dry_manifest.device_count, 2);
 
         // Verify target DB still empty after dry-run.
         {
             let conn = Connection::open(&import_db_path).unwrap();
-            let count: i64 = conn.query_row("SELECT count(*) FROM devices", [], |r| r.get(0)).unwrap();
+            let count: i64 = conn
+                .query_row("SELECT count(*) FROM devices", [], |r| r.get(0))
+                .unwrap();
             assert_eq!(count, 0);
         }
 
         // Real import.
-        let import_manifest = import_project(&import_db_path, &archive_path, false, false, &LicenseTier::Engineering).unwrap();
+        let import_manifest = import_project(
+            &import_db_path,
+            &archive_path,
+            false,
+            false,
+            &LicenseTier::Engineering,
+        )
+        .unwrap();
         assert_eq!(import_manifest.device_count, 2);
 
         // Verify imported data.
         {
             let conn = Connection::open(&import_db_path).unwrap();
-            let dev_count: i64 = conn.query_row("SELECT count(*) FROM devices", [], |r| r.get(0)).unwrap();
+            let dev_count: i64 = conn
+                .query_row("SELECT count(*) FROM devices", [], |r| r.get(0))
+                .unwrap();
             assert_eq!(dev_count, 2);
-            let tag_count: i64 = conn.query_row("SELECT count(*) FROM data_sources", [], |r| r.get(0)).unwrap();
+            let tag_count: i64 = conn
+                .query_row("SELECT count(*) FROM data_sources", [], |r| r.get(0))
+                .unwrap();
             assert_eq!(tag_count, 3);
-            let screen_count: i64 = conn.query_row("SELECT count(*) FROM screens", [], |r| r.get(0)).unwrap();
+            let screen_count: i64 = conn
+                .query_row("SELECT count(*) FROM screens", [], |r| r.get(0))
+                .unwrap();
             assert_eq!(screen_count, 1);
         }
     }

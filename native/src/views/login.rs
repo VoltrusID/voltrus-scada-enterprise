@@ -7,7 +7,7 @@ use gpui_component::{
     ActiveTheme,
     button::{Button, ButtonVariants},
     h_flex,
-    input::{Input, InputState, InputEvent},
+    input::{Input, InputEvent, InputState},
     v_flex,
 };
 
@@ -65,11 +65,8 @@ impl LoginView {
             )
         });
         let username = cx.new(|cx| {
-            InputState::new(window, cx).default_value(
-                cfg.username
-                    .clone()
-                    .unwrap_or_else(|| "admin".to_string()),
-            )
+            InputState::new(window, cx)
+                .default_value(cfg.username.clone().unwrap_or_else(|| "admin".to_string()))
         });
         let password = cx.new(|cx| InputState::new(window, cx).masked(true));
 
@@ -134,9 +131,7 @@ impl LoginView {
                     .text_color(cx.theme().muted_foreground)
                     .child(label.to_string()),
             )
-            .child(Input::new(state).when(masked, |this| {
-                this.mask_toggle()
-            }))
+            .child(Input::new(state).when(masked, |this| this.mask_toggle()))
     }
 }
 
@@ -161,19 +156,22 @@ impl Render for LoginView {
                         v_flex()
                             .gap_1()
                             .child(
-                                h_flex().gap_1().child(
-                                    div()
-                                        .text_xl()
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(cx.theme().foreground)
-                                        .child("Voltrus"),
-                                ).child(
-                                    div()
-                                        .text_xl()
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(cx.theme().green)
-                                        .child("SCADA"),
-                                ),
+                                h_flex()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_xl()
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(cx.theme().foreground)
+                                            .child("Voltrus"),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_xl()
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(cx.theme().green)
+                                            .child("SCADA"),
+                                    ),
                             )
                             .child(
                                 div()
@@ -185,11 +183,7 @@ impl Render for LoginView {
                     .child(self.render_field("Username", &self.username, false, cx))
                     .child(self.render_field("Password", &self.password, true, cx))
                     .when_some(self.error.clone(), |this, err| {
-                        this.child(
-                            div()
-                                .text_color(cx.theme().danger)
-                                .child(err),
-                        )
+                        this.child(div().text_color(cx.theme().danger).child(err))
                     })
                     .child(
                         Button::new("login")

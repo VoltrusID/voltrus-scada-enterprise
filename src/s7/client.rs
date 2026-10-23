@@ -302,10 +302,13 @@ impl S7Client {
 
         // Read TPKT header (4 bytes)
         let mut tpkt_header = [0u8; 4];
-        tokio::time::timeout(std::time::Duration::from_secs(5), stream.read_exact(&mut tpkt_header))
-            .await
-            .context("Timeout waiting for COTP TPKT header (5s)")?
-            .context("Failed to read TPKT header")?;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stream.read_exact(&mut tpkt_header),
+        )
+        .await
+        .context("Timeout waiting for COTP TPKT header (5s)")?
+        .context("Failed to read TPKT header")?;
 
         if tpkt_header[0] != TPKT_VERSION {
             anyhow::bail!("Invalid TPKT version: {}", tpkt_header[0]);
@@ -317,10 +320,13 @@ impl S7Client {
         }
 
         let mut payload = vec![0u8; packet_len - 4];
-        tokio::time::timeout(std::time::Duration::from_secs(5), stream.read_exact(&mut payload))
-            .await
-            .context("Timeout waiting for COTP payload (5s)")?
-            .context("Failed to read COTP payload")?;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stream.read_exact(&mut payload),
+        )
+        .await
+        .context("Timeout waiting for COTP payload (5s)")?
+        .context("Failed to read COTP payload")?;
 
         Ok(payload)
     }
@@ -690,10 +696,13 @@ impl S7Client {
 
         // Read TPKT header
         let mut tpkt_header = [0u8; 4];
-        tokio::time::timeout(std::time::Duration::from_secs(5), stream.read_exact(&mut tpkt_header))
-            .await
-            .context("Timeout waiting for S7 TPKT header (5s)")?
-            .context("Failed to read S7 TPKT header")?;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stream.read_exact(&mut tpkt_header),
+        )
+        .await
+        .context("Timeout waiting for S7 TPKT header (5s)")?
+        .context("Failed to read S7 TPKT header")?;
 
         if tpkt_header[0] != TPKT_VERSION {
             anyhow::bail!("Invalid TPKT version in S7 response: {}", tpkt_header[0]);
@@ -705,10 +714,13 @@ impl S7Client {
         }
 
         let mut payload = vec![0u8; packet_len - 4];
-        tokio::time::timeout(std::time::Duration::from_secs(5), stream.read_exact(&mut payload))
-            .await
-            .context("Timeout waiting for S7 COTP/S7 payload (5s)")?
-            .context("Failed to read S7 COTP/S7 payload")?;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            stream.read_exact(&mut payload),
+        )
+        .await
+        .context("Timeout waiting for S7 COTP/S7 payload (5s)")?
+        .context("Failed to read S7 COTP/S7 payload")?;
 
         // Skip COTP DT header (3 bytes: length, type=0xF0, EOT=0x80)
         if payload.len() < 3 {

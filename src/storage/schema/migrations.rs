@@ -375,12 +375,15 @@ pub(super) fn run_migrations(conn: &Connection) {
     );
 
     // Migration: EtherNet/IP implicit I/O assembly config (device instance + tag byte offsets)
-    let _ = conn
-        .execute_batch("ALTER TABLE enip_devices ADD COLUMN assembly_instance INTEGER NOT NULL DEFAULT 0");
-    let _ = conn
-        .execute_batch("ALTER TABLE enip_tags ADD COLUMN assembly_offset INTEGER NOT NULL DEFAULT 0");
-    let _ = conn
-        .execute_batch("ALTER TABLE enip_tags ADD COLUMN assembly_length INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch(
+        "ALTER TABLE enip_devices ADD COLUMN assembly_instance INTEGER NOT NULL DEFAULT 0",
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE enip_tags ADD COLUMN assembly_offset INTEGER NOT NULL DEFAULT 0",
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE enip_tags ADD COLUMN assembly_length INTEGER NOT NULL DEFAULT 0",
+    );
 
     // Migration: alarm direction (low alarms).
     // Low-alarm thresholds (low_warn/low_crit) live in data_sources.source_config
@@ -388,8 +391,8 @@ pub(super) fn run_migrations(conn: &Connection) {
     // adds `alarm_type` ('high' default, 'low') to alarms so auto-resolution is
     // direction-aware: a low alarm clears when the value rises back above its
     // threshold (+deadband), not when it drops further below it.
-    let _ = conn
-        .execute_batch("ALTER TABLE alarms ADD COLUMN alarm_type TEXT NOT NULL DEFAULT 'high'");
+    let _ =
+        conn.execute_batch("ALTER TABLE alarms ADD COLUMN alarm_type TEXT NOT NULL DEFAULT 'high'");
 
     // Migration: persist per-widget config (setpoints, labels, colors, thresholds)
     // for SCADA mimic equipment so operator customizations survive reload.
@@ -401,16 +404,17 @@ pub(super) fn run_migrations(conn: &Connection) {
     // read-only, unchanged legacy behavior; 'integration' = write-capable key
     // that also passes demo-allowed operational routes). Idempotent — ignored
     // once the column exists.
-    let _ = conn
-        .execute_batch("ALTER TABLE api_keys ADD COLUMN role TEXT NOT NULL DEFAULT 'api'");
+    let _ = conn.execute_batch("ALTER TABLE api_keys ADD COLUMN role TEXT NOT NULL DEFAULT 'api'");
 
     // Migration: ISA-18.2 alarm on/off delays. The threshold config lives on
     // the tag that owns it (data_sources), so the delay values do too.
     // 0 disables the delay and preserves the immediate historical behavior.
-    let _ = conn
-        .execute_batch("ALTER TABLE data_sources ADD COLUMN on_delay_secs INTEGER NOT NULL DEFAULT 0");
-    let _ = conn
-        .execute_batch("ALTER TABLE data_sources ADD COLUMN off_delay_secs INTEGER NOT NULL DEFAULT 0");
+    let _ = conn.execute_batch(
+        "ALTER TABLE data_sources ADD COLUMN on_delay_secs INTEGER NOT NULL DEFAULT 0",
+    );
+    let _ = conn.execute_batch(
+        "ALTER TABLE data_sources ADD COLUMN off_delay_secs INTEGER NOT NULL DEFAULT 0",
+    );
 
     // Migration: append-only alarm journal. One row per lifecycle event
     // (triggered, acknowledged, shelved, unshelved, resolved), written from

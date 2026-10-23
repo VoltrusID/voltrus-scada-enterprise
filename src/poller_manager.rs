@@ -6,12 +6,12 @@ use tokio::task::JoinHandle;
 use crate::cache::DeviceCache;
 #[cfg(feature = "modbus")]
 use crate::models::DeviceConfig;
-#[cfg(feature = "opcua")]
-use crate::models::OpcUaDeviceConfig;
-#[cfg(feature = "ethernet-ip")]
-use crate::models::EnipDeviceConfig;
 #[cfg(feature = "dnp3")]
 use crate::models::Dnp3DeviceConfig;
+#[cfg(feature = "ethernet-ip")]
+use crate::models::EnipDeviceConfig;
+#[cfg(feature = "opcua")]
+use crate::models::OpcUaDeviceConfig;
 use crate::models::PollerStatus;
 #[cfg(feature = "s7")]
 use crate::s7::S7DeviceConfig;
@@ -119,7 +119,8 @@ impl PollerManager {
             let endpoint = crate::gateway_client::gateway_endpoint();
             match crate::gateway_client::connect_modbus(&endpoint, &config).await {
                 Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None).await;
+                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
+                        .await;
                 }
                 Err(e) => tracing::error!(error = %e, "modbus gateway connect failed"),
             }
@@ -169,10 +170,8 @@ impl PollerManager {
             let endpoint = crate::gateway_client::gateway_endpoint();
             match crate::gateway_client::connect_opcua(&endpoint, &config).await {
                 Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(
-                        h, did, tags, interval_ms, cache, None,
-                    )
-                    .await;
+                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
+                        .await;
                 }
                 Err(e) => tracing::error!(error = %e, "opcua gateway connect failed"),
             }
@@ -213,10 +212,8 @@ impl PollerManager {
             let endpoint = crate::gateway_client::gateway_endpoint();
             match crate::gateway_client::connect_s7(&endpoint, &config).await {
                 Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(
-                        h, did, tags, interval_ms, cache, None,
-                    )
-                    .await;
+                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
+                        .await;
                 }
                 Err(e) => tracing::error!(error = %e, "s7 gateway connect failed"),
             }
@@ -241,7 +238,9 @@ impl PollerManager {
     #[cfg(feature = "gateway-enip")]
     pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
         let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "ethernet_ip").await;
+        self.cache
+            .register_protocol(&device_id, "ethernet_ip")
+            .await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -265,7 +264,12 @@ impl PollerManager {
             match crate::gateway_client::connect_enip(&endpoint, &config).await {
                 Ok(h) => {
                     crate::gateway_client::poll_via_gateway(
-                        h, did, tags, interval_ms, cache, Some(name_override),
+                        h,
+                        did,
+                        tags,
+                        interval_ms,
+                        cache,
+                        Some(name_override),
                     )
                     .await;
                 }
@@ -278,7 +282,9 @@ impl PollerManager {
     #[cfg(all(feature = "ethernet-ip", not(feature = "gateway-enip")))]
     pub async fn start_ethernet_ip(&self, config: EnipDeviceConfig) {
         let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "ethernet_ip").await;
+        self.cache
+            .register_protocol(&device_id, "ethernet_ip")
+            .await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }
@@ -318,10 +324,8 @@ impl PollerManager {
             let endpoint = crate::gateway_client::gateway_endpoint();
             match crate::gateway_client::connect_dnp3(&endpoint, &config).await {
                 Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(
-                        h, did, tags, interval_ms, cache, None,
-                    )
-                    .await;
+                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
+                        .await;
                 }
                 Err(e) => tracing::error!(error = %e, "dnp3 gateway connect failed"),
             }
@@ -362,10 +366,8 @@ impl PollerManager {
             let endpoint = crate::gateway_client::gateway_endpoint();
             match crate::gateway_client::connect_bacnet(&endpoint, &config).await {
                 Ok(h) => {
-                    crate::gateway_client::poll_via_gateway(
-                        h, did, tags, interval_ms, cache, None,
-                    )
-                    .await;
+                    crate::gateway_client::poll_via_gateway(h, did, tags, interval_ms, cache, None)
+                        .await;
                 }
                 Err(e) => tracing::error!(error = %e, "bacnet gateway connect failed"),
             }
@@ -389,7 +391,9 @@ impl PollerManager {
 
     pub async fn start_voltrus_plc(&self, config: VoltrusPlcDeviceConfig) {
         let device_id = config.id.clone();
-        self.cache.register_protocol(&device_id, "voltrus_plc").await;
+        self.cache
+            .register_protocol(&device_id, "voltrus_plc")
+            .await;
         if self.is_running(&device_id).await {
             self.stop(&device_id).await;
         }

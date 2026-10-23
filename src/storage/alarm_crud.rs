@@ -15,8 +15,10 @@ impl Storage {
         message: &str,
         deadband: f64,
     ) -> Result<i64> {
-        self.create_alarm_with_type(source_key, severity, value, threshold, message, deadband, "high")
-            .await
+        self.create_alarm_with_type(
+            source_key, severity, value, threshold, message, deadband, "high",
+        )
+        .await
     }
 
     /// Create an alarm with an explicit direction (`alarm_type` = "high"|"low").

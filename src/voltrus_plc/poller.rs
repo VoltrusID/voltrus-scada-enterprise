@@ -44,9 +44,7 @@ pub async fn poll_voltrus_plc_device(config: VoltrusPlcDeviceConfig, cache: Devi
                         }
                         Err(e) => {
                             tracing::warn!("Voltrus PLC {} read error: {}", device_id, e);
-                            cache
-                                .set_status(&device_id, DeviceStatus::Offline)
-                                .await;
+                            cache.set_status(&device_id, DeviceStatus::Offline).await;
                             break; // Reconnect
                         }
                     }
@@ -62,9 +60,7 @@ pub async fn poll_voltrus_plc_device(config: VoltrusPlcDeviceConfig, cache: Devi
                     e,
                     delay
                 );
-                cache
-                    .set_status(&device_id, DeviceStatus::Offline)
-                    .await;
+                cache.set_status(&device_id, DeviceStatus::Offline).await;
             }
         }
 

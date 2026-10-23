@@ -182,7 +182,9 @@ mod tests {
     #[test]
     fn set_mutates_field() {
         let rec = json!({ "temp": 100 });
-        let out = run_dsl("set status.alarm = \"high\"", &rec).unwrap().unwrap();
+        let out = run_dsl("set status.alarm = \"high\"", &rec)
+            .unwrap()
+            .unwrap();
         assert_eq!(out["status"]["alarm"], "high");
         assert_eq!(out["temp"], 100); // original field retained
     }
@@ -201,8 +203,11 @@ mod tests {
         assert_eq!(out["status"]["alarm"], "high");
         // filtered out → None
         assert_eq!(
-            run_dsl("when temp > 80\nset status.alarm = \"high\"", &json!({ "temp": 1 }))
-                .unwrap(),
+            run_dsl(
+                "when temp > 80\nset status.alarm = \"high\"",
+                &json!({ "temp": 1 })
+            )
+            .unwrap(),
             None
         );
     }

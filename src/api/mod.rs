@@ -21,14 +21,14 @@ mod data_sources;
 mod dnp3_devices;
 mod edr_compat;
 mod engineering;
-mod excel_import;
 #[cfg(feature = "ethernet-ip")]
 mod enip_devices;
+mod excel_import;
 mod firmware_catalog;
 mod flows;
-mod generators;
 #[cfg(feature = "gateway-client")]
 mod gateway_proxy;
+mod generators;
 pub(crate) mod hardware_cert;
 pub(crate) mod hub;
 mod import_nodered;
@@ -168,7 +168,8 @@ async fn license_check_middleware(
         let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
         resp.headers_mut().insert(
             HeaderName::from_static("x-license-tier"),
-            HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("engineering")),
+            HeaderValue::from_str(&tier_str)
+                .unwrap_or_else(|_| HeaderValue::from_static("engineering")),
         );
         return resp;
     }
@@ -176,7 +177,10 @@ async fn license_check_middleware(
     // Read license status in a sync block so the RwLockReadGuard is dropped
     // before any .await point, keeping the future Send.
     let license_check = {
-        let ls = state.license_status.read().unwrap_or_else(|e| e.into_inner());
+        let ls = state
+            .license_status
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         let is_valid = ls.is_valid();
         let body = if !is_valid {
             Some(match serde_json::to_value(&*ls) {
@@ -197,7 +201,8 @@ async fn license_check_middleware(
     let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
     resp.headers_mut().insert(
         HeaderName::from_static("x-license-tier"),
-        HeaderValue::from_str(&tier_str).unwrap_or_else(|_| HeaderValue::from_static("engineering")),
+        HeaderValue::from_str(&tier_str)
+            .unwrap_or_else(|_| HeaderValue::from_static("engineering")),
     );
     resp
 }
@@ -207,120 +212,301 @@ async fn license_check_middleware(
 #[cfg(feature = "modbus")]
 fn modbus_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/modbus-devices", get(modbus_devices::list_modbus_devices))
-        .route("/api/v1/modbus-devices/status", get(modbus_devices::get_poller_statuses))
-        .route("/api/v1/modbus-devices/{id}", get(modbus_devices::get_modbus_device))
+        .route(
+            "/api/v1/modbus-devices",
+            get(modbus_devices::list_modbus_devices),
+        )
+        .route(
+            "/api/v1/modbus-devices/status",
+            get(modbus_devices::get_poller_statuses),
+        )
+        .route(
+            "/api/v1/modbus-devices/{id}",
+            get(modbus_devices::get_modbus_device),
+        )
 }
 
 #[cfg(feature = "modbus")]
 fn modbus_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/modbus-devices", post(modbus_devices::create_modbus_device))
-        .route("/api/v1/modbus-devices/scan", post(modbus_devices::scan_modbus_registers))
-        .route("/api/v1/modbus-devices/scan-network", post(modbus_devices::scan_network))
-        .route("/api/v1/modbus-devices/{id}", put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device))
-        .route("/api/v1/modbus-devices/{id}/registers", put(modbus_devices::replace_registers))
-        .route("/api/v1/modbus-devices/{id}/restart", post(modbus_devices::restart_poller))
+        .route(
+            "/api/v1/modbus-devices",
+            post(modbus_devices::create_modbus_device),
+        )
+        .route(
+            "/api/v1/modbus-devices/scan",
+            post(modbus_devices::scan_modbus_registers),
+        )
+        .route(
+            "/api/v1/modbus-devices/scan-network",
+            post(modbus_devices::scan_network),
+        )
+        .route(
+            "/api/v1/modbus-devices/{id}",
+            put(modbus_devices::update_modbus_device).delete(modbus_devices::delete_modbus_device),
+        )
+        .route(
+            "/api/v1/modbus-devices/{id}/registers",
+            put(modbus_devices::replace_registers),
+        )
+        .route(
+            "/api/v1/modbus-devices/{id}/restart",
+            post(modbus_devices::restart_poller),
+        )
 }
 
 #[cfg(feature = "opcua")]
 fn opcua_admin_routes() -> Router<AppState> {
     Router::new()
         .route("/api/v1/opcua/devices", post(opcua_devices::create_device))
-        .route("/api/v1/opcua/devices/{id}", put(opcua_devices::update_device).delete(opcua_devices::delete_device))
-        .route("/api/v1/opcua/devices/{id}/nodes", get(opcua_devices::list_nodes).post(opcua_devices::add_node))
-        .route("/api/v1/opcua/devices/{id}/nodes/{node_id}", delete(opcua_devices::remove_node))
-        .route("/api/v1/opcua/devices/{id}/browse", post(opcua_devices::browse_device))
-        .route("/api/v1/opcua/devices/{id}/start", post(opcua_devices::start_device))
-        .route("/api/v1/opcua/devices/{id}/stop", post(opcua_devices::stop_device))
+        .route(
+            "/api/v1/opcua/devices/{id}",
+            put(opcua_devices::update_device).delete(opcua_devices::delete_device),
+        )
+        .route(
+            "/api/v1/opcua/devices/{id}/nodes",
+            get(opcua_devices::list_nodes).post(opcua_devices::add_node),
+        )
+        .route(
+            "/api/v1/opcua/devices/{id}/nodes/{node_id}",
+            delete(opcua_devices::remove_node),
+        )
+        .route(
+            "/api/v1/opcua/devices/{id}/browse",
+            post(opcua_devices::browse_device),
+        )
+        .route(
+            "/api/v1/opcua/devices/{id}/start",
+            post(opcua_devices::start_device),
+        )
+        .route(
+            "/api/v1/opcua/devices/{id}/stop",
+            post(opcua_devices::stop_device),
+        )
 }
 
 #[cfg(feature = "s7")]
 fn s7_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/s7/devices", get(s7_devices::list_devices).post(s7_devices::create_device))
-        .route("/api/v1/s7/devices/{id}", put(s7_devices::update_device).delete(s7_devices::delete_device))
-        .route("/api/v1/s7/devices/{id}/tags", get(s7_devices::list_tags).post(s7_devices::add_tag))
-        .route("/api/v1/s7/devices/{id}/tags/{tag_id}", delete(s7_devices::remove_tag))
-        .route("/api/v1/s7/devices/{id}/browse", post(s7_devices::browse_device))
-        .route("/api/v1/s7/devices/{id}/start", post(s7_devices::start_device))
-        .route("/api/v1/s7/devices/{id}/stop", post(s7_devices::stop_device))
+        .route(
+            "/api/v1/s7/devices",
+            get(s7_devices::list_devices).post(s7_devices::create_device),
+        )
+        .route(
+            "/api/v1/s7/devices/{id}",
+            put(s7_devices::update_device).delete(s7_devices::delete_device),
+        )
+        .route(
+            "/api/v1/s7/devices/{id}/tags",
+            get(s7_devices::list_tags).post(s7_devices::add_tag),
+        )
+        .route(
+            "/api/v1/s7/devices/{id}/tags/{tag_id}",
+            delete(s7_devices::remove_tag),
+        )
+        .route(
+            "/api/v1/s7/devices/{id}/browse",
+            post(s7_devices::browse_device),
+        )
+        .route(
+            "/api/v1/s7/devices/{id}/start",
+            post(s7_devices::start_device),
+        )
+        .route(
+            "/api/v1/s7/devices/{id}/stop",
+            post(s7_devices::stop_device),
+        )
 }
 
 #[cfg(feature = "ethernet-ip")]
 fn enip_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/enip/devices", get(enip_devices::list_devices).post(enip_devices::create_device))
-        .route("/api/v1/enip/devices/{id}", put(enip_devices::update_device).delete(enip_devices::delete_device))
-        .route("/api/v1/enip/devices/{id}/tags", get(enip_devices::list_tags).post(enip_devices::add_tag))
-        .route("/api/v1/enip/devices/{id}/tags/{tag_id}", delete(enip_devices::remove_tag))
-        .route("/api/v1/enip/devices/{id}/browse", post(enip_devices::browse_device))
-        .route("/api/v1/enip/devices/{id}/start", post(enip_devices::start_device))
-        .route("/api/v1/enip/devices/{id}/stop", post(enip_devices::stop_device))
+        .route(
+            "/api/v1/enip/devices",
+            get(enip_devices::list_devices).post(enip_devices::create_device),
+        )
+        .route(
+            "/api/v1/enip/devices/{id}",
+            put(enip_devices::update_device).delete(enip_devices::delete_device),
+        )
+        .route(
+            "/api/v1/enip/devices/{id}/tags",
+            get(enip_devices::list_tags).post(enip_devices::add_tag),
+        )
+        .route(
+            "/api/v1/enip/devices/{id}/tags/{tag_id}",
+            delete(enip_devices::remove_tag),
+        )
+        .route(
+            "/api/v1/enip/devices/{id}/browse",
+            post(enip_devices::browse_device),
+        )
+        .route(
+            "/api/v1/enip/devices/{id}/start",
+            post(enip_devices::start_device),
+        )
+        .route(
+            "/api/v1/enip/devices/{id}/stop",
+            post(enip_devices::stop_device),
+        )
 }
 
 fn voltrus_plc_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/voltrus-plc/devices", get(voltrus_plc_devices::list_devices))
-        .route("/api/v1/voltrus-plc/devices/{id}", get(voltrus_plc_devices::get_device))
+        .route(
+            "/api/v1/voltrus-plc/devices",
+            get(voltrus_plc_devices::list_devices),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}",
+            get(voltrus_plc_devices::get_device),
+        )
 }
 
 fn voltrus_plc_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/voltrus-plc/devices", post(voltrus_plc_devices::create_device))
-        .route("/api/v1/voltrus-plc/devices/{id}", put(voltrus_plc_devices::update_device).delete(voltrus_plc_devices::delete_device))
-        .route("/api/v1/voltrus-plc/devices/{id}/tags", get(voltrus_plc_devices::list_tags).post(voltrus_plc_devices::create_tag))
-        .route("/api/v1/voltrus-plc/devices/{id}/tags/{tag_id}", delete(voltrus_plc_devices::delete_tag))
-        .route("/api/v1/voltrus-plc/devices/{id}/start", post(voltrus_plc_devices::start_device))
-        .route("/api/v1/voltrus-plc/devices/{id}/stop", post(voltrus_plc_devices::stop_device))
-        .route("/api/v1/voltrus-plc/devices/{id}/restart", post(voltrus_plc_devices::restart_device))
-        .route("/api/v1/voltrus-plc/devices/{id}/write", post(voltrus_plc_devices::write_variable))
+        .route(
+            "/api/v1/voltrus-plc/devices",
+            post(voltrus_plc_devices::create_device),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}",
+            put(voltrus_plc_devices::update_device).delete(voltrus_plc_devices::delete_device),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}/tags",
+            get(voltrus_plc_devices::list_tags).post(voltrus_plc_devices::create_tag),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}/tags/{tag_id}",
+            delete(voltrus_plc_devices::delete_tag),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}/start",
+            post(voltrus_plc_devices::start_device),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}/stop",
+            post(voltrus_plc_devices::stop_device),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}/restart",
+            post(voltrus_plc_devices::restart_device),
+        )
+        .route(
+            "/api/v1/voltrus-plc/devices/{id}/write",
+            post(voltrus_plc_devices::write_variable),
+        )
 }
 
 #[cfg(feature = "dnp3")]
 fn dnp3_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/dnp3/devices", get(dnp3_devices::list_devices).post(dnp3_devices::create_device))
-        .route("/api/v1/dnp3/devices/{id}", get(dnp3_devices::get_device).put(dnp3_devices::update_device).delete(dnp3_devices::delete_device))
-        .route("/api/v1/dnp3/devices/{id}/points", post(dnp3_devices::add_point))
-        .route("/api/v1/dnp3/devices/{id}/points/{point_id}", delete(dnp3_devices::remove_point))
+        .route(
+            "/api/v1/dnp3/devices",
+            get(dnp3_devices::list_devices).post(dnp3_devices::create_device),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}",
+            get(dnp3_devices::get_device)
+                .put(dnp3_devices::update_device)
+                .delete(dnp3_devices::delete_device),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}/points",
+            post(dnp3_devices::add_point),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}/points/{point_id}",
+            delete(dnp3_devices::remove_point),
+        )
         .route("/api/v1/dnp3/scan", post(dnp3_devices::scan_network))
-        .route("/api/v1/dnp3/devices/{id}/start", post(dnp3_devices::start_device))
-        .route("/api/v1/dnp3/devices/{id}/stop", post(dnp3_devices::stop_device))
-        .route("/api/v1/dnp3/devices/{id}/integrity", post(dnp3_devices::trigger_integrity))
-        .route("/api/v1/dnp3/devices/{id}/freeze", post(dnp3_devices::trigger_freeze))
-        .route("/api/v1/dnp3/group-variations", get(dnp3_devices::list_group_variations))
+        .route(
+            "/api/v1/dnp3/devices/{id}/start",
+            post(dnp3_devices::start_device),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}/stop",
+            post(dnp3_devices::stop_device),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}/integrity",
+            post(dnp3_devices::trigger_integrity),
+        )
+        .route(
+            "/api/v1/dnp3/devices/{id}/freeze",
+            post(dnp3_devices::trigger_freeze),
+        )
+        .route(
+            "/api/v1/dnp3/group-variations",
+            get(dnp3_devices::list_group_variations),
+        )
 }
 
 #[cfg(feature = "bacnet")]
 fn bacnet_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/bacnet/devices", get(bacnet_devices::list_devices).post(bacnet_devices::create_device))
-        .route("/api/v1/bacnet/devices/{id}", put(bacnet_devices::update_device).delete(bacnet_devices::delete_device))
-        .route("/api/v1/bacnet/devices/{id}/objects", get(bacnet_devices::list_objects).post(bacnet_devices::add_object))
-        .route("/api/v1/bacnet/devices/{id}/objects/{object_id}", delete(bacnet_devices::remove_object))
-        .route("/api/v1/bacnet/devices/{id}/browse", post(bacnet_devices::browse_device))
-        .route("/api/v1/bacnet/devices/{id}/start", post(bacnet_devices::start_device))
-        .route("/api/v1/bacnet/devices/{id}/stop", post(bacnet_devices::stop_device))
-        .route("/api/v1/bacnet/discover", post(bacnet_devices::discover_network))
+        .route(
+            "/api/v1/bacnet/devices",
+            get(bacnet_devices::list_devices).post(bacnet_devices::create_device),
+        )
+        .route(
+            "/api/v1/bacnet/devices/{id}",
+            put(bacnet_devices::update_device).delete(bacnet_devices::delete_device),
+        )
+        .route(
+            "/api/v1/bacnet/devices/{id}/objects",
+            get(bacnet_devices::list_objects).post(bacnet_devices::add_object),
+        )
+        .route(
+            "/api/v1/bacnet/devices/{id}/objects/{object_id}",
+            delete(bacnet_devices::remove_object),
+        )
+        .route(
+            "/api/v1/bacnet/devices/{id}/browse",
+            post(bacnet_devices::browse_device),
+        )
+        .route(
+            "/api/v1/bacnet/devices/{id}/start",
+            post(bacnet_devices::start_device),
+        )
+        .route(
+            "/api/v1/bacnet/devices/{id}/stop",
+            post(bacnet_devices::stop_device),
+        )
+        .route(
+            "/api/v1/bacnet/discover",
+            post(bacnet_devices::discover_network),
+        )
 }
 
 #[cfg(feature = "mqtt-broker")]
 fn mqtt_broker_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/v1/mqtt-broker/status", get(mqtt_broker::get_status))
+    Router::new().route("/api/v1/mqtt-broker/status", get(mqtt_broker::get_status))
 }
 
 #[cfg(feature = "mqtt-broker")]
 fn mqtt_broker_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/mqtt-broker/config", put(mqtt_broker::update_config))
+        .route(
+            "/api/v1/mqtt-broker/config",
+            put(mqtt_broker::update_config),
+        )
         .route("/api/v1/mqtt-broker/start", post(mqtt_broker::start_broker))
         .route("/api/v1/mqtt-broker/stop", post(mqtt_broker::stop_broker))
         .route("/api/v1/mqtt-broker/topics", get(mqtt_broker::get_topics))
-        .route("/api/v1/mqtt-broker/topics/{topic}/messages", get(mqtt_broker::get_topic_messages))
-        .route("/api/v1/mqtt-broker/messages", get(mqtt_broker::get_messages))
-        .route("/api/v1/mqtt-broker/publish", post(mqtt_broker::publish_message))
+        .route(
+            "/api/v1/mqtt-broker/topics/{topic}/messages",
+            get(mqtt_broker::get_topic_messages),
+        )
+        .route(
+            "/api/v1/mqtt-broker/messages",
+            get(mqtt_broker::get_messages),
+        )
+        .route(
+            "/api/v1/mqtt-broker/publish",
+            post(mqtt_broker::publish_message),
+        )
 }
 
 #[cfg(feature = "snmp_scan")]
@@ -328,17 +514,32 @@ fn snmp_scan_admin_routes() -> Router<AppState> {
     Router::new()
         .route("/api/v1/snmp/scan", post(snmp_scan::start_scan))
         .route("/api/v1/snmp/scan/status", get(snmp_scan::get_scan_status))
-        .route("/api/v1/snmp/scan/results", get(snmp_scan::list_scan_results))
-        .route("/api/v1/snmp/scan/{ip}/import", post(snmp_scan::import_scanned_device))
+        .route(
+            "/api/v1/snmp/scan/results",
+            get(snmp_scan::list_scan_results),
+        )
+        .route(
+            "/api/v1/snmp/scan/{ip}/import",
+            post(snmp_scan::import_scanned_device),
+        )
 }
 
 #[cfg(feature = "scripts")]
 fn scripts_admin_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/v1/scripts", get(scripts::list_scripts).post(scripts::create_script))
-        .route("/api/v1/scripts/{id}", put(scripts::update_script).delete(scripts::delete_script))
+        .route(
+            "/api/v1/scripts",
+            get(scripts::list_scripts).post(scripts::create_script),
+        )
+        .route(
+            "/api/v1/scripts/{id}",
+            put(scripts::update_script).delete(scripts::delete_script),
+        )
         .route("/api/v1/scripts/{id}/test", post(scripts::test_script))
-        .route("/api/v1/scripts/{id}/executions", get(scripts::list_executions))
+        .route(
+            "/api/v1/scripts/{id}/executions",
+            get(scripts::list_executions),
+        )
 }
 #[cfg(feature = "gateway-client")]
 fn gateway_proxy_routes() -> Router<AppState> {
@@ -693,8 +894,14 @@ pub fn create_router(state: AppState) -> Router {
             get(wizard::get_feed_template_handler),
         )
         // Engineering polling control (start/stop)
-        .route("/api/v1/engineering/polling/start", post(engineering::start_polling))
-        .route("/api/v1/engineering/polling/stop", post(engineering::stop_polling));
+        .route(
+            "/api/v1/engineering/polling/start",
+            post(engineering::start_polling),
+        )
+        .route(
+            "/api/v1/engineering/polling/stop",
+            post(engineering::stop_polling),
+        );
     // Merge protocol-specific protected routes
     #[cfg(feature = "modbus")]
     let protected = protected.merge(modbus_routes());
@@ -702,11 +909,10 @@ pub fn create_router(state: AppState) -> Router {
     let protected = protected.merge(mqtt_broker_routes());
     let protected = protected.merge(voltrus_plc_routes());
 
-    let protected = protected
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            cookie_auth_middleware,
-        ));
+    let protected = protected.layer(middleware::from_fn_with_state(
+        state.clone(),
+        cookie_auth_middleware,
+    ));
 
     // Demo-allowed routes (authenticated + admin or demo role required)
     // These are operational routes that demo users should be able to use.
@@ -1199,9 +1405,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // `mut` is consumed by the cfg(openapi) docs-route attachment below.
     #[allow(unused_mut)]
-    let mut router = Router::new()
-        .merge(api_router)
-        .merge(static_router);
+    let mut router = Router::new().merge(api_router).merge(static_router);
 
     #[cfg(feature = "openapi")]
     {
@@ -1214,7 +1418,9 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 // Middleware types re-exported from middleware module
-pub(super) use auth_middleware::{AuthUser, admin_only_middleware, cookie_auth_middleware, demo_allowed_middleware};
+pub(super) use auth_middleware::{
+    AuthUser, admin_only_middleware, cookie_auth_middleware, demo_allowed_middleware,
+};
 
 #[cfg(test)]
 mod tests;

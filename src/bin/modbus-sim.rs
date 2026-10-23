@@ -61,8 +61,8 @@ impl DeviceState {
                         | (self.regs[reg_offset + 3] as u64);
                     self.values[idx] = v as f64;
                 } else {
-                    let bits = ((self.regs[reg_offset] as u32) << 16)
-                        | (self.regs[reg_offset + 1] as u32);
+                    let bits =
+                        ((self.regs[reg_offset] as u32) << 16) | (self.regs[reg_offset + 1] as u32);
                     self.values[idx] = f32::from_bits(bits) as f64;
                 }
                 return true;
@@ -155,7 +155,10 @@ impl Service for MeterService {
                     tracing::info!("Write FC16: addr={addr} qty={}", words.len());
                     Response::WriteMultipleRegisters(*req_addr, words.len() as u16)
                 } else {
-                    tracing::warn!("Write FC16: addr={addr}..{end} out of range (max={})", data.regs.len());
+                    tracing::warn!(
+                        "Write FC16: addr={addr}..{end} out of range (max={})",
+                        data.regs.len()
+                    );
                     return std::future::ready(Err(ExceptionCode::IllegalDataAddress));
                 }
             }

@@ -3,7 +3,7 @@
 //! Auth: login sets an httpOnly `voltrus_token` cookie — not returned in the
 //! body — so we parse it from `Set-Cookie` and replay it as a Cookie header.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 pub const TOKEN_COOKIE: &str = "voltrus_token";
@@ -150,9 +150,7 @@ impl VoltrusApi {
             .header("Cookie", format!("{TOKEN_COOKIE}={token}")))
     }
 
-    async fn decode<T: serde::de::DeserializeOwned>(
-        resp: reqwest::Response,
-    ) -> Result<T> {
+    async fn decode<T: serde::de::DeserializeOwned>(resp: reqwest::Response) -> Result<T> {
         let status = resp.status();
         let body = resp.text().await?;
         if !status.is_success() {
@@ -261,7 +259,8 @@ mod tests {
     fn decodes_percent_encoded_padding() {
         // The server percent-encodes '=' padding as %3D in Set-Cookie values.
         let raw = vec![
-            "voltrus_token=eyJ1c2VybmFtZSI6ImFkbWluIn0%3D%3D.deadbeef; HttpOnly; Path=/".to_string(),
+            "voltrus_token=eyJ1c2VybmFtZSI6ImFkbWluIn0%3D%3D.deadbeef; HttpOnly; Path=/"
+                .to_string(),
         ];
         assert_eq!(
             parse_token_cookie(&raw).as_deref(),

@@ -9,7 +9,7 @@ use gpui_component::{
     ActiveTheme, Sizable,
     chart::AreaChart,
     h_flex,
-    table::{Column, ColumnSort, Table, TableDelegate, TableState, TableEvent},
+    table::{Column, ColumnSort, Table, TableDelegate, TableEvent, TableState},
     v_flex,
 };
 
@@ -85,9 +85,11 @@ impl TagTableDelegate {
                 let c = a.meta.name.to_lowercase().cmp(&b.meta.name.to_lowercase());
                 if desc { c.reverse() } else { c }
             }),
-            SortField::Value => self
-                .rows
-                .sort_by(|a, b| a.value.partial_cmp(&b.value).unwrap_or(std::cmp::Ordering::Equal)),
+            SortField::Value => self.rows.sort_by(|a, b| {
+                a.value
+                    .partial_cmp(&b.value)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }),
             SortField::Quality => self.rows.sort_by(|a, b| a.quality.cmp(&b.quality)),
         }
     }
@@ -129,21 +131,22 @@ impl TableDelegate for TagTableDelegate {
                 )
                 .into_any_element(),
             1 => {
-                let color = value_color(row, cx.theme().red, cx.theme().yellow, cx.theme().foreground);
+                let color = value_color(
+                    row,
+                    cx.theme().red,
+                    cx.theme().yellow,
+                    cx.theme().foreground,
+                );
                 let mono = cx.theme().mono_font_family.clone();
                 h_flex()
                     .justify_between()
-                    .child(
-                        div()
-                        .text_xs()
-                            .font_family(mono)
-                            .text_color(color)
-                            .child(if !row.value.is_finite() {
-                                "—".to_string()
-                            } else {
-                                format!("{:.*}", decimals, row.value)
-                            }),
-                    )
+                    .child(div().text_xs().font_family(mono).text_color(color).child(
+                        if !row.value.is_finite() {
+                            "—".to_string()
+                        } else {
+                            format!("{:.*}", decimals, row.value)
+                        },
+                    ))
                     .into_any_element()
             }
             2 => div()
@@ -154,7 +157,7 @@ impl TableDelegate for TagTableDelegate {
                 let ok = row.quality == "good" || row.quality == "normal";
                 let mono = cx.theme().mono_font_family.clone();
                 div()
-                .text_xs()
+                    .text_xs()
                     .font_family(mono)
                     .text_color(if ok { cx.theme().green } else { cx.theme().red })
                     .child(row.quality.clone())
@@ -163,7 +166,7 @@ impl TableDelegate for TagTableDelegate {
             4 => {
                 let mono = cx.theme().mono_font_family.clone();
                 div()
-                .text_xs()
+                    .text_xs()
                     .font_family(mono)
                     .text_color(cx.theme().muted_foreground)
                     .child(age_label(row.ts))
@@ -224,8 +227,10 @@ fn age_label(ts: i64) -> String {
 fn hhmmss(ts: i64) -> String {
     time::OffsetDateTime::from_unix_timestamp(ts)
         .map(|t| {
-            t.format(&time::macros::format_description!("[hour]:[minute]:[second]"))
-                .unwrap_or_default()
+            t.format(&time::macros::format_description!(
+                "[hour]:[minute]:[second]"
+            ))
+            .unwrap_or_default()
         })
         .unwrap_or_default()
 }
@@ -318,7 +323,10 @@ impl Dashboard {
             // Non-finite floats (bad register reads) must never reach the
             // chart — lyon's path builder asserts on NaN coordinates.
             if u.value.is_finite() {
-                row.ring.push_back(ChartPoint { t: label, v: u.value });
+                row.ring.push_back(ChartPoint {
+                    t: label,
+                    v: u.value,
+                });
                 if row.ring.len() > LIVE_PTS {
                     row.ring.pop_front();
                 }
@@ -358,7 +366,12 @@ impl Dashboard {
         let unit = row.meta.unit.clone();
         let name = row.meta.name.clone();
         let decimals = row.meta.decimals.clamp(0, 6) as usize;
-        let data: Vec<ChartPoint> = row.ring.iter().filter(|p| p.v.is_finite()).cloned().collect();
+        let data: Vec<ChartPoint> = row
+            .ring
+            .iter()
+            .filter(|p| p.v.is_finite())
+            .cloned()
+            .collect();
         let current = row.value;
         let mono = cx.theme().mono_font_family.clone();
 
@@ -374,22 +387,14 @@ impl Dashboard {
                 h_flex()
                     .justify_between()
                     .px_1()
-                    .child(
-                        div()
-                            .text_color(cx.theme().foreground)
-                            .child(name),
-                    )
-                    .child(
-                        div()
-                        .text_xs()
-                            .font_family(mono)
-                            .text_color(color)
-                            .child(if !current.is_finite() {
-                                format!("— {unit}")
-                            } else {
-                                format!("{:.*} {unit}", decimals, current)
-                            }),
-                    ),
+                    .child(div().text_color(cx.theme().foreground).child(name))
+                    .child(div().text_xs().font_family(mono).text_color(color).child(
+                        if !current.is_finite() {
+                            format!("— {unit}")
+                        } else {
+                            format!("{:.*} {unit}", decimals, current)
+                        },
+                    )),
             )
             .child(
                 AreaChart::new(data)

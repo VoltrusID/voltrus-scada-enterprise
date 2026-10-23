@@ -24,14 +24,13 @@ use voltrus_gateway::pb::{self, connect_request::Protocol, tag_address::Address}
 
 use crate::cache::DeviceCache;
 use crate::models::{
-    config_types::{Endianness, RegisterConfig, RegisterType},
     DeviceConfig, DeviceStatus, WriteResult,
+    config_types::{Endianness, RegisterConfig, RegisterType},
 };
 
 /// Gateway gRPC endpoint, overridable via `VOLTRUS_GATEWAY_ADDR`.
 pub fn gateway_endpoint() -> String {
-    std::env::var("VOLTRUS_GATEWAY_ADDR")
-        .unwrap_or_else(|_| "http://127.0.0.1:50061".to_string())
+    std::env::var("VOLTRUS_GATEWAY_ADDR").unwrap_or_else(|_| "http://127.0.0.1:50061".to_string())
 }
 
 /// A live gateway session for one device (used by the persistent poll loop).
@@ -46,7 +45,11 @@ pub struct GatewayHandle {
 /// cannot be expressed through it; the SCADA's own poller reads such registers correctly.
 pub fn register_to_tag(r: &RegisterConfig) -> pb::TagAddress {
     if r.zero_based && r.address > 30000 {
-        tracing::warn!("Register {} has offset {}, which the gateway reads as a 5-digit reference", r.name, r.address);
+        tracing::warn!(
+            "Register {} has offset {}, which the gateway reads as a 5-digit reference",
+            r.name,
+            r.address
+        );
     }
     pb::TagAddress {
         address: Some(Address::Modbus(pb::ModbusTagAddress {
@@ -82,13 +85,13 @@ pub async fn open_modbus_session(
 }
 
 /// Connect a fresh client + open a session (used by the persistent poll path).
-pub async fn connect_modbus(endpoint: &str, config: &DeviceConfig) -> anyhow::Result<GatewayHandle> {
+pub async fn connect_modbus(
+    endpoint: &str,
+    config: &DeviceConfig,
+) -> anyhow::Result<GatewayHandle> {
     let mut client = voltrus_gateway::client::GatewayClient::connect(endpoint).await?;
     let session_id = open_modbus_session(&mut client, config).await?;
-    Ok(GatewayHandle {
-        session_id,
-        client,
-    })
+    Ok(GatewayHandle { session_id, client })
 }
 
 /// Subscribe to tag updates from the gateway and pump them into the SCADA
@@ -311,10 +314,7 @@ pub async fn connect_opcua(
 ) -> anyhow::Result<GatewayHandle> {
     let mut client = voltrus_gateway::client::GatewayClient::connect(endpoint).await?;
     let session_id = open_opcua_session(&mut client, config).await?;
-    Ok(GatewayHandle {
-        session_id,
-        client,
-    })
+    Ok(GatewayHandle { session_id, client })
 }
 
 /// Write a single OPC-UA node through the gateway via a transient session
@@ -441,10 +441,7 @@ pub async fn connect_enip(
 ) -> anyhow::Result<GatewayHandle> {
     let mut client = voltrus_gateway::client::GatewayClient::connect(endpoint).await?;
     let session_id = open_enip_session(&mut client, config).await?;
-    Ok(GatewayHandle {
-        session_id,
-        client,
-    })
+    Ok(GatewayHandle { session_id, client })
 }
 
 /// Write a single EtherNet/IP tag through the gateway via a transient session
@@ -585,10 +582,7 @@ pub async fn connect_s7(
 ) -> anyhow::Result<GatewayHandle> {
     let mut client = voltrus_gateway::client::GatewayClient::connect(endpoint).await?;
     let session_id = open_s7_session(&mut client, config).await?;
-    Ok(GatewayHandle {
-        session_id,
-        client,
-    })
+    Ok(GatewayHandle { session_id, client })
 }
 
 /// Write a single S7 tag through the gateway via a transient session (used by
@@ -694,10 +688,7 @@ pub async fn connect_dnp3(
 ) -> anyhow::Result<GatewayHandle> {
     let mut client = voltrus_gateway::client::GatewayClient::connect(endpoint).await?;
     let session_id = open_dnp3_session(&mut client, config).await?;
-    Ok(GatewayHandle {
-        session_id,
-        client,
-    })
+    Ok(GatewayHandle { session_id, client })
 }
 
 /// Write (direct-operate binary output) a single DNP3 point through the gateway
@@ -786,7 +777,6 @@ fn endianness_str(e: &Endianness) -> &'static str {
     }
 }
 
-
 #[cfg(all(test, feature = "gateway-server-test"))]
 mod tests {
     //! Runtime e2e: spin the gateway server + a Modbus slave in-process and drive
@@ -818,7 +808,9 @@ mod tests {
     async fn scada_poll_and_write_via_gateway() {
         // 1. Modbus slave with a preset register.
         let (state, _log_rx, _shutdown) =
-            mt_modbus::start_slave_server(SLAVE_PORT, "127.0.0.1", 20).await.unwrap();
+            mt_modbus::start_slave_server(SLAVE_PORT, "127.0.0.1", 20)
+                .await
+                .unwrap();
         {
             let mut st = state.lock().unwrap();
             st.registers[0] = 7;
@@ -996,7 +988,6 @@ pub async fn write_bacnet_point(
         latency_ms: res.latency_ms as u64,
     }
 }
-
 
 #[cfg(all(test, feature = "gateway-enip"))]
 mod enip_assembly_tests {

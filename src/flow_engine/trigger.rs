@@ -140,8 +140,12 @@ mod tests {
         assert!(!trig.matches(&mqtt_msg("sensors/01/hum")));
         // Non-MQTT source never matches an MQTT trigger.
         let mut other = Message::new(serde_json::json!({}));
-        other.metadata.insert("source".to_string(), "modbus".to_string());
-        other.metadata.insert("topic".to_string(), "sensors/01/temp".to_string());
+        other
+            .metadata
+            .insert("source".to_string(), "modbus".to_string());
+        other
+            .metadata
+            .insert("topic".to_string(), "sensors/01/temp".to_string());
         assert!(!trig.matches(&other));
     }
 }

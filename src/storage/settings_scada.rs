@@ -40,10 +40,7 @@ impl Storage {
 
     /// Upsert a single SCADA equipment item (INSERT OR REPLACE).
     /// Used by FEED instantiator to add equipment without wiping existing items.
-    pub async fn upsert_scada_equipment(
-        &self,
-        item: &ScadaEquipment,
-    ) -> Result<()> {
+    pub async fn upsert_scada_equipment(&self, item: &ScadaEquipment) -> Result<()> {
         let conn = self.conn.clone();
         let item = item.clone();
         tokio::task::spawn_blocking(move || {
@@ -123,10 +120,7 @@ impl Storage {
 
     /// Upsert a single SCADA connection (INSERT OR REPLACE).
     /// Used by FEED instantiator to add connections without wiping existing ones.
-    pub async fn upsert_scada_connection(
-        &self,
-        c: &ScadaConnection,
-    ) -> Result<()> {
+    pub async fn upsert_scada_connection(&self, c: &ScadaConnection) -> Result<()> {
         let conn = self.conn.clone();
         let c = c.clone();
         tokio::task::spawn_blocking(move || {
