@@ -1,6 +1,6 @@
 # Voltrus TypeScript SDK
 
-Official TypeScript client for the [Voltrus SCADA](https://voltrus.com) server. Drive your plant's live data, alarms, tag writes, devices, OEE and reports from Node.js or the browser — the same API the bundled web UI uses.
+Official TypeScript client for the [Voltrus SCADA](https://voltrus.id/voltrus-scada) server. Drive your plant's live data, alarms, tag writes, devices, OEE and reports from Node.js or the browser — the same API the bundled web UI uses.
 
 ## Install
 
@@ -96,7 +96,7 @@ Everything below hangs off `VoltrusClient`; each group is also exported as a sta
 
 ### Devices
 
-`client.devices` — per-protocol management. Reading device lists works for any authenticated user; create/update/delete, start/stop and browse need the **admin** role. DNP3 and BACnet additionally require the **Enterprise** license.
+`client.devices` — per-protocol management. Reading device lists works for any authenticated user; create/update/delete, start/stop and browse need the **admin** role.
 
 - **Modbus** — `listModbus()`, `getModbus(id)`, `createModbus(...)`, `updateModbus(...)`, `deleteModbus(id)`, `getModbusPollerStatuses()`, `restartModbusPoller(id)`
 - **OPC-UA** — `listOpcUa()`, `createOpcUa(...)`, `updateOpcUa(...)`, `deleteOpcUa(id)`, `listOpcUaNodes(id)`, `addOpcUaNode(...)`, `removeOpcUaNode(...)`, `startOpcUa(id)`, `stopOpcUa(id)`
@@ -119,11 +119,11 @@ console.log(done.status); // "acked" | "failed" | "expired" | "cancelled"
 - `list({ tag, status, device })`, `getStatus(id)`, `cancel(id)`, `getAudit(id)`
 - `getWritePolicy(dataSourceId)`, `updateWritePolicy(dataSourceId, { writable, write_min, write_max, ... })`
 
-Writes go through the server's write policy: value range, deadband, rate limit, and mandatory reason are all enforced before the command is queued (HTTP 202). Requires the Starter tier or above.
+Writes go through the server's write policy: value range, deadband, rate limit, and mandatory reason are all enforced before the command is queued (HTTP 202).
 
 ### OEE
 
-`client.oee` — availability/performance/quality and shift management (license-gated).
+`client.oee` — availability/performance/quality and shift management.
 
 - `getMetrics({ device_id, from?, to? })`
 - `listDowntime(...)`, `createDowntime({ device_id, state })`, `closeDowntime(id, reason?)`
@@ -138,7 +138,7 @@ Writes go through the server's write policy: value range, deadband, rate limit, 
 
 ### Reports
 
-`client.reports` — scheduled PDF reports (license-gated).
+`client.reports` — scheduled PDF reports (an Enterprise add-on feature: the endpoints return 404 on a Core-only server).
 
 - `list()`, `create({ name, schedule, email_recipients, device_ids? })`, `update(id, ...)`, `delete(id)`
 - `generate(id)` — run a report now instead of waiting for its schedule
@@ -181,8 +181,6 @@ npm run typecheck:examples # typecheck examples/ against src/
 ## Troubleshooting
 
 **Version compatibility** — these SDKs target the Voltrus v1 HTTP API and are tested against server 0.47.x.
-
-**Empty live data on a fresh install** — Engineering-tier licenses do not auto-start device polling. Sign in as admin and start polling from the UI, or `POST /api/v1/engineering/polling/start`.
 
 **401 Invalid credentials** — on first boot the server generates a random admin password and prints it to the server log once (`GENERATED ADMIN PASSWORD`). Change it on first login.
 

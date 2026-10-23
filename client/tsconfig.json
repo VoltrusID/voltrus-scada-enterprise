@@ -15,7 +15,11 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@voltrus/core/*": ["./src/*"],
+      "@voltrus/enterprise-client": ["./src/edition/community.ts"]
+    }
   },
   "include": ["src"]
 }

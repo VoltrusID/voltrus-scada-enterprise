@@ -38,11 +38,6 @@ pub async fn list_devices(
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
 
     let devices = state.storage.list_dnp3_devices().await?;
     let mut result = Vec::new();
@@ -88,11 +83,6 @@ pub async fn create_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
     if req.name.is_empty() {
         return Err(AppError(anyhow::anyhow!("Device name is required")));
@@ -159,11 +149,6 @@ pub async fn get_device(
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
 
     let device = state.storage.get_dnp3_device(id).await?;
     let device = device.ok_or_else(|| AppError(anyhow::anyhow!("Device not found")))?;
@@ -195,11 +180,6 @@ pub async fn update_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     let updated = state
@@ -247,11 +227,6 @@ pub async fn delete_device(
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
 
     let deleted = state.storage.delete_dnp3_device(id).await?;
     if !deleted {
@@ -295,11 +270,6 @@ pub async fn add_point(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
     if req.name.is_empty() {
         return Err(AppError(anyhow::anyhow!("Point name is required")));
@@ -353,11 +323,6 @@ pub async fn remove_point(
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
 
     let deleted = state.storage.delete_dnp3_point(point_id).await?;
     if !deleted {
@@ -391,11 +356,6 @@ pub async fn start_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Load device from DB
@@ -476,11 +436,6 @@ pub async fn stop_device(
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
 
     let device_key = format!("dnp3_{}", id);
     state.poller_manager.stop(&device_key).await;
@@ -522,17 +477,12 @@ fn default_dnp3_scan_port() -> u16 {
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn scan_network(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(req): Json<ScanRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     let devices = crate::dnp3::discovery::scan_network(&req.range, req.port, 2000).await?;
@@ -562,11 +512,6 @@ pub async fn trigger_integrity(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Verify device exists
@@ -600,11 +545,6 @@ pub async fn trigger_freeze(
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
 
     // Verify device exists
     let device = state.storage.get_dnp3_device(id).await?;
@@ -625,16 +565,11 @@ pub async fn trigger_freeze(
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn list_group_variations(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Extension(user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-    if !state.license_tier.dnp3() {
-        return Err(AppError(anyhow::anyhow!(
-            "DNP3 requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     let gv = common_group_variations()

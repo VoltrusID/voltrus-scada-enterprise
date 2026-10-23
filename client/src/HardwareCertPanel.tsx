@@ -128,9 +128,9 @@ export const HardwareCertPanel: React.FC<{ onClose: () => void }> = ({ onClose }
   const tierLabel = (tier: string) => {
     switch (tier) {
       case 'engineering': return 'Engineering'
-      case 'starter': return 'Starter ($249)'
-      case 'professional': return 'Professional ($499)'
-      case 'enterprise': return 'Enterprise ($999)'
+      case 'starter': return 'Starter'
+      case 'professional': return 'Professional'
+      case 'enterprise': return 'Enterprise'
       default: return tier
     }
   }

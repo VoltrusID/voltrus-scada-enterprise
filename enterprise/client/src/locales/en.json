@@ -1,0 +1,25 @@
+{
+  "license": {
+    "checking": "Checking license...",
+    "activate": "Activate License",
+    "trialBanner": "You are running on a trial license.",
+    "expiredBanner": "Your trial license has expired."
+  },
+  "reports": {
+    "title": "Reports",
+    "generate": "Generate Report",
+    "schedule": "Schedule"
+  },
+  "security": {
+    "title": "Security Audit",
+    "events": "Events",
+    "thresholds": "Thresholds",
+    "exportCsv": "Export CSV"
+  },
+  "compliance": {
+    "title": "Compliance",
+    "config": "Configuration",
+    "sign": "Electronic Signature",
+    "signatures": "Signatures"
+  }
+}

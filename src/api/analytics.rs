@@ -39,12 +39,6 @@ pub async fn get_aggregate(
     State(state): State<AppState>,
     Query(q): Query<AggregateQuery>,
 ) -> Result<Json<Vec<(i64, analytics::AggregatedMetric)>>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let results = analytics::aggregate_metrics(
         &state.storage,
         &q.device_id,
@@ -83,12 +77,6 @@ pub async fn get_compare(
     State(state): State<AppState>,
     Query(q): Query<CompareQuery>,
 ) -> Result<Json<analytics::ComparisonResult>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let result = analytics::compare_periods(
         &state.storage,
         &q.device_id,
@@ -132,12 +120,6 @@ pub async fn get_spc(
     State(state): State<AppState>,
     Query(q): Query<SpcQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let rows = state
         .storage
         .get_metric_values_for_range(&q.device_id, &q.metric, q.from, q.to)
@@ -205,12 +187,6 @@ pub async fn get_histogram(
     State(state): State<AppState>,
     Query(q): Query<HistogramQuery>,
 ) -> Result<Json<crate::models::HistogramResult>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let rows = state
         .storage
         .get_metric_values_for_range(&q.device_id, &q.metric, q.from, q.to)
@@ -247,12 +223,6 @@ pub async fn get_run_chart(
     State(state): State<AppState>,
     Query(q): Query<RunChartQuery>,
 ) -> Result<Json<crate::models::RunChartResult>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let rows = state
         .storage
         .get_metric_values_for_range(&q.device_id, &q.metric, q.from, q.to)
@@ -279,12 +249,6 @@ pub async fn get_run_chart(
 pub async fn list_custom_metrics(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<CustomMetric>>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let metrics = state.storage.list_custom_metrics().await?;
     Ok(Json(metrics))
 }
@@ -303,12 +267,6 @@ pub async fn create_custom_metric(
     State(state): State<AppState>,
     Json(body): Json<CreateCustomMetricRequest>,
 ) -> Result<Json<CustomMetric>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let tag_refs = custom::extract_tag_refs(&body.formula);
     let tag_refs_json = serde_json::to_string(&tag_refs).unwrap_or_else(|_| "[]".to_string());
 
@@ -344,12 +302,6 @@ pub async fn update_custom_metric(
     Path(id): Path<i64>,
     Json(body): Json<UpdateCustomMetricRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     // If formula changed, revalidate
     let (tag_refs, validation_error) = if let Some(ref formula) = body.formula {
         let refs = custom::extract_tag_refs(formula);
@@ -389,12 +341,6 @@ pub async fn delete_custom_metric(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     state.storage.delete_custom_metric(id).await?;
     Ok(Json(serde_json::json!({"ok": true})))
 }
@@ -411,12 +357,6 @@ pub async fn delete_custom_metric(
 pub async fn evaluate_all_custom_metrics(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<CustomMetricValue>>, AppError> {
-    if !state.license_tier.analytics() {
-        return Err(AppError(anyhow::anyhow!(
-            "Analytics requires Starter tier or above"
-        )));
-    }
-
     let results = custom::evaluate_all_metrics(&state.storage, &state.cache).await?;
     Ok(Json(results))
 }

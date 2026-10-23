@@ -1,57 +1,26 @@
 /target
 voltrus-iced/target/
-data.db
-solar-farm.db*
 static/
 client/node_modules/
 client/dist/
-client-lit/node_modules/
-client-lit/dist/
-.playwright-mcp/
-client/.env
-
-# Backup tarballs from restore operations
-voltrus-pre-restore-*.tar.gz
-*-backup-*.tar.gz
 
 # SQLite databases (runtime/dev data, never commit)
 *.db
 *.db-shm
 *.db-wal
 
-# Claude agent worktrees
-.claude/worktrees/
+# Backup tarballs from restore operations
+voltrus-pre-restore-*.tar.gz
+*-backup-*.tar.gz
 
-# Wrangler cache
-.wrangler/
-
-# OS artifacts
-.DS_Store
-
-# License activation binary (sensitive)
-license-activation.bin
-
-# License signing key (NEVER commit)
-.license-private-key
-
-# AI tool artifacts
-.claude/
-.serena/
-
-# Test artifacts
-test-activation.bin
-test-all-protocols.db*
-test-solar-farm.db*
-factory-floor.db*
-pki-opcua-sim/
-pki/
-release-artifacts/
-data.db-shm
-data.db-wal
-
-# Config overrides
+# Local config overrides
 config.dev.yaml
 config.dev-2.yaml
+client/.env
 
-# Python bytecode
+# Tooling and OS artifacts
+.wrangler/
+.DS_Store
 __pycache__/
+pki/
+release-artifacts/

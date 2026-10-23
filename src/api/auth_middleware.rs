@@ -99,22 +99,18 @@ pub async fn cookie_auth_middleware(
         }
     }
 
-    // 2. Try Bearer token (OIDC)
-    if state.oidc_config.enabled
-        && let Some(auth_header) = req.headers().get("authorization")
+    // 2. Try a Bearer token from an external identity provider (add-on editions only;
+    //    the open core has none and skips straight to local cookie auth).
+    if let Some(auth_header) = req.headers().get("authorization")
         && let Some(token) = auth_header
             .to_str()
             .ok()
             .and_then(|v| v.strip_prefix("Bearer "))
-        && let Some(claims) = state
-            .jwks_manager
-            .validate_token(token, &state.oidc_config)
-            .await
+        && let Some(identity) = state.ext.authenticate_bearer(token).await
     {
-        let role = crate::auth::oidc::extract_role(&claims, &state.oidc_config);
         req.extensions_mut().insert(AuthUser {
-            username: claims.sub,
-            role,
+            username: identity.username,
+            role: identity.role,
         });
         return next.run(req).await;
     }

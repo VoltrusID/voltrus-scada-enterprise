@@ -26,7 +26,7 @@ import type {
 /**
  * Protocol device management. Read endpoints are available to any
  * authenticated user; create/update/delete, start/stop and browse require the
- * admin role, and DNP3/BACnet additionally require the Enterprise license.
+ * admin role.
  */
 export class DevicesApi {
   constructor(private readonly http: HttpClient) {}

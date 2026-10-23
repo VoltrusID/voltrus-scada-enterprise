@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { btnStyle, displayShortcut } from '../styles'
 import { ShortcutsConfigPanel } from '../ShortcutsConfigPanel'
-import type { BrandingSettings } from '../BrandingDialog'
+import type { BrandingSettings } from '../edition'
 import type { Screen } from '../types'
 import { UnifiedBell } from './UnifiedBell'
 

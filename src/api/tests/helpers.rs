@@ -4,21 +4,6 @@ use http::Request;
 use std::collections::HashMap;
 use tower::ServiceExt;
 
-pub fn test_oidc_config() -> OidcConfig {
-    OidcConfig {
-        enabled: false,
-        issuer: String::new(),
-        audience: String::new(),
-        jwks_url: String::new(),
-        role_claim: "realm_access.roles".to_string(),
-        admin_role: "voltrus-admin".to_string(),
-    }
-}
-
-pub fn test_jwks_manager() -> JwksManager {
-    JwksManager::new("")
-}
-
 pub fn test_app() -> Router {
     let cache = DeviceCache::new();
     let storage = Storage::new_in_memory().unwrap();
@@ -35,8 +20,6 @@ pub fn test_app() -> Router {
         auth_secret: "test-secret".to_string(),
         cors_origin: None,
         cookie_secure: false,
-        oidc_config: test_oidc_config(),
-        jwks_manager: test_jwks_manager(),
         retention_config: crate::models::RetentionConfig::default(),
         flow_engine: None,
         login_rate_limiter: crate::security::LoginRateLimiter::new(),
@@ -44,27 +27,17 @@ pub fn test_app() -> Router {
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
         license_status: std::sync::Arc::new(std::sync::RwLock::new(
-            crate::license::LicenseStatus::Valid {
-                license_key: "polar_test_key".to_string(),
-                expires_at: None,
-                days_remaining: None,
-                tier: Some("professional".to_string()),
-                device_limit: None,
-            },
+            crate::license::LicenseStatus::Community,
         )),
-        license_tier: crate::license::LicenseTier::Professional,
-        feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+        ext: std::sync::Arc::new(crate::edition::Community),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         config_path: "config.yaml".to_string(),
-        hub_manager: None,
-        stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+        health_monitor: Arc::new(crate::health::watchdog::HealthMonitor::new(
             crate::models::WatchdogConfig::default(),
         )),
-        ha_state: crate::ha::HaState::disabled(),
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
@@ -174,8 +147,6 @@ pub async fn test_app_with_seeded_admin() -> Router {
         auth_secret: "test-secret".to_string(),
         cors_origin: None,
         cookie_secure: false,
-        oidc_config: test_oidc_config(),
-        jwks_manager: test_jwks_manager(),
         retention_config: crate::models::RetentionConfig::default(),
         flow_engine: None,
         login_rate_limiter: crate::security::LoginRateLimiter::new(),
@@ -183,27 +154,17 @@ pub async fn test_app_with_seeded_admin() -> Router {
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
         license_status: std::sync::Arc::new(std::sync::RwLock::new(
-            crate::license::LicenseStatus::Valid {
-                license_key: "polar_test_key".to_string(),
-                expires_at: None,
-                days_remaining: None,
-                tier: Some("professional".to_string()),
-                device_limit: None,
-            },
+            crate::license::LicenseStatus::Community,
         )),
-        license_tier: crate::license::LicenseTier::Professional,
-        feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
+        ext: std::sync::Arc::new(crate::edition::Community),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         config_path: "config.yaml".to_string(),
-        hub_manager: None,
-        stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+        health_monitor: Arc::new(crate::health::watchdog::HealthMonitor::new(
             crate::models::WatchdogConfig::default(),
         )),
-        ha_state: crate::ha::HaState::disabled(),
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),
@@ -212,10 +173,7 @@ pub async fn test_app_with_seeded_admin() -> Router {
     create_router(state)
 }
 
-pub fn test_app_with_license_status(
-    license_status: crate::license::LicenseStatus,
-    license_tier: crate::license::LicenseTier,
-) -> Router {
+pub fn test_app_with_license_status(license_status: crate::license::LicenseStatus) -> Router {
     let cache = DeviceCache::new();
     let storage = Storage::new_in_memory().unwrap();
     let poller_manager = PollerManager::new(
@@ -223,7 +181,6 @@ pub fn test_app_with_license_status(
         storage.clone(),
         crate::network::NetworkManager::new(vec![]),
     );
-    let feature_flags = license_tier.to_feature_flags();
     let state = AppState {
         cache,
         storage,
@@ -232,8 +189,6 @@ pub fn test_app_with_license_status(
         auth_secret: "test-secret".to_string(),
         cors_origin: None,
         cookie_secure: false,
-        oidc_config: test_oidc_config(),
-        jwks_manager: test_jwks_manager(),
         retention_config: crate::models::RetentionConfig::default(),
         flow_engine: None,
         login_rate_limiter: crate::security::LoginRateLimiter::new(),
@@ -241,19 +196,15 @@ pub fn test_app_with_license_status(
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
         license_status: std::sync::Arc::new(std::sync::RwLock::new(license_status)),
-        license_tier,
-        feature_flags,
+        ext: std::sync::Arc::new(crate::edition::Community),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         config_path: "config.yaml".to_string(),
-        hub_manager: None,
-        stream_proxy: None,
         ws_manager: Arc::new(crate::ws_manager::WsManager::new()),
         mqtt_broker_state: None,
         network_manager: crate::network::NetworkManager::new(vec![]),
-        health_monitor: Arc::new(crate::ha::watchdog::HealthMonitor::new(
+        health_monitor: Arc::new(crate::health::watchdog::HealthMonitor::new(
             crate::models::WatchdogConfig::default(),
         )),
-        ha_state: crate::ha::HaState::disabled(),
         widget_registry: crate::widget_sdk::WidgetRegistry::new(std::path::PathBuf::from(
             "voltrus/widgets",
         )),

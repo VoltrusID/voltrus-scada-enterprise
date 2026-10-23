@@ -1,0 +1,51 @@
+# Voltrus Enterprise add-on (proprietary). Official builds = open core + this crate.
+# Not part of the public repository.
+
+[package]
+name = "voltrus-enterprise"
+version = "0.47.0"
+edition = "2024"
+license = "LicenseRef-Proprietary"
+publish = false
+default-run = "voltrus"
+description = "Voltrus Enterprise add-on: licensing, SSO, 21 CFR Part 11, IEC 62443 audit, hot standby, multi-site hub, RTSP video, white-label, scheduled reports"
+
+# Own workspace so the public core can be built without this directory.
+[workspace]
+
+[lib]
+name = "voltrus_enterprise"
+path = "src/lib.rs"
+
+[[bin]]
+name = "voltrus"
+path = "src/main.rs"
+
+[dependencies]
+# The open core. Path is `..` while the add-on lives inside the core checkout and
+# `../core` in the official repository layout (core as a git submodule).
+voltrus = { path = ".." }
+tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
+axum = { version = "=0.8.9", features = ["ws", "multipart"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"
+anyhow = "=1.0.104"
+tracing = "=0.1.44"
+base64 = "=0.22.1"
+hmac = "=0.12.1"
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+rand = "=0.9.4"
+time = { version = "=0.3.47", features = ["local-offset"] }
+sysinfo = "=0.34.2"
+ed25519-dalek = "=2.1.1"
+jsonwebtoken = "=9.3"
+reqwest = { version = "=0.12.15", default-features = false, features = ["json", "rustls-tls", "multipart", "stream"] }
+lettre = { version = "=0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+futures-util = "=0.3.31"
+dashmap = "=6.1.0"
+rmp-serde = "=1.3.0"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+
+[dev-dependencies]
+tempfile = "=3.27.0"

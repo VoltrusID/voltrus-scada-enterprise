@@ -243,7 +243,6 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
             <circle cx="17.5" cy="17.5" r="1" fill="var(--cyan)" stroke="none" />
           </svg>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>BACnet Devices</h1>
-          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(168,85,247,.12)', color: '#c084fc', border: '1px solid rgba(168,85,247,.25)', fontWeight: 500 }}>Enterprise</span>
         </div>
         {tableContent}
       </div>

@@ -244,17 +244,10 @@ impl DeviceCache {
         self.trigger.subscribe()
     }
 
-    /// Broadcast HA status event via WebSocket.
-    pub async fn broadcast_ha_status(&self, status: &crate::ha::HaStatus) {
+    /// Broadcast an HA status message (built by the add-on that owns HA) via WebSocket.
+    pub async fn broadcast_ha_status(&self, message: ServerMessage) {
         if let Some(ref ws) = self.ws_manager {
-            ws.broadcast_ha_status(ServerMessage::HaStatus {
-                role: format!("{:?}", status.role).to_lowercase(),
-                peer_status: status.peer_status.clone(),
-                sync_lag_ms: status.sync_lag_ms,
-                node_id: status.node_id.clone(),
-                peer_id: status.peer_id.clone(),
-                failover_ts: status.failover_ts.clone(),
-            });
+            ws.broadcast_ha_status(message);
         }
     }
 }

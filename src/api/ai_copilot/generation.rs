@@ -20,12 +20,6 @@ pub async fn generate_register_map(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<models::RegisterMapRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let settings = super::helpers::load_ai_settings(&state).await?;
     let provider = resolve_provider(&settings);
 
@@ -82,12 +76,6 @@ pub async fn generate_dashboard_layout(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<models::DashboardLayoutRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let settings = super::helpers::load_ai_settings(&state).await?;
     let provider = resolve_provider(&settings);
 
@@ -154,12 +142,6 @@ pub async fn generate_alarm_thresholds(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<models::AlarmThresholdRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let settings = super::helpers::load_ai_settings(&state).await?;
     let provider = resolve_provider(&settings);
 
@@ -230,12 +212,6 @@ pub async fn generate_tag_rename(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<models::TagRenameRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let settings = super::helpers::load_ai_settings(&state).await?;
     let provider = resolve_provider(&settings);
 
@@ -300,12 +276,6 @@ pub async fn generate_flow_rule(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<models::FlowRuleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let settings = super::helpers::load_ai_settings(&state).await?;
     let provider = resolve_provider(&settings);
 

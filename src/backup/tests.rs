@@ -1,5 +1,5 @@
 use super::*;
-use std::io::{Read, Write};
+use std::io::Write;
 
 #[test]
 fn test_backup_creates_archive() {

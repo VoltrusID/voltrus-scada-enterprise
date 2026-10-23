@@ -1,11 +1,11 @@
 // ── Project Export / Import ──
 //
-// Enables the engineering-mode workflow: an engineer configures a project on
-// their laptop (engineering tier), exports a `.voltrus-scada` archive, and
+// Enables the offline engineering workflow: an engineer configures a project on
+// their laptop, exports a `.voltrus-scada` archive, and
 // imports it on a production server.
 //
 // Archive layout (tar.gz):
-//   manifest.json      – metadata (tier, entity counts, version info)
+//   manifest.json      – metadata (entity counts, version info)
 //   config.sqlite      – consistent SQLite snapshot of the config database
 
 use anyhow::{Context, Result, bail};
@@ -16,8 +16,6 @@ use rusqlite::backup::Backup;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::path::Path;
-
-use crate::license::LicenseTier;
 
 // ── Manifest ──
 
@@ -30,8 +28,6 @@ pub struct ProjectManifest {
     pub exported_at: String,
     /// Voltrus version that produced the export.
     pub voltrus_version: String,
-    /// License tier of the source system at export time.
-    pub tier_at_export: String,
     /// Number of devices in the exported project.
     pub device_count: usize,
     /// Number of tags in the exported project.
@@ -81,11 +77,7 @@ const IMPORT_TABLES: &[&str] = &[
 ///
 /// The function performs a consistent SQLite backup, counts entities, writes a
 /// manifest, and packs everything into a gzipped tar archive.
-pub fn export_project(
-    db_path: &str,
-    output_path: &str,
-    tier: &LicenseTier,
-) -> Result<ProjectManifest> {
+pub fn export_project(db_path: &str, output_path: &str) -> Result<ProjectManifest> {
     // 1. Consistent SQLite snapshot via the backup API.
     let temp_db =
         create_sqlite_snapshot(db_path).context("Failed to create SQLite snapshot for export")?;
@@ -99,19 +91,10 @@ pub fn export_project(
         let tag_count = count_rows(&conn, "data_sources");
         let screen_count = count_rows(&conn, "screens");
 
-        let tier_str = match tier {
-            LicenseTier::Engineering => "engineering",
-            LicenseTier::Edge => "edge",
-            LicenseTier::Starter => "starter",
-            LicenseTier::Professional => "professional",
-            LicenseTier::Enterprise => "enterprise",
-        };
-
         let manifest = ProjectManifest {
             version: "1.0".to_string(),
             exported_at: now_iso8601(),
             voltrus_version: env!("CARGO_PKG_VERSION").to_string(),
-            tier_at_export: tier_str.to_string(),
             device_count,
             tag_count,
             screen_count,
@@ -160,15 +143,7 @@ pub fn export_project(
 ///
 /// When `dry_run` is true the archive is validated and the manifest is returned
 /// but **no data is written** to the target database.
-///
-/// When `force` is true, tier-compatibility warnings are suppressed.
-pub fn import_project(
-    db_path: &str,
-    input_path: &str,
-    dry_run: bool,
-    force: bool,
-    target_tier: &LicenseTier,
-) -> Result<ProjectManifest> {
+pub fn import_project(db_path: &str, input_path: &str, dry_run: bool) -> Result<ProjectManifest> {
     // 1. Validate archive exists and is a valid gzip.
     if !Path::new(input_path).exists() {
         bail!("Import archive not found: {}", input_path);
@@ -198,13 +173,6 @@ pub fn import_project(
     let snapshot_path = temp_dir.path().join("config.sqlite");
     if !snapshot_path.exists() {
         bail!("config.sqlite not found in archive — not a valid .voltrus-scada file");
-    }
-
-    // 5. Tier compatibility check.
-    let exported_tier = LicenseTier::from_tier_str(Some(&manifest.tier_at_export));
-    if !force {
-        check_tier_compatibility(&exported_tier, target_tier)
-            .context("Tier compatibility check failed (use --force to override)")?;
     }
 
     // If dry-run, stop here and return the manifest.
@@ -304,45 +272,6 @@ pub fn import_project(
     Ok(manifest)
 }
 
-// ── Tier compatibility ──
-
-/// Warn (and potentially reject) if an export from a higher tier is being
-/// imported into a lower tier that may not support all features.
-fn check_tier_compatibility(exported_tier: &LicenseTier, target_tier: &LicenseTier) -> Result<()> {
-    let tier_rank = |t: &LicenseTier| -> u8 {
-        match t {
-            LicenseTier::Engineering => 0,
-            LicenseTier::Edge => 1,
-            LicenseTier::Starter => 2,
-            LicenseTier::Professional => 3,
-            LicenseTier::Enterprise => 4,
-        }
-    };
-
-    let exported_rank = tier_rank(exported_tier);
-    let target_rank = tier_rank(target_tier);
-
-    if exported_rank > target_rank {
-        tracing::warn!(
-            "Export was created on tier '{:?}' (rank {}) but target is '{:?}' (rank {}). \
-             Some features may not be available on the target tier.",
-            exported_tier,
-            exported_rank,
-            target_tier,
-            target_rank,
-        );
-        bail!(
-            "Export tier ({:?}) is higher than target tier ({:?}). \
-             Some features (RBAC, multi-site, recipes, SSO, etc.) may not function. \
-             Use --force to import anyway.",
-            exported_tier,
-            target_tier,
-        );
-    }
-
-    Ok(())
-}
-
 // ── Helpers ──
 
 /// Create a consistent snapshot of the SQLite database using the backup API.
@@ -395,55 +324,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tier_compatibility_same_tier() {
-        assert!(
-            check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Engineering).is_ok()
-        );
-        assert!(
-            check_tier_compatibility(&LicenseTier::Enterprise, &LicenseTier::Enterprise).is_ok()
-        );
-    }
-
-    #[test]
-    fn test_tier_compatibility_higher_export() {
-        // Exporting from Enterprise to Engineering should fail.
-        assert!(
-            check_tier_compatibility(&LicenseTier::Enterprise, &LicenseTier::Engineering).is_err()
-        );
-        // Exporting from Professional to Starter should fail.
-        assert!(
-            check_tier_compatibility(&LicenseTier::Professional, &LicenseTier::Starter).is_err()
-        );
-    }
-
-    #[test]
-    fn test_tier_compatibility_lower_export() {
-        // Exporting from Engineering to Enterprise should succeed.
-        assert!(
-            check_tier_compatibility(&LicenseTier::Engineering, &LicenseTier::Enterprise).is_ok()
-        );
-        // Exporting from Starter to Professional should succeed.
-        assert!(
-            check_tier_compatibility(&LicenseTier::Starter, &LicenseTier::Professional).is_ok()
-        );
-        // Exporting from Edge to Starter should succeed (Edge rank 1 < Starter rank 2).
-        assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Starter).is_ok());
-    }
-
-    #[test]
-    fn test_tier_compatibility_edge_bounds() {
-        // Edge is higher than Engineering but lower than Starter.
-        assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Engineering).is_err());
-        assert!(check_tier_compatibility(&LicenseTier::Edge, &LicenseTier::Starter).is_ok());
-    }
-
-    #[test]
     fn test_manifest_serialization_roundtrip() {
         let manifest = ProjectManifest {
             version: "1.0".to_string(),
             exported_at: "2026-05-17T12:00:00Z".to_string(),
             voltrus_version: "0.47.0".to_string(),
-            tier_at_export: "engineering".to_string(),
             device_count: 10,
             tag_count: 50,
             screen_count: 5,
@@ -452,7 +337,6 @@ mod tests {
         let json = serde_json::to_string(&manifest).unwrap();
         let deserialized: ProjectManifest = serde_json::from_str(&json).unwrap();
         assert_eq!(manifest.version, deserialized.version);
-        assert_eq!(manifest.tier_at_export, deserialized.tier_at_export);
         assert_eq!(manifest.device_count, deserialized.device_count);
         assert_eq!(manifest.tag_count, deserialized.tag_count);
         assert_eq!(manifest.screen_count, deserialized.screen_count);
@@ -488,11 +372,10 @@ mod tests {
         }
 
         // Export.
-        let manifest = export_project(&db_path, &archive_path, &LicenseTier::Engineering).unwrap();
+        let manifest = export_project(&db_path, &archive_path).unwrap();
         assert_eq!(manifest.device_count, 2);
         assert_eq!(manifest.tag_count, 3);
         assert_eq!(manifest.screen_count, 1);
-        assert_eq!(manifest.tier_at_export, "engineering");
         assert!(Path::new(&archive_path).exists());
 
         // Create empty target database with required table schemas.
@@ -507,14 +390,7 @@ mod tests {
         }
 
         // Dry-run import.
-        let dry_manifest = import_project(
-            &import_db_path,
-            &archive_path,
-            true,
-            false,
-            &LicenseTier::Engineering,
-        )
-        .unwrap();
+        let dry_manifest = import_project(&import_db_path, &archive_path, true).unwrap();
         assert_eq!(dry_manifest.device_count, 2);
 
         // Verify target DB still empty after dry-run.
@@ -527,14 +403,7 @@ mod tests {
         }
 
         // Real import.
-        let import_manifest = import_project(
-            &import_db_path,
-            &archive_path,
-            false,
-            false,
-            &LicenseTier::Engineering,
-        )
-        .unwrap();
+        let import_manifest = import_project(&import_db_path, &archive_path, false).unwrap();
         assert_eq!(import_manifest.device_count, 2);
 
         // Verify imported data.

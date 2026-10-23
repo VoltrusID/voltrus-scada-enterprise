@@ -1,0 +1,25 @@
+{
+  "license": {
+    "checking": "Memeriksa lisensi...",
+    "activate": "Aktifkan Lisensi",
+    "trialBanner": "Anda menggunakan lisensi uji coba.",
+    "expiredBanner": "Lisensi uji coba Anda telah berakhir."
+  },
+  "reports": {
+    "title": "Laporan",
+    "generate": "Buat Laporan",
+    "schedule": "Jadwal"
+  },
+  "security": {
+    "title": "Audit Keamanan",
+    "events": "Kejadian",
+    "thresholds": "Ambang Batas",
+    "exportCsv": "Ekspor CSV"
+  },
+  "compliance": {
+    "title": "Kepatuhan",
+    "config": "Konfigurasi",
+    "sign": "Tanda Tangan Elektronik",
+    "signatures": "Tanda Tangan"
+  }
+}

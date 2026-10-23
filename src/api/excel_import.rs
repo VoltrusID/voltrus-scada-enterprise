@@ -10,7 +10,6 @@ use serde_json::json;
 
 use super::csv_import::{auto_detect_columns_pub, parse_timestamp_pub};
 use super::{AppError, AppState, AuthUser};
-use crate::license::LicenseTier;
 
 #[derive(Debug, Deserialize)]
 pub struct ImportQuery {
@@ -81,18 +80,6 @@ pub async fn import_excel(
             Json(json!({"error": "replace mode is not yet supported; use merge"})),
         )
             .into_response());
-    }
-
-    // Tier gate: Excel import requires Professional+
-    {
-        let tier = &state.license_tier;
-        if !matches!(tier, LicenseTier::Professional | LicenseTier::Enterprise) {
-            return Ok((
-                StatusCode::FORBIDDEN,
-                Json(json!({"error": "Excel import requires Professional tier or higher"})),
-            )
-                .into_response());
-        }
     }
 
     let mut file_bytes: Option<Vec<u8>> = None;

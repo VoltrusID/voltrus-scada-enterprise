@@ -1,15 +1,10 @@
 import { useState } from 'react';
 import { useRecipes, useCreateRecipe, useDeleteRecipe, useLoadRecipe, useUpdateRecipe } from './queries/recipes';
 import { useModbusDevices } from './queries/modbus';
-import { useLicense } from './LicenseContext';
-import { FeatureBadge } from './components/FeatureBadge';
 import { RecipeLoadStatus } from './components/RecipeLoadStatus';
 import { btnStyle } from './styles';
 
 export function RecipeManager() {
-  const license = useLicense();
-  const isRecipesDisabled = license?.feature_flags?.recipes === false;
-
   const { data: devices } = useModbusDevices();
   const [filterDevice, setFilterDevice] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
@@ -35,16 +30,6 @@ export function RecipeManager() {
   const filteredRecipes = recipes?.filter(r =>
     !filterCategory || r.category === filterCategory
   ) ?? [];
-
-  if (isRecipesDisabled) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-        <h2 style={{ marginBottom: 12 }}>Recipes</h2>
-        <p>This feature requires a Professional tier license or above.</p>
-        <p style={{ marginTop: 8 }}>Upgrade at <strong>voltrus.id</strong></p>
-      </div>
-    );
-  }
 
   const handleCreate = () => {
     if (!newName || !newDevice) return;

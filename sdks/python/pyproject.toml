@@ -12,9 +12,9 @@ requires-python = ">=3.9"
 dependencies = ["urllib3>=2.0"]
 
 [project.urls]
-Homepage = "https://voltrus.com"
-Documentation = "https://voltrus.com/docs"
-Repository = "https://github.com/VoltrusID/voltrus-gateway"
+Homepage = "https://voltrus.id/voltrus-scada"
+Documentation = "https://voltrus.id/voltrus-scada/docs"
+Repository = "https://github.com/VoltrusID/voltrus-scada"
 
 [tool.setuptools]
 packages = ["voltrus"]

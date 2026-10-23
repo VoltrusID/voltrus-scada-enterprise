@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useFeedTemplates, useFeedTemplate, useWizardCreate } from '../queries/wizard'
 import type { FeedDetail, WizardResult } from '../queries/wizard'
 import { QuickStartGuide } from '../QuickStartGuide'
-import { useLicense } from '../LicenseContext'
 
 const industries = [
   { id: 'Water/Wastewater', name: 'Water/Wastewater' },
@@ -29,10 +28,6 @@ type Step = 'industry' | 'template' | 'device' | 'scan' | 'review' | 'result'
 export function ProjectWizard({ onClose }: { onClose?: () => void } = {}) {
   const [mode, setMode] = useState<'quickstart' | 'wizard'>('quickstart')
   const [step, setStep] = useState<Step>('industry')
-
-  // License tier check
-  const licenseInfo = useLicense()
-  const isPro = licenseInfo?.tier === 'professional' || licenseInfo?.tier === 'enterprise'
 
   // Step 1: Industry
   const [industry, setIndustry] = useState('')
@@ -201,26 +196,13 @@ export function ProjectWizard({ onClose }: { onClose?: () => void } = {}) {
             <button onClick={() => setTemplateSource('vertical')} style={btn('Vertical Templates (v0.37)', templateSource === 'vertical')}>
               Vertical Templates
             </button>
-            {isPro ? (
-              <button onClick={() => setTemplateSource('feed')} style={btn('FEED Templates', templateSource === 'feed')}>
-                FEED Templates
-              </button>
-            ) : (
-              <button disabled style={{ ...btn('FEED Templates', false), opacity: 0.5, cursor: 'not-allowed', position: 'relative' }} title="Requires Professional tier or higher">
-                FEED Templates (Pro)
-              </button>
-            )}
+            <button onClick={() => setTemplateSource('feed')} style={btn('FEED Templates', templateSource === 'feed')}>
+              FEED Templates
+            </button>
             <button onClick={() => { setSelectedTemplate(null); setStep('device') }} style={btn('Skip — Manual Setup')}>
               Skip
             </button>
           </div>
-
-          {!isPro && (
-            <div style={{ background: 'rgba(249,115,22,.08)', border: '1px solid rgba(249,115,22,.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#f97316' }}>
-              FEED templates (Front-End Engineering Design) are available on Professional and Enterprise tiers. Upgrade to unlock industry-specific I/O lists, alarm strategies, and equipment unit templates.
-            </div>
-          )}
-
           {templateSource === 'feed' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
               {templates.map(t => (

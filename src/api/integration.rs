@@ -16,11 +16,6 @@ use crate::integration::egress::{self, CreateEgressJobRequest, UpdateEgressJobRe
 pub async fn prometheus_metrics(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.prometheus_export() {
-        return Err(AppError(anyhow::anyhow!(
-            "Prometheus exporter requires Professional tier or above"
-        )));
-    }
     let metrics =
         crate::integration::prometheus::render_metrics(&state.cache, &state.storage).await;
     Ok((
@@ -39,11 +34,6 @@ pub async fn bi_query(
     State(state): State<AppState>,
     Query(params): Query<BiQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.bi_connectors() {
-        return Err(AppError(anyhow::anyhow!(
-            "BI connectors require Professional tier or above"
-        )));
-    }
     let format = params.format.clone().unwrap_or_else(|| "json".to_string());
     let result = bi::execute_bi_query(&state.storage, &params).await?;
     match format.as_str() {
@@ -70,21 +60,11 @@ pub async fn grafana_query(
     State(state): State<AppState>,
     Query(params): Query<BiQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.bi_connectors() {
-        return Err(AppError(anyhow::anyhow!(
-            "BI connectors require Professional tier or above"
-        )));
-    }
     let result = bi::execute_grafana_query(&state.storage, &params).await?;
     Ok(Json(result))
 }
 
 pub async fn grafana_search(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.bi_connectors() {
-        return Err(AppError(anyhow::anyhow!(
-            "BI connectors require Professional tier or above"
-        )));
-    }
     let sources = state.storage.list_data_sources(None).await?;
     let targets: Vec<String> = sources
         .iter()
@@ -93,12 +73,14 @@ pub async fn grafana_search(State(state): State<AppState>) -> Result<impl IntoRe
     Ok(Json(json!(targets)))
 }
 
-pub async fn connection_info(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+pub async fn connection_info(
+    State(_state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
     let hostname = sysinfo::System::host_name().unwrap_or_else(|| "localhost".to_string());
     let base_url = format!("http://{}:8080", hostname);
     Ok(Json(json!({
         "rest_api": { "base_url": format!("{}/api/v1", base_url), "authentication": "Cookie or API Key (X-API-Key header)" },
-        "prometheus": { "enabled": state.license_tier.prometheus_export(), "endpoint": format!("{}/metrics", base_url), "metrics": ["voltrus_tag_value", "voltrus_device_up", "voltrus_alarms_active"] },
+        "prometheus": { "enabled": true, "endpoint": format!("{}/metrics", base_url), "metrics": ["voltrus_tag_value", "voltrus_device_up", "voltrus_alarms_active"] },
         "grafana": { "query_endpoint": format!("{}/api/v1/integration/grafana/query", base_url), "search_endpoint": format!("{}/api/v1/integration/grafana/search", base_url) },
         "power_bi": { "connector": "Web connector (Get Data > Web)", "url": format!("{}/api/v1/integration/bi/query?format=json", base_url) },
         "sample_queries": {
@@ -113,11 +95,6 @@ pub async fn connection_info(State(state): State<AppState>) -> Result<impl IntoR
 pub async fn list_egress_jobs(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.data_egress() {
-        return Err(AppError(anyhow::anyhow!(
-            "Data egress requires Professional tier or above"
-        )));
-    }
     let jobs = state.storage.list_egress_jobs().await?;
     Ok(Json(jobs))
 }
@@ -126,11 +103,6 @@ pub async fn create_egress_job(
     State(state): State<AppState>,
     Json(req): Json<CreateEgressJobRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.data_egress() {
-        return Err(AppError(anyhow::anyhow!(
-            "Data egress requires Professional tier or above"
-        )));
-    }
     validate_schedule(&req.schedule)?;
     if req.format != "csv" && req.format != "parquet" {
         return Err(AppError(anyhow::anyhow!(
@@ -174,11 +146,6 @@ pub async fn get_egress_job(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.data_egress() {
-        return Err(AppError(anyhow::anyhow!(
-            "Data egress requires Professional tier or above"
-        )));
-    }
     match state.storage.get_egress_job(id).await? {
         Some(job) => Ok(Json(job)),
         None => Err(AppError(anyhow::anyhow!("Egress job not found"))),
@@ -190,11 +157,6 @@ pub async fn update_egress_job(
     Path(id): Path<i64>,
     Json(req): Json<UpdateEgressJobRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.data_egress() {
-        return Err(AppError(anyhow::anyhow!(
-            "Data egress requires Professional tier or above"
-        )));
-    }
     if let Some(ref schedule) = req.schedule {
         validate_schedule(schedule)?;
     }
@@ -230,11 +192,6 @@ pub async fn delete_egress_job(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.data_egress() {
-        return Err(AppError(anyhow::anyhow!(
-            "Data egress requires Professional tier or above"
-        )));
-    }
     state.storage.delete_egress_job(id).await?;
     Ok(Json(json!({"ok": true})))
 }
@@ -243,11 +200,6 @@ pub async fn run_egress_job(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.data_egress() {
-        return Err(AppError(anyhow::anyhow!(
-            "Data egress requires Professional tier or above"
-        )));
-    }
     let job = state
         .storage
         .get_egress_job(id)
@@ -321,11 +273,6 @@ fn default_timeout() -> u64 {
 pub async fn list_outbound_webhooks(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.webhook_notifications() {
-        return Err(AppError(anyhow::anyhow!(
-            "Outbound webhooks require Starter tier or above"
-        )));
-    }
     let webhooks = state.storage.list_outbound_webhooks().await?;
     Ok(Json(webhooks))
 }
@@ -334,11 +281,6 @@ pub async fn create_outbound_webhook(
     State(state): State<AppState>,
     Json(req): Json<CreateOutboundWebhookRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.webhook_notifications() {
-        return Err(AppError(anyhow::anyhow!(
-            "Outbound webhooks require Starter tier or above"
-        )));
-    }
     if !req.url.starts_with("http://") && !req.url.starts_with("https://") {
         return Err(AppError(anyhow::anyhow!(
             "URL must start with http:// or https://"
@@ -381,11 +323,6 @@ pub async fn delete_outbound_webhook(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.webhook_notifications() {
-        return Err(AppError(anyhow::anyhow!(
-            "Outbound webhooks require Starter tier or above"
-        )));
-    }
     state.storage.delete_outbound_webhook(id).await?;
     Ok(Json(json!({"ok": true})))
 }
@@ -394,11 +331,6 @@ pub async fn test_outbound_webhook(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.webhook_notifications() {
-        return Err(AppError(anyhow::anyhow!(
-            "Outbound webhooks require Starter tier or above"
-        )));
-    }
     let webhook = state
         .storage
         .get_outbound_webhook(id)

@@ -52,20 +52,11 @@ pub async fn create_notification_setting(
         )));
     }
 
-    // Tier-gate channel types
-    let tier = &state.license_tier;
-    match req.channel_type.as_str() {
-        "email" | "webhook" | "push" if !tier.email_notifications() => {
-            return Err(AppError(anyhow::anyhow!(
-                "Email/webhook/push notifications require Starter tier or above"
-            )));
-        }
-        "sms" if !tier.sms_notifications() => {
-            return Err(AppError(anyhow::anyhow!(
-                "SMS notifications require Professional tier or above"
-            )));
-        }
-        _ => {}
+    // SMS is an Enterprise add-on feature.
+    if req.channel_type == "sms" && !state.tier().sms_notifications() {
+        return Err(AppError(anyhow::anyhow!(
+            "SMS notifications require an Integrator or Enterprise licence"
+        )));
     }
 
     // Validate config based on channel type
@@ -95,7 +86,10 @@ pub async fn create_notification_setting(
                     "each SMS target must have a 'carrier' field"
                 )));
             }
-            if crate::notification::sms::carrier_gateway(carrier).is_none() {
+            if crate::edition::sms_sender()
+                .and_then(|s| s.carrier_gateway(carrier))
+                .is_none()
+            {
                 return Err(AppError(anyhow::anyhow!(
                     "unknown carrier '{}'. Supported: att, verizon, tmobile, sprint, uscellular",
                     carrier
@@ -263,20 +257,11 @@ pub async fn test_notification(
         )));
     }
 
-    // Tier-gate channel types
-    let tier = &state.license_tier;
-    match req.channel_type.as_str() {
-        "email" | "webhook" if !tier.email_notifications() => {
-            return Err(AppError(anyhow::anyhow!(
-                "Email/webhook notifications require Starter tier or above"
-            )));
-        }
-        "sms" if !tier.sms_notifications() => {
-            return Err(AppError(anyhow::anyhow!(
-                "SMS notifications require Professional tier or above"
-            )));
-        }
-        _ => {}
+    // SMS is an Enterprise add-on feature.
+    if req.channel_type == "sms" && !state.tier().sms_notifications() {
+        return Err(AppError(anyhow::anyhow!(
+            "SMS notifications require an Integrator or Enterprise licence"
+        )));
     }
 
     let source_key = req.source_key.as_deref().unwrap_or("test_source");
@@ -383,6 +368,11 @@ pub async fn test_notification(
                 return Err(AppError(anyhow::anyhow!("config array must not be empty")));
             }
 
+            let Some(sender) = crate::edition::sms_sender() else {
+                return Err(AppError(anyhow::anyhow!(
+                    "SMS delivery is not available in this edition"
+                )));
+            };
             let smtp_cfg = state.smtp_config.read().await;
             match smtp_cfg.as_ref() {
                 Some(smtp_cfg) => {
@@ -394,7 +384,7 @@ pub async fn test_notification(
                             results.push(json!({"phone": phone, "carrier": carrier, "status": "error", "error": "missing phone or carrier"}));
                             continue;
                         }
-                        match crate::notification::sms::send_sms_alarm(
+                        match sender.send_alarm(
                             smtp_cfg,
                             phone,
                             carrier,

@@ -26,18 +26,12 @@ fn default_timeout() -> u64 {
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn discover_network(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Extension(user): Extension<AuthUser>,
     Json(body): Json<Option<DiscoverRequest>>,
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     let timeout_secs = body.map(|b| b.timeout_secs).unwrap_or(5);

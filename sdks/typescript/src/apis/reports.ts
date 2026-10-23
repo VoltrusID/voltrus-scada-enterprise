@@ -1,7 +1,7 @@
 import type { HttpClient } from '../http';
 import type { CreateReportRequest, Report, UpdateReportRequest } from '../types';
 
-/** Scheduled PDF report management. Requires a license tier with reporting. */
+/** Scheduled PDF report management. Provided by the Enterprise add-on; a Core-only server returns 404. */
 export class ReportsApi {
   constructor(private readonly http: HttpClient) {}
 

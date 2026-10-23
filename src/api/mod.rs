@@ -6,12 +6,11 @@ mod api_keys;
 mod asset_import;
 mod assets;
 mod audit_log;
-pub(crate) mod auth;
+pub mod auth;
 mod auth_middleware;
 #[cfg(feature = "bacnet")]
 mod bacnet_devices;
 mod commands;
-mod compliance;
 mod compression;
 mod config_snapshots;
 mod csv_import;
@@ -20,17 +19,13 @@ mod data_sources;
 #[cfg(feature = "dnp3")]
 mod dnp3_devices;
 mod edr_compat;
-mod engineering;
 #[cfg(feature = "ethernet-ip")]
 mod enip_devices;
 mod excel_import;
 mod firmware_catalog;
 mod flows;
-#[cfg(feature = "gateway-client")]
-mod gateway_proxy;
 mod generators;
 pub(crate) mod hardware_cert;
-pub(crate) mod hub;
 mod import_nodered;
 mod integration;
 mod layouts;
@@ -50,13 +45,11 @@ mod opcua_devices;
 pub(crate) mod openapi;
 mod rbac;
 mod recipes;
-mod reports;
 #[cfg(feature = "s7")]
 mod s7_devices;
 mod screens;
 #[cfg(feature = "scripts")]
 mod scripts;
-mod security;
 mod settings;
 mod shift_handover;
 mod shortcuts;
@@ -70,7 +63,6 @@ mod system_docs;
 mod tag_tree;
 mod user_notifications;
 mod vertical_templates;
-mod video;
 mod voltrus_plc_devices;
 mod websocket;
 mod wizard;
@@ -91,7 +83,6 @@ use serde_json::json;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::auth::oidc::{JwksManager, OidcConfig};
 use crate::cache::DeviceCache;
 use crate::poller_manager::PollerManager;
 use crate::storage::Storage;
@@ -106,8 +97,6 @@ pub struct AppState {
     pub auth_secret: String,
     pub cors_origin: Option<String>,
     pub cookie_secure: bool,
-    pub oidc_config: OidcConfig,
-    pub jwks_manager: JwksManager,
     pub retention_config: crate::models::RetentionConfig,
     pub flow_engine: Option<Arc<crate::flow_engine::engine::FlowEngine>>,
     pub login_rate_limiter: crate::security::LoginRateLimiter,
@@ -115,27 +104,24 @@ pub struct AppState {
     pub audit_logger: crate::security::AuditLogger,
     pub intrusion_detector: crate::security::IntrusionDetector,
     pub license_status: Arc<std::sync::RwLock<crate::license::LicenseStatus>>,
-    pub license_tier: crate::license::LicenseTier,
-    pub feature_flags: serde_json::Value,
+    /// Add-on edition hooks. [`crate::edition::Community`] in the open core.
+    pub ext: Arc<dyn crate::edition::Extension>,
     pub smtp_config: Arc<tokio::sync::RwLock<Option<crate::models::SmtpConfig>>>,
     pub config_path: String,
-    pub hub_manager: Option<hub::HubManager>,
-    pub stream_proxy: Option<Arc<crate::video::StreamProxy>>,
     pub ws_manager: Arc<crate::ws_manager::WsManager>,
     #[cfg(feature = "mqtt-broker")]
     pub mqtt_broker_state: Option<crate::mqtt_broker::MqttBrokerState>,
     #[cfg(not(feature = "mqtt-broker"))]
     pub mqtt_broker_state: Option<()>,
     pub network_manager: crate::network::NetworkManager,
-    pub health_monitor: Arc<crate::ha::watchdog::HealthMonitor>,
-    pub ha_state: crate::ha::HaState,
+    pub health_monitor: Arc<crate::health::watchdog::HealthMonitor>,
     pub widget_registry: crate::widget_sdk::WidgetRegistry,
     #[cfg(feature = "modbus")]
     pub modbus_pool: std::sync::Arc<crate::modbus::ModbusPool>,
 }
 
 #[derive(Debug)]
-pub struct AppError(anyhow::Error);
+pub struct AppError(pub anyhow::Error);
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
@@ -153,56 +139,27 @@ impl<E: Into<anyhow::Error>> From<E> for AppError {
     }
 }
 
-async fn license_check_middleware(
+impl AppState {
+    /// The tier currently unlocked by the licence, read live so an activation
+    /// or renewal takes effect without a restart. Always Community in the core.
+    pub fn tier(&self) -> crate::license::LicenseTier {
+        self.license_status
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .tier()
+    }
+}
+
+/// Reports the active tier in an `x-license-tier` response header.
+async fn edition_header_middleware(
     State(state): State<AppState>,
     req: Request,
     next: Next,
 ) -> impl IntoResponse {
-    let path = req.uri().path();
-    if path == "/api/v1/health"
-        || path == "/api/license/status"
-        || path == "/api/v1/settings/branding"
-        || path.starts_with("/api/v1/auth/")
-    {
-        let mut resp = next.run(req).await;
-        let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
-        resp.headers_mut().insert(
-            HeaderName::from_static("x-license-tier"),
-            HeaderValue::from_str(&tier_str)
-                .unwrap_or_else(|_| HeaderValue::from_static("engineering")),
-        );
-        return resp;
-    }
-
-    // Read license status in a sync block so the RwLockReadGuard is dropped
-    // before any .await point, keeping the future Send.
-    let license_check = {
-        let ls = state
-            .license_status
-            .read()
-            .unwrap_or_else(|e| e.into_inner());
-        let is_valid = ls.is_valid();
-        let body = if !is_valid {
-            Some(match serde_json::to_value(&*ls) {
-                Ok(v) => v,
-                Err(_) => serde_json::json!({"status": "error", "message": "license invalid"}),
-            })
-        } else {
-            None
-        };
-        (is_valid, body)
-    };
-
-    if let Some(body) = license_check.1 {
-        return (StatusCode::FORBIDDEN, Json(body)).into_response();
-    }
-
     let mut resp = next.run(req).await;
-    let tier_str = serde_json::to_string(&state.license_tier).unwrap_or_default();
     resp.headers_mut().insert(
         HeaderName::from_static("x-license-tier"),
-        HeaderValue::from_str(&tier_str)
-            .unwrap_or_else(|_| HeaderValue::from_static("engineering")),
+        HeaderValue::from_static(state.tier().as_str()),
     );
     resp
 }
@@ -541,18 +498,6 @@ fn scripts_admin_routes() -> Router<AppState> {
             get(scripts::list_executions),
         )
 }
-#[cfg(feature = "gateway-client")]
-fn gateway_proxy_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/v1/gateway/info", get(gateway_proxy::get_info))
-        .route(
-            "/api/v1/gateway/endpoint",
-            get(gateway_proxy::get_endpoint).put(gateway_proxy::set_endpoint),
-        )
-        .route("/api/v1/gateway/discover", post(gateway_proxy::discover))
-        .route("/api/v1/gateway/browse", post(gateway_proxy::browse))
-        .route("/api/v1/gateway/scan", post(gateway_proxy::scan))
-}
 
 pub fn create_router(state: AppState) -> Router {
     // Build CORS layer only for API routes — static assets should not have CORS headers
@@ -607,6 +552,9 @@ pub fn create_router(state: AppState) -> Router {
         }
     };
 
+    // Routes contributed by the add-on edition (none in the open core).
+    let ext_routes = state.ext.routes(&state);
+
     // Public routes (no auth required)
     let public = Router::new()
         .route("/api/v1/health", get(system::get_health))
@@ -616,21 +564,16 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/networks",
             get(crate::network::handle_list_networks),
         )
-        .route(
-            "/api/v1/health/detailed",
-            get(crate::ha::ha_api::health_check),
-        )
+        .route("/api/v1/health/detailed", get(crate::health::health_check))
         .route("/api/v1/auth/login", post(auth::login))
         .route("/api/v1/auth/refresh", post(auth::refresh_token))
         .route("/api/v1/auth/logout", post(auth::logout))
         .route("/api/v1/auth/me", get(auth::auth_me))
         .route("/api/v1/auth/csrf-token", get(auth::get_csrf_token))
         .route("/api/v1/auth/providers", get(auth::list_auth_providers))
-        .route("/api/v1/auth/saml/metadata", post(auth::saml_metadata))
         // SAML ACS and LDAP login removed from public router until signature
         // validation is properly implemented. Re-enable on the protected router
         // when SAML XML-DSIG verification is complete.
-        .route("/api/v1/settings/branding", get(settings::get_branding))
         .route(
             "/api/v1/settings/alarm-cooldown",
             get(settings::get_alarm_cooldown),
@@ -642,16 +585,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/license/status", get(license::get_license_status))
         .route("/api/v1/system/features", get(system::get_active_features))
         .route("/api/v1/ws", get(websocket::websocket_handler));
+    let public = public.merge(ext_routes.public);
 
     // Protected routes (any authenticated user — read-only for non-admins)
     let protected = Router::new()
         .route("/api/v1/live", get(system::get_live))
-        .route("/api/v1/ha/status", get(crate::ha::ha_api::ha_status))
-        .route("/api/v1/ha/force-sync", post(crate::ha::ha_api::force_sync))
-        .route(
-            "/api/v1/ha/force-failover",
-            post(crate::ha::ha_api::force_failover),
-        )
         .route(
             "/api/v1/widgets",
             get(crate::widget_sdk::widget_api::list_widgets),
@@ -892,15 +830,6 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/v1/wizard/feed-templates/{id}",
             get(wizard::get_feed_template_handler),
-        )
-        // Engineering polling control (start/stop)
-        .route(
-            "/api/v1/engineering/polling/start",
-            post(engineering::start_polling),
-        )
-        .route(
-            "/api/v1/engineering/polling/stop",
-            post(engineering::stop_polling),
         );
     // Merge protocol-specific protected routes
     #[cfg(feature = "modbus")]
@@ -908,6 +837,7 @@ pub fn create_router(state: AppState) -> Router {
     #[cfg(feature = "mqtt-broker")]
     let protected = protected.merge(mqtt_broker_routes());
     let protected = protected.merge(voltrus_plc_routes());
+    let protected = protected.merge(ext_routes.protected);
 
     let protected = protected.layer(middleware::from_fn_with_state(
         state.clone(),
@@ -917,7 +847,6 @@ pub fn create_router(state: AppState) -> Router {
     // Demo-allowed routes (authenticated + admin or demo role required)
     // These are operational routes that demo users should be able to use.
     let demo_protected = Router::new()
-        .route("/api/v1/settings/branding", put(settings::update_branding))
         .route(
             "/api/v1/settings/smtp",
             get(smtp_settings::get_smtp_config).put(smtp_settings::update_smtp_config),
@@ -1034,53 +963,6 @@ pub fn create_router(state: AppState) -> Router {
             post(hardware_cert::run_hw_benchmark),
         )
         // RTSP Video / Camera routes
-        .route(
-            "/api/v1/cameras",
-            get(video::list_cameras).post(video::create_camera),
-        )
-        .route(
-            "/api/v1/cameras/{id}",
-            put(video::update_camera).delete(video::delete_camera),
-        )
-        .route(
-            "/api/v1/cameras/{id}/snapshot",
-            post(video::trigger_snapshot),
-        )
-        .route("/api/v1/cameras/{id}/snapshots", get(video::list_snapshots))
-        .route(
-            "/api/v1/cameras/{id}/snapshots/{snapshot_id}",
-            delete(video::delete_snapshot),
-        )
-        .route("/api/v1/cameras/{id}/stream", get(video::get_stream_info))
-        .route(
-            "/api/v1/hub/sites",
-            get(hub::list_sites).post(hub::create_site),
-        )
-        .route(
-            "/api/v1/hub/sites/{id}",
-            put(hub::update_site).delete(hub::delete_site),
-        )
-        .route(
-            "/api/v1/hub/sites/{id}/start",
-            post(hub::start_site_connection),
-        )
-        .route(
-            "/api/v1/hub/sites/{id}/stop",
-            post(hub::stop_site_connection),
-        )
-        .route("/api/v1/hub/status", get(hub::get_hub_status))
-        .route(
-            "/api/v1/reports",
-            get(reports::list_reports).post(reports::create_report),
-        )
-        .route(
-            "/api/v1/reports/{id}",
-            put(reports::update_report).delete(reports::delete_report),
-        )
-        .route(
-            "/api/v1/reports/{id}/generate",
-            post(reports::generate_report),
-        )
         .route("/api/v1/oee/downtime", post(oee::create_downtime))
         .route("/api/v1/oee/downtime/{id}/close", put(oee::close_downtime))
         .route("/api/v1/oee/shifts", post(oee::create_shift))
@@ -1271,8 +1153,7 @@ pub fn create_router(state: AppState) -> Router {
     #[cfg(feature = "scripts")]
     let demo_protected = demo_protected.merge(scripts_admin_routes());
     let demo_protected = demo_protected.merge(voltrus_plc_admin_routes());
-    #[cfg(feature = "gateway-client")]
-    let demo_protected = demo_protected.merge(gateway_proxy_routes());
+    let demo_protected = demo_protected.merge(ext_routes.operator);
 
     let demo_protected = demo_protected
         .layer(middleware::from_fn(demo_allowed_middleware))
@@ -1308,33 +1189,9 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/api-keys",
             post(api_keys::create_api_key).get(api_keys::list_api_keys),
         )
-        .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key))
-        // Compliance routes (admin-only, license-gated)
-        .route(
-            "/api/v1/compliance/config",
-            get(compliance::get_compliance_config).put(compliance::update_compliance_config),
-        )
-        .route(
-            "/api/v1/compliance/sign",
-            post(compliance::create_electronic_signature),
-        )
-        .route(
-            "/api/v1/compliance/signatures",
-            get(compliance::list_electronic_signatures),
-        )
-        // Security audit routes (admin-only, Enterprise-gated)
-        .route(
-            "/api/v1/security/events",
-            get(security::list_security_events),
-        )
-        .route(
-            "/api/v1/security/events/export",
-            get(security::export_security_csv),
-        )
-        .route(
-            "/api/v1/security/thresholds",
-            get(security::get_security_thresholds).put(security::update_security_thresholds),
-        );
+        .route("/api/v1/api-keys/{id}", delete(api_keys::revoke_api_key));
+
+    let admin_protected = admin_protected.merge(ext_routes.admin);
 
     let admin_protected = admin_protected
         .layer(middleware::from_fn(admin_only_middleware))
@@ -1368,7 +1225,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/v1/{*path}", get(api_not_found))
         .layer(middleware::from_fn_with_state(
             state.clone(),
-            license_check_middleware,
+            edition_header_middleware,
         ))
         .layer(cors)
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB body limit
@@ -1418,7 +1275,7 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 // Middleware types re-exported from middleware module
-pub(super) use auth_middleware::{
+pub use auth_middleware::{
     AuthUser, admin_only_middleware, cookie_auth_middleware, demo_allowed_middleware,
 };
 

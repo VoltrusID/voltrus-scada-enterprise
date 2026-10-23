@@ -13,11 +13,11 @@
     "dnp3",
     "enip"
   ],
-  "homepage": "https://voltrus.com",
+  "homepage": "https://voltrus.id/voltrus-scada",
   "repository": {
     "type": "git",
-    "url": "https://github.com/VoltrusID/voltrus-gateway",
-    "directory": "sdk/typescript"
+    "url": "https://github.com/VoltrusID/voltrus-scada",
+    "directory": "sdks/typescript"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

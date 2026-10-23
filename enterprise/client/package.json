@@ -1,0 +1,11 @@
+{
+  "name": "voltrus-enterprise-client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "node scripts/typecheck.mjs",
+    "dev": "node scripts/vite.mjs",
+    "build": "node scripts/vite.mjs build",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "Voltrus",
   "short_name": "Voltrus",
-  "description": "Industrial SCADA monitoring, control, and analytics platform — single binary, lifetime license",
+  "description": "Industrial SCADA monitoring, control, and analytics platform — single binary",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",

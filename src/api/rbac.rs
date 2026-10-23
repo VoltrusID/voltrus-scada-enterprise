@@ -18,14 +18,6 @@ pub fn has_permission(permissions: &[String], role: &str, perm: &str) -> bool {
     permissions.iter().any(|p| p == perm)
 }
 
-fn license_forbidden() -> Response {
-    (
-        StatusCode::FORBIDDEN,
-        Json(json!({"error": "RBAC requires Professional or Enterprise license"})),
-    )
-        .into_response()
-}
-
 // ── List roles ──
 
 #[utoipa::path(
@@ -39,9 +31,6 @@ fn license_forbidden() -> Response {
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn list_roles(State(state): State<AppState>) -> Result<Response, AppError> {
-    if !state.license_tier.rbac() {
-        return Ok(license_forbidden());
-    }
     let roles = state.storage.list_roles().await?;
     Ok(Json(roles).into_response())
 }
@@ -65,10 +54,6 @@ pub async fn create_role(
     Extension(auth): Extension<super::AuthUser>,
     Json(body): Json<CreateRoleRequest>,
 ) -> Result<Response, AppError> {
-    if !state.license_tier.rbac() {
-        return Ok(license_forbidden());
-    }
-
     if body.name.trim().is_empty() {
         return Ok((
             StatusCode::BAD_REQUEST,
@@ -138,10 +123,6 @@ pub async fn update_role(
     Path(id): Path<i64>,
     Json(body): Json<UpdateRoleRequest>,
 ) -> Result<Response, AppError> {
-    if !state.license_tier.rbac() {
-        return Ok(license_forbidden());
-    }
-
     // Validate permissions if provided
     if let Some(ref perms_json) = body.permissions {
         let perms: Vec<String> = match serde_json::from_str(perms_json) {
@@ -201,10 +182,6 @@ pub async fn delete_role(
     Extension(auth): Extension<super::AuthUser>,
     Path(id): Path<i64>,
 ) -> Result<Response, AppError> {
-    if !state.license_tier.rbac() {
-        return Ok(license_forbidden());
-    }
-
     let role = state.storage.get_role_by_id(id).await?;
     if role.is_none() {
         return Ok((
@@ -250,10 +227,6 @@ pub async fn assign_user_role(
     Path(user_id): Path<i64>,
     Json(body): Json<AssignRoleRequest>,
 ) -> Result<Response, AppError> {
-    if !state.license_tier.rbac() {
-        return Ok(license_forbidden());
-    }
-
     // Verify the role exists
     let role = state.storage.get_role_by_id(body.role_id).await?;
     if role.is_none() {

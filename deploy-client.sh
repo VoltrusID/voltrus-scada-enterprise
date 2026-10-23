@@ -12,4 +12,4 @@ echo "📦 Deploying to static/..."
 rsync -a --delete dist/ ../static/
 
 echo "✅ Done. Restart the server to pick up changes."
-echo "   Tip: pkill voltrus; ./target/release/voltrus config.dev.yaml"
+echo "   Tip: pkill voltrus; ./target/release/voltrus config.yaml"

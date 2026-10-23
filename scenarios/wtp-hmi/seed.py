@@ -8,13 +8,13 @@ On a fresh database the admin must change password first; seed.py does that and 
 Re-running is safe: screens are matched by name and their SCADA layouts replaced.
 """
 import argparse
+import secrets
 import http.cookiejar
 import json
 import re
 import urllib.error
 import urllib.request
 
-NEW_PASSWORD = 'VoltrusDemo2026!'
 
 # key: (name, unit, min, max, warn, crit, decimals, low_warn, low_crit)
 D = ('', 0, 1, 0, 0, 0, None, None)  # digital run / status tag
@@ -297,9 +297,10 @@ def main():
     ap.add_argument('--url', default='http://localhost:3100')
     ap.add_argument('--password')
     ap.add_argument('--log', help='server log holding the generated first-run admin password')
-    ap.add_argument('--new-password', default=NEW_PASSWORD, help='password set on first login (use a strong one on public hosts)')
-    ap.add_argument('--start-polling', action='store_true', help='start Engineering-mode polling after seeding')
+    ap.add_argument('--new-password', default=None, help='password set on first login (default: a random one, printed once)')
     a = ap.parse_args()
+    if not a.new_password:
+        a.new_password = secrets.token_urlsafe(12)
     api = Api(a.url)
 
     pw = a.password
@@ -319,7 +320,7 @@ def main():
         raise SystemExit('login failed: pass --password or --log')
     if r.get('must_change_password'):
         api.call('POST', '/api/v1/auth/change-password', {'old_password': pw, 'new_password': a.new_password})
-        print('admin password changed' + (f' to {a.new_password}' if a.new_password == NEW_PASSWORD else ''))
+        print(f'admin password changed to {a.new_password}')
 
     sources = api.call('GET', '/api/v1/data-sources')
     ids = {s['key']: s['id'] for s in sources if s['key'] in TAGS}
@@ -358,10 +359,6 @@ def main():
         api.call('PUT', f'/api/v1/screens/{sid}/scada-equipment', {'items': s.items})
         api.call('PUT', f'/api/v1/screens/{sid}/scada-connections', {'items': s.conns})
         print(f'screen {name!r} ({sid}): {len(s.items)} items, {len(s.conns)} connections')
-
-    if a.start_polling:
-        r = api.call('POST', '/api/v1/engineering/polling/start')
-        print(f'polling: {r}')
 
 
 if __name__ == '__main__':

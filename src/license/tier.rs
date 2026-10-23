@@ -1,281 +1,124 @@
-// ── License Tier ──
+// ── Entitlement tier ──
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+/// Which add-on features are unlocked.
+///
+/// `Community` is the open core: everything in this repository works without a
+/// licence. `Integrator` and `Enterprise` unlock the add-on features that ship
+/// in the separate Enterprise add-on (see `docs/open-core.md`).
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LicenseTier {
-    Engineering,
-    Edge,
-    Starter,
-    Professional,
+    #[default]
+    Community,
+    Integrator,
     Enterprise,
 }
 
 impl LicenseTier {
-    /// Maps an activation tier string to a LicenseTier enum.
-    /// Returns Engineering when the input is None or unrecognized.
+    /// Maps a tier string from a signed activation to a tier.
+    ///
+    /// Current names: `integrator`, `enterprise`. Keys issued before the open-core
+    /// split keep working: `professional`/`pro` map to Integrator, `enterprise`
+    /// stays Enterprise, and `edge`/`starter`/`engineering` (and anything unknown)
+    /// map to Community because the core now includes everything those tiers had.
     pub fn from_tier_str(s: Option<&str>) -> Self {
-        match s.map(|t| t.to_lowercase()) {
-            Some(ref t) if t == "engineering" => LicenseTier::Engineering,
-            Some(ref t) if t == "edge" => LicenseTier::Edge,
-            Some(ref t) if t == "starter" => LicenseTier::Starter,
-            Some(ref t) if t == "professional" || t == "pro" => LicenseTier::Professional,
-            Some(ref t) if t == "enterprise" => LicenseTier::Enterprise,
-            _ => LicenseTier::Engineering,
+        match s.map(|t| t.trim().to_lowercase()).as_deref() {
+            Some("integrator") | Some("professional") | Some("pro") => LicenseTier::Integrator,
+            Some("enterprise") => LicenseTier::Enterprise,
+            _ => LicenseTier::Community,
         }
     }
 
-    /// Maximum number of devices allowed. None means unlimited.
-    pub fn max_devices(&self) -> Option<u32> {
+    pub fn as_str(&self) -> &'static str {
         match self {
-            LicenseTier::Engineering => Some(5),
-            LicenseTier::Edge => Some(15),
-            LicenseTier::Starter => Some(50),
-            LicenseTier::Professional => None,
-            LicenseTier::Enterprise => None,
+            LicenseTier::Community => "community",
+            LicenseTier::Integrator => "integrator",
+            LicenseTier::Enterprise => "enterprise",
         }
     }
 
-    /// Number of days telemetry data is retained.
-    pub fn data_retention_days(&self) -> u32 {
-        match self {
-            LicenseTier::Engineering => 7,
-            LicenseTier::Edge => 90,
-            LicenseTier::Starter | LicenseTier::Professional | LicenseTier::Enterprise => 365,
-        }
+    fn integrator_or_above(&self) -> bool {
+        !matches!(self, LicenseTier::Community)
     }
 
-    pub fn opcua_enabled(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    fn enterprise_only(&self) -> bool {
+        matches!(self, LicenseTier::Enterprise)
     }
 
-    pub fn email_notifications(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
+    // ── Integrator and above ──
 
-    pub fn webhook_notifications(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    pub fn push_notifications(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    pub fn sms_notifications(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
-
-    pub fn rest_api_export(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    pub fn csv_export(&self) -> bool {
-        true
-    }
-
-    pub fn analytics(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    pub fn oee(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    pub fn pdf_reporting(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
-
-    pub fn backup_restore(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    pub fn auto_discovery(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
+    /// White-label branding (custom logo and product name).
     pub fn white_label(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
+        self.integrator_or_above()
     }
 
     /// Full theme editor (colors, fonts, layouts).
-    /// Starter gets basic (logo swap), Professional+ gets full theme control.
     pub fn theme_full(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+        self.integrator_or_above()
     }
 
-    /// Per-user screen layouts (each user gets their own layout).
-    /// Professional tier and above.
-    pub fn per_user_layouts(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    /// Scheduled PDF reports.
+    pub fn pdf_reporting(&self) -> bool {
+        self.integrator_or_above()
     }
 
-    pub fn rbac(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+    /// SMS alarm notifications.
+    pub fn sms_notifications(&self) -> bool {
+        self.integrator_or_above()
     }
 
+    /// Multi-site hub.
     pub fn multi_site(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
+        self.integrator_or_above()
     }
 
-    pub fn recipes(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
+    // ── Enterprise only ──
 
+    /// Single sign-on (OIDC bearer tokens).
     pub fn sso(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
+        self.enterprise_only()
     }
 
-    /// SSO with SAML/OIDC enhanced features and LDAP fallback.
-    /// Only available on Enterprise tier.
+    /// SAML 2.0 and LDAP sign-in.
     pub fn sso_saml(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
+        self.enterprise_only()
     }
 
+    /// 21 CFR Part 11 mode (electronic signatures, compliance policy).
     pub fn cfr_part_11(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
+        self.enterprise_only()
     }
 
-    /// EtherNet/IP (Allen-Bradley) protocol support.
-    /// Only available on Enterprise tier.
-    pub fn ethernet_ip(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
+    /// IEC 62443 security audit mode (security event log and thresholds).
+    pub fn iec_62443(&self) -> bool {
+        self.enterprise_only()
     }
 
-    /// Siemens S7 protocol support.
-    /// Only available on Enterprise tier.
-    pub fn s7_protocol(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
+    /// Hot standby with automatic failover.
+    pub fn ha(&self) -> bool {
+        self.enterprise_only()
     }
 
-    /// DNP3 (IEEE 1815) protocol support — Enterprise only.
-    pub fn dnp3(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
-    }
-
-    /// BACnet/IP protocol support — Enterprise only.
-    pub fn bacnet(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
-    }
-
-    /// RTSP video integration.
-    /// Only available on Enterprise tier.
+    /// RTSP video cameras.
     pub fn rtsp_video(&self) -> bool {
-        matches!(self, LicenseTier::Enterprise)
+        self.enterprise_only()
     }
 
-    /// AI Copilot assistant.
-    /// Starter tier and above.
-    pub fn ai_copilot(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Embedded MQTT broker.
-    /// Starter tier and above.
-    pub fn mqtt_broker(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Prometheus exporter endpoint.
-    /// Professional tier and above.
-    pub fn prometheus_export(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
-
-    /// BI connectors (Power BI, Grafana, Metabase).
-    /// Professional tier and above.
-    pub fn bi_connectors(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
-
-    /// Scheduled data egress (CSV/Parquet export).
-    /// Professional tier and above.
-    pub fn data_egress(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
-
-    /// Outbound webhooks for external systems.
-    /// Starter tier and above.
-    pub fn outbound_webhooks(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// FlowEngine automation flows.
-    /// Starter tier and above.
-    pub fn flow_engine(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Data retention/compression (hot->warm->cold tiers).
-    /// Starter tier and above. Engineering only retains 7 days raw, no compression.
-    pub fn data_compression(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Health monitor (watchdog).
-    /// Starter tier and above.
-    pub fn health_monitor(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Command queue processor (write commands to devices).
-    /// Starter tier and above.
-    pub fn command_queue(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Vertical-specific templates — browse and preview.
-    /// Starter tier and above.
-    pub fn templates(&self) -> bool {
-        !matches!(self, LicenseTier::Engineering)
-    }
-
-    /// Vertical-specific templates — instantiate (create tags, devices, flows).
-    /// Professional tier and above. Starter gets 1 template.
-    pub fn templates_write(&self) -> bool {
-        matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
-    }
-
-    /// Returns all feature flags as a JSON object.
+    /// All add-on flags as a JSON object. Core features have no flag: they are
+    /// always on.
     pub fn to_feature_flags(&self) -> serde_json::Value {
         serde_json::json!({
-            "max_devices": self.max_devices(),
-            "data_retention_days": self.data_retention_days(),
-            "opcua_enabled": self.opcua_enabled(),
-            "email_notifications": self.email_notifications(),
-            "webhook_notifications": self.webhook_notifications(),
-            "push_notifications": self.push_notifications(),
-            "sms_notifications": self.sms_notifications(),
-            "rest_api_export": self.rest_api_export(),
-            "csv_export": self.csv_export(),
-            "analytics": self.analytics(),
-            "oee": self.oee(),
-            "pdf_reporting": self.pdf_reporting(),
-            "backup_restore": self.backup_restore(),
-            "auto_discovery": self.auto_discovery(),
             "white_label": self.white_label(),
             "theme_full": self.theme_full(),
-            "per_user_layouts": self.per_user_layouts(),
-            "rbac": self.rbac(),
+            "pdf_reporting": self.pdf_reporting(),
+            "sms_notifications": self.sms_notifications(),
             "multi_site": self.multi_site(),
-            "recipes": self.recipes(),
             "sso": self.sso(),
             "sso_saml": self.sso_saml(),
             "cfr_part_11": self.cfr_part_11(),
-            "ethernet_ip": self.ethernet_ip(),
-            "s7_protocol": self.s7_protocol(),
-            "dnp3": self.dnp3(),
-            "bacnet": self.bacnet(),
+            "iec_62443": self.iec_62443(),
+            "ha": self.ha(),
             "rtsp_video": self.rtsp_video(),
-            "mqtt_broker": self.mqtt_broker(),
-            "prometheus_export": self.prometheus_export(),
-            "bi_connectors": self.bi_connectors(),
-            "data_egress": self.data_egress(),
-            "outbound_webhooks": self.outbound_webhooks(),
-            "flow_engine": self.flow_engine(),
-            "data_compression": self.data_compression(),
-            "health_monitor": self.health_monitor(),
-            "command_queue": self.command_queue(),
-            "templates": self.templates(),
-            "templates_write": self.templates_write(),
         })
     }
 }

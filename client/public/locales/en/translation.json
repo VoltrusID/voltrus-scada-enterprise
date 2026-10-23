@@ -149,12 +149,6 @@
     "zh": "中文",
     "de": "Deutsch"
   },
-  "license": {
-    "checking": "Checking license...",
-    "activate": "Activate License",
-    "trialBanner": "You are running on a trial license.",
-    "expiredBanner": "Your trial license has expired."
-  },
   "system": {
     "title": "System Information",
     "hostname": "Hostname",
@@ -225,28 +219,11 @@
     "stop": "Stop",
     "test": "Test"
   },
-  "reports": {
-    "title": "Reports",
-    "generate": "Generate Report",
-    "schedule": "Schedule"
-  },
   "oee": {
     "title": "OEE Metrics",
     "availability": "Availability",
     "performance": "Performance",
     "quality": "Quality"
-  },
-  "security": {
-    "title": "Security Audit",
-    "events": "Events",
-    "thresholds": "Thresholds",
-    "exportCsv": "Export CSV"
-  },
-  "compliance": {
-    "title": "Compliance",
-    "config": "Configuration",
-    "sign": "Electronic Signature",
-    "signatures": "Signatures"
   },
   "annotations": {
     "title": "Annotations",

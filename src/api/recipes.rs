@@ -28,12 +28,6 @@ pub async fn list_recipes(
     State(state): State<AppState>,
     Query(q): Query<ListRecipesQuery>,
 ) -> Result<Json<Vec<Recipe>>, AppError> {
-    if !state.license_tier.recipes() {
-        return Err(AppError(anyhow::anyhow!(
-            "Recipe management requires Professional tier or above"
-        )));
-    }
-
     let recipes = state.storage.list_recipes(q.device_id.as_deref()).await?;
     Ok(Json(recipes))
 }
@@ -54,12 +48,6 @@ pub async fn create_recipe(
     State(state): State<AppState>,
     Json(req): Json<CreateRecipeRequest>,
 ) -> Result<(StatusCode, Json<Recipe>), AppError> {
-    if !state.license_tier.recipes() {
-        return Err(AppError(anyhow::anyhow!(
-            "Recipe management requires Professional tier or above"
-        )));
-    }
-
     let id = state
         .storage
         .save_current_as_recipe(
@@ -98,12 +86,6 @@ pub async fn get_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Recipe>, AppError> {
-    if !state.license_tier.recipes() {
-        return Err(AppError(anyhow::anyhow!(
-            "Recipe management requires Professional tier or above"
-        )));
-    }
-
     let recipe = state
         .storage
         .get_recipe(id)
@@ -140,12 +122,6 @@ pub async fn update_recipe(
     Path(id): Path<i64>,
     Json(req): Json<UpdateRecipeRequest>,
 ) -> Result<Json<Recipe>, AppError> {
-    if !state.license_tier.recipes() {
-        return Err(AppError(anyhow::anyhow!(
-            "Recipe management requires Professional tier or above"
-        )));
-    }
-
     state
         .storage
         .update_recipe(
@@ -182,12 +158,6 @@ pub async fn delete_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<StatusCode, AppError> {
-    if !state.license_tier.recipes() {
-        return Err(AppError(anyhow::anyhow!(
-            "Recipe management requires Professional tier or above"
-        )));
-    }
-
     state.storage.delete_recipe(id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -210,12 +180,6 @@ pub async fn load_recipe(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !state.license_tier.recipes() {
-        return Err(AppError(anyhow::anyhow!(
-            "Recipe management requires Professional tier or above"
-        )));
-    }
-
     let recipe = state
         .storage
         .get_recipe(id)

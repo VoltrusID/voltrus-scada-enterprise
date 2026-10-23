@@ -87,7 +87,7 @@ export function TvDetailChart({
       layout: {
         background: { color: 'transparent' },
         textColor: '#d1d5db',
-        attributionLogo: false,
+        attributionLogo: true,
       },
       grid: {
         vertLines: { color: '#1a1a1e' },

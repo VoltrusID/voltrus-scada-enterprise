@@ -38,16 +38,17 @@ pub struct HardwareCertReport {
     pub recommendations: Vec<String>,
 }
 
-/// Compatibility assessment across all license tiers.
+/// Compatibility assessment across the hardware sizing profiles (named after the
+/// former plans, they only describe how much hardware a deployment needs).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TierCompatibility {
     /// Engineering compatibility
     pub engineering: TierAssessment,
-    /// Starter ($249) compatibility
+    /// Starter profile compatibility
     pub starter: TierAssessment,
-    /// Professional ($499) compatibility
+    /// Professional profile compatibility
     pub professional: TierAssessment,
-    /// Enterprise ($999) compatibility
+    /// Enterprise profile compatibility
     pub enterprise: TierAssessment,
 }
 

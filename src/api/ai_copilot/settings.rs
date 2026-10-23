@@ -18,12 +18,6 @@ use crate::models;
     security(("api_key" = []), ("cookie_auth" = []))
 )]
 pub async fn get_ai_settings(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let provider = state
         .storage
         .get_ai_setting("provider")
@@ -68,12 +62,6 @@ pub async fn update_ai_settings(
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<UpdateAiSettingsBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     if let Some(provider) = &body.provider {
         if AiProviderType::from_str(provider).is_none() {
             return Err(AppError(anyhow::anyhow!(
@@ -113,12 +101,6 @@ pub async fn update_ai_settings(
 pub async fn test_ai_settings(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.ai_copilot() {
-        return Err(AppError(anyhow::anyhow!(
-            "AI Copilot requires Starter tier or above"
-        )));
-    }
-
     let settings = super::helpers::load_ai_settings(&state).await?;
     let provider = resolve_provider(&settings);
 

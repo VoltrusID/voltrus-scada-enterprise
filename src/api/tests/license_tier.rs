@@ -15,7 +15,6 @@ async fn test_engineering_middleware_allows_access() {
             daily_used_secs: 0,
             polling_active: false,
             tier: tier.clone(),
-            feature_flags: tier.to_feature_flags(),
         },
         tier,
     );
@@ -88,7 +87,6 @@ async fn test_tier_engineering_feature_gates() {
             daily_used_secs: 0,
             polling_active: false,
             tier: tier.clone(),
-            feature_flags: tier.to_feature_flags(),
         },
         tier.clone(),
     );
@@ -294,7 +292,6 @@ async fn test_branding_theme_levels_per_tier() {
             daily_used_secs: 0,
             polling_active: false,
             tier: crate::license::LicenseTier::Engineering,
-            feature_flags: crate::license::LicenseTier::Engineering.to_feature_flags(),
         },
         crate::license::LicenseTier::Engineering,
     );

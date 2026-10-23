@@ -67,12 +67,6 @@ pub async fn get_status(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -138,12 +132,6 @@ pub async fn update_config(
     Extension(_user): Extension<AuthUser>,
     Json(req): Json<UpdateMqttConfigRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -223,12 +211,6 @@ pub async fn start_broker(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -265,12 +247,6 @@ pub async fn stop_broker(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -301,12 +277,6 @@ pub async fn get_topics(
     State(state): State<AppState>,
     Extension(_user): Extension<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -343,12 +313,6 @@ pub async fn get_topic_messages(
     Path(topic): Path<String>,
     Query(_q): Query<TopicMessagesQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -384,12 +348,6 @@ pub async fn get_messages(
     Extension(_user): Extension<AuthUser>,
     Query(q): Query<MessagesQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()
@@ -429,12 +387,6 @@ pub async fn publish_message(
     Extension(_user): Extension<AuthUser>,
     Json(req): Json<PublishRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.mqtt_broker() {
-        return Err(AppError(anyhow::anyhow!(
-            "Embedded MQTT broker requires Starter tier."
-        )));
-    }
-
     let broker = state
         .mqtt_broker_state
         .as_ref()

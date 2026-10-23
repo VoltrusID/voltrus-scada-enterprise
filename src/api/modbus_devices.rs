@@ -110,18 +110,6 @@ pub async fn create_modbus_device(
         return Err(AppError(anyhow::anyhow!("IP address is required")));
     }
 
-    // Check device limit from license tier
-    let max = state.license_tier.max_devices();
-    if let Some(limit) = max {
-        let count = state.storage.count_modbus_devices().await?;
-        if count >= limit {
-            return Err(AppError(anyhow::anyhow!(
-                "Device limit of {} reached. Upgrade at https://voltrus.id",
-                limit
-            )));
-        }
-    }
-
     let registers =
         ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
@@ -387,12 +375,6 @@ pub async fn scan_network(
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<ScanNetworkRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.license_tier.auto_discovery() {
-        return Err(AppError(anyhow::anyhow!(
-            "Network discovery requires Starter tier or higher. Upgrade at https://voltrus.id"
-        )));
-    }
-
     if body.range.is_empty() {
         return Err(AppError(anyhow::anyhow!("Range (CIDR) is required")));
     }

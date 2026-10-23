@@ -194,7 +194,6 @@ export function Dnp3DeviceManager({ onClose, embedded }: { onClose: () => void; 
             <line x1="16" y1="9.5" x2="16" y2="14.5" />
           </svg>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>DNP3 Devices</h1>
-          <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'rgba(168,85,247,.12)', color: '#c084fc', border: '1px solid rgba(168,85,247,.25)', fontWeight: 500 }}>Enterprise</span>
         </div>
         {tableContent}
       </div>

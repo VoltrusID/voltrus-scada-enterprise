@@ -6,7 +6,6 @@
     "node": ">=22",
     "npm": ">=10.0.0"
   },
-  "packageManager": "bun@1.4.4",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && rm -f dist/**/*.map dist/*.map && rm -rf ../static && mkdir -p ../static/locales && cp -r dist/* ../static/ && cp -r public/locales/* ../static/locales/",

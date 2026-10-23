@@ -22,12 +22,6 @@ pub async fn list_devices(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     let devices = state.storage.list_bacnet_devices().await?;
     let mut result = Vec::new();
     for device in &devices {
@@ -70,12 +64,6 @@ pub async fn create_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     if req.name.is_empty() {
@@ -152,12 +140,6 @@ pub async fn update_device(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     state
         .storage
         .update_bacnet_device(
@@ -207,12 +189,6 @@ pub async fn delete_device(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
-    }
-
     // Stop poller if running
     let device_key = format!("bacnet_{}", id);
     state.poller_manager.stop(&device_key).await;
@@ -258,12 +234,6 @@ pub async fn start_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     // Load device from DB
@@ -344,12 +314,6 @@ pub async fn stop_device(
 ) -> Result<impl IntoResponse, AppError> {
     if user.role != "admin" {
         return Err(AppError(anyhow::anyhow!("Admin access required")));
-    }
-
-    if !state.license_tier.bacnet() {
-        return Err(AppError(anyhow::anyhow!(
-            "BACnet/IP requires Enterprise tier. Upgrade at https://voltrus.id"
-        )));
     }
 
     let device_key = format!("bacnet_{}", id);

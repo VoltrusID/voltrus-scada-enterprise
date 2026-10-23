@@ -2,7 +2,7 @@
 name = "voltrus-scada-native"
 version = "0.1.0"
 edition = "2024"
-license-file = "LICENSE"
+license = "AGPL-3.0-or-later"
 publish = false
 description = "Voltrus SCADA native operator console — GPU-accelerated with GPUI"
 

@@ -7,8 +7,6 @@ import {
   useDeleteShift,
   useCloseDowntimeEvent,
 } from './queries'
-import { FeatureBadge } from './components/FeatureBadge'
-import { useLicense } from './LicenseContext'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -72,25 +70,6 @@ function daysMaskToString(mask: number): string {
 }
 
 export function OeePanel() {
-  const license = useLicense()
-  const isOeeDisabled = license?.feature_flags?.oee === false
-
-  if (isOeeDisabled) {
-    return (
-      <div style={{ padding: 24, textAlign: 'center' }}>
-        <h2 style={{ marginBottom: 12 }}>OEE / Downtime Tracking</h2>
-        <p style={{ color: 'var(--muted)' }}>
-          This feature requires Starter tier or higher.
-        </p>
-        <FeatureBadge tier="Starter" />
-      </div>
-    )
-  }
-
-  return <OeeDashboard />
-}
-
-function OeeDashboard() {
   const [deviceId, setDeviceId] = useState('')
   const [timeRange, setTimeRange] = useState<'8h' | '24h' | '7d'>('8h')
 

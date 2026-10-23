@@ -6,7 +6,7 @@ mod csv_import;
 mod flows;
 mod helpers;
 mod import_nodered;
-mod license_tier;
+mod license_status;
 mod mqtt_broker;
 mod naming_convention;
 mod system;
@@ -15,10 +15,8 @@ mod ui_preferences;
 
 pub use helpers::*;
 
-use super::{AppError, AppState, create_router};
-use crate::auth::oidc::{JwksManager, OidcConfig};
+use super::{AppState, create_router};
 use crate::cache::DeviceCache;
-use crate::models::*;
 use crate::poller_manager::PollerManager;
 use crate::storage::Storage;
 use axum::Router;

@@ -1,0 +1,25 @@
+{
+  "license": {
+    "checking": "Lizenz wird überprüft...",
+    "activate": "Lizenz aktivieren",
+    "trialBanner": "Sie nutzen eine Testlizenz.",
+    "expiredBanner": "Ihre Testlizenz ist abgelaufen."
+  },
+  "reports": {
+    "title": "Berichte",
+    "generate": "Bericht erstellen",
+    "schedule": "Zeitplan"
+  },
+  "security": {
+    "title": "Sicherheitsaudit",
+    "events": "Ereignisse",
+    "thresholds": "Schwellenwerte",
+    "exportCsv": "CSV exportieren"
+  },
+  "compliance": {
+    "title": "Compliance",
+    "config": "Konfiguration",
+    "sign": "Elektronische Signatur",
+    "signatures": "Signaturen"
+  }
+}
