@@ -115,8 +115,10 @@ fn get_disk_serial() -> String {
     #[cfg(target_os = "linux")]
     {
         if let Ok(entries) = std::fs::read_dir("/sys/block") {
-            for entry in entries.flatten() {
-                let serial_path = entry.path().join("serial");
+            let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+            paths.sort();
+            for path in paths {
+                let serial_path = path.join("serial");
                 if let Ok(serial) = std::fs::read_to_string(&serial_path) {
                     let serial = serial.trim();
                     if !serial.is_empty() {
@@ -130,15 +132,29 @@ fn get_disk_serial() -> String {
     "unknown".to_string()
 }
 
+/// Interface name prefixes of virtual adapters (containers, bridges, VPNs): their MAC
+/// changes with software state, so they never identify the machine.
+const VIRTUAL_INTERFACE_PREFIXES: &[&str] = &[
+    "lo", "veth", "docker", "br-", "virbr", "vnet", "tun", "tap", "tailscale", "zt", "wg",
+    "loopback", "awdl", "llw", "bridge", "utun", "gif", "stf", "anpi", "ap",
+];
+
+/// MAC of the first physical-looking interface, by name. The interface list comes out
+/// of a hash map in arbitrary order, so it is sorted: the same machine must produce the
+/// same fingerprint on every run (the activation file is bound to its hash).
 fn get_mac_address() -> String {
     use sysinfo::Networks;
     let networks = Networks::new_with_refreshed_list();
-    for (name, network) in &networks {
-        if name == "lo" || name.starts_with("loopback") {
+    let mut interfaces: Vec<_> = networks.iter().collect();
+    interfaces.sort_by(|a, b| a.0.cmp(b.0));
+    for (name, network) in interfaces {
+        if VIRTUAL_INTERFACE_PREFIXES
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+        {
             continue;
         }
-        let mac = network.mac_address();
-        let mac_str = mac.to_string();
+        let mac_str = network.mac_address().to_string();
         if mac_str != "00:00:00:00:00:00" && !mac_str.is_empty() {
             return mac_str;
         }
@@ -178,6 +194,16 @@ fn get_machine_id() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn collected_fingerprint_is_stable_across_runs() {
+        // MAC and disk serial come from unordered system lists: the hash an activation
+        // is bound to must not depend on iteration order.
+        let first = collect_fingerprint().hash();
+        for _ in 0..5 {
+            assert_eq!(collect_fingerprint().hash(), first);
+        }
+    }
 
     #[test]
     fn test_fingerprint_hash_consistency() {

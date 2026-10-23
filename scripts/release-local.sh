@@ -1,27 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ── Voltrus release script ──
+# ── Voltrus release script (official build: open core + Enterprise) ──
 # Cross-compiles via cargo-zigbuild and uploads to Cloudflare R2.
+#
+# Layout: the `voltrus` binary is built from enterprise/ (it links the open core in
+# the core/ submodule), `modbus-sim` from core/, and the web client from core/client
+# with the enterprise client module (output core/static). The packaged archives
+# have the same names and layout as before the open-core split.
 #
 # Usage:
 #   ./scripts/release-local.sh                          # All platforms
 #   ./scripts/release-local.sh --target aarch64          # macOS ARM64 only
 #   ./scripts/release-local.sh --target x86_64           # Linux x86_64 only
 #   ./scripts/release-local.sh --skip-upload             # Build only, skip upload
+#   ./scripts/release-local.sh --dry-run                 # Build, then print the upload plan; run nothing remote
 #   NOTARIZE=1 ./scripts/release-local.sh                # With macOS notarization
 #   NOTARIZE=1 ./scripts/release-local.sh --target aarch64
 #
+# Environment: BUILD_DIR (default target/release-artifacts) moves the packaged output;
+# CARGO_TARGET_DIR, if set, is used for both cargo invocations.
+#
 # Requires:
-#   - bun (frontend build)
+#   - node + npm (frontend build)
 #   - zig, cargo-zigbuild (cross-compilation)
-#   - wrangler (R2 upload)
+#   - wrangler (R2 upload; not needed with --skip-upload or --dry-run)
 
-VERSION="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+VERSION="$(grep '^version' enterprise/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
 TAG="v${VERSION}"
 R2_BUCKET="voltrus-releases"
 D1_DB="voltrus-releases-db"
-BUILD_DIR="target/release-artifacts"
+BUILD_DIR="${BUILD_DIR:-target/release-artifacts}"
+ENTERPRISE_TARGET_DIR="${CARGO_TARGET_DIR:-enterprise/target}"
+CORE_TARGET_DIR="${CARGO_TARGET_DIR:-core/target}"
 # D1 build number must sort like semver: 1.0.0 -> 1000000, 0.47.0 -> 47000.
 # (Concatenating digits made 1.0.0 -> 100 sort below 0.47.0 -> 470.)
 IFS=. read -r _V_MAJ _V_MIN _V_PAT <<< "${VERSION%%-*}"
@@ -61,23 +75,25 @@ ALL_TARGETS=(
 
 # ── Parse args ──
 UPLOAD=true
+DRY_RUN=false
 TARGET_FILTER=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-upload) UPLOAD=false ;;
+    --dry-run) DRY_RUN=true ;;
     --target)
       shift
       TARGET_FILTER="${1:-}"
       [ -z "$TARGET_FILTER" ] && error "--target requires an argument"
       ;;
-    *) error "Unknown argument: $1. Use --target <platform> or --skip-upload" ;;
+    *) error "Unknown argument: $1. Use --target <platform>, --skip-upload or --dry-run" ;;
   esac
   shift
 done
 
 # Resolve targets to build
 TARGETS=()
-if [ -n "$TARGET_FILTER" ]; then
+if [ -n "$TARGET_FILTER" ] && [ "$TARGET_FILTER" != "all" ]; then
   entry="$(resolve_target "$TARGET_FILTER")" || error "Unknown target '$TARGET_FILTER'. Valid: aarch64 macos-arm64 linux-arm64 linux-x86_64 x86_64 windows-x86_64 all"
   TARGETS=("$entry")
 else
@@ -85,11 +101,12 @@ else
 fi
 
 # ── Preflight ──
-command -v bun >/dev/null 2>&1 || error "bun not found. Install: curl -fsSL https://bun.sh/install | bash"
+command -v node >/dev/null 2>&1 || error "node not found"
+command -v npm >/dev/null 2>&1 || error "npm not found"
 command -v zig >/dev/null 2>&1 || error "zig not found. Install: brew install zig"
 command -v cargo >/dev/null 2>&1 || error "cargo not found"
 
-if [ "$UPLOAD" = true ]; then
+if [ "$UPLOAD" = true ] && [ "$DRY_RUN" = false ]; then
   command -v wrangler >/dev/null 2>&1 || error "wrangler not found. Install: npm install -g wrangler"
 fi
 
@@ -100,18 +117,21 @@ if [ "$NOTARIZE" = "1" ]; then
   [ -z "${APPLE_APP_PASSWORD:-}" ] && error "APPLE_APP_PASSWORD env var not set"
 fi
 
+[ -f core/Cargo.toml ] || git submodule update --init core
+[ -f core/Cargo.toml ] || error "core submodule missing: run git submodule update --init core"
+
 info "Voltrus ${TAG}"
 info "Targets: $(for t in "${TARGETS[@]}"; do IFS='|' read -r n _ _ <<< "$t"; echo -n "$n "; done)"
+$DRY_RUN && info "Dry run: nothing is uploaded and no remote command runs"
 
-# ── Build frontend ──
+# ── Build frontend (core client + enterprise client module -> core/static) ──
 step "Building frontend..."
 (
-  cd client
-  bun install --frozen-lockfile 2>/dev/null || bun install
-  bun run build
-  mkdir -p ../static
-  cp -r dist/* ../static/
+  cd core/client
+  npm ci
+  VOLTRUS_ENTERPRISE_CLIENT="$ROOT/enterprise/client/src/index.ts" npm run build
 )
+[ -f core/static/index.html ] || error "Frontend build did not produce core/static/index.html"
 info "Frontend built"
 
 # ── Build one target ──
@@ -124,14 +144,15 @@ build_target() {
 
   rustup target add "$target" 2>/dev/null || true
 
-  local bin_voltrus="target/${target}/release/voltrus${ext}"
-  local bin_modbus="target/${target}/release/modbus-sim${ext}"
+  local bin_voltrus="${ENTERPRISE_TARGET_DIR}/${target}/release/voltrus${ext}"
+  local bin_modbus="${CORE_TARGET_DIR}/${target}/release/modbus-sim${ext}"
 
-  if [[ "$target" == *"-apple-"* ]]; then
-    bash -c "ulimit -n ${FD_LIMIT} && cargo build --release --target ${target} --bin voltrus --bin modbus-sim"
-  else
-    bash -c "ulimit -n ${FD_LIMIT} && cargo zigbuild --release --target ${target} --bin voltrus --bin modbus-sim"
-  fi
+  local build_cmd="cargo zigbuild"
+  [[ "$target" == *"-apple-"* ]] && build_cmd="cargo build"
+
+  # The official `voltrus` binary comes from the enterprise crate, modbus-sim from core.
+  bash -c "ulimit -n ${FD_LIMIT} && cd enterprise && ${build_cmd} --release --locked --target ${target} --bin voltrus"
+  bash -c "ulimit -n ${FD_LIMIT} && ${build_cmd} --release --locked --manifest-path core/Cargo.toml --target ${target} --bin modbus-sim"
 
   [ -f "$bin_voltrus" ] || error "Build failed: $bin_voltrus not found"
   [ -f "$bin_modbus" ] || warn "modbus-sim not found for ${name}"
@@ -141,9 +162,9 @@ build_target() {
   mkdir -p "$pkg_dir"
   cp "$bin_voltrus" "$pkg_dir/"
   [ -f "$bin_modbus" ] && cp "$bin_modbus" "$pkg_dir/"
-  cp config.yaml "$pkg_dir/config.yaml.example"
-  [ -f deploy/voltrus.service ] && cp deploy/voltrus.service "$pkg_dir/"
-  cp -r static "$pkg_dir/static"
+  cp core/config.yaml "$pkg_dir/config.yaml.example"
+  [ -f core/deploy/voltrus.service ] && cp core/deploy/voltrus.service "$pkg_dir/"
+  cp -r core/static "$pkg_dir/static"
 
   local archive
   if [[ "$name" == *"windows"* ]]; then
@@ -177,8 +198,22 @@ build_target() {
 upload_to_r2() {
   local file="$1"
   local key="$2"
+  if [ "$DRY_RUN" = true ]; then
+    info "[dry-run] would upload $(basename "$file") -> ${R2_BUCKET}/${key}"
+    return
+  fi
   info "Uploading $(basename "$file") -> ${key}"
   wrangler r2 object put "${R2_BUCKET}/${key}" --file "$file" --remote 2>&1 | grep -E "complete|error|Error" || true
+}
+
+# ── D1 statement (printed, not run, in a dry run) ──
+d1_execute() {
+  local sql="$1"
+  if [ "$DRY_RUN" = true ]; then
+    info "[dry-run] would run on ${D1_DB}: ${sql}"
+    return
+  fi
+  wrangler d1 execute "${D1_DB}" --remote --command "$sql" 2>&1 | grep -E "Executed|error|Error" || true
 }
 
 # ── Main ──
@@ -206,7 +241,7 @@ if [ "$UPLOAD" = true ]; then
     upload_to_r2 "$archive" "voltrus/${TAG}/${name}/$(basename "$archive")"
     upload_to_r2 "$archive" "voltrus/latest/${name}/$(basename "$archive")"
   done
-  info "All uploads complete!"
+  if [ "$DRY_RUN" = true ]; then info "Dry run: R2 upload plan printed, nothing sent"; else info "All uploads complete!"; fi
 
   # ── Sync D1 release metadata ──
   step "Syncing D1 release metadata..."
@@ -220,9 +255,7 @@ if [ "$UPLOAD" = true ]; then
       SIZE_SUM=$((SIZE_SUM + s))
     done
   done
-  wrangler d1 execute "${D1_DB}" --remote --command \
-    "INSERT OR REPLACE INTO releases (version, short_version_string, title, description, length, pub_date) VALUES (${VERSION_NUM}, '${VERSION}', 'Voltrus ${TAG}', 'Voltrus SCADA ${TAG} release', ${SIZE_SUM}, '${PUB_DATE}')" \
-    2>&1 | grep -E "Executed|error|Error" || true
+  d1_execute "INSERT OR REPLACE INTO releases (version, short_version_string, title, description, length, pub_date) VALUES (${VERSION_NUM}, '${VERSION}', 'Voltrus ${TAG}', 'Voltrus SCADA ${TAG} release', ${SIZE_SUM}, '${PUB_DATE}')"
 
   for entry in "${TARGETS[@]}"; do
     IFS='|' read -r name _ _ <<< "$entry"
@@ -237,12 +270,10 @@ if [ "$UPLOAD" = true ]; then
     r2_key="voltrus/latest/${name}/$(basename "$archive")"
     filename="$(basename "$archive")"
 
-    wrangler d1 execute "${D1_DB}" --remote --command \
-      "INSERT OR REPLACE INTO release_files (version, platform, filename, r2_key, size) VALUES (${VERSION_NUM}, '${name}', '${filename}', '${r2_key}', ${size})" \
-      2>&1 | grep -E "Executed|error|Error" || true
+    d1_execute "INSERT OR REPLACE INTO release_files (version, platform, filename, r2_key, size) VALUES (${VERSION_NUM}, '${name}', '${filename}', '${r2_key}', ${size})"
     info "  D1: ${name} -> ${r2_key} (${size} bytes)"
   done
-  info "D1 sync complete!"
+  if [ "$DRY_RUN" = false ]; then info "D1 sync complete!"; fi
 fi
 
 echo ""

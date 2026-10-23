@@ -7,8 +7,8 @@ use voltrus::api::{AppError, AppState, AuthUser};
 
 /// GET /api/settings/branding — get branding settings with defaults
 pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    // Engineering tier cannot use custom branding — return hardcoded defaults
-    if !state.tier().white_label() {
+    // Without white-label entitlement, return the hardcoded defaults.
+    if !state.white_label() {
         return Ok(Json(json!({
             "title": "Voltrus",
             "subtitle": "Monitoring Dashboard",
@@ -55,22 +55,23 @@ pub async fn update_branding(
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    if !state.tier().white_label() {
-        return Err(AppError(anyhow::anyhow!(
-            "White-label branding requires an Integrator or Enterprise licence"
-        )));
+    if !state.white_label() {
+        return Err(AppError::forbidden(
+            "White-label branding requires an Integrator or Enterprise licence",
+        ));
     }
 
-    // Integrator licences may update the logo only; Enterprise gets the full theme.
+    // Logo-only entitlements (legacy Starter/Edge keys) may update the logo; the
+    // title, subtitle and theme need theme_full (Integrator and above).
 
     let full_theme = state.tier().theme_full();
 
     if !full_theme {
         // logo only
         if body.get("title").is_some() || body.get("subtitle").is_some() {
-            return Err(AppError(anyhow::anyhow!(
-                "Full theme customization needs an Integrator or Enterprise licence."
-            )));
+            return Err(AppError::forbidden(
+                "Full theme customization needs an Integrator or Enterprise licence.",
+            ));
         }
     }
 

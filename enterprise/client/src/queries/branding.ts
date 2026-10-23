@@ -19,7 +19,7 @@ export function useBranding(license: LicenseInfo): BrandingSettings | null {
 export function useSaveBranding() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (settings: BrandingSettings) => {
+    mutationFn: async (settings: Partial<BrandingSettings>) => {
       await fetchOk('/api/v1/settings/branding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

@@ -142,6 +142,16 @@ pub async fn refresh_status(
     Ok(fresh)
 }
 
+/// True when the stored activation was signed with a retired key. The activation
+/// server re-signs it with the newest key (same machine, no usage spent), which is
+/// what lets a retired key be dropped from the binary.
+async fn needs_resigning(storage: &Storage) -> bool {
+    match storage.get_license_activation().await {
+        Ok(Some(row)) => activation::needs_resigning(&row.activation_blob),
+        _ => false,
+    }
+}
+
 /// True when the stored key is a monthly key that is due for renewal.
 fn renewal_due(status: &LicenseStatus) -> bool {
     match status {
@@ -168,13 +178,15 @@ pub async fn renew_now(
     apply_activation(storage, status, blob).await
 }
 
-/// Background task: refresh monthly keys shortly before they lapse. Offline
+/// Background task: refresh monthly keys shortly before they lapse and re-issue
+/// activations signed with a retired key. Offline
 /// sites keep working through the 7 day grace period and can import a new
 /// activation file by hand.
 pub fn spawn_renewal_task(storage: Storage, status: Arc<RwLock<LicenseStatus>>) {
     tokio::spawn(async move {
         loop {
-            let due = renewal_due(&status.read().unwrap_or_else(|e| e.into_inner()).clone());
+            let due = renewal_due(&status.read().unwrap_or_else(|e| e.into_inner()).clone())
+                || needs_resigning(&storage).await;
             if due {
                 match renew_now(&storage, &status).await {
                     Ok(_) => tracing::info!("Licence renewed from the activation server"),

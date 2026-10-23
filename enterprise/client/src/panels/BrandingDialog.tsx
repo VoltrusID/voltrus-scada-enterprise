@@ -2,10 +2,13 @@ import { useState, useRef } from 'react';
 import { inputStyle, labelStyle, labelTextStyle } from '@voltrus/core/styles';
 
 import { DEFAULT_BRANDING, type BrandingSettings } from '@voltrus/core/edition/branding';
+import { brandingPayload } from './brandingPayload';
 
-export function BrandingDialog({ branding, onSave, onClose }: {
+export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: {
   branding: BrandingSettings;
-  onSave: (settings: BrandingSettings) => void;
+  /** Licence allows the logo only (no theme_full): title and subtitle stay the Voltrus defaults. */
+  logoOnly?: boolean;
+  onSave: (settings: Partial<BrandingSettings>) => void;
   onClose: () => void;
 }) {
   const [form, setForm] = useState<BrandingSettings>({ ...branding });
@@ -36,15 +39,23 @@ export function BrandingDialog({ branding, onSave, onClose }: {
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 16 }}>Branding Settings</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <label style={labelStyle}>
-            <span style={labelTextStyle}>Title</span>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={DEFAULT_BRANDING.title} style={inputStyle} />
-          </label>
+          {logoOnly ? (
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              Your licence includes a custom logo. Changing the title and subtitle needs the Integrator licence.
+            </div>
+          ) : (
+            <>
+              <label style={labelStyle}>
+                <span style={labelTextStyle}>Title</span>
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder={DEFAULT_BRANDING.title} style={inputStyle} />
+              </label>
 
-          <label style={labelStyle}>
-            <span style={labelTextStyle}>Subtitle</span>
-            <input value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder={DEFAULT_BRANDING.subtitle} style={inputStyle} />
-          </label>
+              <label style={labelStyle}>
+                <span style={labelTextStyle}>Subtitle</span>
+                <input value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder={DEFAULT_BRANDING.subtitle} style={inputStyle} />
+              </label>
+            </>
+          )}
 
           <div style={labelStyle}>
             <span style={labelTextStyle}>Logo</span>
@@ -83,7 +94,7 @@ export function BrandingDialog({ branding, onSave, onClose }: {
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => { onSave(form); onClose(); }} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
+          <button onClick={() => { onSave(brandingPayload(form, logoOnly)); onClose(); }} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
         </div>
       </div>
     </div>
