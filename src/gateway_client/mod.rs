@@ -41,20 +41,13 @@ pub struct GatewayHandle {
 
 /// Map a SCADA Modbus `RegisterConfig` to a gateway `TagAddress`.
 ///
-/// The gateway reads addresses of 30001 and up as 5-digit references, so a zero-based register above 30000
-/// cannot be expressed through it; the SCADA's own poller reads such registers correctly.
+/// The gateway's `ModbusTagAddress.address` is the 0-based address on the wire, so a register's
+/// `protocol_address()` is sent: a 5-digit reference is converted and a zero-based offset (0-65535) is kept.
 pub fn register_to_tag(r: &RegisterConfig) -> pb::TagAddress {
-    if r.zero_based && r.address > 30000 {
-        tracing::warn!(
-            "Register {} has offset {}, which the gateway reads as a 5-digit reference",
-            r.name,
-            r.address
-        );
-    }
     pb::TagAddress {
         address: Some(Address::Modbus(pb::ModbusTagAddress {
             name: r.name.clone(),
-            address: r.address as u32,
+            address: r.protocol_address() as u32,
             reg_type: reg_type_str(&r.reg_type).into(),
             scale: r.scale,
             register_area: r.register_area.clone(),
@@ -788,6 +781,29 @@ mod tests {
     use crate::models::{DeviceConfig, Endianness, RegisterType};
     use std::time::Duration;
     use voltrus_gateway::pb;
+
+    #[test]
+    fn register_to_tag_sends_the_wire_address() {
+        let wire = |address, zero_based| {
+            let r = RegisterConfig {
+                name: "r".into(),
+                address,
+                reg_type: RegisterType::Uint16,
+                scale: 1.0,
+                register_area: "holding".into(),
+                zero_based,
+            };
+            match register_to_tag(&r).address {
+                Some(Address::Modbus(m)) => m.address,
+                other => panic!("not a Modbus tag: {other:?}"),
+            }
+        };
+        assert_eq!(wire(40001, false), 0);
+        assert_eq!(wire(40003, false), 2);
+        assert_eq!(wire(12, false), 12);
+        assert_eq!(wire(35000, true), 35000);
+        assert_eq!(wire(65535, true), 65535);
+    }
 
     const SLAVE_PORT: u16 = 15512;
 
