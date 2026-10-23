@@ -29,10 +29,10 @@ use super::evaluator::evaluate_json;
 /// `Err` = parse or evaluation error (caller applies on-error policy).
 pub fn run_dsl(src: &str, rec: &Value) -> Result<Option<Value>, String> {
     let prog = parse(src)?;
-    if let Some(cond) = &prog.filter {
-        if !truthy(&evaluate_json(cond, rec)?) {
-            return Ok(None);
-        }
+    if let Some(cond) = &prog.filter
+        && !truthy(&evaluate_json(cond, rec)?)
+    {
+        return Ok(None);
     }
     if prog.drop {
         return Ok(None);
@@ -150,10 +150,10 @@ fn set_path(rec: &mut Value, path: &str, value: Value) {
         }
         cur = &mut cur[seg];
     }
-    if let Some(last) = segs.last() {
-        if !last.is_empty() {
-            cur[last] = value;
-        }
+    if let Some(last) = segs.last()
+        && !last.is_empty()
+    {
+        cur[last] = value;
     }
 }
 

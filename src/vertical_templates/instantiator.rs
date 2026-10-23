@@ -112,8 +112,8 @@ impl<'a> Instantiator<'a> {
         // 3. Create screen and assign data sources
         let screen_id = format!(
             "{}_{}",
-            &self.template.id,
-            &self.instance_name.to_lowercase().replace(' ', "_")
+            self.template.id,
+            self.instance_name.to_lowercase().replace(' ', "_")
         );
         if !self.storage.device_exists(&screen_id).await? {
             self.storage

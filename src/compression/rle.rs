@@ -52,7 +52,7 @@ pub fn rle_deserialize(data: &[u8]) -> Result<Vec<(bool, u32)>> {
         bail!("Invalid RLE data length: {}", data.len());
     }
     let mut runs = Vec::with_capacity(data.len() / 5);
-    for chunk in data.chunks_exact(5) {
+    for chunk in data.as_chunks::<5>().0 {
         let value = chunk[0] != 0;
         let count = u32::from_le_bytes([chunk[1], chunk[2], chunk[3], chunk[4]]);
         runs.push((value, count));

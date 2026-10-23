@@ -141,21 +141,21 @@ pub async fn update_device(
 
     // Restart poller if running with updated config
     let device_id = id.to_string();
-    if state.poller_manager.is_running(&device_id).await {
-        if let Ok(Some(device)) = state.storage.get_voltrus_plc_device(id).await {
-            if device.enabled {
-                let tags = state.storage.list_voltrus_plc_tags(id).await?;
-                let config = VoltrusPlcDeviceConfig {
-                    id: device_id,
-                    url: device.url,
-                    transport: device.transport,
-                    interval_ms: device.interval_ms,
-                    tags,
-                };
-                state.poller_manager.start_voltrus_plc(config).await;
-            } else {
-                state.poller_manager.stop(&id.to_string()).await;
-            }
+    if state.poller_manager.is_running(&device_id).await
+        && let Ok(Some(device)) = state.storage.get_voltrus_plc_device(id).await
+    {
+        if device.enabled {
+            let tags = state.storage.list_voltrus_plc_tags(id).await?;
+            let config = VoltrusPlcDeviceConfig {
+                id: device_id,
+                url: device.url,
+                transport: device.transport,
+                interval_ms: device.interval_ms,
+                tags,
+            };
+            state.poller_manager.start_voltrus_plc(config).await;
+        } else {
+            state.poller_manager.stop(&id.to_string()).await;
         }
     }
 

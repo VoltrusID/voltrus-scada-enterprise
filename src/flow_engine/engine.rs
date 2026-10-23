@@ -100,7 +100,7 @@ impl FlowEngine {
                                 let msg = Message::new(
                                     serde_json::json!({"timestamp": crate::timeutil::now_secs()}),
                                 );
-                                if gate_fire(&flow, &msg, &in_flight, &last_fired, &last_values) {
+                                if gate_fire(flow, &msg, &in_flight, &last_fired, &last_values) {
                                     let flow = flow.clone();
                                     let state = state.clone();
                                     let storage = storage.clone();
@@ -141,10 +141,7 @@ impl FlowEngine {
                         let Ok(guard) = broker_tracker.lock() else {
                             break;
                         };
-                        match &*guard {
-                            Some(tracker) => Some(tracker.subscribe_events()),
-                            None => None,
-                        }
+                        (*guard).as_ref().map(|tracker| tracker.subscribe_events())
                     };
                     let mut rx = match rx {
                         Some(rx) => rx,
@@ -164,7 +161,7 @@ impl FlowEngine {
                                     }
                                     if flow.trigger.matches(&msg)
                                         && gate_fire(
-                                            &flow,
+                                            flow,
                                             &msg,
                                             &in_flight,
                                             &last_fired,
@@ -213,7 +210,7 @@ impl FlowEngine {
                                 continue;
                             }
                             if flow.trigger.matches(&msg)
-                                && gate_fire(&flow, &msg, &in_flight, &last_fired, &last_values)
+                                && gate_fire(flow, &msg, &in_flight, &last_fired, &last_values)
                             {
                                 let flow = flow.clone();
                                 let state = state.clone();
@@ -409,12 +406,11 @@ fn gate_fire(
         }
         TriggerConfig::Timer { .. } => None,
     };
-    if let Some(ms) = debounce_ms {
-        if let Some(last) = last_fired.get(&flow.id) {
-            if (now.duration_since(*last).as_millis() as u64) < ms {
-                return false;
-            }
-        }
+    if let Some(ms) = debounce_ms
+        && let Some(last) = last_fired.get(&flow.id)
+        && (now.duration_since(*last).as_millis() as u64) < ms
+    {
+        return false;
     }
     // on_change_only (modbus): suppress unless the watched value actually changed.
     if let TriggerConfig::Modbus {
@@ -422,28 +418,27 @@ fn gate_fire(
         on_change_only,
         ..
     } = &flow.trigger
+        && on_change_only.unwrap_or(false)
     {
-        if on_change_only.unwrap_or(false) {
-            let current = metric
-                .as_deref()
-                .filter(|s| !s.is_empty())
-                .and_then(|k| msg.payload.get("metrics").and_then(|m| m.get(k)))
-                .cloned()
-                .unwrap_or_else(|| {
-                    msg.payload
-                        .get("metrics")
-                        .cloned()
-                        .unwrap_or(serde_json::Value::Null)
-                });
-            let changed = {
-                let prev = last_values.get(&flow.id);
-                !prev.as_deref().is_some_and(|p| *p == current)
-            };
-            if !changed {
-                return false;
-            }
-            last_values.insert(flow.id.clone(), current);
+        let current = metric
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .and_then(|k| msg.payload.get("metrics").and_then(|m| m.get(k)))
+            .cloned()
+            .unwrap_or_else(|| {
+                msg.payload
+                    .get("metrics")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null)
+            });
+        let changed = {
+            let prev = last_values.get(&flow.id);
+            !prev.as_deref().is_some_and(|p| *p == current)
+        };
+        if !changed {
+            return false;
         }
+        last_values.insert(flow.id.clone(), current);
     }
     in_flight.insert(flow.id.clone(), ());
     last_fired.insert(flow.id.clone(), now);

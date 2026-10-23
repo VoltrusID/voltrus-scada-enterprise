@@ -166,7 +166,7 @@ pub async fn import_excel(
 
     // First row = headers
     let headers: Vec<String> = match rows_iter.next() {
-        Some(row) => row.iter().map(|c| cell_to_string(c)).collect(),
+        Some(row) => row.iter().map(cell_to_string).collect(),
         None => {
             return Ok((
                 StatusCode::BAD_REQUEST,
@@ -294,7 +294,7 @@ pub async fn import_excel(
         // Device ID
         let device_id = device_idx
             .and_then(|i| row.get(i))
-            .map(|c| cell_to_string(c))
+            .map(cell_to_string)
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|| "default".to_string());
 
