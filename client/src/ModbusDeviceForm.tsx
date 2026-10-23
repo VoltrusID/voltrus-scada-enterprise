@@ -11,6 +11,8 @@ interface RegisterRow {
   register_type: string
   register_area: string
   scale: number
+  /** `address` is a 0-based offset (0-65535), not a 5-digit reference such as 40001. */
+  zero_based: boolean
 }
 
 interface Props {
@@ -37,7 +39,7 @@ export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) 
   const [network, setNetwork] = useState('')
   const { data: networksData } = useNetworks()
   const [registers, setRegisters] = useState<RegisterRow[]>(
-    source?.registers?.map(r => ({ name: r.name, address: r.address, register_type: r.register_type, register_area: r.register_area || 'holding', scale: r.scale })) ?? []
+    source?.registers?.map(r => ({ name: r.name, address: r.address, register_type: r.register_type, register_area: r.register_area || 'holding', scale: r.scale, zero_based: r.zero_based ?? false })) ?? []
   )
 
   // Scan state
@@ -52,7 +54,7 @@ export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) 
   const [scanError, setScanError] = useState('')
   const scanMut = useScanModbusRegisters()
 
-  const addRegister = () => setRegisters([...registers, { name: '', address: 0, register_type: 'float32', register_area: 'holding', scale: 1 }])
+  const addRegister = () => setRegisters([...registers, { name: '', address: 0, register_type: 'float32', register_area: 'holding', scale: 1, zero_based: false }])
   const removeRegister = (i: number) => setRegisters(registers.filter((_, j) => j !== i))
   const updateRegister = (i: number, field: keyof RegisterRow, value: any) => {
     const next = [...registers]
@@ -103,6 +105,7 @@ export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) 
         register_type: (scanArea === 'coil' || scanArea === 'discrete') ? 'uint16' : r.likely_type,
         register_area: scanArea,
         scale: 1,
+        zero_based: false,
       }))
     setRegisters([...registers, ...newRegs])
     setShowScanDialog(false)
@@ -145,14 +148,15 @@ export function ModbusDeviceForm({ device, dupDevice, onSave, onClose }: Props) 
             {registers.length === 0 && <div style={{ color: 'var(--muted)', fontSize: 12, padding: 8 }}>No registers configured.</div>}
             {/* Header row */}
             {registers.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 80px 70px 60px 28px', gap: 4, marginBottom: 2, fontSize: 10, color: 'var(--muted)', paddingLeft: 2 }}>
-                <span>name</span><span>addr</span><span>type</span><span>area</span><span>scale</span><span></span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 34px 80px 70px 60px 28px', gap: 4, marginBottom: 2, fontSize: 10, color: 'var(--muted)', paddingLeft: 2 }}>
+                <span>name</span><span>addr</span><span title="Address is a 0-based offset, not a 5-digit reference">0-b</span><span>type</span><span>area</span><span>scale</span><span></span>
               </div>
             )}
             {registers.map((reg, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 80px 70px 60px 28px', gap: 4, marginBottom: 4, alignItems: 'end' }}>
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 34px 80px 70px 60px 28px', gap: 4, marginBottom: 4, alignItems: 'end' }}>
                 <input value={reg.name} onChange={e => updateRegister(i, 'name', e.target.value)} placeholder="voltage" style={{ ...monoInputStyle, fontSize: 12 }} />
                 <input type="number" value={reg.address} onChange={e => updateRegister(i, 'address', parseInt(e.target.value) || 0)} placeholder="40001" style={{ ...monoInputStyle, fontSize: 12 }} />
+                <input type="checkbox" checked={reg.zero_based} onChange={e => updateRegister(i, 'zero_based', e.target.checked)} title="Address is a 0-based offset (0-65535), not a 5-digit reference" aria-label="Zero-based address" style={{ justifySelf: 'center', marginBottom: 8 }} />
                 <select value={reg.register_type} onChange={e => updateRegister(i, 'register_type', e.target.value)} style={{ ...inputStyle, fontSize: 11 }}>{REG_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select>
                 <select value={reg.register_area} onChange={e => updateRegister(i, 'register_area', e.target.value)} style={{ ...inputStyle, fontSize: 11 }}>{REG_AREAS.map(a => <option key={a} value={a}>{a}</option>)}</select>
                 <input type="number" step="0.01" value={reg.scale} onChange={e => updateRegister(i, 'scale', parseFloat(e.target.value) || 1)} style={{ ...monoInputStyle, fontSize: 12 }} />

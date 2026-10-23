@@ -1,13 +1,17 @@
 // Device files from Modbus Poll and BACnet Explorer ("Export to SCADA" > Voltrus SCADA device).
 //
 // Modbus: the body of POST /api/v1/modbus-devices (src/api/modbus_devices.rs create_modbus_device) with its registers.
+// A register carries `address` (legacy: 0-based below 30001, 5-digit reference from 30001) or `offset` (explicit 0-based
+// offset within register_area, valid up to 65535); the explicit form is what Modbus Poll exports.
 // BACnet: the body of POST /api/v1/bacnet/devices (CreateBacnetDeviceRequest) plus `objects`, each the body of
 // POST /api/v1/bacnet/devices/{id}/objects (CreateBacnetObjectRequest).
 // A file may hold one device, an array of devices, or { devices: [...] }.
 
+/** Give `address` (a 0-based offset below 30001, or a 5-digit reference such as 40001) or `offset` (0-based, 0-65535, any area). */
 export interface ModbusImportRegister {
   name: string
-  address: number
+  address?: number
+  offset?: number
   register_type: string
   register_area: string
   scale: number
@@ -112,11 +116,14 @@ export function parseModbusDeviceFile(text: string): ParsedDeviceFile<ModbusImpo
       const area = str(r.register_area) || 'holding'
       const scale = r.scale ?? 1
       if (!name) out.errors.push(`${label}: register ${j + 1} has no name`)
-      else if (!isInt(r.address, 0, 65535)) out.errors.push(`${label}: ${name} has address ${String(r.address)}, not 0-65535`)
+      else if (r.address !== undefined && r.offset !== undefined) out.errors.push(`${label}: ${name} has both address and offset`)
+      else if (r.address === undefined && r.offset === undefined) out.errors.push(`${label}: ${name} has no address or offset`)
+      else if (r.address !== undefined && !isInt(r.address, 0, 65535)) out.errors.push(`${label}: ${name} has address ${String(r.address)}, not 0-65535`)
+      else if (r.offset !== undefined && !isInt(r.offset, 0, 65535)) out.errors.push(`${label}: ${name} has offset ${String(r.offset)}, not 0-65535`)
       else if (!MODBUS_TYPES.includes(type)) out.errors.push(`${label}: ${name} has type '${type}' (use ${MODBUS_TYPES.join(', ')})`)
       else if (!MODBUS_AREAS.includes(area)) out.errors.push(`${label}: ${name} has area '${area}' (use ${MODBUS_AREAS.join(', ')})`)
       else if (typeof scale !== 'number' || !Number.isFinite(scale)) out.errors.push(`${label}: ${name} has a scale that is not a number`)
-      else registers.push({ name, address: r.address, register_type: type, register_area: area, scale })
+      else registers.push(r.offset !== undefined ? { name, offset: r.offset as number, register_type: type, register_area: area, scale } : { name, address: r.address as number, register_type: type, register_area: area, scale })
     })
     out.devices.push({ id, name: str(raw.name) || id, ip, port, unit_id: unit, interval_ms: interval, endianness, registers })
   })

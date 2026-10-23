@@ -58,8 +58,8 @@ impl Storage {
                         crate::models::RegisterType::Float64 => "float64",
                     };
                     tx.execute(
-                        "INSERT OR IGNORE INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                        rusqlite::params![device.id, reg.name, reg.address, reg_type, reg.register_area, reg.scale, i as i64],
+                        "INSERT OR IGNORE INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order, zero_based) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                        rusqlite::params![device.id, reg.name, reg.address, reg_type, reg.register_area, reg.scale, i as i64, reg.zero_based],
                     ).context("Insert modbus register failed")?;
                 }
             }
@@ -148,18 +148,20 @@ impl Storage {
         let name = name.to_string();
         let ip = ip.to_string();
         let endianness = endianness.to_string();
-        let registers: Vec<(String, u16, String, String, f64)> = registers
+        let registers: Vec<(String, u16, bool, String, String, f64)> = registers
             .iter()
             .map(|r| {
-                (
+                let (address, zero_based) = r.resolve_address().map_err(|e| anyhow::anyhow!(e))?;
+                Ok((
                     r.name.clone(),
-                    r.address,
+                    address,
+                    zero_based,
                     r.register_type.clone(),
                     r.register_area.clone(),
                     r.scale,
-                )
+                ))
             })
-            .collect();
+            .collect::<Result<_>>()?;
         let now = crate::timeutil::now_secs();
 
         tokio::task::spawn_blocking(move || {
@@ -171,10 +173,10 @@ impl Storage {
                 rusqlite::params![id, name, ip, port, unit_id, interval_ms, endianness, now],
             ).context("Insert modbus device failed")?;
 
-            for (i, (rname, addr, rtype, rarea, scale)) in registers.iter().enumerate() {
+            for (i, (rname, addr, zero_based, rtype, rarea, scale)) in registers.iter().enumerate() {
                 tx.execute(
-                    "INSERT INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    rusqlite::params![id, rname, addr, rtype, rarea, scale, i as i64],
+                    "INSERT INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order, zero_based) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    rusqlite::params![id, rname, addr, rtype, rarea, scale, i as i64, zero_based],
                 ).context("Insert modbus register failed")?;
             }
 
@@ -274,7 +276,7 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn.prepare(
-                "SELECT id, device_id, name, address, register_type, register_area, scale, sort_order FROM modbus_registers WHERE device_id = ?1 ORDER BY sort_order"
+                "SELECT id, device_id, name, address, register_type, register_area, scale, sort_order, zero_based FROM modbus_registers WHERE device_id = ?1 ORDER BY sort_order"
             ).context("Prepare failed")?;
             let rows = stmt.query_map(rusqlite::params![device_id], |row| {
                 Ok(ModbusRegister {
@@ -286,6 +288,7 @@ impl Storage {
                     register_area: row.get(5)?,
                     scale: row.get(6)?,
                     sort_order: row.get(7)?,
+                    zero_based: row.get(8)?,
                 })
             }).context("Query failed")?;
             rows.collect::<Result<Vec<_>, _>>().context("Row mapping failed")
@@ -299,28 +302,30 @@ impl Storage {
     ) -> Result<()> {
         let conn = self.conn.clone();
         let device_id = device_id.to_string();
-        let registers: Vec<(String, u16, String, String, f64)> = registers
+        let registers: Vec<(String, u16, bool, String, String, f64)> = registers
             .iter()
             .map(|r| {
-                (
+                let (address, zero_based) = r.resolve_address().map_err(|e| anyhow::anyhow!(e))?;
+                Ok((
                     r.name.clone(),
-                    r.address,
+                    address,
+                    zero_based,
                     r.register_type.clone(),
                     r.register_area.clone(),
                     r.scale,
-                )
+                ))
             })
-            .collect();
+            .collect::<Result<_>>()?;
 
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let tx = conn.unchecked_transaction().context("Begin tx failed")?;
             tx.execute("DELETE FROM modbus_registers WHERE device_id = ?1", rusqlite::params![device_id])
                 .context("Delete registers failed")?;
-            for (i, (rname, addr, rtype, rarea, scale)) in registers.iter().enumerate() {
+            for (i, (rname, addr, zero_based, rtype, rarea, scale)) in registers.iter().enumerate() {
                 tx.execute(
-                    "INSERT INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    rusqlite::params![device_id, rname, addr, rtype, rarea, scale, i as i64],
+                    "INSERT INTO modbus_registers (device_id, name, address, register_type, register_area, scale, sort_order, zero_based) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    rusqlite::params![device_id, rname, addr, rtype, rarea, scale, i as i64, zero_based],
                 ).context("Insert register failed")?;
             }
             tx.commit().context("Commit failed")

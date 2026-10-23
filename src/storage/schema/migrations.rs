@@ -33,6 +33,11 @@ pub(super) fn run_migrations(conn: &Connection) {
         "ALTER TABLE modbus_registers ADD COLUMN register_area TEXT NOT NULL DEFAULT 'holding'",
     );
 
+    // Migration: add zero_based column to modbus_registers (address is a 0-based offset, not a 5-digit reference)
+    let _ = conn.execute_batch(
+        "ALTER TABLE modbus_registers ADD COLUMN zero_based INTEGER NOT NULL DEFAULT 0",
+    );
+
     // Migration: add must_change_password column to users
     let _ = conn.execute_batch(
         "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0",

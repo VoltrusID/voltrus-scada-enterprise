@@ -29,6 +29,7 @@ fn test_device_export_serialization() {
             register_area: "holding".to_string(),
             scale: 1.0,
             sort_order: 0,
+            zero_based: false,
         }],
     };
     let yaml = serde_yaml_neo::to_string(&device).unwrap();

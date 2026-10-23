@@ -35,6 +35,7 @@ pub fn export_config(storage: &Storage, output_dir: &str) -> Result<()> {
                         register_area: r.register_area.clone(),
                         scale: r.scale,
                         sort_order: r.sort_order,
+                        zero_based: r.zero_based,
                     })
                     .collect(),
             };

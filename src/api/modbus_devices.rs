@@ -122,15 +122,7 @@ pub async fn create_modbus_device(
         }
     }
 
-    let registers: Vec<ModbusRegisterInput> = body
-        .get("registers")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|r| serde_json::from_value(r.clone()).ok())
-                .collect()
-        })
-        .unwrap_or_default();
+    let registers = ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
     state
         .storage
@@ -199,15 +191,7 @@ pub async fn update_modbus_device(
 
     // If registers array is present, replace registers too
     if body.get("registers").and_then(|v| v.as_array()).is_some() {
-        let registers: Vec<ModbusRegisterInput> = body
-            .get("registers")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|r| serde_json::from_value(r.clone()).ok())
-                    .collect()
-            })
-            .unwrap_or_default();
+        let registers = ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
         state
             .storage
@@ -284,15 +268,7 @@ pub async fn replace_registers(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse, AppError> {
-    let registers: Vec<ModbusRegisterInput> = body
-        .get("registers")
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|r| serde_json::from_value(r.clone()).ok())
-                .collect()
-        })
-        .unwrap_or_default();
+    let registers = ModbusRegisterInput::parse_all(&body).map_err(|e| AppError(anyhow::anyhow!(e)))?;
 
     state
         .storage

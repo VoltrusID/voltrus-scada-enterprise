@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && rm -f dist/**/*.map dist/*.map && rm -rf ../static && mkdir -p ../static/locales && cp -r dist/* ../static/ && cp -r public/locales/* ../static/locales/",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.3",

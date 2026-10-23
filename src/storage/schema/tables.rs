@@ -136,6 +136,7 @@ pub(super) fn create_tables(conn: &Connection) -> Result<()> {
             register_type TEXT NOT NULL DEFAULT 'float32',
             scale REAL NOT NULL DEFAULT 1.0,
             sort_order INTEGER NOT NULL DEFAULT 0,
+            zero_based INTEGER NOT NULL DEFAULT 0,
             UNIQUE(device_id, name)
         );
         CREATE INDEX IF NOT EXISTS idx_modbus_registers_device

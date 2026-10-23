@@ -126,6 +126,7 @@ impl CommandQueue {
             reg_type: crate::models::RegisterType::Uint16,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
         crate::modbus::write_tag(&self.modbus_pool, &config, &register, value).await
     }
@@ -198,6 +199,7 @@ impl CommandQueue {
             reg_type: crate::models::RegisterType::Uint16,
             scale: 1.0,
             register_area: "holding".into(),
+            zero_based: false,
         };
 
         crate::gateway_client::write_modbus_register(&config, &register, value).await
