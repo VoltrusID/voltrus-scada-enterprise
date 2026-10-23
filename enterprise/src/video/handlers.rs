@@ -7,6 +7,16 @@ use serde_json::json;
 use voltrus::api::{AppError, AppState, AuthUser};
 use voltrus::models::*;
 
+/// RTSP video is an Enterprise feature: refuse with 403 without the entitlement.
+fn require_video(state: &AppState) -> Result<(), AppError> {
+    if !state.tier().rtsp_video() {
+        return Err(AppError::forbidden(
+            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada",
+        ));
+    }
+    Ok(())
+}
+
 // ── Camera CRUD ──
 
 /// GET /api/v1/cameras
@@ -18,11 +28,7 @@ pub async fn list_cameras(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     let cameras = state.storage.list_cameras().await?;
     let mut result = Vec::new();
@@ -57,11 +63,7 @@ pub async fn create_camera(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     if req.name.is_empty() {
         return Err(AppError(anyhow::anyhow!("Camera name is required")));
@@ -134,11 +136,7 @@ pub async fn update_camera(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     // Validate URL if provided
     if let Some(ref url) = req.url {
@@ -184,11 +182,7 @@ pub async fn delete_camera(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     // Remove from stream proxy
     {
@@ -220,11 +214,7 @@ pub async fn trigger_snapshot(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     let camera = state
         .storage
@@ -290,11 +280,7 @@ pub async fn list_snapshots(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     let snapshots = state.storage.list_camera_snapshots(id, 100).await?;
     Ok(Json(snapshots))
@@ -310,11 +296,7 @@ pub async fn delete_snapshot(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     state.storage.delete_camera_snapshot(snapshot_id).await?;
 
@@ -340,11 +322,7 @@ pub async fn get_stream_info(
         return Err(AppError(anyhow::anyhow!("Admin access required")));
     }
 
-    if !state.tier().rtsp_video() {
-        return Err(AppError(anyhow::anyhow!(
-            "RTSP video requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
-    }
+    require_video(&state)?;
 
     let camera = state
         .storage

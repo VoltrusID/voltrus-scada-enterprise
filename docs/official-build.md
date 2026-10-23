@@ -23,9 +23,12 @@ signed keys, 7 day grace, online renew), SSO, 21 CFR Part 11, IEC 62443 audit,
 hot standby, multi-site hub, RTSP video, white-label, scheduled PDF/SMS
 reports, hosted Voltrus AI provider.
 
-`release.sh` and `scripts/release-local.sh` still assume the old single-crate
-layout (`cargo build --bin voltrus --bin modbus-sim` at the repo root). Adapt
-them to `scripts/build-official.sh` output before the next official release.
+`release.sh` and `scripts/release-local.sh` build the official artifacts from this
+layout: `voltrus` from `enterprise/`, `modbus-sim` from `core/`, the client from
+`core/client` with the enterprise module (output `core/static`). Archive names and
+layout are unchanged. `--dry-run` builds and packages, then prints the R2/D1 upload
+plan without running any remote command; `--skip-upload` (`--build-only` in
+`release.sh`) builds only. `BUILD_DIR` moves the output.
 
 ## Where changes go
 
@@ -48,10 +51,84 @@ snapshot became a single-commit public repo. Do not copy history into core.
 
 ## Licence signing key
 
-The activation signing key is NOT in this tree. The audit found that
-`.license-private-key` was committed once in history (tag v0.17.5 and later) of
-this private repo. Rotate it before treating this repo's history as safe to
-share, and never push this history to any public remote.
+The activation signing key is NOT in this tree. The original key's private half
+was committed once in the history of this private repo (`.license-private-key`,
+tags v0.17.5 to v0.45.0). Treat it as compromised, never push this history to a
+public remote, and keep `.license-private-key` in `.gitignore`.
+
+### Rotation (2026-10)
+
+* New key id `2026-10`. The private half exists only in
+  `/run/media/dzul/Data/voltrus-secrets/license-signing-key-2026-10.txt` (the drive
+  is exFAT, so POSIX permissions cannot be enforced there: keep the drive offline
+  when not needed) and as the Cloudflare Worker secret `ED25519_PRIVATE_KEY` of
+  `voltrus-license-activate` (64 hex characters, the Ed25519 seed, which is what
+  `worker/license-activate/src/index.ts` passes to `sign`). The console worker does
+  not sign activations and holds no copy.
+* Official binaries trust two public keys, newest first
+  (`TRUSTED_PUBLIC_KEYS` in `enterprise/src/licensing/activation.rs`): the 2026-10
+  key and the original key. Activation files signed by either verify, so existing
+  installs keep their features. The worker signs everything new with the 2026-10 key.
+* An install that is online and holds an activation signed with the old key asks the
+  worker for a fresh one (`/renew`, same machine, spends no activation) at start-up
+  and then every six hours until it is re-signed with the new key. Offline installs keep
+  working with the old signature until the old key is dropped.
+* A binary older than this rotation does not know the new key. After the worker
+  switched, an activation or renewal issued to such a binary fails signature
+  verification there, so tell customers to update before they renew or activate.
+* Signing a test activation: `cargo run --example sign_activation -- --key FILE
+  --tier enterprise --out activation.bin` in `enterprise/` (binds to this machine's
+  fingerprint, `--expires`, `--fingerprint`, `--license-key` and `--issued-at`
+  override). It lives in `examples/`, so `cargo build --release` never builds it and it
+  is not in the packaged binary. The official binary has no override of the trusted
+  keys; tests inject keys only through the private `verify_with_keys`.
+
+### Retiring the old public key
+
+Do this once old-signed activations are gone, not on a date. The worker records the
+key id of every activation it signs in D1 table `activation_signings`
+(database `voltrus-licenses`; a licence with no row was last signed before the
+rotation, so with the old key).
+
+1. Wait for the auto re-issue: every online install re-signs at the first start on a
+   release with the dual key. Allow at least one full monthly
+   billing cycle so monthly keys renew once too.
+2. Count bindings still on the old key (revoked ones do not matter):
+
+   ```sh
+   cd worker/license-activate
+   bunx wrangler d1 execute voltrus-licenses --remote --command "
+     SELECT COUNT(*) AS still_old FROM license_bindings b
+     LEFT JOIN activation_signings s ON s.license_key = b.license_key
+     WHERE b.revoked = 0 AND (s.key_id IS NULL OR s.key_id != '2026-10')"
+   ```
+
+   List them with `SELECT b.license_key, b.tier, b.activated_at ...` for outreach.
+   Console licences (`VLT-*`) have no row in `license_bindings`; check
+   `activation_signings WHERE license_key LIKE 'VLT-%'` against the console seats
+   (`license_activations` in `voltrus-console`) the same way.
+3. Contact holders that remain (offline or lifetime installs that never came online).
+   They either connect once, or import a new file from the console or support.
+4. When the count is zero, or the remaining holders were told and accepted a date:
+   delete the second entry of `TRUSTED_PUBLIC_KEYS`, update the
+   `production_key_set_*` unit test, release, and rotate `SIGNING_KEY_ID` only on
+   the next real rotation. Old-signed files then fail with "Invalid activation
+   signature" and the install runs as Community; core keeps working.
+5. After dropping the key from the binary and once every supported release has it,
+   the old private key has no value to an attacker. Until then, an attacker with it
+   can forge a licence that verifies on any binary that still trusts the old key.
+
+### Monitoring
+
+* Alert on a rising count of `activation_signings` rows with `key_id != '2026-10'`
+  after the rotation (that means the secret was rolled back) and on worker 5xx
+  rates (`wrangler tail voltrus-license-activate`, observability is enabled).
+* Customer symptom for an unverifiable file is `Invalid activation signature` in
+  the Licence panel or `InvalidSignature` in `GET /api/license/status`. A cluster
+  of these after a release means a binary without the new key got a new-key
+  activation.
+* Legacy Starter and Edge keys resolve to Community plus logo-only white-label
+  (`legacy_white_label` in the licence status); they are not affected by the rotation.
 
 ## SDKs
 

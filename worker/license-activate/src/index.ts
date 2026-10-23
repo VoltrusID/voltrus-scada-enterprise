@@ -439,6 +439,22 @@ async function validatePolarLicense(key: string, env: Env, incrementUsage: boole
     return { valid: false, error: `Polar.sh validation failed: ${e instanceof Error ? e.message : String(e)}`, code: "unavailable" };
   }
 }
+// Id of the key ED25519_PRIVATE_KEY holds. Bump it whenever the secret is rotated: every signed
+// activation is recorded against it (activation_signings) so a retired public key can be dropped from
+// the official build once no live binding is still signed with it (docs/official-build.md).
+const SIGNING_KEY_ID = "2026-10";
+
+async function recordSigning(env: Env, licenseKey: string): Promise<void> {
+  try {
+    await env.DB.prepare(
+      "INSERT INTO activation_signings (license_key, key_id, signed_at) VALUES (?, ?, CURRENT_TIMESTAMP) " +
+        "ON CONFLICT(license_key) DO UPDATE SET key_id = excluded.key_id, signed_at = excluded.signed_at"
+    ).bind(licenseKey, SIGNING_KEY_ID).run();
+  } catch (err) {
+    console.error(`Could not record signing key for ${licenseKey}: ${err}`);
+  }
+}
+
 async function generateActivation(
   request_data: LicenseRequest,
   env: Env,
@@ -462,6 +478,7 @@ async function generateActivation(
   const payload_json = new TextEncoder().encode(JSON.stringify(payload));
   const private_key = hexToBytes(env.ED25519_PRIVATE_KEY);
   const signature = sign(payload_json, private_key);
+  await recordSigning(env, request_data.license_key);
   const activation = {
     ...payload,
     signature: bytesToHex(signature)

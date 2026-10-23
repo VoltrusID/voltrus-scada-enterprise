@@ -10,9 +10,9 @@ use voltrus::models::*;
 
 fn require_enterprise(state: &AppState) -> Result<(), AppError> {
     if !state.tier().iec_62443() {
-        return Err(AppError(anyhow::anyhow!(
-            "Security audit requires an Enterprise licence. See https://voltrus.id/voltrus-scada"
-        )));
+        return Err(AppError::forbidden(
+            "Security audit requires an Enterprise licence. See https://voltrus.id/voltrus-scada",
+        ));
     }
     Ok(())
 }

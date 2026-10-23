@@ -107,6 +107,36 @@ fn legacy_starter_and_edge_keys_become_community_but_stay_valid() {
 }
 
 #[test]
+fn legacy_starter_and_edge_keep_logo_only_white_label() {
+    for legacy in ["starter", "edge", " Starter "] {
+        let status = evaluate_activation(&activation(legacy, None), at("2026-11-01T00:00:00Z"));
+        assert!(status.white_label(), "{legacy}");
+        let flags = status.feature_flags();
+        for (key, value) in flags.as_object().unwrap() {
+            assert_eq!(value, &serde_json::json!(key == "white_label"), "{legacy} {key}");
+        }
+    }
+}
+
+#[test]
+fn other_tiers_get_no_extra_white_label_grant() {
+    let now = at("2026-11-01T00:00:00Z");
+    let engineering = evaluate_activation(&activation("engineering", None), now);
+    assert!(!engineering.white_label());
+    let integrator = evaluate_activation(&activation("integrator", None), now);
+    assert!(integrator.white_label());
+    assert_eq!(integrator.feature_flags()["theme_full"], true);
+}
+
+#[test]
+fn expired_legacy_starter_loses_the_logo_grant() {
+    let a = activation("starter", Some("2026-11-01T00:00:00Z"));
+    let status = evaluate_activation(&a, at("2026-11-09T00:00:00Z"));
+    assert!(matches!(status, LicenseStatus::Expired { .. }));
+    assert!(!status.white_label());
+}
+
+#[test]
 fn garbage_expiry_is_rejected() {
     let status = evaluate_activation(
         &activation("enterprise", Some("soon")),

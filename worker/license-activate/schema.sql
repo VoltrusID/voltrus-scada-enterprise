@@ -19,3 +19,11 @@ CREATE TABLE IF NOT EXISTS email_sequence (
   unsubscribed INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_email_sequence_due ON email_sequence(unsubscribed, purchased_at);
+
+-- Which signing key produced the latest activation of each licence (binding or console seat).
+-- A licence with no row here was last signed before the 2026-10 rotation, i.e. with the old key.
+CREATE TABLE IF NOT EXISTS activation_signings (
+  license_key TEXT PRIMARY KEY,
+  key_id TEXT NOT NULL,
+  signed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

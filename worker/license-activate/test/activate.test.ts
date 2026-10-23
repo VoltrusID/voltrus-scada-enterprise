@@ -51,6 +51,7 @@ function setup(opts: {
     "SELECT fingerprint_hash": () => opts.binding ?? null,
     "UPDATE license_bindings": () => null,
     "INSERT INTO license_bindings": () => null,
+    "INSERT INTO activation_signings": () => null,
   });
   const consoleDb = fakeDb({
     "SELECT id, status, expires_at": () => opts.consoleLicense ?? null,
@@ -135,6 +136,24 @@ describe("activate: signed tier and expiry", () => {
     expect(t.bindings.calls.some((c) => c.sql.startsWith("INSERT INTO license_bindings"))).toBe(true);
     // The first activation spends the Polar usage.
     expect(t.polarBodies[0]).toMatchObject({ increment_usage: 1 });
+  });
+
+  it("records which signing key issued the activation", async () => {
+    const t = setup({ info: { tier: "integrator", expires_at: null, recurring: false } });
+    await post(t.env, "/activate", volreq());
+    const recorded = t.bindings.calls.find((c) => c.sql.startsWith("INSERT INTO activation_signings"));
+    expect(recorded?.args).toEqual([KEY, "2026-10"]);
+  });
+
+  it("a failed signing record does not block the activation", async () => {
+    const t = setup({ info: { tier: "integrator", expires_at: null, recurring: false } });
+    const prepare = t.bindings.prepare.bind(t.bindings);
+    t.bindings.prepare = (sql: string) => {
+      if (sql.startsWith("INSERT INTO activation_signings")) throw new Error("no such table");
+      return prepare(sql);
+    };
+    const out = await reply(await post(t.env, "/activate", volreq()));
+    expect(out.success).toBe(true);
   });
 
   it("a monthly key expires at the subscription period end", async () => {

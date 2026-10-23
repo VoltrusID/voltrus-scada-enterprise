@@ -98,5 +98,16 @@ pub fn evaluate_activation(activation: &LicenseActivation, now: OffsetDateTime) 
         days_remaining,
         tier: activation.tier.clone(),
         grace,
+        legacy_white_label: is_legacy_white_label(activation.tier.as_deref()),
     }
+}
+
+/// Starter and Edge keys were sold with a logo swap. The open core now includes
+/// everything else those tiers had, so they resolve to Community, but existing
+/// holders keep the logo-only white-label (not the full theme editor).
+fn is_legacy_white_label(tier: Option<&str>) -> bool {
+    matches!(
+        tier.map(|t| t.trim().to_lowercase()).as_deref(),
+        Some("starter") | Some("edge")
+    )
 }
