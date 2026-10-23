@@ -1,0 +1,29 @@
+{
+  "name": "@voltrus/enterprise-sdk",
+  "version": "0.47.1",
+  "private": true,
+  "description": "Official TypeScript SDK extension for the Voltrus SCADA Enterprise add-on endpoints",
+  "license": "UNLICENSED",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:core": "npm --prefix ../../../core/sdks/typescript install --no-audit --no-fund && npm --prefix ../../../core/sdks/typescript run build",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "voltrus": "0.47.1"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "typescript": "^5.3.0",
+    "voltrus": "file:../../../core/sdks/typescript"
+  }
+}
