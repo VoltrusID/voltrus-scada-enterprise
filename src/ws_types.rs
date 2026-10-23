@@ -204,10 +204,24 @@ mod tests {
             simulated: false,
         };
         let bytes = rmp_serde::to_vec_named(&msg).unwrap();
-        eprintln!("[DEBUG] to_vec_named hex: {}", bytes.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(" "));
-        eprintln!("[DEBUG] first byte: 0x{:02x} (0x80-0x8f = fixmap, 0x90-0x9f = fixarray)", bytes[0]);
+        eprintln!(
+            "[DEBUG] to_vec_named hex: {}",
+            bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        eprintln!(
+            "[DEBUG] first byte: 0x{:02x} (0x80-0x8f = fixmap, 0x90-0x9f = fixarray)",
+            bytes[0]
+        );
         // fixmap: 0x80 | n  where n is number of keys (should be 6)
-        assert!(bytes[0] >= 0x80 && bytes[0] <= 0x8f, "Expected fixmap, got 0x{:02x}", bytes[0]);
+        assert!(
+            bytes[0] >= 0x80 && bytes[0] <= 0x8f,
+            "Expected fixmap, got 0x{:02x}",
+            bytes[0]
+        );
     }
 
     #[test]

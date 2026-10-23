@@ -16,9 +16,10 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
     };
 
     match &snapshot {
-        LicenseStatus::Engineering { polling_active: true, .. } => {
-            Json(json!({"ok": true, "message": "Polling already active"}))
-        }
+        LicenseStatus::Engineering {
+            polling_active: true,
+            ..
+        } => Json(json!({"ok": true, "message": "Polling already active"})),
         LicenseStatus::Engineering {
             started_at,
             tier,
@@ -38,7 +39,9 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
                         started_at: *started_at,
                         daily_budget_secs: budget,
                         daily_used_secs: used,
-                        message: "Daily polling budget exhausted. Resumes tomorrow at midnight UTC.".to_string(),
+                        message:
+                            "Daily polling budget exhausted. Resumes tomorrow at midnight UTC."
+                                .to_string(),
                     };
                 }
                 state.poller_manager.stop_all().await;
@@ -82,7 +85,9 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
             }
             tracing::info!("Engineering polling started — {} device(s)", started_count);
 
-            Json(json!({"ok": true, "message": "Polling started", "devices_started": started_count}))
+            Json(
+                json!({"ok": true, "message": "Polling started", "devices_started": started_count}),
+            )
         }
         LicenseStatus::EngineeringPollingStopped {
             started_at,
@@ -95,7 +100,9 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
             let remaining = (budget - used).max(0);
 
             if remaining <= 0 {
-                return Json(json!({"ok": false, "error": "Daily polling budget exhausted. Resumes tomorrow at midnight UTC."}));
+                return Json(
+                    json!({"ok": false, "error": "Daily polling budget exhausted. Resumes tomorrow at midnight UTC."}),
+                );
             }
 
             let tier = crate::license::LicenseTier::Engineering;
@@ -133,13 +140,16 @@ pub async fn start_polling(State(state): State<AppState>) -> Json<serde_json::Va
                 state.poller_manager.start(config.clone()).await;
                 started_count += 1;
             }
-            tracing::info!("Engineering polling restarted — {} device(s)", started_count);
+            tracing::info!(
+                "Engineering polling restarted — {} device(s)",
+                started_count
+            );
 
-            Json(json!({"ok": true, "message": "Polling restarted", "devices_started": started_count}))
+            Json(
+                json!({"ok": true, "message": "Polling restarted", "devices_started": started_count}),
+            )
         }
-        _ => {
-            Json(json!({"ok": false, "error": "Not in Engineering mode"}))
-        }
+        _ => Json(json!({"ok": false, "error": "Not in Engineering mode"})),
     }
 }
 
@@ -155,9 +165,10 @@ pub async fn stop_polling(State(state): State<AppState>) -> Json<serde_json::Val
     };
 
     match &snapshot {
-        LicenseStatus::Engineering { polling_active: false, .. } => {
-            Json(json!({"ok": true, "message": "Polling already paused"}))
-        }
+        LicenseStatus::Engineering {
+            polling_active: false,
+            ..
+        } => Json(json!({"ok": true, "message": "Polling already paused"})),
         LicenseStatus::Engineering {
             started_at,
             polling_elapsed_secs,
@@ -189,8 +200,6 @@ pub async fn stop_polling(State(state): State<AppState>) -> Json<serde_json::Val
 
             Json(json!({"ok": true, "message": "Polling paused"}))
         }
-        _ => {
-            Json(json!({"ok": false, "error": "Not in Engineering mode"}))
-        }
+        _ => Json(json!({"ok": false, "error": "Not in Engineering mode"})),
     }
 }

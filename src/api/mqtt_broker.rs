@@ -1,6 +1,6 @@
-use axum::extract::{Path, Query};
 use axum::Json;
 use axum::extract::{Extension, State};
+use axum::extract::{Path, Query};
 use axum::response::IntoResponse;
 use serde::Deserialize;
 use serde_json::json;
@@ -312,7 +312,9 @@ pub async fn get_topics(
         .as_ref()
         .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
 
-    Ok(Json(mqtt_broker::get_topic_tree(&broker.topic_tracker).await))
+    Ok(Json(
+        mqtt_broker::get_topic_tree(&broker.topic_tracker).await,
+    ))
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
@@ -352,10 +354,7 @@ pub async fn get_topic_messages(
         .as_ref()
         .ok_or_else(|| AppError(anyhow::anyhow!("MQTT broker module not initialized")))?;
 
-    let messages = broker
-        .topic_tracker
-        .get_topic_messages(&topic)
-        .await;
+    let messages = broker.topic_tracker.get_topic_messages(&topic).await;
 
     Ok(Json(json!({
         "topic": topic,

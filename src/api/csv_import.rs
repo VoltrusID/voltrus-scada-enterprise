@@ -146,7 +146,8 @@ pub async fn import_csv(
                     Json(json!({
                         "error": "column_mapping must include 'tag_name'",
                     })),
-                ).into_response());
+                )
+                    .into_response());
             }
             provided
         }

@@ -55,7 +55,12 @@ pub async fn create_user_handler(
         )
             .into_response());
     }
-    if body.role != "admin" && body.role != "user" && body.role != "demo" && body.role != "operator" && body.role != "viewer" {
+    if body.role != "admin"
+        && body.role != "user"
+        && body.role != "demo"
+        && body.role != "operator"
+        && body.role != "viewer"
+    {
         return Ok((
             StatusCode::BAD_REQUEST,
             Json(json!({"error": "unknown role"})),
@@ -117,7 +122,12 @@ pub async fn update_user_handler(
         .ok_or_else(|| anyhow::anyhow!("User not found"))?;
     let mut details = Vec::new();
     if let Some(role) = body.role {
-        if role != "admin" && role != "user" && role != "demo" && role != "operator" && role != "viewer" {
+        if role != "admin"
+            && role != "user"
+            && role != "demo"
+            && role != "operator"
+            && role != "viewer"
+        {
             return Ok((
                 StatusCode::BAD_REQUEST,
                 Json(json!({"error": "unknown role"})),

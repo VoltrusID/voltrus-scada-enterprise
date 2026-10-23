@@ -92,14 +92,10 @@ async fn connect_and_stream(
                                 HashMap::new();
 
                             for entry in updates {
-                                let key = entry
-                                    .get("tag_id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("");
-                                let value = entry
-                                    .get("value")
-                                    .and_then(|v| v.as_f64())
-                                    .unwrap_or(0.0);
+                                let key =
+                                    entry.get("tag_id").and_then(|v| v.as_str()).unwrap_or("");
+                                let value =
+                                    entry.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
                                 if !key.is_empty() {
                                     device_metrics
                                         .entry(String::new()) // all go to default device
@@ -115,14 +111,8 @@ async fn connect_and_stream(
                         }
                     }
                     "TagUpdate" => {
-                        let key = parsed
-                            .get("tag_id")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        let value = parsed
-                            .get("value")
-                            .and_then(|v| v.as_f64())
-                            .unwrap_or(0.0);
+                        let key = parsed.get("tag_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let value = parsed.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         if !key.is_empty() {
                             let prefixed_id = format!("{}:default", site.name);
                             let metrics = HashMap::from([(key.to_string(), value)]);

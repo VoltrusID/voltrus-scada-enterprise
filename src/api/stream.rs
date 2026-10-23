@@ -46,7 +46,9 @@ pub fn spawn_data_broadcaster(
             }
 
             // Skip all work when there are no WS consumers
-            let has_ws = ws_manager.as_ref().map_or(false, |ws| ws.connection_count() > 0);
+            let has_ws = ws_manager
+                .as_ref()
+                .map_or(false, |ws| ws.connection_count() > 0);
             if !has_ws {
                 continue;
             }

@@ -10,10 +10,10 @@
 //! `/api/v1/opcua/devices`), so the existing storage + poller + cache pipeline
 //! serves them unchanged.
 
+use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use axum::Json;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use voltrus_gateway::pb::{
     self, connect_request::Protocol, discover_request::Protocol as DiscoverProto,
 };
@@ -135,7 +135,11 @@ pub async fn discover(
             poll_interval_ms: 1000,
             assembly_instance: 0,
         }),
-        other => return Err(anyhow::anyhow!("discover not supported for '{other}' (modbus/enip only)").into()),
+        other => {
+            return Err(
+                anyhow::anyhow!("discover not supported for '{other}' (modbus/enip only)").into(),
+            );
+        }
     };
     let resp = client
         .discover(pb::DiscoverRequest {
@@ -166,7 +170,7 @@ pub struct ScanBody {
     pub ip: String,
     pub port: Option<u32>,
     pub unit_id: Option<u32>,
-    pub area: Option<String>,     // holding | input | coil | discrete (default holding)
+    pub area: Option<String>, // holding | input | coil | discrete (default holding)
     pub reg_type: Option<String>, // float32 | uint16 | int16 | int32 | uint32 | float64
     pub start: Option<u32>,
     pub count: Option<u32>, // number of tags (not registers); capped at 200
@@ -267,7 +271,6 @@ pub async fn scan(
     Ok(Json(json!({ "tags": out })))
 }
 
-
 // ── POST /api/v1/gateway/browse ───────────────────────────────────────────────
 #[derive(serde::Deserialize)]
 pub struct BrowseBody {
@@ -299,11 +302,13 @@ pub async fn browse(
     Ok(Json(json!({ "tags": out })))
 }
 
-
 /// Build a `ConnectRequest` for the browse call from a flat JSON params object.
 fn build_connect_request(protocol: &str, p: Value) -> Result<pb::ConnectRequest, AppError> {
     fn s(p: &Value, k: &str, dflt: &str) -> String {
-        p.get(k).and_then(|v| v.as_str()).unwrap_or(dflt).to_string()
+        p.get(k)
+            .and_then(|v| v.as_str())
+            .unwrap_or(dflt)
+            .to_string()
     }
     fn u32v(p: &Value, k: &str, dflt: u32) -> u32 {
         p.get(k).and_then(|v| v.as_u64()).unwrap_or(dflt as u64) as u32
@@ -330,7 +335,11 @@ fn build_connect_request(protocol: &str, p: Value) -> Result<pb::ConnectRequest,
             password: s(&p, "password", ""),
             poll_interval_ms: u64v(&p, "poll_interval_ms", 1000),
         }),
-        other => return Err(anyhow::anyhow!("unsupported browse protocol '{other}' (modbus/opcua)").into()),
+        other => {
+            return Err(
+                anyhow::anyhow!("unsupported browse protocol '{other}' (modbus/opcua)").into(),
+            );
+        }
     };
     Ok(pb::ConnectRequest {
         session_hint: "browse".into(),

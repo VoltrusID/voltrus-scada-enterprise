@@ -47,8 +47,10 @@ fn severity_color(severity: &str, cx: &App) -> Hsla {
 fn hhmmss(ts: i64) -> String {
     time::OffsetDateTime::from_unix_timestamp(ts)
         .map(|t| {
-            t.format(&time::macros::format_description!("[hour]:[minute]:[second]"))
-                .unwrap_or_default()
+            t.format(&time::macros::format_description!(
+                "[hour]:[minute]:[second]"
+            ))
+            .unwrap_or_default()
         })
         .unwrap_or_default()
 }
@@ -171,9 +173,8 @@ pub struct AlarmsView {
 impl AlarmsView {
     pub fn new(handle: RuntimeHandle, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let h = handle.clone();
-        let table = cx.new(|cx| {
-            TableState::new(AlarmTableDelegate::new(h), window, cx).col_movable(false)
-        });
+        let table =
+            cx.new(|cx| TableState::new(AlarmTableDelegate::new(h), window, cx).col_movable(false));
         Self { table, handle }
     }
 
@@ -194,23 +195,18 @@ impl Render for AlarmsView {
             .p_2()
             .gap_2()
             .child(
-                h_flex()
-                    .justify_end()
-                    .child(
-                        Button::new("ack-all")
-                            .label("Acknowledge All")
-                            .on_click(move |_, _, _| {
-                                handle.send(UiCmd::AckAll);
-                            }),
-                    ),
+                h_flex().justify_end().child(
+                    Button::new("ack-all")
+                        .label("Acknowledge All")
+                        .on_click(move |_, _, _| {
+                            handle.send(UiCmd::AckAll);
+                        }),
+                ),
             )
             .child(
-                v_flex().flex_1().child(
-                    Table::new(&self.table)
-                        .bordered(false)
-                        .stripe(true)
-                        .small(),
-                ),
+                v_flex()
+                    .flex_1()
+                    .child(Table::new(&self.table).bordered(false).stripe(true).small()),
             )
             .child(
                 div()

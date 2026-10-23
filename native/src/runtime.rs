@@ -120,10 +120,7 @@ fn backoff(failures: u32) -> Duration {
     }
 }
 
-async fn actor(
-    mut cmd_rx: mpsc::UnboundedReceiver<UiCmd>,
-    evt_tx: mpsc::UnboundedSender<RtEvent>,
-) {
+async fn actor(mut cmd_rx: mpsc::UnboundedReceiver<UiCmd>, evt_tx: mpsc::UnboundedSender<RtEvent>) {
     let mut state = Actor {
         api: None,
         creds: None,
@@ -146,7 +143,11 @@ async fn actor(
 
     while let Some(ev) = ev_rx.recv().await {
         match ev {
-            Ev::Cmd(UiCmd::Login { url, username, password }) => {
+            Ev::Cmd(UiCmd::Login {
+                url,
+                username,
+                password,
+            }) => {
                 let _ = state.evt_tx.send(RtEvent::Conn("logging in…".into()));
                 let mut api = VoltrusApi::new(&url);
                 match api.login(&username, &password).await {
@@ -218,7 +219,12 @@ async fn actor(
                 let _ = state.evt_tx.send(RtEvent::Conn("live".into()));
                 // (Re)subscribe everything after (re)connect.
                 if !state.subscribed.is_empty() {
-                    try_send_ws(&Some(tx), ClientMessage::Subscribe { tag_ids: state.subscribed.clone() });
+                    try_send_ws(
+                        &Some(tx),
+                        ClientMessage::Subscribe {
+                            tag_ids: state.subscribed.clone(),
+                        },
+                    );
                 }
             }
             Ev::Ws(WsFrom::Msg(msg)) => match msg {
@@ -228,7 +234,13 @@ async fn actor(
                         .evt_tx
                         .send(RtEvent::Conn(format!("auth error: {message}")));
                 }
-                ServerMessage::TagUpdate { tag_id, value, quality, ts, simulated } => {
+                ServerMessage::TagUpdate {
+                    tag_id,
+                    value,
+                    quality,
+                    ts,
+                    simulated,
+                } => {
                     let _ = state.evt_tx.send(RtEvent::Tags(vec![TagUpdateEntry {
                         tag_id,
                         value,
@@ -240,7 +252,14 @@ async fn actor(
                 ServerMessage::TagUpdateBatch { updates } => {
                     let _ = state.evt_tx.send(RtEvent::Tags(updates));
                 }
-                ServerMessage::Alarm { alarm_id, tag_id, severity, message, value, ts } => {
+                ServerMessage::Alarm {
+                    alarm_id,
+                    tag_id,
+                    severity,
+                    message,
+                    value,
+                    ts,
+                } => {
                     let _ = state.evt_tx.send(RtEvent::Alarm(AlarmEvent {
                         alarm_id,
                         tag_id,
@@ -336,7 +355,9 @@ fn spawn_ws(ev_tx: mpsc::UnboundedSender<Ev>, url: String, token: String) {
                     // universally accepted encoding (matches its own send_msg).
                     let bytes = rmp_serde::to_vec_named(&msg).expect("encode client msg");
                     if sink
-                        .send(tokio_tungstenite::tungstenite::Message::Binary(bytes.into()))
+                        .send(tokio_tungstenite::tungstenite::Message::Binary(
+                            bytes.into(),
+                        ))
                         .await
                         .is_err()
                     {

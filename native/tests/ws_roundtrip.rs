@@ -206,7 +206,10 @@ fn msgpack_smaller_than_json() {
 #[test]
 fn named_map_decode_preserves_token_value() {
     let tok = "eyJ1c2VybmFtZSI6ImFkbWluIn0.sig";
-    let bytes = rmp_serde::to_vec_named(&ClientMessage::Auth { token: tok.to_string() }).unwrap();
+    let bytes = rmp_serde::to_vec_named(&ClientMessage::Auth {
+        token: tok.to_string(),
+    })
+    .unwrap();
     let decoded: ClientMessage = rmp_serde::from_slice(&bytes).unwrap();
     match decoded {
         ClientMessage::Auth { token } => {

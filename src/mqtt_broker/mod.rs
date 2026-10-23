@@ -392,7 +392,6 @@ pub async fn get_topic_tree(tracker: &TopicTracker) -> serde_json::Value {
     })
 }
 
-
 #[cfg(test)]
 mod topic_tracker_tests {
     use super::*;
@@ -419,6 +418,8 @@ mod topic_tracker_tests {
     async fn record_message_without_subscribers_is_noop() {
         // No subscriber present — the broadcast send must not error.
         let tracker = TopicTracker::new();
-        tracker.record_message("x/y".into(), b"1".to_vec(), true).await;
+        tracker
+            .record_message("x/y".into(), b"1".to_vec(), true)
+            .await;
     }
 }

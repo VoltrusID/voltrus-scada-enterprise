@@ -170,7 +170,10 @@ pub async fn load_daily_polling_state(storage: &Storage) -> (i64, i64) {
             }
         }
         Err(e) => {
-            tracing::warn!("Engineering polling: failed to load state from storage: {}", e);
+            tracing::warn!(
+                "Engineering polling: failed to load state from storage: {}",
+                e
+            );
             (0, ENGINEERING_DAILY_BUDGET_SECS)
         }
     }

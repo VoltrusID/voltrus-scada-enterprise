@@ -74,7 +74,9 @@ impl Storage {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
             let mut stmt = conn
-                .prepare("SELECT id, permissions, expires_at, role FROM api_keys WHERE key_hash = ?1")
+                .prepare(
+                    "SELECT id, permissions, expires_at, role FROM api_keys WHERE key_hash = ?1",
+                )
                 .context("Prepare failed")?;
             let result = stmt
                 .query_row(rusqlite::params![key_hash], |row| {

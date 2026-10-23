@@ -273,7 +273,10 @@ mod tests {
                 simulated: false,
             },
         );
-        assert!(matches!(rx.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
+        assert!(matches!(
+            rx.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
 
         // Enable subscribe_all
         mgr.subscribe_all("c1", true);

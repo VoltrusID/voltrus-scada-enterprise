@@ -43,7 +43,9 @@ async fn test_registers_keep_legacy_references_and_explicit_offsets() {
         {"name": "high_coil", "offset": 40000, "register_type": "uint16", "register_area": "coil"},
     ]}));
     storage
-        .create_modbus_device("dev_high", "High", "10.0.0.9", 502, 1, 1000, "big", &registers)
+        .create_modbus_device(
+            "dev_high", "High", "10.0.0.9", 502, 1, 1000, "big", &registers,
+        )
         .await
         .unwrap();
 
@@ -53,9 +55,20 @@ async fn test_registers_keep_legacy_references_and_explicit_offsets() {
     assert!(by_name("high_holding").zero_based);
     assert_eq!(by_name("high_holding").address, 35000);
 
-    let device = storage.get_modbus_device("dev_high").await.unwrap().unwrap();
+    let device = storage
+        .get_modbus_device("dev_high")
+        .await
+        .unwrap()
+        .unwrap();
     let config = device.to_device_config(&stored);
-    let wire = |n: &str| config.registers.iter().find(|r| r.name == n).unwrap().protocol_address();
+    let wire = |n: &str| {
+        config
+            .registers
+            .iter()
+            .find(|r| r.name == n)
+            .unwrap()
+            .protocol_address()
+    };
     assert_eq!(wire("legacy_holding"), 0);
     assert_eq!(wire("legacy_input"), 2);
     assert_eq!(wire("plain"), 12);
@@ -64,20 +77,40 @@ async fn test_registers_keep_legacy_references_and_explicit_offsets() {
     assert_eq!(wire("high_coil"), 40000);
 
     // What the API returns can be sent back unchanged.
-    let echoed = register_inputs(serde_json::json!({ "registers": serde_json::to_value(&stored).unwrap() }));
-    storage.replace_modbus_registers("dev_high", &echoed).await.unwrap();
+    let echoed =
+        register_inputs(serde_json::json!({ "registers": serde_json::to_value(&stored).unwrap() }));
+    storage
+        .replace_modbus_registers("dev_high", &echoed)
+        .await
+        .unwrap();
     let again = storage.list_modbus_registers("dev_high").await.unwrap();
     assert_eq!(
-        again.iter().map(|r| (r.name.clone(), r.address, r.zero_based)).collect::<Vec<_>>(),
-        stored.iter().map(|r| (r.name.clone(), r.address, r.zero_based)).collect::<Vec<_>>()
+        again
+            .iter()
+            .map(|r| (r.name.clone(), r.address, r.zero_based))
+            .collect::<Vec<_>>(),
+        stored
+            .iter()
+            .map(|r| (r.name.clone(), r.address, r.zero_based))
+            .collect::<Vec<_>>()
     );
 }
 
 #[test]
 fn test_register_input_needs_exactly_one_address() {
-    let parse = |r: serde_json::Value| crate::models::ModbusRegisterInput::parse_all(&serde_json::json!({"registers": [r]}));
-    assert!(parse(serde_json::json!({"name": "a"})).unwrap_err().contains("required"));
-    assert!(parse(serde_json::json!({"name": "a", "address": 1, "offset": 1})).unwrap_err().contains("not both"));
+    let parse = |r: serde_json::Value| {
+        crate::models::ModbusRegisterInput::parse_all(&serde_json::json!({"registers": [r]}))
+    };
+    assert!(
+        parse(serde_json::json!({"name": "a"}))
+            .unwrap_err()
+            .contains("required")
+    );
+    assert!(
+        parse(serde_json::json!({"name": "a", "address": 1, "offset": 1}))
+            .unwrap_err()
+            .contains("not both")
+    );
     assert!(parse(serde_json::json!({"name": "a", "offset": 70000})).is_err());
     assert!(parse(serde_json::json!({"name": "a", "offset": 0})).is_ok());
 }
@@ -109,13 +142,24 @@ async fn test_modbus_poll_export_round_trip() {
     let config = device.to_device_config(&storage.list_modbus_registers("big_map").await.unwrap());
     assert_eq!(config.port, 1502);
     assert_eq!(config.interval_ms, 2000);
-    assert!(matches!(config.endianness, crate::models::Endianness::Swapped));
+    assert!(matches!(
+        config.endianness,
+        crate::models::Endianness::Swapped
+    ));
 
     use crate::models::RegisterType::*;
     let wire: Vec<_> = config
         .registers
         .iter()
-        .map(|r| (r.name.as_str(), r.register_area.as_str(), r.protocol_address(), r.reg_type.clone(), r.scale))
+        .map(|r| {
+            (
+                r.name.as_str(),
+                r.register_area.as_str(),
+                r.protocol_address(),
+                r.reg_type.clone(),
+                r.scale,
+            )
+        })
         .collect();
     assert_eq!(
         wire,

@@ -8,8 +8,8 @@ use calamine::{Data, Reader, open_workbook_auto_from_rs};
 use serde::Deserialize;
 use serde_json::json;
 
-use super::{AppError, AppState, AuthUser};
 use super::csv_import::{auto_detect_columns_pub, parse_timestamp_pub};
+use super::{AppError, AppState, AuthUser};
 use crate::license::LicenseTier;
 
 #[derive(Debug, Deserialize)]
@@ -154,9 +154,13 @@ pub async fn import_excel(
         _ => available_sheets[0].clone(),
     };
 
-    let range = workbook
-        .worksheet_range(&sheet_name)
-        .map_err(|e| AppError(anyhow::anyhow!("Failed to read sheet '{}': {}", sheet_name, e)))?;
+    let range = workbook.worksheet_range(&sheet_name).map_err(|e| {
+        AppError(anyhow::anyhow!(
+            "Failed to read sheet '{}': {}",
+            sheet_name,
+            e
+        ))
+    })?;
 
     let mut rows_iter = range.rows();
 
@@ -192,7 +196,8 @@ pub async fn import_excel(
                     Json(json!({
                         "error": "column_mapping must include 'tag_name'",
                     })),
-                ).into_response());
+                )
+                    .into_response());
             }
             provided
         }

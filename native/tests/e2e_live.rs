@@ -43,7 +43,10 @@ async fn live_login_sensors_ws_stream() {
             Err(_) => {}
         }
     }
-    assert!(probe_done, "probe login produced no event — channel wiring broken");
+    assert!(
+        probe_done,
+        "probe login produced no event — channel wiring broken"
+    );
 
     handle.send(UiCmd::Login {
         url,
@@ -79,7 +82,7 @@ async fn live_login_sensors_ws_stream() {
                 _ => {}
             },
             Ok(None) => break, // channel closed
-            Err(_) => {}      // timeout tick
+            Err(_) => {}       // timeout tick
         }
     }
 

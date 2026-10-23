@@ -4,4 +4,3 @@ mod types;
 
 pub use poller::*;
 pub use types::*;
-

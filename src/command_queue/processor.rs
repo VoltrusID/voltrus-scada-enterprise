@@ -50,9 +50,7 @@ impl CommandQueue {
     /// Returns a shared handle to the embedded MQTT broker slot so main.rs can
     /// populate it after the broker starts (the queue task is already spawned).
     #[cfg(feature = "mqtt-broker")]
-    pub fn mqtt_broker_handle(
-        &self,
-    ) -> Arc<RwLock<Option<crate::mqtt_broker::MqttBrokerState>>> {
+    pub fn mqtt_broker_handle(&self) -> Arc<RwLock<Option<crate::mqtt_broker::MqttBrokerState>>> {
         self.mqtt_broker.clone()
     }
 
@@ -75,7 +73,12 @@ impl CommandQueue {
             let now = crate::timeutil::now_secs();
             tracing::info!(
                 "Processing command: id={}, ds={}, device={}, protocol={}, status={}, value={}",
-                cmd.id, cmd.data_source_id, cmd.device_id, cmd.protocol, cmd.status, cmd.value
+                cmd.id,
+                cmd.data_source_id,
+                cmd.device_id,
+                cmd.protocol,
+                cmd.status,
+                cmd.value
             );
 
             // -- Expiry check --
@@ -123,14 +126,24 @@ impl CommandQueue {
             }
 
             // -- Resolve the text device ID from the data source for cache lookups --
-            let ds = self.storage.get_data_source_by_id(cmd.data_source_id).await.ok().flatten();
-            let cache_device_id = ds.as_ref().map(|d| d.device_id.clone()).unwrap_or_else(|| cmd.device_id.to_string());
+            let ds = self
+                .storage
+                .get_data_source_by_id(cmd.data_source_id)
+                .await
+                .ok()
+                .flatten();
+            let cache_device_id = ds
+                .as_ref()
+                .map(|d| d.device_id.clone())
+                .unwrap_or_else(|| cmd.device_id.to_string());
 
             // -- Device online check --
             if !self.cache.is_device_online(&cache_device_id).await {
                 tracing::warn!(
                     "Skipping command {}: device '{}' (cache key '{}') is offline or not in cache",
-                    cmd.id, cmd.device_id, cache_device_id
+                    cmd.id,
+                    cmd.device_id,
+                    cache_device_id
                 );
                 continue;
             }
@@ -170,7 +183,9 @@ impl CommandQueue {
                     // Update the cache so the new value is visible immediately
                     if let Some(ds) = ds {
                         if let Ok(value) = cmd.value.parse::<f64>() {
-                            self.cache.set_metric_value(&cache_device_id, &ds.key, value).await;
+                            self.cache
+                                .set_metric_value(&cache_device_id, &ds.key, value)
+                                .await;
                         }
                     }
                 }
@@ -178,7 +193,10 @@ impl CommandQueue {
                     let error = result.error.as_deref().unwrap_or("Unknown error");
                     tracing::warn!(
                         "Command failed: id={}, error={}, retry={}/{}",
-                        cmd.id, error, cmd.retry_count, cmd.max_retries
+                        cmd.id,
+                        error,
+                        cmd.retry_count,
+                        cmd.max_retries
                     );
                     if cmd.retry_count < cmd.max_retries {
                         self.publish_status_event(&cmd.id, "queued", Some(error));

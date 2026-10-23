@@ -2,7 +2,7 @@
 //! (`client/src/index.css`) so the native console and the web dashboard read
 //! as one product.
 
-use gpui::{px, rgb, App};
+use gpui::{App, px, rgb};
 use gpui_component::Theme;
 
 // ── Palette (see client/src/index.css `:root`) ──

@@ -1464,7 +1464,13 @@ fn handle_import(args: &[String]) -> bool {
         std::process::exit(1);
     }
     let tier = status.tier();
-    match crate::project_export::import_project(&app_config.db_path, &input_path, dry_run, force, &tier) {
+    match crate::project_export::import_project(
+        &app_config.db_path,
+        &input_path,
+        dry_run,
+        force,
+        &tier,
+    ) {
         Ok(manifest) => {
             if dry_run {
                 println!("Dry-run validation passed for: {}", input_path);

@@ -34,13 +34,15 @@ async fn test_api_key_crud() {
         global_rate_limiter: crate::security::GlobalRateLimiter::new(),
         audit_logger: crate::security::AuditLogger::new().0,
         intrusion_detector: crate::security::IntrusionDetector::new(),
-        license_status: std::sync::Arc::new(std::sync::RwLock::new(crate::license::LicenseStatus::Valid {
-            license_key: "polar_test_key".to_string(),
-            expires_at: None,
-            days_remaining: None,
-            tier: Some("professional".to_string()),
-            device_limit: None,
-        })),
+        license_status: std::sync::Arc::new(std::sync::RwLock::new(
+            crate::license::LicenseStatus::Valid {
+                license_key: "polar_test_key".to_string(),
+                expires_at: None,
+                days_remaining: None,
+                tier: Some("professional".to_string()),
+                device_limit: None,
+            },
+        )),
         license_tier: crate::license::LicenseTier::Professional,
         feature_flags: crate::license::LicenseTier::Professional.to_feature_flags(),
         smtp_config: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
@@ -267,13 +269,22 @@ async fn test_api_key_default_role_is_read_only() {
     let app = test_app_with_seeded_admin().await;
     let cookie = admin_cookie(&app).await;
 
-    let (status, json) = create_key(&app, &cookie, serde_json::json!({"name": "readonly-key"})).await;
+    let (status, json) =
+        create_key(&app, &cookie, serde_json::json!({"name": "readonly-key"})).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["role"], "api");
     let plain_key = json["key"].as_str().unwrap().to_string();
 
     // Reads keep working
-    let (status, _) = send_request(&app, "GET", "/api/v1/data-sources", Some(&plain_key), None, None).await;
+    let (status, _) = send_request(
+        &app,
+        "GET",
+        "/api/v1/data-sources",
+        Some(&plain_key),
+        None,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
 
     // Operational writes stay blocked for plain keys
@@ -289,7 +300,8 @@ async fn test_api_key_default_role_is_read_only() {
     assert_eq!(status, StatusCode::FORBIDDEN);
 
     // Admin routes stay blocked
-    let (status, _) = send_request(&app, "GET", "/api/v1/users", Some(&plain_key), None, None).await;
+    let (status, _) =
+        send_request(&app, "GET", "/api/v1/users", Some(&plain_key), None, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
@@ -324,13 +336,30 @@ async fn test_integration_key_write_access() {
     assert!(body["id"].as_i64().unwrap() > 0);
 
     // Reads still fine
-    let (status, _) = send_request(&app, "GET", "/api/v1/data-sources", Some(&plain_key), None, None).await;
+    let (status, _) = send_request(
+        &app,
+        "GET",
+        "/api/v1/data-sources",
+        Some(&plain_key),
+        None,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
 
     // Admin-only routes stay closed: users and API-key management
-    let (status, _) = send_request(&app, "GET", "/api/v1/users", Some(&plain_key), None, None).await;
+    let (status, _) =
+        send_request(&app, "GET", "/api/v1/users", Some(&plain_key), None, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    let (status, _) = send_request(&app, "GET", "/api/v1/api-keys", Some(&plain_key), None, None).await;
+    let (status, _) = send_request(
+        &app,
+        "GET",
+        "/api/v1/api-keys",
+        Some(&plain_key),
+        None,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
@@ -348,7 +377,12 @@ async fn test_api_key_create_rejects_privileged_and_unknown_roles() {
             serde_json::json!({"name": "bad-key", "role": role}),
         )
         .await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "role {} should be rejected", role);
+        assert_eq!(
+            status,
+            StatusCode::BAD_REQUEST,
+            "role {} should be rejected",
+            role
+        );
         assert!(json["error"].as_str().unwrap().contains(role));
     }
 

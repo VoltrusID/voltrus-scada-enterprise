@@ -129,7 +129,11 @@ pub async fn write_tag(
         offset,
         bit_offset: 0,
         data_type: s7_data_type.clone(),
-        length: if s7_data_type == S7DataType::String { 254 } else { 1 },
+        length: if s7_data_type == S7DataType::String {
+            254
+        } else {
+            1
+        },
         name: None,
     };
 

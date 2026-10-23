@@ -264,5 +264,4 @@ smtp:
         let config = load_config(f.path().to_str().unwrap()).unwrap();
         assert!(config.smtp.is_none());
     }
-
 }

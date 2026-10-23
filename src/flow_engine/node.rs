@@ -229,14 +229,15 @@ impl NodeConfig {
                         Err(e) => last_error = Some(e.to_string()),
                     }
                     if attempt < *retry_count {
-                        tokio::time::sleep(std::time::Duration::from_millis(
-                            100 * (attempt + 1),
-                        ))
-                        .await;
+                        tokio::time::sleep(std::time::Duration::from_millis(100 * (attempt + 1)))
+                            .await;
                     }
                 }
                 if let Some(e) = last_error {
-                    return Err(format!("HttpOut failed after {} retries: {}", retry_count, e));
+                    return Err(format!(
+                        "HttpOut failed after {} retries: {}",
+                        retry_count, e
+                    ));
                 }
                 Ok(NodeResult::Continue(msg))
             }

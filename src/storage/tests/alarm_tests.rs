@@ -141,26 +141,49 @@ async fn test_low_alarm_resolves_on_rise_not_drop() {
 
     // Low alarm: threshold 10, deadband 2. Fires when value <= 10.
     let _id = storage
-        .create_alarm_with_type("low_tag", "critical", 8.0, 10.0, "Below low limit", 2.0, "low")
+        .create_alarm_with_type(
+            "low_tag",
+            "critical",
+            8.0,
+            10.0,
+            "Below low limit",
+            2.0,
+            "low",
+        )
         .await
         .unwrap();
 
     // Dropping further must NOT clear a low alarm. The pre-fix high-inequality
     // resolve logic would have wrongly resolved it here (5 < 10 - 2).
-    storage.resolve_active_alarms("low_tag", Some(5.0)).await.unwrap();
+    storage
+        .resolve_active_alarms("low_tag", Some(5.0))
+        .await
+        .unwrap();
     let alarms = storage.list_alarms(Some("active"), 50).await.unwrap();
-    assert_eq!(alarms.len(), 1, "low alarm must not clear when value drops further");
+    assert_eq!(
+        alarms.len(),
+        1,
+        "low alarm must not clear when value drops further"
+    );
     assert!(alarms[0].resolved_at.is_none());
 
     // Inside the hysteresis band (10 < 11 <= 12) must not clear yet.
-    storage.resolve_active_alarms("low_tag", Some(11.0)).await.unwrap();
+    storage
+        .resolve_active_alarms("low_tag", Some(11.0))
+        .await
+        .unwrap();
     assert!(
-        storage.list_alarms(Some("active"), 50).await.unwrap()[0].resolved_at.is_none(),
+        storage.list_alarms(Some("active"), 50).await.unwrap()[0]
+            .resolved_at
+            .is_none(),
         "low alarm stays active inside the deadband band"
     );
 
     // Rising above threshold + deadband (13 > 10 + 2) clears it.
-    storage.resolve_active_alarms("low_tag", Some(13.0)).await.unwrap();
+    storage
+        .resolve_active_alarms("low_tag", Some(13.0))
+        .await
+        .unwrap();
     let alarms = storage.list_alarms(Some("all"), 50).await.unwrap();
     assert_eq!(alarms.len(), 1);
     assert!(alarms[0].resolved_at.is_some());
@@ -234,7 +257,13 @@ async fn test_alarm_journal_records_every_transition() {
     let events: Vec<&str> = journal.iter().map(|e| e.event.as_str()).collect();
     assert_eq!(
         events,
-        vec!["triggered", "acknowledged", "shelved", "unshelved", "resolved"]
+        vec![
+            "triggered",
+            "acknowledged",
+            "shelved",
+            "unshelved",
+            "resolved"
+        ]
     );
     // Actor is recorded for operator actions, NULL for system events.
     assert_eq!(journal[1].actor.as_deref(), Some("admin"));
@@ -264,9 +293,11 @@ async fn test_acknowledge_all_writes_journal_rows() {
     for id in [a, b] {
         let journal = storage.list_alarm_journal(id, 100).await.unwrap();
         assert!(journal.iter().any(|e| e.event == "triggered"));
-        assert!(journal
-            .iter()
-            .any(|e| e.event == "acknowledged" && e.actor.as_deref() == Some("operator")));
+        assert!(
+            journal
+                .iter()
+                .any(|e| e.event == "acknowledged" && e.actor.as_deref() == Some("operator"))
+        );
     }
 }
 

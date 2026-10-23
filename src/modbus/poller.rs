@@ -113,7 +113,12 @@ async fn try_poll(
             let response = match read_result {
                 Ok(Ok(Ok(words))) => words,
                 Ok(Ok(Err(code))) => {
-                    tracing::warn!("Device {} Modbus exception at addr {}: {:?}", config.id, start_addr, code);
+                    tracing::warn!(
+                        "Device {} Modbus exception at addr {}: {:?}",
+                        config.id,
+                        start_addr,
+                        code
+                    );
                     for j in i..group_end {
                         metrics.insert(sorted_regs[j].name.clone(), f64::NAN);
                     }
@@ -121,7 +126,11 @@ async fn try_poll(
                     continue;
                 }
                 Ok(Err(e)) => {
-                    anyhow::bail!("Modbus read failed for group starting at {}: {}", start_addr, e);
+                    anyhow::bail!(
+                        "Modbus read failed for group starting at {}: {}",
+                        start_addr,
+                        e
+                    );
                 }
                 Err(_) => {
                     anyhow::bail!("Modbus read timeout for group starting at {}", start_addr);
@@ -136,7 +145,11 @@ async fn try_poll(
                     metrics.insert(reg.name.clone(), f64::NAN);
                     continue;
                 }
-                let value = parse_register(&response[offset..offset + count], &reg.reg_type, &config.endianness) * reg.scale;
+                let value = parse_register(
+                    &response[offset..offset + count],
+                    &reg.reg_type,
+                    &config.endianness,
+                ) * reg.scale;
                 metrics.insert(reg.name.clone(), value);
             }
 

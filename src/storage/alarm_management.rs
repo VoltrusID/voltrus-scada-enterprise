@@ -328,7 +328,11 @@ impl Storage {
     }
 
     /// List journal entries for one alarm, oldest first.
-    pub async fn list_alarm_journal(&self, alarm_id: i64, limit: u32) -> Result<Vec<AlarmJournalEntry>> {
+    pub async fn list_alarm_journal(
+        &self,
+        alarm_id: i64,
+        limit: u32,
+    ) -> Result<Vec<AlarmJournalEntry>> {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();

@@ -118,9 +118,18 @@ mod tests {
 
         // 5s blip against a 10s delay: pending starts, then the condition
         // drops before it can fire.
-        assert_eq!(update_delay(&mut state, true, 10, 0, 100), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, true, 10, 0, 105), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, false, 10, 0, 105), DelayTransition::Resolve);
+        assert_eq!(
+            update_delay(&mut state, true, 10, 0, 100),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, true, 10, 0, 105),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, false, 10, 0, 105),
+            DelayTransition::Resolve
+        );
         assert_eq!(state.pending_since, None, "blip must clear the pending");
 
         // A later raise starts a fresh delay from the new tick — it must not
@@ -128,8 +137,14 @@ mod tests {
         let t = update_delay(&mut state, true, 10, 0, 112);
         assert_eq!(t, DelayTransition::Pending);
         assert_eq!(state.pending_since, Some(112));
-        assert_eq!(update_delay(&mut state, true, 10, 0, 121), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, true, 10, 0, 122), DelayTransition::Fire);
+        assert_eq!(
+            update_delay(&mut state, true, 10, 0, 121),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, true, 10, 0, 122),
+            DelayTransition::Fire
+        );
     }
 
     #[test]
@@ -137,23 +152,50 @@ mod tests {
         let mut state = DelayState::default();
 
         // Fire first.
-        assert_eq!(update_delay(&mut state, true, 5, 10, 100), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, true, 5, 10, 105), DelayTransition::Fire);
+        assert_eq!(
+            update_delay(&mut state, true, 5, 10, 100),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, true, 5, 10, 105),
+            DelayTransition::Fire
+        );
 
         // Condition drops: alarm stays raised until the normal condition has
         // persisted for off_delay_secs.
-        assert_eq!(update_delay(&mut state, false, 5, 10, 200), DelayTransition::Pending);
+        assert_eq!(
+            update_delay(&mut state, false, 5, 10, 200),
+            DelayTransition::Pending
+        );
         assert_eq!(state.clear_pending_since, Some(200));
-        assert_eq!(update_delay(&mut state, false, 5, 10, 204), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, false, 5, 10, 210), DelayTransition::Resolve);
+        assert_eq!(
+            update_delay(&mut state, false, 5, 10, 204),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, false, 5, 10, 210),
+            DelayTransition::Resolve
+        );
         assert_eq!(state.clear_pending_since, None);
 
         // A blip back into the alarm condition during the clear delay resets
         // it — the alarm stays raised.
-        assert_eq!(update_delay(&mut state, true, 5, 10, 300), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, false, 5, 10, 301), DelayTransition::Pending);
-        assert_eq!(update_delay(&mut state, true, 5, 10, 305), DelayTransition::Pending);
-        assert_eq!(state.clear_pending_since, None, "raise during clear delay resets it");
+        assert_eq!(
+            update_delay(&mut state, true, 5, 10, 300),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, false, 5, 10, 301),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            update_delay(&mut state, true, 5, 10, 305),
+            DelayTransition::Pending
+        );
+        assert_eq!(
+            state.clear_pending_since, None,
+            "raise during clear delay resets it"
+        );
     }
 
     #[test]
@@ -162,9 +204,15 @@ mod tests {
 
         // delay = 0 must behave exactly like the pre-delay behavior: fire and
         // resolve on the first tick, with no state tracked.
-        assert_eq!(update_delay(&mut state, true, 0, 0, 100), DelayTransition::Fire);
+        assert_eq!(
+            update_delay(&mut state, true, 0, 0, 100),
+            DelayTransition::Fire
+        );
         assert_eq!(state.pending_since, None);
-        assert_eq!(update_delay(&mut state, false, 0, 0, 101), DelayTransition::Resolve);
+        assert_eq!(
+            update_delay(&mut state, false, 0, 0, 101),
+            DelayTransition::Resolve
+        );
         assert_eq!(state.clear_pending_since, None);
     }
 

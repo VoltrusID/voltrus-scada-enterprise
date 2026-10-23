@@ -53,12 +53,14 @@ impl PlcRuntimeClient {
     }
 
     /// Write a value to a variable on the runtime.
-    pub async fn write_variable(&self, name: &str, value: f64) -> Result<crate::models::WriteResult> {
+    pub async fn write_variable(
+        &self,
+        name: &str,
+        value: f64,
+    ) -> Result<crate::models::WriteResult> {
         match self.transport.as_str() {
             "websocket" => self.ws_write_variable(name, value).await,
-            "grpc" => {
-                Err(anyhow::anyhow!("gRPC transport not yet implemented"))
-            }
+            "grpc" => Err(anyhow::anyhow!("gRPC transport not yet implemented")),
             _ => anyhow::bail!("Unknown transport: {}", self.transport),
         }
     }
@@ -67,9 +69,7 @@ impl PlcRuntimeClient {
     pub async fn get_state(&self) -> Result<PlcRuntimeState> {
         match self.transport.as_str() {
             "websocket" => self.ws_get_state().await,
-            "grpc" => {
-                Err(anyhow::anyhow!("gRPC transport not yet implemented"))
-            }
+            "grpc" => Err(anyhow::anyhow!("gRPC transport not yet implemented")),
             _ => anyhow::bail!("Unknown transport: {}", self.transport),
         }
     }
@@ -78,7 +78,9 @@ impl PlcRuntimeClient {
 
     async fn ws_health_check(&self) -> Result<()> {
         let health_url = format!("http://{}/api/health", self.url);
-        let resp = self.http.get(&health_url)
+        let resp = self
+            .http
+            .get(&health_url)
             .send()
             .await
             .context("PLC runtime health check failed")?;
@@ -91,7 +93,9 @@ impl PlcRuntimeClient {
 
     async fn ws_read_variables(&self) -> Result<HashMap<String, f64>> {
         let vars_url = format!("http://{}/api/variables", self.url);
-        let resp = self.http.get(&vars_url)
+        let resp = self
+            .http
+            .get(&vars_url)
             .send()
             .await
             .context("Failed to read PLC variables")?;
@@ -100,18 +104,22 @@ impl PlcRuntimeClient {
             anyhow::bail!("PLC returned status {}", resp.status());
         }
 
-        let variables: HashMap<String, f64> = resp
-            .json()
-            .await
-            .context("Failed to parse PLC variables")?;
+        let variables: HashMap<String, f64> =
+            resp.json().await.context("Failed to parse PLC variables")?;
         Ok(variables)
     }
 
-    async fn ws_write_variable(&self, name: &str, value: f64) -> Result<crate::models::WriteResult> {
+    async fn ws_write_variable(
+        &self,
+        name: &str,
+        value: f64,
+    ) -> Result<crate::models::WriteResult> {
         let start = std::time::Instant::now();
 
         let write_url = format!("http://{}/api/variables/{}", self.url, name);
-        let resp = self.http.post(&write_url)
+        let resp = self
+            .http
+            .post(&write_url)
             .json(&serde_json::json!({ "value": value }))
             .send()
             .await
@@ -138,7 +146,9 @@ impl PlcRuntimeClient {
 
     async fn ws_get_state(&self) -> Result<PlcRuntimeState> {
         let state_url = format!("http://{}/api/state", self.url);
-        let resp = self.http.get(&state_url)
+        let resp = self
+            .http
+            .get(&state_url)
             .send()
             .await
             .context("Failed to get PLC state")?;

@@ -159,10 +159,16 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM voltrus_plc_tags WHERE device_id = ?1", rusqlite::params![id])
-                .context("Delete voltrus_plc tags failed")?;
-            conn.execute("DELETE FROM voltrus_plc_devices WHERE id = ?1", rusqlite::params![id])
-                .context("Delete voltrus_plc device failed")?;
+            conn.execute(
+                "DELETE FROM voltrus_plc_tags WHERE device_id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete voltrus_plc tags failed")?;
+            conn.execute(
+                "DELETE FROM voltrus_plc_devices WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete voltrus_plc device failed")?;
             Ok(())
         })
         .await
@@ -245,8 +251,11 @@ impl Storage {
         let conn = self.conn.clone();
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().unwrap();
-            conn.execute("DELETE FROM voltrus_plc_tags WHERE id = ?1", rusqlite::params![id])
-                .context("Delete voltrus_plc tag failed")?;
+            conn.execute(
+                "DELETE FROM voltrus_plc_tags WHERE id = ?1",
+                rusqlite::params![id],
+            )
+            .context("Delete voltrus_plc tag failed")?;
             Ok(())
         })
         .await
@@ -254,9 +263,7 @@ impl Storage {
     }
 
     /// Load all device configs with their tags for poller startup.
-    pub async fn get_all_voltrus_plc_device_configs(
-        &self,
-    ) -> Result<Vec<VoltrusPlcDeviceConfig>> {
+    pub async fn get_all_voltrus_plc_device_configs(&self) -> Result<Vec<VoltrusPlcDeviceConfig>> {
         let devices = self.list_voltrus_plc_devices().await?;
         let mut configs = Vec::new();
 

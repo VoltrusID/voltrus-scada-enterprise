@@ -162,7 +162,10 @@ fn test_engineering_polling_stopped_is_valid() {
 #[test]
 fn test_from_tier_str() {
     assert_eq!(LicenseTier::from_tier_str(None), LicenseTier::Engineering);
-    assert_eq!(LicenseTier::from_tier_str(Some("")), LicenseTier::Engineering);
+    assert_eq!(
+        LicenseTier::from_tier_str(Some("")),
+        LicenseTier::Engineering
+    );
     assert_eq!(
         LicenseTier::from_tier_str(Some("unknown")),
         LicenseTier::Engineering
@@ -175,14 +178,8 @@ fn test_from_tier_str() {
         LicenseTier::from_tier_str(Some("Starter")),
         LicenseTier::Starter
     );
-    assert_eq!(
-        LicenseTier::from_tier_str(Some("edge")),
-        LicenseTier::Edge
-    );
-    assert_eq!(
-        LicenseTier::from_tier_str(Some("Edge")),
-        LicenseTier::Edge
-    );
+    assert_eq!(LicenseTier::from_tier_str(Some("edge")), LicenseTier::Edge);
+    assert_eq!(LicenseTier::from_tier_str(Some("Edge")), LicenseTier::Edge);
     assert_eq!(
         LicenseTier::from_tier_str(Some("STARTER")),
         LicenseTier::Starter
@@ -393,16 +390,24 @@ fn test_hmac_sign_and_verify() {
 
     // Sign and verify should succeed
     let sig = super::verification::sign_polling_state(date, used_secs);
-    assert!(super::verification::verify_polling_hmac(date, used_secs, &sig));
+    assert!(super::verification::verify_polling_hmac(
+        date, used_secs, &sig
+    ));
 
     // Wrong used_secs should fail
     assert!(!super::verification::verify_polling_hmac(date, 3601, &sig));
 
     // Wrong date should fail
-    assert!(!super::verification::verify_polling_hmac("2026-05-18", used_secs, &sig));
+    assert!(!super::verification::verify_polling_hmac(
+        "2026-05-18",
+        used_secs,
+        &sig
+    ));
 
     // Garbage HMAC should fail
-    assert!(!super::verification::verify_polling_hmac(date, used_secs, "deadbeef"));
+    assert!(!super::verification::verify_polling_hmac(
+        date, used_secs, "deadbeef"
+    ));
 }
 
 #[test]

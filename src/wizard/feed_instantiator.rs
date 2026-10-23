@@ -100,8 +100,8 @@ impl<'a> FeedInstantiator<'a> {
                     "#f97316",
                     min_val,
                     max_val,
-                    min_val,  // warn_val — no alarm by default
-                    max_val,  // crit_val — no alarm by default
+                    min_val, // warn_val — no alarm by default
+                    max_val, // crit_val — no alarm by default
                     base_val,
                     sort_order,
                     decimals,
@@ -129,23 +129,24 @@ impl<'a> FeedInstantiator<'a> {
         }
 
         // 3. Create screen from first recommended screen and assign data sources
-        let screens_created = if let Some(screen) = self.template.dashboard.recommended_screens.first() {
-            let screen_id = self.screen_id(screen);
-            if !self.storage.device_exists(&screen_id).await? {
-                self.storage
-                    .create_device(&screen_id, &screen.name, 1)
-                    .await?;
-                for (i, &ds_id) in created_data_source_ids.iter().enumerate() {
+        let screens_created =
+            if let Some(screen) = self.template.dashboard.recommended_screens.first() {
+                let screen_id = self.screen_id(screen);
+                if !self.storage.device_exists(&screen_id).await? {
                     self.storage
-                        .add_screen_data_source(&screen_id, ds_id, i as i64)
-                        .await
-                        .context("Failed to assign data source to screen")?;
+                        .create_device(&screen_id, &screen.name, 1)
+                        .await?;
+                    for (i, &ds_id) in created_data_source_ids.iter().enumerate() {
+                        self.storage
+                            .add_screen_data_source(&screen_id, ds_id, i as i64)
+                            .await
+                            .context("Failed to assign data source to screen")?;
+                    }
                 }
-            }
-            1
-        } else {
-            0
-        };
+                1
+            } else {
+                0
+            };
 
         let screen_id = self
             .template
@@ -171,7 +172,11 @@ impl<'a> FeedInstantiator<'a> {
 
                 let equipment_id = format!(
                     "eq_{}_{}",
-                    section.equipment_group.to_lowercase().replace(' ', "_").replace('/', "_"),
+                    section
+                        .equipment_group
+                        .to_lowercase()
+                        .replace(' ', "_")
+                        .replace('/', "_"),
                     idx
                 );
 
@@ -227,8 +232,7 @@ impl<'a> FeedInstantiator<'a> {
         for rule in &expanded_alarm_rules {
             // Find matching data source
             if let Some(ds) = all_data_sources.iter().find(|ds| {
-                ds.key.ends_with(&rule.signal)
-                    || ds.key.contains(&format!(":{}", rule.signal))
+                ds.key.ends_with(&rule.signal) || ds.key.contains(&format!(":{}", rule.signal))
             }) {
                 let threshold = parse_setpoint(&rule.setpoint);
                 let update = match rule.condition.as_str() {
@@ -316,10 +320,7 @@ impl<'a> FeedInstantiator<'a> {
                     for i in 1..=count {
                         let expanded_signal = pattern.replace("{n}", &i.to_string());
                         // Only include if the signal actually exists in expanded I/O
-                        if expanded_ios
-                            .iter()
-                            .any(|io| io.signal == expanded_signal)
-                        {
+                        if expanded_ios.iter().any(|io| io.signal == expanded_signal) {
                             result.push(ExpandedAlarmRule {
                                 signal: expanded_signal,
                                 severity: rule.severity.clone(),

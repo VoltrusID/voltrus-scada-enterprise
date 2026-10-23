@@ -809,9 +809,7 @@ impl CommandQueue {
                 return WriteResult {
                     success: false,
                     device_response: None,
-                    error: Some(
-                        "Could not parse MQTT topic from source_config".to_string(),
-                    ),
+                    error: Some("Could not parse MQTT topic from source_config".to_string()),
                     latency_ms: 0,
                 };
             }
@@ -824,10 +822,7 @@ impl CommandQueue {
             Some(b) => match b.publish_sync(&topic, payload.as_bytes()) {
                 Ok(_) => WriteResult {
                     success: true,
-                    device_response: Some(format!(
-                        "published {} bytes to {topic}",
-                        payload.len()
-                    )),
+                    device_response: Some(format!("published {} bytes to {topic}", payload.len())),
                     error: None,
                     latency_ms: started.elapsed().as_millis() as u64,
                 },
@@ -841,9 +836,7 @@ impl CommandQueue {
             None => WriteResult {
                 success: false,
                 device_response: None,
-                error: Some(
-                    "MQTT broker is not running; cannot publish command".to_string(),
-                ),
+                error: Some("MQTT broker is not running; cannot publish command".to_string()),
                 latency_ms: 0,
             },
         }

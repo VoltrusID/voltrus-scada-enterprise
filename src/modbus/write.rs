@@ -1,7 +1,7 @@
 use tokio_modbus::prelude::*;
 
-use crate::models::*;
 use super::types::value_to_words;
+use crate::models::*;
 
 pub async fn write_tag(
     pool: &crate::modbus::pool::ModbusPool,
@@ -25,7 +25,16 @@ pub async fn write_tag(
 
     // Coil writes
     if register.register_area == "coil" {
-        return write_coil(pool, &config.id, socket_addr, config.unit_id, register.protocol_address(), value != 0.0, start).await;
+        return write_coil(
+            pool,
+            &config.id,
+            socket_addr,
+            config.unit_id,
+            register.protocol_address(),
+            value != 0.0,
+            start,
+        )
+        .await;
     }
 
     let words = value_to_words(value, &register.reg_type, &config.endianness);

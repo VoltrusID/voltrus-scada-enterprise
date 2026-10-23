@@ -1,6 +1,6 @@
+use axum::response::Html;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, SecurityScheme};
 use utoipa::{Modify, OpenApi};
-use axum::response::Html;
 
 #[derive(OpenApi)]
 #[openapi(

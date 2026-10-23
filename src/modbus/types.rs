@@ -32,7 +32,11 @@ pub(crate) fn combine_u16(high: u16, low: u16, endianness: &Endianness) -> u32 {
     }
 }
 
-pub(crate) fn value_to_words(value: f64, reg_type: &RegisterType, endianness: &Endianness) -> Vec<u16> {
+pub(crate) fn value_to_words(
+    value: f64,
+    reg_type: &RegisterType,
+    endianness: &Endianness,
+) -> Vec<u16> {
     match reg_type {
         RegisterType::Uint16 => vec![value as u16],
         RegisterType::Int16 => vec![(value as i16) as u16],
