@@ -2,6 +2,8 @@ import { useState, useEffect, Fragment } from 'react'
 import { useBacnetDevices, useBacnetDevice, useCreateBacnetDevice, useUpdateBacnetDevice, useDeleteBacnetDevice, useAddBacnetObject, useRemoveBacnetObject, useDiscoverBacnet } from './queries'
 import { btnStyle, inputStyle } from './styles'
 import type { BacnetDevice, BacnetObject } from './queries'
+import { FileDropZone, ImportFileButton, ImportNotice } from './components/FileDropZone'
+import { deviceFileKind, parseBacnetDeviceFile } from './deviceFileImport'
 
 const BACNET_OBJECT_TYPES = [
   'analogInput', 'analogOutput', 'analogValue',
@@ -14,6 +16,8 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
   const createMut = useCreateBacnetDevice()
   const updateMut = useUpdateBacnetDevice()
   const deleteMut = useDeleteBacnetDevice()
+  const addObjectMut = useAddBacnetObject()
+  const [importLines, setImportLines] = useState<string[]>([])
 
   const [filter, setFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -41,6 +45,36 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
     updateMut.mutate({ id, ...fields }, { onSuccess: () => setEditDevice(null) })
   }
 
+  // Device files from BACnet Explorer's "Export to SCADA" (Voltrus SCADA device), by drop or file picker.
+  const importFiles = async (files: File[]) => {
+    const lines: string[] = []
+    for (const file of files) {
+      const text = await file.text()
+      if (deviceFileKind(text) === 'modbus') { lines.push(`${file.name}: this is a Modbus device file, import it on the Modbus devices page`); continue }
+      const { devices: parsed, errors } = parseBacnetDeviceFile(text)
+      errors.forEach(e => lines.push(`${file.name}: ${e}`))
+      for (const d of parsed) {
+        try {
+          const { objects, ...device } = d
+          const created = await createMut.mutateAsync(device)
+          let added = 0
+          for (const object of objects) {
+            try {
+              await addObjectMut.mutateAsync({ deviceId: created.id, object })
+              added++
+            } catch (e) {
+              lines.push(`${file.name}: ${d.name}: ${object.name} was not added: ${e instanceof Error ? e.message : String(e)}`)
+            }
+          }
+          lines.push(`${file.name}: added ${d.name} with ${added} of ${objects.length} objects`)
+        } catch (e) {
+          lines.push(`${file.name}: ${d.name} was not added: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    }
+    setImportLines(lines)
+  }
+
   const handleDelete = (id: number) => {
     if (!confirm('Delete this BACnet device?')) return
     deleteMut.mutate(id)
@@ -56,11 +90,12 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
   }
 
   const tableContent = (
-    <>
+    <FileDropZone onFiles={importFiles} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <input placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 200 }} />
+          <ImportFileButton onFiles={importFiles} ariaLabel="Import BACnet device file" />
           <button
             style={{ ...btnStyle, borderColor: 'var(--muted)', color: 'var(--muted)' }}
             onClick={() => setShowDiscover(s => !s)}
@@ -77,6 +112,8 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
           </button>
         </div>
       </div>
+
+      <ImportNotice lines={importLines} onDismiss={() => setImportLines([])} />
 
       {showDiscover && (
         <BacnetDiscoverPanel onClose={() => setShowDiscover(false)} />
@@ -180,7 +217,7 @@ export function BacnetDeviceManager({ onClose, embedded }: { onClose: () => void
           </table>
         )}
       </div>
-    </>
+    </FileDropZone>
   )
 
   if (embedded) {

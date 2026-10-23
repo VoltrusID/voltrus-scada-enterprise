@@ -5,6 +5,8 @@ import { ModbusDeviceForm } from './ModbusDeviceForm'
 import { SimControls } from './components/SimControls'
 import { SimProfileManager } from './components/SimProfileManager'
 import type { ModbusDevice, ModbusRegister } from './types'
+import { FileDropZone, ImportFileButton, ImportNotice } from './components/FileDropZone'
+import { deviceFileKind, parseModbusDeviceFile } from './deviceFileImport'
 
 export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void; embedded?: boolean }) {
   const { data: devices = [], isLoading } = useModbusDevices()
@@ -20,6 +22,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   const [dupDevice, setDupDevice] = useState<(ModbusDevice & { registers?: ModbusRegister[] }) | undefined>(undefined)
   const [simDevice, setSimDevice] = useState<ModbusDevice | undefined>(undefined)
   const [showSimProfiles, setShowSimProfiles] = useState(false)
+  const [importLines, setImportLines] = useState<string[]>([])
   const [simStates, setSimStates] = useState<Record<string, { simulation_mode: boolean; sim_profile_id: number | null; sim_config: string | null }>>({})
 
   const statusMap = Object.fromEntries(statuses.map(s => [s.device_id, s.status || (s.running ? 'online' : 'offline')]))
@@ -52,6 +55,26 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
     })
   }
 
+  // Device files from Modbus Poll's "Export to SCADA" (Voltrus SCADA device), by drop or file picker.
+  const importFiles = async (files: File[]) => {
+    const lines: string[] = []
+    for (const file of files) {
+      const text = await file.text()
+      if (deviceFileKind(text) === 'bacnet') { lines.push(`${file.name}: this is a BACnet device file, import it on the BACnet devices page`); continue }
+      const { devices: parsed, errors } = parseModbusDeviceFile(text)
+      errors.forEach(e => lines.push(`${file.name}: ${e}`))
+      for (const d of parsed) {
+        try {
+          await createMut.mutateAsync(d)
+          lines.push(`${file.name}: added ${d.name} with ${d.registers.length} registers`)
+        } catch (e) {
+          lines.push(`${file.name}: ${d.name} was not added: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    }
+    setImportLines(lines)
+  }
+
   const handleDelete = (id: string) => {
     if (!confirm('Delete this device and stop its poller?')) return
     deleteMut.mutate(id)
@@ -63,11 +86,12 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
   }
 
   const tableContent = (
-    <>
+    <FileDropZone onFiles={importFiles} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexShrink: 0 }}>
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{devices.length} devices</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <input placeholder="Search..." value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, width: 200 }} />
+          <ImportFileButton onFiles={importFiles} ariaLabel="Import modbus device file" />
           <button style={{ ...btnStyle, borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => setShowForm(true)} aria-label="Add modbus device">+ Add Device</button>
           <button style={{ ...btnStyle, borderColor: 'var(--warn)', color: 'var(--warn)' }} onClick={() => setShowSimProfiles(true)} aria-label="Simulation profiles">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
@@ -75,6 +99,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
           </button>
         </div>
       </div>
+      <ImportNotice lines={importLines} onDismiss={() => setImportLines([])} />
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -148,7 +173,7 @@ export function ModbusDeviceManager({ onClose, embedded }: { onClose: () => void
           </tbody>
         </table>
       </div>
-    </>
+    </FileDropZone>
   );
 
   const modals = (<>

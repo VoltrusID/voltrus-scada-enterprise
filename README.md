@@ -75,7 +75,7 @@ Automatic downsampling runs in the background. Raw data archived to `archive/YYY
 - **Asset inventory** — OT asset management with hierarchy and metadata
 - **Config snapshots** — point-in-time config backup and restore
 - **Data export** — CSV/JSON export with time range selection
-- **Data import** — CSV import wizard, Node-RED flow import
+- **Data import** — CSV import wizard, Node-RED flow import, Modbus and BACnet device files (drag and drop on the device pages) from Modbus Poll and BACnet Explorer
 - **Keyboard shortcuts** — fully customizable per-user
 - **Custom branding** — title, subtitle, logo
 - **Multi-language** — i18n with locale files
