@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voltrus-enterprise-sdk"
+version = "0.47.1"
+description = "Official Python SDK extension for the Voltrus SCADA Enterprise add-on endpoints"
+readme = "README.md"
+license = { text = "LicenseRef-Proprietary" }
+requires-python = ">=3.9"
+dependencies = ["voltrus==0.47.1"]
+classifiers = ["Private :: Do Not Upload"]
+
+[tool.setuptools]
+packages = ["voltrus_enterprise"]
