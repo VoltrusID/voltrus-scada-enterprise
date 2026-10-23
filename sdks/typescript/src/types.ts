@@ -419,6 +419,23 @@ export interface ModbusRegister {
   register_type: string;
   scale: number;
   register_area: string;
+  /** `address` is a 0-based offset (0-65535) rather than a 5-digit reference such as 40001. */
+  zero_based?: boolean;
+}
+
+/**
+ * A register in a Modbus device request. Give `address` (a 0-based offset below 30001, or a 5-digit reference
+ * from 30001 up, as before) or `offset` (explicit 0-based offset in `register_area`, 0-65535, valid above 30000).
+ * A `ModbusRegister` returned by the API can be sent back unchanged.
+ */
+export interface ModbusRegisterInput {
+  name: string;
+  address?: number;
+  offset?: number;
+  zero_based?: boolean;
+  register_type?: string;
+  scale?: number;
+  register_area?: string;
 }
 
 // ── Devices: OPC-UA ────────────────────────────────────────────
