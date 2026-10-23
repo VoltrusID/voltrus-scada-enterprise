@@ -22,9 +22,8 @@ name = "voltrus"
 path = "src/main.rs"
 
 [dependencies]
-# The open core. Path is `..` while the add-on lives inside the core checkout and
-# `../core` in the official repository layout (core as a git submodule).
-voltrus = { path = ".." }
+# The open core: the public repository, checked out as the `core` git submodule.
+voltrus = { path = "../core" }
 tokio = { version = "=1.52.1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"] }
 axum = { version = "=0.8.9", features = ["ws", "multipart"] }
 serde = { version = "=1.0.228", features = ["derive"] }
