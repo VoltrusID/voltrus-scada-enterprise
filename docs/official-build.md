@@ -31,6 +31,25 @@ layout are unchanged. `--dry-run` builds and packages, then prints the R2/D1 upl
 plan without running any remote command; `--skip-upload` (`--build-only` in
 `release.sh`) builds only. `BUILD_DIR` moves the output.
 
+### Publishing a release
+
+1. Bump `version` in `enterprise/Cargo.toml` (and `enterprise/Cargo.lock`), merge to
+   `master`, wait for CI to pass.
+2. Tag it (`git tag v0.47.1 && git push origin v0.47.1`). `.github/workflows/release.yml`
+   builds the four archives with `release.sh --build-only --target <platform>` (the
+   tag must equal the Cargo version) and attaches them, with `SHA256SUMS`, to a GitHub
+   release.
+3. Publish to R2 and D1, which is where customers download from
+   (`dl-voltrus-scada.voltrus.id`): download the assets into `target/release-artifacts`
+   (`gh release download v0.47.1 --pattern 'voltrus-v*' --dir target/release-artifacts`)
+   and run `DESCRIPTION='...' ./release.sh --upload-only` (`--dry-run` first). Objects go to
+   `voltrus/<tag>/<platform>/` and `voltrus/latest/<platform>/` in the bucket
+   `voltrus-releases`; D1 `voltrus-releases-db` gets the records only after every
+   upload succeeded, with a semver-ordered version (0.47.1 is 47001) that the worker's
+   `/latest` and `/downloads` serve.
+4. `deploy/deploy.sh [latest|VERSION]` installs a release on the VPS from the same
+   download worker.
+
 ## Where changes go
 
 * Core feature or fix: do it in `core/` on a branch of the public repo (a normal
@@ -68,15 +87,17 @@ history with the key, local databases and backup archives removed. Keep
   `voltrus-license-activate` (64 hex characters, the Ed25519 seed, which is what
   `worker/license-activate/src/index.ts` passes to `sign`). The console worker does
   not sign activations and holds no copy.
-* Official binaries trust two public keys, newest first
-  (`TRUSTED_PUBLIC_KEYS` in `enterprise/src/licensing/activation.rs`): the 2026-10
-  key and the original key. Activation files signed by either verify, so existing
-  installs keep their features. The worker signs everything new with the 2026-10 key.
-* An install that is online and holds an activation signed with the old key asks the
-  worker for a fresh one (`/renew`, same machine, spends no activation) at start-up
-  and then every six hours until it is re-signed with the new key. Offline installs keep
-  working with the old signature until the old key is dropped.
-* A binary older than this rotation does not know the new key. After the worker
+* Trusted public keys (`TRUSTED_PUBLIC_KEYS` in
+  `enterprise/src/licensing/activation.rs`), newest first. Builds up to v0.47.0 trust
+  only the original key. v0.47.1 and later trust only the 2026-10 key: the original key
+  was retired in v0.47.1 (see "Retiring the old public key"). During a rotation the list
+  holds the new key and the retiring one, so a file signed by either verifies. The
+  worker signs everything new with the 2026-10 key.
+* An install that is online and holds an activation its build cannot verify, or one
+  signed with a key being retired, asks the worker for a fresh one (`/renew`, same
+  machine, spends no activation) when it starts and then every six hours. Offline
+  installs have to import a new file.
+* A binary older than v0.47.1 does not know the 2026-10 key. Since the worker
   switched, an activation or renewal issued to such a binary fails signature
   verification there, so tell customers to update before they renew or activate.
 * Signing a test activation: `cargo run --example sign_activation -- --key FILE
@@ -88,14 +109,16 @@ history with the key, local databases and backup archives removed. Keep
 
 ### Retiring the old public key
 
-Do this once old-signed activations are gone, not on a date. The worker records the
-key id of every activation it signs in D1 table `activation_signings`
+Do this once old-signed activations are gone, or the remaining holders were told. The
+worker records the key id of every activation it signs in D1 table `activation_signings`
 (database `voltrus-licenses`; a licence with no row was last signed before the
-rotation, so with the old key).
+rotation, so with the old key). The worker stores no activation file, only that row:
+each `/activate` and `/renew` signs a fresh file with the current key, so there is
+nothing server-side to re-sign. A licence moves to the new key when its install next
+asks.
 
-1. Wait for the auto re-issue: every online install re-signs at the first start on a
-   release with the dual key. Allow at least one full monthly
-   billing cycle so monthly keys renew once too.
+1. Release a build that trusts both keys and let online installs re-sign (first start
+   after the update). Allow a full monthly billing cycle so monthly keys renew once too.
 2. Count bindings still on the old key (revoked ones do not matter):
 
    ```sh
@@ -109,17 +132,37 @@ rotation, so with the old key).
    List them with `SELECT b.license_key, b.tier, b.activated_at ...` for outreach.
    Console licences (`VLT-*`) have no row in `license_bindings`; check
    `activation_signings WHERE license_key LIKE 'VLT-%'` against the console seats
-   (`license_activations` in `voltrus-console`) the same way.
+   (`license_activations` in `voltrus-console`) the same way. A binding whose key
+   Polar no longer knows (validate answers 404) can never be renewed.
 3. Contact holders that remain (offline or lifetime installs that never came online).
    They either connect once, or import a new file from the console or support.
 4. When the count is zero, or the remaining holders were told and accepted a date:
-   delete the second entry of `TRUSTED_PUBLIC_KEYS`, update the
-   `production_key_set_*` unit test, release, and rotate `SIGNING_KEY_ID` only on
-   the next real rotation. Old-signed files then fail with "Invalid activation
-   signature" and the install runs as Community; core keeps working.
+   delete the old entry of `TRUSTED_PUBLIC_KEYS`, regenerate the two fixtures in the
+   `activation.rs` tests (one activation signed by the current key, one by the retired
+   key, both bound to a fake fingerprint and long expired) and release. Rotate
+   `SIGNING_KEY_ID` only on the next real rotation. Old-signed files then fail with
+   "Invalid activation signature" and the install runs as Community until it renews;
+   core keeps working.
 5. After dropping the key from the binary and once every supported release has it,
    the old private key has no value to an attacker. Until then, an attacker with it
-   can forge a licence that verifies on any binary that still trusts the old key.
+   can forge a licence that verifies on any binary that still trusts the old key, so
+   customers should update.
+
+#### Record: original key retired in v0.47.1 (2026-10-24)
+
+No release with both keys was ever shipped, so v0.47.1 is the first build that knows
+the 2026-10 key and it drops the original key at once. State when it was cut:
+
+* `license_bindings` held 8 rows, none revoked, none with an `activation_signings` row,
+  so all were last signed with the original key. 6 are valid in Polar (lifetime keys, no
+  expiry). 2 are unknown to Polar (validate answers 404), so `/renew` refuses them.
+* The console had 2 SCADA `VLT-*` licences: one revoked, one active that has no device
+  seat. No console activation existed.
+* Because the worker keeps no activation file, each of the 6 live installs moves to the
+  new key the first time it runs v0.47.1 online: the build sees its stored file fail
+  verification and renews at start-up. Offline installs, and the 2 unknown keys, run as
+  Community on v0.47.1 until they import a new file.
+* v0.47.0 and older keep trusting the original key. Customers should update.
 
 ### Monitoring
 
