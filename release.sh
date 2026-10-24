@@ -289,7 +289,7 @@ fi
 
 echo ""
 info "Done! Artifacts in ${BUILD_DIR}/:"
-ls -lh "${BUILD_DIR}"/*.tar.gz "${BUILD_DIR}"/*.zip 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}'
+ls -lh "${BUILD_DIR}"/*.tar.gz "${BUILD_DIR}"/*.zip 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}' || true
 
 if [ "$UPLOAD" = true ] && [ "$DRY_RUN" = false ]; then
   echo ""
