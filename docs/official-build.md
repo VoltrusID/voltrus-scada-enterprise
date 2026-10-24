@@ -1,12 +1,13 @@
 # Official build (core + Enterprise): layout and sync procedure
 
-PRIVATE. This repository builds the paid product. The open-source Core lives in
+This repository builds the paid product and is public (source available, see
+`enterprise/LICENSE`). The open-source Core lives in
 <https://github.com/VoltrusID/voltrus-scada> and is consumed here as the `core/`
 git submodule. Public is upstream; this repo adds the Enterprise add-on.
 
 ```
 core/         submodule: VoltrusID/voltrus-scada (AGPL-3.0-or-later)
-enterprise/   Rust crate voltrus-enterprise (proprietary), depends on ../core
+enterprise/   Rust crate voltrus-enterprise (Voltrus Enterprise License), depends on ../core
   client/     enterprise web client module (loaded by core via @voltrus/enterprise-client)
   sdks/       private SDK extensions (typescript, python) for the Enterprise endpoints
 worker/       licence activation worker (activate.voltrus.id)
@@ -52,9 +53,11 @@ snapshot became a single-commit public repo. Do not copy history into core.
 ## Licence signing key
 
 The activation signing key is NOT in this tree. The original key's private half
-was committed once in the history of this private repo (`.license-private-key`,
-tags v0.17.5 to v0.45.0). Treat it as compromised, never push this history to a
-public remote, and keep `.license-private-key` in `.gitignore`.
+was committed once in the history of the former private repository
+(`.license-private-key`, tags v0.17.5 to v0.45.0). Treat it as compromised. That
+history was never published: this public repository starts from a rewritten
+history with the key, local databases and backup archives removed. Keep
+`.license-private-key` in `.gitignore`.
 
 ### Rotation (2026-10)
 

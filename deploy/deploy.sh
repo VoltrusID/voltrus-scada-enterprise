@@ -2,7 +2,7 @@
 set -euo pipefail
 
 INSTALL_DIR="/opt/voltrus"
-REPO="dzulfikar08/voltrus"
+REPO="VoltrusID/voltrus-scada-enterprise"
 SERVICES=(voltrus modbus-sim modbus-sim-1)
 HEALTH_URL="http://localhost:3000/api/health"
 HEALTH_TIMEOUT=30

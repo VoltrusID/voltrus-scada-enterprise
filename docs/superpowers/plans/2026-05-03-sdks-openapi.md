@@ -937,7 +937,7 @@ dependencies = ["urllib3>=2.0", "pydantic>=2.0"]
 [project.urls]
 Homepage = "https://voltrus.com"
 Documentation = "https://voltrus.com/docs"
-Repository = "https://github.com/dzulfikar08/voltrus"
+Repository = "https://github.com/VoltrusID/voltrus-scada-enterprise"
 ```
 
 Create `sdks/python/publish.sh`:
@@ -1007,7 +1007,7 @@ Create `sdks/typescript/package.json`:
     "typescript": "^5.3.0"
   },
   "homepage": "https://voltrus.com",
-  "repository": "https://github.com/dzulfikar08/voltrus"
+  "repository": "https://github.com/VoltrusID/voltrus-scada-enterprise"
 }
 ```
 
