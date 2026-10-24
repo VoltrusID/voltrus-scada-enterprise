@@ -5,24 +5,20 @@ use serde::{Deserialize, Serialize};
 /// Ed25519 public keys trusted to sign activations, newest first.
 ///
 /// The key at index 0 signs every new activation (the private half is the
-/// `ED25519_PRIVATE_KEY` secret of the activation worker). The older keys stay
-/// trusted only so activation files issued before a rotation keep verifying; drop
-/// one once no binding signed with it remains (see docs/official-build.md).
+/// `ED25519_PRIVATE_KEY` secret of the activation worker). During a rotation the
+/// retiring key stays listed after it so activation files issued before the rotation
+/// keep verifying; drop it once no live binding is signed with it (see
+/// docs/official-build.md).
+///
+/// The original key (v0.17.5 to v0.47.0) was retired in v0.47.1. Its private half
+/// was committed once to the former private repository history, so it is treated as
+/// compromised and must never be listed again.
 const TRUSTED_PUBLIC_KEYS: &[[u8; 32]] = &[
     // 2026-10 rotation.
     [
         0x6b, 0xa3, 0x3a, 0x35, 0xe4, 0xb5, 0x16, 0x24, 0x40, 0xdb, 0x72, 0x50, 0x1e, 0x8c, 0xac,
         0xb3, 0x4c, 0x8d, 0xb6, 0x10, 0x30, 0xb3, 0xbf, 0xcc, 0xf1, 0xeb, 0x7a, 0xee, 0xca, 0xe8,
         0x28, 0x9b,
-    ],
-    // Original key (v0.17.5 to v0.47.0). Its private half was committed once to the
-    // former private repository history (removed before this repository went public),
-    // so it is treated as compromised: retire it as soon as the old-signed
-    // activations have been re-issued.
-    [
-        0xc8, 0x94, 0xd0, 0x18, 0xb5, 0x47, 0xc2, 0x22, 0x5d, 0x75, 0x06, 0x01, 0x96, 0x9b, 0x10,
-        0x25, 0x7b, 0xf9, 0x64, 0x75, 0x07, 0xb6, 0xb7, 0xb7, 0xa9, 0x0d, 0xe9, 0xd4, 0x2f, 0x92,
-        0xe5, 0xca,
     ],
 ];
 
@@ -199,14 +195,44 @@ mod tests {
         assert!(verify_with_keys(&forged, &[new_pk, old_pk]).is_err());
     }
 
+    /// Activations bound to a fake fingerprint and lapsed in January 2020, signed with
+    /// the real production keys: the first by the 2026-10 key (what the worker signs
+    /// today), the second by the retired original key. They test the shipped key set,
+    /// not only the verification code. Neither unlocks anything: the fingerprint is not
+    /// a machine and the expiry is years past the grace period.
+    const FIXTURE_SIGNED_BY_2026_10_KEY: &str = "Vk9MQUNUAXsidmVyc2lvbiI6MiwibGljZW5zZV9rZXkiOiJWT0xUUlVTLUZJWFRVUkUiLCJmaW5nZXJwcmludF9oYXNoIjoic2hhMjU2OmZpeHR1cmUiLCJpc3N1ZWRfYXQiOiIyMDE5LTEyLTAxVDAwOjAwOjAwLjAwMFoiLCJleHBpcmVzX2F0IjoiMjAyMC0wMS0wMVQwMDowMDowMC4wMDBaIiwidGllciI6ImludGVncmF0b3IiLCJkZXZpY2VfbGltaXQiOm51bGwsInNpZ25hdHVyZSI6IjlhNmRjMGVlMjk4YjQ2N2Q2YWY2YzRmNWIyODJiNjhjOWFlMGI5Y2RlMTg0ZDIwOGQ4MWNjMjNlOWRiYjQ0NjBmZjgwN2QwMjA3NjBhYjEyY2YyYThkNWIxZDhkYjQzZjAwNWU2Y2RmNDk1NzhhMTE1YmIyYjQ2NzcxZjVlMjA1In0=";
+    const FIXTURE_SIGNED_BY_RETIRED_KEY: &str = "Vk9MQUNUAXsidmVyc2lvbiI6MiwibGljZW5zZV9rZXkiOiJWT0xUUlVTLUZJWFRVUkUiLCJmaW5nZXJwcmludF9oYXNoIjoic2hhMjU2OmZpeHR1cmUiLCJpc3N1ZWRfYXQiOiIyMDE5LTEyLTAxVDAwOjAwOjAwLjAwMFoiLCJleHBpcmVzX2F0IjoiMjAyMC0wMS0wMVQwMDowMDowMC4wMDBaIiwidGllciI6ImludGVncmF0b3IiLCJkZXZpY2VfbGltaXQiOm51bGwsInNpZ25hdHVyZSI6ImI4NzEzNmI1ZmQ5ZTAyZWM1ZjRmMzdkOTU5MWUzZDE4OTBiZDA5OTg0OTBjN2U1YjUzYjEwYTZhOTFmNGVkYTY4MjBjNGQ5Y2Y0YzdkMTlhZmQ2ODRhMmEwNjRkZDYxNjE1ODhhOWNmYzU1NDM3ZDNhMzJjZjI3NWQ0M2M0ZjBjIn0=";
+
+    fn fixture(b64: &str) -> Vec<u8> {
+        use base64::Engine;
+        base64::engine::general_purpose::STANDARD.decode(b64).unwrap()
+    }
+
     #[test]
-    fn production_key_set_has_the_new_key_first_and_valid_keys() {
-        assert_eq!(TRUSTED_PUBLIC_KEYS.len(), 2);
-        for key in TRUSTED_PUBLIC_KEYS {
-            assert!(VerifyingKey::from_bytes(key).is_ok());
-        }
-        assert_ne!(TRUSTED_PUBLIC_KEYS[0], TRUSTED_PUBLIC_KEYS[1]);
-        // Random bytes are not signed by either production key.
+    fn production_key_set_is_the_2026_10_key_only() {
+        assert_eq!(TRUSTED_PUBLIC_KEYS.len(), 1);
+        assert!(VerifyingKey::from_bytes(&TRUSTED_PUBLIC_KEYS[0]).is_ok());
+        let retired: [u8; 32] =
+            hex::decode("c894d018b547c2225d750601969b10257bf9647507b6b7b7a90de9d42f92e5ca")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        assert!(!TRUSTED_PUBLIC_KEYS.contains(&retired));
+    }
+
+    #[test]
+    fn production_keys_accept_the_2026_10_signature_and_reject_the_retired_one() {
+        let blob = fixture(FIXTURE_SIGNED_BY_2026_10_KEY);
+        let (activation, index) = verify_with_keys(&blob, TRUSTED_PUBLIC_KEYS).unwrap();
+        assert_eq!(index, 0);
+        assert_eq!(activation.tier.as_deref(), Some("integrator"));
+        assert!(!needs_resigning(&blob));
+
+        let retired = fixture(FIXTURE_SIGNED_BY_RETIRED_KEY);
+        let err = verify_activation_signature(&retired).unwrap_err();
+        assert_eq!(err.to_string(), "Invalid activation signature");
+        assert!(!needs_resigning(&retired));
+        // Random bytes are not signed by the production key either.
         assert!(!needs_resigning(b"VOLACT\x01{}"));
     }
 }

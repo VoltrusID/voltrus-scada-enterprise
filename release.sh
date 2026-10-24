@@ -20,7 +20,14 @@ set -euo pipefail
 #                                              #   linux-arm64, windows-x86_64)
 #
 # Environment: BUILD_DIR (default target/release-artifacts) moves the packaged output;
-# CARGO_TARGET_DIR, if set, is used for both cargo invocations.
+# CARGO_TARGET_DIR, if set, is used for both cargo invocations; DESCRIPTION is the
+# release note stored in D1.
+#
+# Upload: R2 bucket voltrus-releases, keys voltrus/<tag>/<platform>/<archive> and
+# voltrus/latest/<platform>/<archive>, then D1 voltrus-releases-db (release_files, releases)
+# once every object is in. dl-voltrus-scada.voltrus.id serves the highest D1 version.
+# CI builds the archives on a tag (.github/workflows/release.yml) and attaches them to the
+# GitHub release; download them into BUILD_DIR and run --upload-only to publish.
 #
 # Requires: node + npm, zig, cargo-zigbuild, rustup targets
 # Upload requires: wrangler (via worker/license-activate/node_modules)
@@ -35,7 +42,14 @@ BUILD_DIR="${BUILD_DIR:-target/release-artifacts}"
 ENTERPRISE_TARGET_DIR="${CARGO_TARGET_DIR:-enterprise/target}"
 CORE_TARGET_DIR="${CARGO_TARGET_DIR:-core/target}"
 FD_LIMIT=65536
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+# D1 version number sorts like semver (0.47.1 -> 47001, 1.0.0 -> 1000000): /latest and /downloads
+# serve the highest number. Concatenated digits sorted 1.0.0 below 0.47.0.
+IFS=. read -r _V_MAJ _V_MIN _V_PAT <<< "${VERSION%%-*}"
+VERSION_NUM=$(( 10#${_V_MAJ:-0} * 1000000 + 10#${_V_MIN:-0} * 1000 + 10#${_V_PAT:-0} ))
+# Object layout the download worker serves: voltrus/<tag>/<platform>/<file> and voltrus/latest/<platform>/<file>.
+R2_PREFIX="voltrus"
+
+file_size() { stat -c%s "$1" 2>/dev/null || stat -f%z "$1"; }
 DESCRIPTION="${DESCRIPTION:-Bug fixes and improvements.}"
 WORKER_DIR="$ROOT/worker/license-activate"
 
@@ -173,7 +187,7 @@ build_target() {
   fi
 
   local size
-  size=$(stat -f%z "$archive" 2>/dev/null || stat -c%s "$archive" 2>/dev/null)
+  size=$(file_size "$archive")
   ok "  -> $(basename "$archive") ($(( size / 1048576 )) MB)"
 }
 
@@ -208,7 +222,7 @@ insert_d1_release() {
   local size="$4"
 
   info "Inserting $platform into D1..."
-  d1_execute "INSERT OR REPLACE INTO release_files (version, platform, filename, r2_key, size) VALUES ($BUILD_NUMBER, '$platform', '$filename', '$r2_key', $size);"
+  d1_execute "INSERT OR REPLACE INTO release_files (version, platform, filename, r2_key, size) VALUES ($VERSION_NUM, '$platform', '$filename', '$r2_key', $size);"
   ok "  -> D1 record: $platform"
 }
 
@@ -217,11 +231,11 @@ insert_d1_release_meta() {
   local size="$2"
   local pub_date
   pub_date=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-  local title="Voltrus ${VERSION}"
+  local title="Voltrus ${TAG}"
   local desc_esc="${DESCRIPTION//\'/\'\'}"
 
   info "Updating D1 releases table..."
-  d1_execute "INSERT OR REPLACE INTO releases (version, short_version_string, title, description, length, pub_date) VALUES ($BUILD_NUMBER, '$VERSION', '$title', '$desc_esc', $size, '$pub_date');"
+  d1_execute "INSERT OR REPLACE INTO releases (version, short_version_string, title, description, length, pub_date) VALUES ($VERSION_NUM, '$VERSION', '$title', '$desc_esc', $size, '$pub_date');"
   ok "  -> D1 releases record updated"
 }
 
@@ -238,36 +252,37 @@ if [ "$BUILD" = true ]; then
 fi
 
 if [ "$UPLOAD" = true ]; then
-  step "Uploading to R2 & D1..."
+  step "Uploading to R2..."
+
+  archive_for() {
+    if [[ "$1" == *"windows"* ]]; then
+      echo "${BUILD_DIR}/voltrus-${TAG}-${1}.zip"
+    else
+      echo "${BUILD_DIR}/voltrus-${TAG}-${1}.tar.gz"
+    fi
+  }
 
   for entry in "${TARGETS[@]}"; do
     IFS='|' read -r name target ext <<< "$entry"
-
-    if [[ "$name" == *"windows"* ]]; then
-      archive="${BUILD_DIR}/voltrus-${TAG}-${name}.zip"
-    else
-      archive="${BUILD_DIR}/voltrus-${TAG}-${name}.tar.gz"
-    fi
-
+    archive="$(archive_for "$name")"
     [ -f "$archive" ] || error "Archive not found: $archive"
-
-    local_filename="$(basename "$archive")"
-    file_size=$(stat -f%z "$archive" 2>/dev/null || stat -c%s "$archive" 2>/dev/null)
-
-    # Upload versioned + latest to R2
-    upload_to_r2 "$archive" "voltrus-${TAG}/${name}/${local_filename}"
-    upload_to_r2 "$archive" "voltrus-latest/${name}/${local_filename}"
-
-    # Insert D1 record
-    insert_d1_release "$name" "$local_filename" "voltrus-latest/${name}/${local_filename}" "$file_size"
+    upload_to_r2 "$archive" "${R2_PREFIX}/${TAG}/${name}/$(basename "$archive")"
+    upload_to_r2 "$archive" "${R2_PREFIX}/latest/${name}/$(basename "$archive")"
   done
 
-  # Update main releases table
-  first_archive="${BUILD_DIR}/voltrus-${TAG}-macos-arm64.tar.gz"
-  if [ -f "$first_archive" ]; then
-    first_size=$(stat -f%z "$first_archive" 2>/dev/null || stat -c%s "$first_archive" 2>/dev/null)
-    insert_d1_release_meta "$(basename "$first_archive")" "$first_size"
-  fi
+  # The download worker serves the highest D1 version, so the records go in only after every
+  # object is in R2: a failed upload never leaves a half-published release.
+  step "Updating D1..."
+  total_size=0
+  for entry in "${TARGETS[@]}"; do
+    IFS='|' read -r name target ext <<< "$entry"
+    archive="$(archive_for "$name")"
+    bytes=$(file_size "$archive")
+    total_size=$((total_size + bytes))
+    local_filename="$(basename "$archive")"
+    insert_d1_release "$name" "$local_filename" "${R2_PREFIX}/latest/${name}/${local_filename}" "$bytes"
+  done
+  insert_d1_release_meta "voltrus-${TAG}" "$total_size"
 
   if [ "$DRY_RUN" = true ]; then ok "Dry run finished: upload plan printed, nothing sent"; else ok "All uploads complete!"; fi
 fi

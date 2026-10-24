@@ -152,7 +152,11 @@ async fn needs_resigning(storage: &Storage) -> bool {
     }
 }
 
-/// True when the stored key is a monthly key that is due for renewal.
+/// True when a renewal should be asked for: a monthly key close to its end, or a stored
+/// activation this build cannot verify. The latter is what an install holding a file
+/// signed with a since-retired key sees after an update: the server answers a renewal
+/// for the same machine with a file signed by the current key, without spending an
+/// activation.
 fn renewal_due(status: &LicenseStatus) -> bool {
     match status {
         LicenseStatus::Valid {
@@ -160,7 +164,7 @@ fn renewal_due(status: &LicenseStatus) -> bool {
             days_remaining: Some(days),
             ..
         } => *days <= RENEW_WINDOW_DAYS,
-        LicenseStatus::Expired { .. } => true,
+        LicenseStatus::Expired { .. } | LicenseStatus::InvalidSignature { .. } => true,
         _ => false,
     }
 }
@@ -178,10 +182,11 @@ pub async fn renew_now(
     apply_activation(storage, status, blob).await
 }
 
-/// Background task: refresh monthly keys shortly before they lapse and re-issue
-/// activations signed with a retired key. Offline
-/// sites keep working through the 7 day grace period and can import a new
-/// activation file by hand.
+/// Background task: refresh monthly keys shortly before they lapse, re-issue
+/// activations signed with a retiring key, and replace an activation this build
+/// cannot verify (signed with a retired key). It runs once at start-up and then every
+/// six hours. Offline sites keep working through the 7 day grace period and can
+/// import a new activation file by hand.
 pub fn spawn_renewal_task(storage: Storage, status: Arc<RwLock<LicenseStatus>>) {
     tokio::spawn(async move {
         loop {
@@ -196,4 +201,53 @@ pub fn spawn_renewal_task(storage: Storage, status: Arc<RwLock<LicenseStatus>>) 
             tokio::time::sleep(RENEW_CHECK_INTERVAL).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid(expires_at: Option<&str>, days_remaining: Option<i64>) -> LicenseStatus {
+        LicenseStatus::Valid {
+            license_key: "VOLTRUS-TEST".to_string(),
+            expires_at: expires_at.map(str::to_string),
+            days_remaining,
+            tier: Some("enterprise".to_string()),
+            grace: false,
+            legacy_white_label: false,
+        }
+    }
+
+    #[test]
+    fn unverifiable_activation_asks_the_server_for_a_fresh_one() {
+        let status = LicenseStatus::InvalidSignature {
+            message: "Invalid activation file. Please reactivate.".to_string(),
+        };
+        assert!(renewal_due(&status));
+    }
+
+    #[test]
+    fn lapsed_and_nearly_lapsed_monthly_keys_renew() {
+        let expired = LicenseStatus::Expired {
+            expires_at: "2026-11-01T00:00:00Z".to_string(),
+            message: "expired".to_string(),
+        };
+        assert!(renewal_due(&expired));
+        assert!(renewal_due(&valid(Some("2026-11-01T00:00:00Z"), Some(RENEW_WINDOW_DAYS))));
+        assert!(!renewal_due(&valid(Some("2027-01-01T00:00:00Z"), Some(RENEW_WINDOW_DAYS + 1))));
+    }
+
+    #[test]
+    fn healthy_or_unrelated_states_do_not_call_the_server() {
+        assert!(!renewal_due(&valid(None, None)));
+        assert!(!renewal_due(&LicenseStatus::Community));
+        assert!(!renewal_due(&LicenseStatus::Unactivated {
+            message: "none".to_string(),
+        }));
+        assert!(!renewal_due(&LicenseStatus::InvalidFingerprint {
+            score: 1,
+            required: 3,
+            message: "moved".to_string(),
+        }));
+    }
 }

@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Deploy an official Voltrus release (open core plus Enterprise) to this host.
+#
+# release.sh publishes releases to the R2 bucket voltrus-releases and the download worker
+# serves them at dl-voltrus-scada.voltrus.id; there are no releases to fetch from GitHub
+# with `gh`. "latest" follows the worker's /latest redirect (highest version in D1). A
+# version (v0.47.1 or 0.47.1) is read from voltrus/<tag>/<platform>/ in the bucket.
+#
+# Usage: deploy.sh [latest|VERSION]     (or VERSION=... deploy.sh)
+
 INSTALL_DIR="/opt/voltrus"
-REPO="VoltrusID/voltrus-scada-enterprise"
+DOWNLOAD_BASE="${VOLTRUS_DOWNLOAD_BASE:-https://dl-voltrus-scada.voltrus.id}"
+PLATFORM="linux-x86_64"
 SERVICES=(voltrus modbus-sim modbus-sim-1)
 HEALTH_URL="http://localhost:3000/api/health"
 HEALTH_TIMEOUT=30
@@ -10,13 +20,23 @@ HEALTH_TIMEOUT=30
 VERSION=${1:-${VERSION:-latest}}
 
 if [ "$VERSION" = "latest" ]; then
-  VERSION="$(gh release list --repo "${REPO}" --limit 1 --json tagName --jq '.[0].tagName')"
+  URL="$(curl -fsS -o /dev/null -w '%{redirect_url}' "${DOWNLOAD_BASE}/latest?platform=${PLATFORM}")" \
+    || { echo "ERROR: could not resolve the latest ${PLATFORM} release from ${DOWNLOAD_BASE}" >&2; exit 1; }
+  [ -n "$URL" ] || { echo "ERROR: ${DOWNLOAD_BASE} has no ${PLATFORM} release" >&2; exit 1; }
+  ARCHIVE="$(basename "$(printf '%s' "$URL" | sed 's/%2F/\//g')")"
+  VERSION="$(printf '%s' "$ARCHIVE" | sed -E 's/^voltrus-(v[^-]+)-.*/\1/')"
   echo "Resolved latest to ${VERSION}"
+else
+  case "$VERSION" in v*) ;; *) VERSION="v${VERSION}" ;; esac
+  ARCHIVE="voltrus-${VERSION}-${PLATFORM}.tar.gz"
+  URL="${DOWNLOAD_BASE}/releases/voltrus%2F${VERSION}%2F${PLATFORM}%2F${ARCHIVE}"
 fi
 
-echo "==> Downloading release ${VERSION}..."
-ARCHIVE="voltrus-${VERSION}-linux-x86_64.tar.gz"
-gh release download "${VERSION}" --repo "${REPO}" --pattern "${ARCHIVE}" --clobber
+WORKDIR="$(mktemp -d)"
+trap 'rm -rf "$WORKDIR"' EXIT
+
+echo "==> Downloading ${ARCHIVE}..."
+curl -fL --retry 3 -o "${WORKDIR}/${ARCHIVE}" "$URL"
 
 echo "==> Stopping services..."
 for svc in "${SERVICES[@]}"; do
@@ -25,7 +45,7 @@ done
 sleep 1
 
 echo "==> Extracting to ${INSTALL_DIR}..."
-sudo tar -xzf "${ARCHIVE}" -C "${INSTALL_DIR}/" --overwrite
+sudo tar -xzf "${WORKDIR}/${ARCHIVE}" -C "${INSTALL_DIR}/" --overwrite
 sudo chmod +x "${INSTALL_DIR}/voltrus" "${INSTALL_DIR}/modbus-sim"
 
 echo "==> Starting services..."
@@ -46,4 +66,3 @@ until curl -sf "${HEALTH_URL}" > /dev/null 2>&1; do
 done
 
 echo "==> Deploy complete! Service is healthy."
-rm -f "${ARCHIVE}"

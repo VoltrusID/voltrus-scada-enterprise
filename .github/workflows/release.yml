@@ -1,0 +1,115 @@
+name: Release
+
+# Builds the official archives (open core plus Enterprise add-on) for a tag and attaches
+# them to a GitHub release. The archives come from release.sh, so names and layout match
+# what customers download from dl-voltrus-scada.voltrus.id.
+#
+# Push a tag like v0.47.1 (it must match the version in enterprise/Cargo.toml). To publish
+# to R2 and D1 afterwards, download the release assets into target/release-artifacts and
+# run ./release.sh --upload-only (see docs/official-build.md).
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - platform: linux-arm64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+          - platform: windows-x86_64
+            os: ubuntu-latest
+            target: x86_64-pc-windows-gnu
+          - platform: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Check the tag matches the version
+        shell: bash
+        run: |
+          v="v$(grep -m1 '^version' enterprise/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
+          [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match enterprise/Cargo.toml version $v"; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: core/client/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            enterprise
+            core
+          key: ${{ matrix.target }}
+
+      - uses: mlugg/setup-zig@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
+      - name: Build and package
+        shell: bash
+        run: ./release.sh --build-only --target ${{ matrix.platform }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            target/release-artifacts/voltrus-*.tar.gz
+            target/release-artifacts/voltrus-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd artifacts && sha256sum voltrus-* > SHA256SUMS
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" artifacts/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Voltrus SCADA ${GITHUB_REF_NAME}" \
+            --notes-file - <<'NOTES'
+          Official build: open Core plus the Enterprise add-on.
+
+          Licence signing key. This release no longer trusts the original licence signing key, which was replaced in the 2026-10 key rotation. Activations signed with the current key verify as before.
+
+          An install that holds an activation signed with the original key asks the activation server for a fresh one when it starts, and every six hours while it stays online. It is the same machine and uses no activation. An install that stays offline needs a new activation file from support.
+
+          Builds older than this release still trust the original key. Update to this release.
+          NOTES
