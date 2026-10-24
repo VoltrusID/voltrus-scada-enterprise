@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: read
+
+jobs:
+  enterprise:
+    name: Enterprise crate (test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev clang
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: enterprise
+
+      - name: Test (includes the licence verification tests)
+        working-directory: enterprise
+        run: cargo test --locked
+
+  client:
+    name: Enterprise client (typecheck, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: core/client/package-lock.json
+
+      - name: Install core client dependencies
+        working-directory: core/client
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: enterprise/client
+        run: npm run typecheck
+
+      - name: Test
+        working-directory: enterprise/client
+        run: npm test
+
+  worker:
+    name: Licence worker (typecheck, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker/license-activate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Scan full history
+        run: gitleaks git --no-banner --redact --verbose .

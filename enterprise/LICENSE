@@ -1,0 +1,110 @@
+Voltrus Enterprise License
+Version 1.0
+
+Copyright (c) 2026 JoyoDigitama. All rights reserved.
+
+This license covers everything in the "enterprise/" directory of this
+repository (the "Enterprise Software"), plus the "worker/" directory and the
+release and deploy scripts at the repository root. It does not cover "core/",
+which is a separate project (VoltrusID/voltrus-scada) licensed under the GNU
+Affero General Public License v3.0 or later. It does not cover "sdks/", which is
+MIT licensed where a LICENSE file in that directory says so.
+
+The source code of the Enterprise Software is visible so that you can read it,
+audit it and learn from it. It is source available, not open source. Reading the
+code does not give you the right to run it in production.
+
+1. What you may do without a subscription
+
+   You may:
+   a. Read, clone and study the Enterprise Software.
+   b. Build and run it on your own machines for evaluation, development and
+      testing, including automated tests, for as long as you need. Do not use it
+      for production work or to run a live process, site or business.
+   c. Modify it for those same evaluation, development and testing purposes.
+   d. Submit contributions to this repository under the terms in section 6.
+
+2. What needs a paid subscription
+
+   Production use of the Enterprise Software requires a valid, paid Voltrus
+   Enterprise subscription or licence, shown by a licence key issued by
+   JoyoDigitama. Production use means running the Enterprise Software, or any
+   build made from it, to monitor, control or report on a real site, plant,
+   customer or business, or offering it to others as a hosted or managed
+   service. Each licence key covers the sites and terms stated in your order.
+   Current plans and prices: https://voltrus.id/voltrus-scada
+
+3. Licence keys and the licence check
+
+   The Enterprise Software contains a licence check. You must not:
+   a. Remove, bypass, disable or weaken the licence check, or make a build
+      behave as if a valid licence key is present when it is not.
+   b. Forge, generate, copy, share, resell or publish licence keys or
+      activation files, or the keys used to sign them.
+   c. Change the trusted signing keys, the grace period, the tier limits or the
+      feature flags in a way that unlocks features you have not paid for.
+   d. Use a licence key on more sites or devices than your order allows.
+
+   Fixing a genuine defect in the licence check is welcome. Report it to
+   support@voltrus.id first and do not use it to get features for free.
+
+4. Distribution
+
+   You may not sell, sublicense, rent or distribute the Enterprise Software, in
+   source or binary form, or any work based on it, to anyone else. You may keep
+   a private fork or clone for your own evaluation and for preparing
+   contributions. Public forks on GitHub made through the GitHub fork button
+   are allowed for the sole purpose of proposing changes to this repository.
+   You must keep this license file and all copyright notices in every copy.
+
+5. Trademarks
+
+   This license gives you no right to use the name "Voltrus", the Voltrus logo
+   or any other JoyoDigitama mark, except as the trademark policy at
+   core/TRADEMARKS.md allows.
+
+6. Contributions
+
+   If you send a contribution to this repository, you confirm that you have the
+   right to submit it, you sign off every commit under the Developer
+   Certificate of Origin (https://developercertificate.org), and you grant
+   JoyoDigitama a perpetual, worldwide, royalty-free, irrevocable licence to
+   use, modify, sublicense and distribute your contribution as part of the
+   Enterprise Software and other JoyoDigitama products, including under
+   proprietary terms.
+
+7. Ownership
+
+   JoyoDigitama owns the Enterprise Software and all rights in it that are not
+   expressly granted here.
+
+8. Termination
+
+   If you break this license, your rights under it end at once. They return if
+   you stop the breach within 30 days of notice from JoyoDigitama, but not for
+   a repeated breach. Ending a paid subscription ends the right to production
+   use under it, subject to any grace period described in your order.
+
+9. No warranty
+
+   THE ENTERPRISE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+   PARTICULAR PURPOSE AND NON-INFRINGEMENT. Paid subscriptions carry the support
+   and service terms stated in the order, which apply instead of this section
+   where they conflict with it.
+
+10. Limit of liability
+
+   TO THE EXTENT THE LAW ALLOWS, JOYODIGITAMA IS NOT LIABLE FOR ANY INDIRECT,
+   SPECIAL OR CONSEQUENTIAL DAMAGES, OR FOR LOST PROFIT OR DATA, ARISING FROM
+   THE ENTERPRISE SOFTWARE. This software is monitoring and control software for
+   industrial systems. You are responsible for safety interlocks and for
+   testing it in your own environment.
+
+11. Third-party components
+
+   The Enterprise Software uses open-source libraries under their own licences.
+   Those licences apply to those libraries and are not changed by this file.
+
+Questions about this license, and requests for a licence key or a written
+permission outside it: support@voltrus.id

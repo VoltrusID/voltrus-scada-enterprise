@@ -1,0 +1,15 @@
+title = "voltrus-scada-enterprise"
+
+[extend]
+useDefault = true
+
+# Known false positives: placeholder licence keys in tests and design docs,
+# sensor key names in dev mock data, local dev server ports.
+[[allowlists]]
+description = "Placeholder keys and mock data"
+paths = [
+  '''client/src/App\.tsx''',
+  '''client/tests/edition\.test\.ts''',
+  '''docs/superpowers/specs/2025-05-01-license-activation-design\.md''',
+  '''native/src/api\.rs''',
+]

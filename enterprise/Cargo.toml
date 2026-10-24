@@ -1,11 +1,11 @@
-# Voltrus Enterprise add-on (proprietary). Official builds = open core + this crate.
-# Not part of the public repository.
+# Voltrus Enterprise add-on (source available, commercial licence). Official builds = open core + this crate.
+# Production use needs a paid licence key; see LICENSE.
 
 [package]
 name = "voltrus-enterprise"
 version = "0.47.0"
 edition = "2024"
-license = "LicenseRef-Proprietary"
+license-file = "LICENSE"
 publish = false
 default-run = "voltrus"
 description = "Voltrus Enterprise add-on: licensing, SSO, 21 CFR Part 11, IEC 62443 audit, hot standby, multi-site hub, RTSP video, white-label, scheduled reports"

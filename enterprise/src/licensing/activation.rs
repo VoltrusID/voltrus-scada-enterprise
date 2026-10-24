@@ -16,8 +16,9 @@ const TRUSTED_PUBLIC_KEYS: &[[u8; 32]] = &[
         0x28, 0x9b,
     ],
     // Original key (v0.17.5 to v0.47.0). Its private half was committed once to the
-    // private repository history, so it is treated as compromised: retire it as soon
-    // as the old-signed activations have been re-issued.
+    // former private repository history (removed before this repository went public),
+    // so it is treated as compromised: retire it as soon as the old-signed
+    // activations have been re-issued.
     [
         0xc8, 0x94, 0xd0, 0x18, 0xb5, 0x47, 0xc2, 0x22, 0x5d, 0x75, 0x06, 0x01, 0x96, 0x9b, 0x10,
         0x25, 0x7b, 0xf9, 0x64, 0x75, 0x07, 0xb6, 0xb7, 0xb7, 0xa9, 0x0d, 0xe9, 0xd4, 0x2f, 0x92,
