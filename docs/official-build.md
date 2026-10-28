@@ -26,8 +26,13 @@ reports, hosted Voltrus AI provider.
 
 `release.sh` and `scripts/release-local.sh` build the official artifacts from this
 layout: `voltrus` from `enterprise/`, `modbus-sim` from `core/`, the client from
-`core/client` with the enterprise module (output `core/static`). Archive names and
-layout are unchanged. `--dry-run` builds and packages, then prints the R2/D1 upload
+`core/client` with the enterprise module (output `core/static`). The client is built
+first because a release build of core embeds `core/static` into the executable
+(`core/build.rs`; `VOLTRUS_SKIP_UI_EMBED=1` builds without it): the archives hold the
+binaries, `config.yaml.example` and the service unit, no `static/` folder. A `static/`
+folder next to the binary would override the embedded UI (core serves it whole when
+`static/index.html` exists), so the deploy scripts delete any left over from older
+releases. Archive names are unchanged. `--dry-run` builds and packages, then prints the R2/D1 upload
 plan without running any remote command; `--skip-upload` (`--build-only` in
 `release.sh`) builds only. `BUILD_DIR` moves the output.
 

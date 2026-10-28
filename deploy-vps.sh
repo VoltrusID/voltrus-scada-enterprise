@@ -94,8 +94,7 @@ if [ "$BUILD_RUST" = true ]; then
   cp "target/${TARGET}/release/modbus-sim" "$BUILD_DIR/" 2>/dev/null || warn "modbus-sim not found (may need feature flag)"
   cp config.yaml "$BUILD_DIR/config.yaml.example"
   [ -f deploy/voltrus.service ] && cp deploy/voltrus.service "$BUILD_DIR/"
-  rm -rf "$BUILD_DIR/static"
-  cp -r static "$BUILD_DIR/static"
+  # No static/ folder: the release build embeds the web UI (the frontend step above runs first).
 
   local_size=$(stat -f%z "$BUILD_DIR/voltrus" 2>/dev/null || stat -c%s "$BUILD_DIR/voltrus" 2>/dev/null)
   info "Binary size: $(( local_size / 1048576 )) MB"
@@ -148,12 +147,10 @@ if [ -f /tmp/voltrus-deploy/modbus-sim ]; then
   sudo chmod +x "\${INSTALL_DIR}/modbus-sim"
 fi
 
-echo "==> Installing static files..."
+echo "==> Removing the old static files (the web UI is inside the binary now)..."
 sudo rm -rf "\${INSTALL_DIR}/static"
-sudo mv /tmp/voltrus-deploy/static "\${INSTALL_DIR}/static"
 
 echo "==> Fixing ownership..."
-sudo chown -R voltrus:voltrus "\${INSTALL_DIR}/static"
 sudo chown voltrus:voltrus "\${INSTALL_DIR}" "\${INSTALL_DIR}/voltrus" "\${INSTALL_DIR}/modbus-sim"
 sudo chown -R voltrus:voltrus "\${INSTALL_DIR}/data" 2>/dev/null || true
 
