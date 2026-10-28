@@ -45,12 +45,26 @@ impl Extension for Enterprise {
         Box::pin(licensing::resolve_license_status(storage))
     }
 
+    fn resolve_node_role<'a>(
+        &'a self,
+        config: &'a voltrus::models::AppConfig,
+        storage: &'a Storage,
+        license: &'a LicenseStatus,
+    ) -> BoxFuture<'a, anyhow::Result<voltrus::node_role::Start>> {
+        Box::pin(ha::resolve_node_role(config, storage, license))
+    }
+
     fn cli_help(&self) -> &'static str {
-        licensing::cli::HELP
+        static HELP: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+            format!("{}{}", licensing::cli::HELP, ha::witness::HELP)
+        });
+        HELP.as_str()
     }
 
     fn handle_cli<'a>(&'a self, args: &'a [String]) -> BoxFuture<'a, bool> {
-        Box::pin(licensing::cli::handle(args))
+        Box::pin(async move {
+            ha::witness::handle_cli(args).await || licensing::cli::handle(args).await
+        })
     }
 
     fn start<'a>(&'a self, ctx: StartContext) -> BoxFuture<'a, anyhow::Result<()>> {

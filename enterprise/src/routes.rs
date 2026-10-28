@@ -35,13 +35,7 @@ fn public() -> Router<AppState> {
 }
 
 fn protected() -> Router<AppState> {
-    Router::new()
-        .route("/api/v1/ha/status", get(ha::ha_api::ha_status))
-        .route("/api/v1/ha/force-sync", post(ha::ha_api::force_sync))
-        .route(
-            "/api/v1/ha/force-failover",
-            post(ha::ha_api::force_failover),
-        )
+    Router::new().route("/api/v1/ha/status", get(ha::ha_api::ha_status))
 }
 
 fn operator() -> Router<AppState> {
@@ -107,6 +101,11 @@ fn operator() -> Router<AppState> {
 
 fn admin() -> Router<AppState> {
     Router::new()
+        .route("/api/v1/ha/force-sync", post(ha::ha_api::force_sync))
+        .route(
+            "/api/v1/ha/force-failover",
+            post(ha::ha_api::force_failover),
+        )
         .route(
             "/api/v1/compliance/config",
             get(compliance::handlers::get_compliance_config)

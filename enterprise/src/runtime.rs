@@ -61,7 +61,10 @@ impl Runtime {
     pub async fn apply_license_effects(&self) {
         let tier = self.tier();
 
-        if tier.multi_site() && !self.hub_started.swap(true, Ordering::SeqCst) {
+        if tier.multi_site()
+            && voltrus::node_role::is_active()
+            && !self.hub_started.swap(true, Ordering::SeqCst)
+        {
             match self.storage.get_enabled_hub_sites().await {
                 Ok(sites) => {
                     for site in &sites {
@@ -97,14 +100,21 @@ impl Runtime {
             }
         }
 
-        if tier.ha() && self.config.ha.enabled && !self.ha_started.swap(true, Ordering::SeqCst) {
-            crate::ha::start_ha(&self.config.ha, self.ha_state.clone());
+        if tier.ha() && self.ha_state.is_enabled() && !self.ha_started.swap(true, Ordering::SeqCst) {
+            self.ha_state.start();
             tracing::info!(
                 "HA enabled, node_id={}, role={}",
                 self.config.ha.node_id,
                 self.config.ha.role
             );
         }
+    }
+
+    /// Stop the services only the active node of a pair runs. They start again
+    /// through [`Runtime::apply_license_effects`] when the node takes over.
+    pub async fn pause_active_services(&self) {
+        self.hub.stop_all().await;
+        self.hub_started.store(false, Ordering::SeqCst);
     }
 }
 
@@ -128,11 +138,11 @@ pub(crate) async fn start(ctx: StartContext) {
 
     let sso = SsoRuntime::start(&ctx.config_path, &oidc).await;
 
-    let ha_state = if ctx.config.ha.enabled {
-        HaState::new(&ctx.config.ha)
-    } else {
-        HaState::disabled()
-    };
+    let ha_state = HaState::build(&ctx.config.ha, ctx.storage.clone(), ctx.poller_manager.clone())
+        .unwrap_or_else(|e| {
+            tracing::error!("Hot standby could not be set up: {e:#}");
+            HaState::disabled()
+        });
 
     let runtime = Runtime {
         config: ctx.config,
