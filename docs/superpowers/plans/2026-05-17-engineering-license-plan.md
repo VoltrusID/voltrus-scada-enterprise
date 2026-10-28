@@ -112,7 +112,7 @@ pub fn push_notifications(&self) -> bool {
     !matches!(self, LicenseTier::Engineering)
 }
 
-pub fn sms_notifications(&self) -> bool {
+pub fn chat_notifications(&self) -> bool {
     matches!(self, LicenseTier::Professional | LicenseTier::Enterprise)
 }
 
@@ -283,7 +283,7 @@ fn test_license_tier_feature_flags() {
     assert!(!engineering.email_notifications());
     assert!(!engineering.webhook_notifications());
     assert!(!engineering.push_notifications());
-    assert!(!engineering.sms_notifications());
+    assert!(!engineering.chat_notifications());
     assert!(!engineering.rest_api_export());
     assert!(engineering.csv_export());
     assert!(!engineering.analytics());
@@ -1091,7 +1091,7 @@ async fn test_tier_engineering_feature_gates() {
     let flags = tier.to_feature_flags();
     assert_eq!(flags["opcua_enabled"], false);
     assert_eq!(flags["email_notifications"], false);
-    assert_eq!(flags["sms_notifications"], false);
+    assert_eq!(flags["chat_notifications"], false);
     assert_eq!(flags["s7_protocol"], false);
     assert_eq!(flags["ethernet_ip"], false);
     assert_eq!(flags["rtsp_video"], false);
