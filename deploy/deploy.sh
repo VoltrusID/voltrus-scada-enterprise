@@ -47,6 +47,9 @@ sleep 1
 echo "==> Extracting to ${INSTALL_DIR}..."
 sudo tar -xzf "${WORKDIR}/${ARCHIVE}" -C "${INSTALL_DIR}/" --overwrite
 sudo chmod +x "${INSTALL_DIR}/voltrus" "${INSTALL_DIR}/modbus-sim"
+# The web UI is inside the binary. A static/ folder from an older release would override it
+# and keep serving the old UI, so remove it.
+sudo rm -rf "${INSTALL_DIR}/static"
 
 echo "==> Starting services..."
 for svc in "${SERVICES[@]}"; do
