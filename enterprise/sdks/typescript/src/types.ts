@@ -9,7 +9,7 @@ export interface FeatureFlags {
   white_label: boolean;
   theme_full: boolean;
   pdf_reporting: boolean;
-  sms_notifications: boolean;
+  chat_notifications: boolean;
   multi_site: boolean;
   sso: boolean;
   sso_saml: boolean;

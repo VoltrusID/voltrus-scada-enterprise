@@ -14,7 +14,7 @@ voltrus/                          # Monorepo root
 │   │   ├── api/                  # REST API handlers
 │   │   ├── auth/                 # Auth (local Argon2, OIDC, SAML, LDAP)
 │   │   ├── license/              # License validation (Ed25519, tier enforcement)
-│   │   ├── notification/         # Email, webhook, push, SMS
+│   │   ├── notification/         # Email, webhook, push, Telegram, WhatsApp
 │   │   ├── integration/          # Prometheus exporter, BI connectors, data egress
 │   │   ├── flow_engine/          # Data Flow Engine (node-based automation)
 │   │   ├── modbus.rs             # Modbus TCP driver
@@ -82,7 +82,7 @@ All features from v0.18.0 through v0.39.0 have been implemented and shipped. v0.
 - Email via SMTP (Starter+)
 - Webhook via Data Flow Engine (Starter+)
 - Web Push with VAPID (Starter+)
-- SMS via email-to-SMS gateways (Professional+)
+- Telegram and WhatsApp Business messages (Integrator+)
 
 ### Data & Operations
 - REST API with API key auth, CORS, query params
@@ -293,7 +293,7 @@ All features from v0.18.0 through v0.39.0 have been implemented and shipped. v0.
 - **Dashboard layout generation:** Describe the plant in plain text ("6 pumps, 2 flow meters, 4 pressure sensors, 2 tanks") → auto-generate dashboard layout with grouped widgets, gauge placements, and trend chart selections. Engineer rearranges before deploying.
 - **Alarm threshold suggestions:** Select device type (pump station, power meter, VFD) → suggest alarm thresholds based on ISA-18.2 defaults and common patterns. Engineer adjusts per-site requirements.
 - **Tag naming batch conversion:** "Rename all tags to ISA-5.1 convention" or "convert from PUMP1_START to PMP001_RUN" → batch rename with diff preview before applying.
-- **Data flow rule generation:** "When tank level exceeds 80%, stop pump 1 and send SMS alarm" → generate flow engine rule with all node connections. Engineer reviews the logic graph before enabling.
+- **Data flow rule generation:** "When tank level exceeds 80%, stop pump 1 and send a Telegram alarm" → generate flow engine rule with all node connections. Engineer reviews the logic graph before enabling.
 - **Equipment template wizard:** Select industry + equipment type → pre-populate tag list, alarms, dashboard layout, and data flow rules from vertical templates (see v0.37).
 - **Simulation-first workflow:** All AI-generated configs deploy to simulation mode (v0.26) by default. Engineer validates with simulated data before switching to live.
 - **Audit trail:** Every AI-generated config is tagged with `source: ai-assist` in the config version history. Full diff against manual configs.
@@ -638,7 +638,7 @@ These are content/marketing actions extracted from appendix research that should
 |------|-------|---------|-------------|
 | Engineering | $0 | 5 | Full config + 2h data polling per restart, Voltrus branding |
 | Starter | $249/deployment | 50 | Modbus+MQTT, alarms, API, OEE, white-label |
-| Professional | $499/deployment | Unlimited | +OPC-UA, multi-site, SMS, PDF reports, RBAC |
+| Professional | $499/deployment | Unlimited | +OPC-UA, multi-site, chat alarms, PDF reports, RBAC |
 | Enterprise | $999/deployment | Unlimited | +SSO, S7, AB, CFR Part 11, RTSP video |
 
 **Per-deployment** = per server/host. License bound to machine ID. Transfer between servers via deactivation/re-activation. No floating license server — simple activation key model.

@@ -3,7 +3,7 @@
 Proprietary UI that the public core client (`client/`, AGPL-3.0) loads through its edition seam
 (`client/src/edition/`). The module contributes: Hub, Cameras (RTSP), scheduled Reports, IEC 62443
 Security audit and 21 CFR Part 11 Compliance tabs, the License panel, SSO sign-in options, white-label
-branding, the HA banner and the SMS notification channel. Each feature checks its licence flag and shows
+branding, the HA banner and the Telegram and WhatsApp notification channels. Each feature checks its licence flag and shows
 an upgrade notice when the flag is off.
 
 The module's default export is an `EnterpriseClientModule` (`client/src/edition/types.ts`), see `src/module.tsx`.
