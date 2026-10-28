@@ -6,7 +6,8 @@ set -euo pipefail
 #
 # Layout: the `voltrus` binary is built from enterprise/ (it links the open core in
 # the core/ submodule), `modbus-sim` from core/, and the web client from core/client
-# with the enterprise client module (output core/static). The packaged archives
+# with the enterprise client module (output core/static, embedded into the binary by a
+# release build, so the client is built first and the archives carry no static/). The packaged archives
 # have the same names and layout as before the open-core split.
 #
 # Usage:
@@ -164,7 +165,7 @@ build_target() {
   [ -f "$bin_modbus" ] && cp "$bin_modbus" "$pkg_dir/"
   cp core/config.yaml "$pkg_dir/config.yaml.example"
   [ -f core/deploy/voltrus.service ] && cp core/deploy/voltrus.service "$pkg_dir/"
-  cp -r core/static "$pkg_dir/static"
+  # No static/ folder: the web UI is inside the binary (core/build.rs embeds core/static).
 
   local archive
   if [[ "$name" == *"windows"* ]]; then

@@ -6,8 +6,10 @@ set -euo pipefail
 #
 # Layout: the `voltrus` binary is built from enterprise/ (it links the open core in
 # the core/ submodule), `modbus-sim` from core/, and the web client from core/client
-# with the enterprise client module (output core/static). The packaged archives
-# have the same names and layout as before the open-core split.
+# with the enterprise client module (output core/static). A release build of core
+# embeds core/static into the executable (core/build.rs), so the client is built
+# first and the archives hold the binaries, the config example and the service
+# unit, with no static/ folder. Archive names are unchanged.
 #
 # Usage:
 #   ./release.sh                  # build all + upload
@@ -131,6 +133,7 @@ info "Voltrus ${TAG}"
 [ "$DRY_RUN" = true ] && info "Dry run: nothing is uploaded and no remote command runs"
 
 # ── Build frontend (core client + enterprise client module -> core/static) ──
+# Must run before any cargo build below: the release build embeds core/static.
 build_frontend() {
   info "Building frontend..."
   (
@@ -174,7 +177,12 @@ build_target() {
   [ -f "$bin_modbus" ] && cp "$bin_modbus" "$pkg_dir/"
   cp core/config.yaml "$pkg_dir/config.yaml.example"
   [ -f core/deploy/voltrus.service ] && cp core/deploy/voltrus.service "$pkg_dir/"
-  cp -r core/static "$pkg_dir/static"
+  # No static/ folder: the web UI is inside the binary. A static/ next to it would override it.
+
+  # A host build runs here, so check that it serves the embedded UI from an empty directory.
+  if [ "$HOST_BUILD" = true ] && [ -x core/scripts/smoke-embedded-ui.sh ]; then
+    core/scripts/smoke-embedded-ui.sh "$bin_voltrus"
+  fi
 
   # Compress
   local archive

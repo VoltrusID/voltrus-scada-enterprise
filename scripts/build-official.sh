@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 git -C "$ROOT" submodule update --init core
 
-# Web client: core client plus the enterprise module. Writes core/static.
+# Web client: core client plus the enterprise module. Writes core/static, which the release
+# builds below embed into the executable (so this step comes first).
 (
   cd "$ROOT/core/client"
   npm ci
@@ -15,4 +16,4 @@ git -C "$ROOT" submodule update --init core
 (cd "$ROOT/enterprise" && cargo build --release --locked --bin voltrus)
 # Core-only helper binaries (simulators).
 cargo build --release --locked --manifest-path "$ROOT/core/Cargo.toml" --bin modbus-sim
-echo "official binary: $ROOT/enterprise/target/release/voltrus (static assets in core/static)"
+echo "official binary: $ROOT/enterprise/target/release/voltrus (web UI embedded)"
