@@ -11,7 +11,7 @@ Voltrus is open core. The code is split in two parts with two licences:
 | **Enterprise** | [`enterprise/`](enterprise) | [Voltrus Enterprise License](enterprise/LICENSE) (source available) | Needs a paid subscription and a licence key |
 
 Core is the SCADA itself: protocols, dashboards, alarms, historian and the REST
-API. Enterprise adds single sign-on, 21 CFR Part 11 controls, IEC 62443 audit,
+API. Enterprise adds single sign-on (SAML 2.0, OIDC, LDAP/Active Directory; see [`docs/sso.md`](docs/sso.md)), 21 CFR Part 11 controls, IEC 62443 audit,
 hot standby, multi-site hub, RTSP video, white-label, scheduled reports and
 priority support. The official binary is Core plus the Enterprise crate. Without
 a valid licence key it runs as Community and the Core features keep working.
