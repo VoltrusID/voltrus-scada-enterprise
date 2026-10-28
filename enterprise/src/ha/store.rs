@@ -867,6 +867,34 @@ pub fn apply_changes(
     tables: &[TableChanges],
     position: Option<Position>,
 ) -> Result<ApplyStats> {
+    with_foreign_keys_off(conn, |conn| apply_changes_inner(conn, tables, position))
+}
+
+/// The core turns foreign key enforcement on after its migrations. Replicated
+/// rows arrive in no particular parent-first order and a parent's deletes are
+/// replicated as deletes of its children already (the capture triggers log
+/// cascaded deletes), so enforcement during apply would only reject valid
+/// data. The pragma cannot change inside a transaction, hence the wrapper.
+fn with_foreign_keys_off<T>(
+    conn: &mut Connection,
+    f: impl FnOnce(&mut Connection) -> Result<T>,
+) -> Result<T> {
+    let was: i64 = conn.query_row("PRAGMA foreign_keys", [], |r| r.get(0))?;
+    if was != 0 {
+        conn.execute_batch("PRAGMA foreign_keys = OFF")?;
+    }
+    let result = f(conn);
+    if was != 0 {
+        conn.execute_batch("PRAGMA foreign_keys = ON")?;
+    }
+    result
+}
+
+fn apply_changes_inner(
+    conn: &mut Connection,
+    tables: &[TableChanges],
+    position: Option<Position>,
+) -> Result<ApplyStats> {
     let tx = conn.transaction().context("Failed to begin the apply transaction")?;
     tx.execute("UPDATE ha_guard SET mute = 1 WHERE id = 1", [])?;
     let mut cache = HashMap::new();
@@ -994,6 +1022,10 @@ fn row_bytes(row: &[Cell]) -> usize {
 /// empty them. Runs in one transaction with the triggers muted. Marks the node
 /// as needing a full sync until [`finish_full_sync`] runs.
 pub fn begin_full_sync(conn: &mut Connection, tables: &[SnapshotTable]) -> Result<()> {
+    with_foreign_keys_off(conn, |conn| begin_full_sync_inner(conn, tables))
+}
+
+fn begin_full_sync_inner(conn: &mut Connection, tables: &[SnapshotTable]) -> Result<()> {
     let tx = conn.transaction()?;
     tx.execute("UPDATE ha_guard SET mute = 1 WHERE id = 1", [])?;
     tx.execute(
@@ -1438,5 +1470,52 @@ mod tests {
         assert_eq!(load_node(&a).unwrap(), Some(n.clone()));
         save_node(&a, &NodeRecord { epoch: 8, ..n.clone() }).unwrap();
         assert_eq!(load_node(&a).unwrap().unwrap().epoch, 8);
+    }
+
+    /// The core leaves foreign keys enforced on its connection. A cascaded delete
+    /// must replicate as deletes of the children, and applying rows in any order
+    /// must not trip the constraint on the standby.
+    #[test]
+    fn foreign_keys_enforced_on_both_nodes_do_not_break_replication() {
+        let (_d, a, mut b) = pair();
+        for c in [&a, &b] {
+            c.execute_batch(
+                "CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT);
+                 CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL REFERENCES parent(id) ON DELETE CASCADE, v TEXT);
+                 PRAGMA foreign_keys = ON;",
+            )
+            .unwrap();
+            install_triggers(c).unwrap();
+        }
+        a.execute_batch(
+            "INSERT INTO parent VALUES (1, 'p1'), (2, 'p2');
+             INSERT INTO child VALUES (10, 1, 'a'), (11, 1, 'b'), (12, 2, 'c');",
+        )
+        .unwrap();
+        // Children are logged before the parents of other keys can be: a batch of two
+        // entries holds only the children.
+        let schemas = table_schemas(&a).unwrap();
+        let child_only = vec![LogEntry { seq: 1, tbl: "child".into(), op: OP_UPSERT, pk: "[10]".into() }];
+        let batch = build_batch(&a, &schemas, &child_only).unwrap();
+        apply_changes(&mut b, &batch.tables, None).expect("a child may arrive before its parent");
+        b.execute_batch("DELETE FROM child").unwrap();
+        ship(&a, &mut b, 0, 100);
+        assert_eq!(dump(&a), dump(&b));
+
+        let before = max_seq(&a).unwrap();
+        a.execute("DELETE FROM parent WHERE id = 1", []).unwrap();
+        let logged: Vec<String> = read_log(&a, before, 100)
+            .unwrap()
+            .into_iter()
+            .map(|e| format!("{}:{}:{}", e.tbl, e.op, e.pk))
+            .collect();
+        assert!(
+            logged.contains(&"child:2:[10]".to_string()) && logged.contains(&"child:2:[11]".to_string()),
+            "cascaded deletes are logged: {logged:?}"
+        );
+        ship(&a, &mut b, before, 100);
+        assert_eq!(dump(&a), dump(&b));
+        let fk: i64 = b.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
+        assert_eq!(fk, 1, "enforcement is restored after an apply");
     }
 }

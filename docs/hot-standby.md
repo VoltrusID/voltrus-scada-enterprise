@@ -63,9 +63,14 @@ read-only: every HTTP write except sign-in, `/api/v1/ha/*` and the licence
 endpoints answers `503 standby_read_only`, and its history, alarm, retention,
 egress, OEE, command queue and flow jobs are idle.
 
+While a full sync runs the standby's database is incomplete (its tables are emptied and
+refilled), so sign-in and reads on the standby can fail until it ends; the status shows
+`sync_state: full_sync` with progress. A node that has no complete copy refuses to take over.
+Foreign keys stay enforced on the core's connection except while rows are applied.
+
 ### Data loss on failover
 
-Changes are shipped every `sync_interval_ms` (200 ms) and acknowledged. A crash
+Changes are shipped every `sync_interval_ms` (default 200 ms) and acknowledged. A crash
 of the primary loses what was committed after the last acknowledged batch:
 at most `sync_interval_ms` plus one network round trip and one apply, so well
 under a second on a LAN, and only if the standby was connected and caught up.
@@ -118,3 +123,48 @@ than the log holds (4 million changes) it takes a full sync instead.
 
 Roles: `primary` (acts), `standby` (follows), `fenced` (wants to be primary but
 may not act: lost its lease, or both its peer and witness; resumes by itself).
+
+## Measured
+
+From `enterprise/tests/ha_pair.rs`: two real `voltrus-ha-test-node` processes on one
+machine, debug build, `heartbeat_interval_ms: 200`, `failover_after_missed: 5` (1 s),
+`sync_interval_ms: 50`. Run it with
+`cargo test --features ha-test-node --test ha_pair -- --nocapture --test-threads=1`;
+the numbers print as `MEASURED` lines. Ranges are over runs on the same machine.
+
+| What | Result |
+| --- | --- |
+| Config change on the primary visible on the standby | 60 to 88 ms |
+| `kill -9` the primary, standby active | 1003 to 1060 ms (the configured 1000 ms of silence plus about 10 ms to start the pollers) |
+| ... and accepting writes | 8 to 13 ms after that |
+| Same with an arbiter witness (lease 1 s) | 1058 ms |
+| Rows lost at `kill -9` under a 2 ms write load | 4, 7 and 18 rows, i.e. 8 to 36 ms of writes, with a 50 ms ship interval |
+| Controlled switchover, asked on the primary / on the standby | 328 to 440 ms / 308 ms, 500 rows written just before it all present, no full sync afterwards |
+| Samples with both nodes reporting active at once, over every phase of the tests | 0 of 111 (lifecycle), 0 of 228 (partition with an arbiter) |
+| Partition of the node link, both nodes reaching the arbiter, 5 s | standby stays standby, `promotion_blocked` names the lease, no new epoch |
+
+The data-loss window is the replication lag at the moment of the crash, so it grows with
+`sync_interval_ms` and with the write rate, and shrinks to zero when the standby is idle
+and caught up. Failover time is `heartbeat_interval_ms * failover_after_missed` plus the
+time to start the pollers.
+
+### Cost of the change log
+
+The capture triggers add one log row, one sequence update and one JSON key per changed
+row, inside the same transaction. Measured with `changelog_overhead_on_telemetry_inserts`
+(`--ignored`), through `Storage::insert_batch` with one transaction per batch like the
+persistence task, **debug build** (SQLite compiled without optimisation, so absolute
+numbers are low and only the ratio means something):
+
+| Batch | Without | With the log | With the log pruned as acknowledged |
+| --- | --- | --- | --- |
+| 1 device, 6 rows per batch | 14500 rows/s | 7850 rows/s (54 %) | 5300 rows/s |
+| 100 devices, 600 rows per batch | 9800 rows/s | 10600 rows/s | 11500 rows/s |
+
+The first row is the honest worst case: tiny transactions roughly double the cost of an
+insert. The second row is not a speed-up; the run is noise on a growing table (the
+baseline ran first on an empty table) and only shows that large batches hide the
+overhead. The core persists once per `persist_interval_secs`, not once per poll, so a
+device polled every millisecond still writes its latest values once per interval (6 rows
+per second per device here): at that rate the overhead is microseconds per second. A
+release build was not measured.

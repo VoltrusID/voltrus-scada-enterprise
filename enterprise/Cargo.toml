@@ -29,6 +29,11 @@ name = "voltrus-ha-test-node"
 path = "src/bin/ha_test_node.rs"
 required-features = ["ha-test-node"]
 
+[[test]]
+name = "ha_pair"
+path = "tests/ha_pair.rs"
+required-features = ["ha-test-node"]
+
 [features]
 ha-test-node = []
 

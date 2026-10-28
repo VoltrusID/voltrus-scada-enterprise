@@ -423,13 +423,19 @@ impl Node {
     }
 
     async fn run_connector(self: Arc<Self>) {
-        let probe_every = (self.cfg.heartbeat * 2).max(Duration::from_secs(2));
+        let probe_every = self.cfg.heartbeat.max(Duration::from_secs(1));
+        let mut role_rx = self.role_tx.subscribe();
         let mut quiet_since: Option<Instant> = None;
         loop {
             if self.role() == HaRole::Primary {
                 // Nobody dials a primary that has its standby; probe only when
                 // none is attached, to find a primary that outranks this node.
-                sleep(probe_every).await;
+                // A role change wakes this up: a node that just handed over must
+                // follow at once, not after the next probe interval.
+                tokio::select! {
+                    _ = sleep(probe_every) => {}
+                    _ = role_rx.changed() => continue,
+                }
                 if lock(&self.primary_cmd).is_none() {
                     let _ = self.connect_once().await;
                 }
@@ -448,7 +454,10 @@ impl Node {
                     d.session_up = false;
                 }
             }
-            sleep(Duration::from_millis(500)).await;
+            // A standby that cannot apply what it is sent would otherwise be
+            // full-synced over and over: slow down while it is in error.
+            let broken = matches!(lock(&self.dynamic).sync, SyncState::Error(_));
+            sleep(if broken { Duration::from_secs(5) } else { Duration::from_millis(500) }).await;
         }
     }
 
@@ -778,6 +787,24 @@ impl Node {
         }
     }
 
+    /// One authenticated hello exchange with the peer, without asking for a
+    /// replication session. `None` when the peer does not answer in time.
+    async fn quick_probe(&self) -> Option<Hello> {
+        let wait = self.cfg.failover_timeout().min(Duration::from_secs(2));
+        let attempt = async {
+            let link = self.security.dial(&self.cfg.peer_address, wait).await.ok()?;
+            let mut peer = link.into_peer(wait);
+            let mut mine = self.hello().await;
+            mine.role = WireRole::Fenced; // a probe never asks to be served
+            peer.send(&Msg::Hello(mine)).await.ok()?;
+            match peer.recv().await {
+                Some(Ok(Msg::Hello(p))) => Some(p),
+                _ => None,
+            }
+        };
+        timeout(wait, attempt).await.ok().flatten()
+    }
+
     async fn monitor_standby(self: &Arc<Self>, warned_at: &mut Option<Instant>) {
         let timeout = self.cfg.failover_timeout();
         let silent = {
@@ -785,6 +812,15 @@ impl Node {
             d.primary_contact.unwrap_or(self.started).elapsed()
         };
         if silent < timeout {
+            return;
+        }
+        // The primary may be alive and this node merely not linked to it yet (a link
+        // that was just re-established, a role change): ask it before taking over.
+        if let Some(ph) = self.quick_probe().await
+            && ph.role == WireRole::Primary
+            && ph.epoch >= self.epoch()
+        {
+            self.observe_peer(&ph).await;
             return;
         }
         let reason = format!("no answer from the primary for {} ms", silent.as_millis());
@@ -945,7 +981,10 @@ impl Node {
             uptime_as_role_secs: d.role_since.map_or(0, |t| t.elapsed().as_secs()),
             failover_after_ms: self.cfg.failover_timeout().as_millis() as u64,
             can_take_over: role == HaRole::Standby && !d.needs_full_sync,
-            promotion_blocked: d.promotion_blocked.clone(),
+            promotion_blocked: d
+                .promotion_blocked
+                .clone()
+                .filter(|_| role == HaRole::Standby && d.primary_contact.unwrap_or(self.started).elapsed() >= self.cfg.failover_timeout()),
             witness: self.witness.kind_name().map(|k| WitnessStatus {
                 kind: k.to_string(),
                 reachable: d.witness_ok,
