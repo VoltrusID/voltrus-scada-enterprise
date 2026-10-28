@@ -2,10 +2,15 @@ import { etc, sign } from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2";
 import { renderDay0, renderDay3, renderDay10, sendEmail, verifyUnsubToken } from "./email";
 import type { Env, PolarKeyInfo } from "./env";
+import { cleanSiteName, resolveSiteSupport, siteAware, type SiteSupport } from "./site-support";
 
 interface LicenseRequest {
   license_key: string;
   fingerprint: { hash: string; components?: Record<string, string> };
+  /** Name of the site a key without a site is issued for (sanitised on parse). */
+  site_name?: string | null;
+  /** Capabilities of the client, e.g. "site_support" (it can verify the per-site signed fields). */
+  features?: string[];
 }
 
 interface BindingRow {
@@ -15,6 +20,9 @@ interface BindingRow {
   revoked: number;
   tier: string | null;
   device_limit: number | null;
+  site_id: string | null;
+  site_name: string | null;
+  support_until: number | null;
 }
 
 interface EmailSequenceRow {
@@ -193,9 +201,21 @@ function refuse(error: string, status: number, code: string): Response {
   return jsonResponse({ success: false, error, code }, status);
 }
 
-function activationResponse(activation_file: string, tier: string, expiresAt: string | null | undefined): Response {
+function activationResponse(
+  activation_file: string,
+  tier: string,
+  expiresAt: string | null | undefined,
+  siteSupport: SiteSupport
+): Response {
   return jsonResponse(
-    { success: true, activation_file, tier, expires_at: expiresAt ? new Date(expiresAt).toISOString() : null },
+    {
+      success: true,
+      activation_file,
+      tier,
+      expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+      site: siteSupport.site,
+      support_until: siteSupport.support_until
+    },
     200
   );
 }
@@ -224,8 +244,16 @@ async function handleActivate(request: Request, env: Env, mode: ActivateMode): P
     return activateConsoleLicense(request_data, env, mode);
   }
   const existing = await env.DB.prepare(
-    "SELECT fingerprint_hash, revoked, tier, device_limit FROM license_bindings WHERE license_key = ?"
-  ).bind(request_data.license_key).first<{ fingerprint_hash: string; revoked: number; tier: string | null; device_limit: number | null }>();
+    "SELECT fingerprint_hash, revoked, tier, device_limit, site_id, site_name, support_until FROM license_bindings WHERE license_key = ?"
+  ).bind(request_data.license_key).first<{
+    fingerprint_hash: string;
+    revoked: number;
+    tier: string | null;
+    device_limit: number | null;
+    site_id?: string | null;
+    site_name?: string | null;
+    support_until?: number | null;
+  }>();
   if (existing?.revoked) {
     return refuse("License has been revoked", 403, "revoked");
   }
@@ -246,17 +274,21 @@ async function handleActivate(request: Request, env: Env, mode: ActivateMode): P
   const device_limit = resolved ? polarValid.device_limit : existing ? existing.device_limit : null;
   const { expires_at } = polarValid;
   console.log(`Activation: mode=${mode}, license_key=${request_data.license_key}, rebind=${!!existing}, resolved=${resolved}, tier=${tier}, device_limit=${device_limit}, expires_at=${expires_at}`);
+  // Site and support come from the console (its rename and paid renewals reach the next activation or renewal).
+  const siteSupport = await resolveSiteSupport(env, request_data.license_key, existing, request_data.site_name ?? null);
+  const site_id = siteSupport.site?.id ?? null;
+  const site_name = siteSupport.site?.name ?? null;
   if (existing) {
-    await env.DB.prepare("UPDATE license_bindings SET tier = ?, device_limit = ? WHERE license_key = ?")
-      .bind(tier, device_limit, request_data.license_key)
-      .run();
+    await env.DB.prepare(
+      "UPDATE license_bindings SET tier = ?, device_limit = ?, site_id = ?, site_name = ?, support_until = ? WHERE license_key = ?"
+    ).bind(tier, device_limit, site_id, site_name, siteSupport.support_until, request_data.license_key).run();
   } else {
     await env.DB.prepare(
-      "INSERT INTO license_bindings (license_key, fingerprint_hash, tier, device_limit) VALUES (?, ?, ?, ?)"
-    ).bind(request_data.license_key, request_data.fingerprint.hash, tier, device_limit).run();
+      "INSERT INTO license_bindings (license_key, fingerprint_hash, tier, device_limit, site_id, site_name, support_until) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).bind(request_data.license_key, request_data.fingerprint.hash, tier, device_limit, site_id, site_name, siteSupport.support_until).run();
   }
-  const activation = await generateActivation(request_data, env, expires_at, tier, device_limit);
-  return activationResponse(activation, tier, expires_at);
+  const activation = await generateActivation(request_data, env, expires_at, tier, device_limit, siteSupport);
+  return activationResponse(activation, tier, expires_at, siteSupport);
 }
 
 // Console-issued VLT-* licenses (console.voltrus.id card and saldo purchases) live in the
@@ -303,8 +335,9 @@ async function activateConsoleLicense(request_data: LicenseRequest, env: Env, mo
   console.log(`Activation (console): mode=${mode}, license=${code}, rebind=${!!seated}, tier=${tier}`);
   const expiresAt = lic.expires_at ? new Date(lic.expires_at).toISOString() : null;
   // Sign the key exactly as the host sent it: the binary matches it against its own config.
-  const activation = await generateActivation(request_data, env, expiresAt, tier, null);
-  return activationResponse(activation, tier, expiresAt);
+  const siteSupport = await resolveSiteSupport(env, code, null, request_data.site_name ?? null);
+  const activation = await generateActivation(request_data, env, expiresAt, tier, null, siteSupport);
+  return activationResponse(activation, tier, expiresAt, siteSupport);
 }
 async function handleAdminPanel(request: Request, env: Env): Promise<Response> {
   const auth = request.headers.get("Authorization");
@@ -312,7 +345,7 @@ async function handleAdminPanel(request: Request, env: Env): Promise<Response> {
     return new Response("Unauthorized", { status: 401 });
   }
   const bindings = await env.DB.prepare(
-    "SELECT license_key, fingerprint_hash, activated_at, revoked, tier, device_limit FROM license_bindings ORDER BY activated_at DESC"
+    "SELECT license_key, fingerprint_hash, activated_at, revoked, tier, device_limit, site_id, site_name, support_until FROM license_bindings ORDER BY activated_at DESC"
   ).all<BindingRow>();
   const rows = (bindings.results || []).map((b) => `
     <tr>
@@ -321,6 +354,8 @@ async function handleAdminPanel(request: Request, env: Env): Promise<Response> {
       <td>${b.activated_at}</td>
       <td>${escapeHtml(b.tier || "professional")}</td>
       <td>${b.device_limit != null ? b.device_limit : "Unlimited"}</td>
+      <td>${escapeHtml(b.site_name || "")}</td>
+      <td>${b.support_until != null ? new Date(b.support_until * 1000).toISOString().slice(0, 10) : ""}</td>
       <td>${b.revoked ? "REVOKED" : "Active"}</td>
       <td>
         <form method="POST" action="/admin/transfer" style="display:inline">
@@ -336,7 +371,7 @@ async function handleAdminPanel(request: Request, env: Env): Promise<Response> {
 <body>
 <h1>License Bindings</h1>
 <table border="1">
-<tr><th>License Key</th><th>Fingerprint</th><th>Activated</th><th>Tier</th><th>Device Limit</th><th>Status</th><th>Action</th></tr>
+<tr><th>License Key</th><th>Fingerprint</th><th>Activated</th><th>Tier</th><th>Device Limit</th><th>Site</th><th>Support until</th><th>Status</th><th>Action</th></tr>
 ${rows}
 </table>
 </body>
@@ -368,7 +403,12 @@ function parseRequestFile(bytes: Uint8Array): LicenseRequest | null {
 function parseLicenseRequest(data: any): LicenseRequest | null {
   if (!data || typeof data.license_key !== "string" || !data.license_key) return null;
   if (!data.fingerprint || typeof data.fingerprint.hash !== "string" || !data.fingerprint.hash) return null;
-  return data;
+  return {
+    license_key: data.license_key,
+    fingerprint: data.fingerprint,
+    site_name: cleanSiteName(data.site_name),
+    features: Array.isArray(data.features) ? data.features.filter((f: unknown) => typeof f === "string") : []
+  };
 }
 // tier null: the key is valid but its purchase couldn't be resolved.
 // expires_at: monthly keys are valid to the paid period end of their subscription, lifetime keys never expire.
@@ -461,6 +501,7 @@ async function generateActivation(
   polarExpiresAt: string | null | undefined,
   tier: string,
   device_limit: number | null,
+  siteSupport: SiteSupport,
 ): Promise<string> {
   const expiresAt = polarExpiresAt ? new Date(polarExpiresAt).toISOString() : null;
   const hasTier = !!tier;
@@ -475,6 +516,16 @@ async function generateActivation(
     payload.tier = tier;
     payload.device_limit = device_limit ?? null;
   }
+  // Per-site fields are signed only when they exist and the client can verify them: an older SCADA build
+  // re-serialises the payload without fields it does not know and would reject the signature. The order
+  // here is the order of ActivationPayload in enterprise/src/licensing/activation.rs.
+  if (siteAware(request_data.features)) {
+    if (siteSupport.site) {
+      payload.site_id = siteSupport.site.id;
+      payload.site_name = siteSupport.site.name;
+    }
+    if (siteSupport.support_until != null) payload.support_until = siteSupport.support_until;
+  }
   const payload_json = new TextEncoder().encode(JSON.stringify(payload));
   const private_key = hexToBytes(env.ED25519_PRIVATE_KEY);
   const signature = sign(payload_json, private_key);
@@ -483,11 +534,11 @@ async function generateActivation(
     ...payload,
     signature: bytesToHex(signature)
   };
-  const json = JSON.stringify(activation);
-  const magic = new TextEncoder().encode("VOLACT");
+  const json = new TextEncoder().encode(JSON.stringify(activation));
+  const magic = new TextEncoder().encode("VOLACT\x01");
   const result = new Uint8Array(magic.length + json.length);
   result.set(magic);
-  result.set(new TextEncoder().encode(json), magic.length);
+  result.set(json, magic.length);
   return btoa(String.fromCharCode(...result));
 }
 async function handleReleaseDownload(_request: Request, env: Env, path: string): Promise<Response> {

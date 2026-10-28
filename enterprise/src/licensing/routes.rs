@@ -18,11 +18,15 @@ pub struct ActivateBody {
     pub license_key: Option<String>,
     /// Offline: the signed activation file, base64 encoded.
     pub activation_base64: Option<String>,
+    /// Online activation: name of the site a key without a site is issued for.
+    pub site_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct RequestBody {
     pub license_key: String,
+    /// Name of the site a key without a site is issued for.
+    pub site_name: Option<String>,
 }
 
 fn error(status: StatusCode, message: impl std::fmt::Display) -> Response {
@@ -33,6 +37,7 @@ fn error(status: StatusCode, message: impl std::fmt::Display) -> Response {
 fn status_json(status: &LicenseStatus) -> serde_json::Value {
     let mut value = serde_json::to_value(status).unwrap_or_default();
     value["tier"] = json!(status.tier());
+    value["support"] = json!(status.support());
     value["feature_flags"] = status.feature_flags();
     value
 }
@@ -75,7 +80,7 @@ pub async fn activate(
             }
         },
         (None, Some(key)) if !key.trim().is_empty() => {
-            match online::fetch_activation(key.trim()).await {
+            match online::fetch_activation(key.trim(), body.site_name.as_deref()).await {
                 Ok(blob) => blob,
                 Err(e) => return error(StatusCode::BAD_REQUEST, format!("{e:#}")),
             }
@@ -94,7 +99,7 @@ pub async fn activate(
 /// POST /api/license/request: offline flow, returns the request file to upload at
 /// activate.voltrus.id.
 pub async fn request(Json(body): Json<RequestBody>) -> Response {
-    match request::build_request(body.license_key.trim()) {
+    match request::build_request(body.license_key.trim(), body.site_name.as_deref()) {
         Ok(data) => Json(json!({
             "request_base64": base64::engine::general_purpose::STANDARD.encode(data),
         }))

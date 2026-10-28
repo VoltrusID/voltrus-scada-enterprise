@@ -38,6 +38,14 @@ function describeExpiry(license: LicenseInfo): string {
   return date
 }
 
+function describeSupport(license: LicenseInfo): string | null {
+  if (typeof license.support_until !== 'number') return null
+  const date = new Date(license.support_until * 1000).toLocaleDateString()
+  return license.support === 'lapsed'
+    ? `Lapsed ${date}. Everything you licensed keeps working; renew to keep receiving updates and support.`
+    : `Until ${date}`
+}
+
 function base64ToBlob(b64: string): Blob {
   const bin = atob(b64)
   const bytes = new Uint8Array(bin.length)
@@ -64,6 +72,7 @@ export function LicensePanel() {
   const license = useLicense()
   const qc = useQueryClient()
   const [keyInput, setKeyInput] = useState('')
+  const [siteInput, setSiteInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -91,14 +100,19 @@ export function LicensePanel() {
   }
 
   const activateOnline = () =>
-    run(async () => applyStatus(await postJson('/api/license/activate', { license_key: keyInput.trim() }), 'License activated.'))
+    run(async () =>
+      applyStatus(
+        await postJson('/api/license/activate', { license_key: keyInput.trim(), site_name: siteInput.trim() || undefined }),
+        'License activated.',
+      ),
+    )
 
   const refresh = () =>
     run(async () => applyStatus(await postJson('/api/license/refresh'), 'License refreshed.'))
 
   const downloadRequest = () =>
     run(async () => {
-      const r = await postJson('/api/license/request', { license_key: keyInput.trim() })
+      const r = await postJson('/api/license/request', { license_key: keyInput.trim(), site_name: siteInput.trim() || undefined })
       const { request_base64 } = await r.json()
       const url = URL.createObjectURL(base64ToBlob(request_base64))
       const a = document.createElement('a')
@@ -115,11 +129,14 @@ export function LicensePanel() {
   const hasKey = keyInput.trim().length > 0
   const isMonthly = license.tier !== 'community' && !!license.expires_at
 
+  const supportText = describeSupport(license)
   const rows: [string, string][] = [
     ['Edition', TIER_LABEL[license.tier]],
     ['Status', license.status],
     ['Key', license.license_key ? maskKey(license.license_key) : 'None'],
     ['Expires', describeExpiry(license)],
+    ...(license.site ? [['Site', license.site.name] as [string, string]] : []),
+    ...(supportText ? [['Support', supportText] as [string, string]] : []),
   ]
 
   return (
@@ -160,6 +177,14 @@ export function LicensePanel() {
             Activate online
           </button>
         </div>
+        <input
+          value={siteInput}
+          onChange={e => setSiteInput(e.target.value)}
+          placeholder="Site name (optional, only for a per-site key that has no site yet)"
+          aria-label="Site name"
+          maxLength={120}
+          style={{ ...inputStyle, width: '100%', marginTop: 8, boxSizing: 'border-box' }}
+        />
       </div>
 
       <div style={CARD}>

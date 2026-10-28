@@ -1,6 +1,6 @@
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
-use voltrus::license::{LicenseStatus, LicenseTier};
+use voltrus::license::{LicenseStatus, LicenseTier, SupportState};
 
 use super::GRACE_DAYS;
 use super::activation::LicenseActivation;
@@ -15,6 +15,9 @@ fn activation(tier: &str, expires_at: Option<&str>) -> LicenseActivation {
         expires_at: expires_at.map(str::to_string),
         tier: Some(tier.to_string()),
         device_limit: None,
+        site_id: None,
+        site_name: None,
+        support_until: None,
         signature: String::new(),
     }
 }
@@ -113,7 +116,11 @@ fn legacy_starter_and_edge_keep_logo_only_white_label() {
         assert!(status.white_label(), "{legacy}");
         let flags = status.feature_flags();
         for (key, value) in flags.as_object().unwrap() {
-            assert_eq!(value, &serde_json::json!(key == "white_label"), "{legacy} {key}");
+            assert_eq!(
+                value,
+                &serde_json::json!(key == "white_label"),
+                "{legacy} {key}"
+            );
         }
     }
 }
@@ -143,4 +150,105 @@ fn garbage_expiry_is_rejected() {
         at("2026-11-01T00:00:00Z"),
     );
     assert!(matches!(status, LicenseStatus::InvalidSignature { .. }));
+}
+
+// ── Per-site licence and support contract ──
+
+/// Unix seconds of 2027-01-01T00:00:00Z.
+const SUPPORT_END: i64 = 1_798_761_600;
+
+fn per_site(support_until: Option<i64>) -> LicenseActivation {
+    LicenseActivation {
+        site_id: Some("0b0e8a5c-1f3a-4f6e-9d0a-5d1d8f4c7a11".to_string()),
+        site_name: Some("Plant 1".to_string()),
+        support_until,
+        ..activation("integrator", None)
+    }
+}
+
+fn valid_fields(status: &LicenseStatus) -> (Option<&voltrus::license::LicenseSite>, Option<i64>) {
+    match status {
+        LicenseStatus::Valid {
+            site,
+            support_until,
+            ..
+        } => (site.as_ref(), *support_until),
+        other => panic!("expected Valid, got {other:?}"),
+    }
+}
+
+#[test]
+fn per_site_key_reports_its_site_and_support_end() {
+    let status = evaluate_activation(&per_site(Some(SUPPORT_END)), at("2026-10-28T00:00:00Z"));
+    let (site, support_until) = valid_fields(&status);
+    let site = site.expect("site");
+    assert_eq!(site.id, "0b0e8a5c-1f3a-4f6e-9d0a-5d1d8f4c7a11");
+    assert_eq!(site.name, "Plant 1");
+    assert_eq!(support_until, Some(SUPPORT_END));
+    assert_eq!(
+        status.support_at(at("2026-10-28T00:00:00Z").unix_timestamp()),
+        SupportState::Active
+    );
+    assert_eq!(status.tier(), LicenseTier::Integrator);
+}
+
+#[test]
+fn key_issued_before_per_site_licensing_reports_neither() {
+    let status = evaluate_activation(&activation("enterprise", None), at("2030-01-01T00:00:00Z"));
+    assert_eq!(valid_fields(&status), (None, None));
+    assert_eq!(
+        status.support_at(at("2030-01-01T00:00:00Z").unix_timestamp()),
+        SupportState::None
+    );
+}
+
+#[test]
+fn lapsed_support_never_limits_the_licence() {
+    // Years after support ended, on a perpetual per-site key: still Valid, same tier,
+    // same features as while support was active. Only the reported state changes.
+    let now = at("2031-06-01T00:00:00Z");
+    let lapsed = evaluate_activation(&per_site(Some(SUPPORT_END)), now);
+    let active = evaluate_activation(&per_site(Some(SUPPORT_END)), at("2026-10-28T00:00:00Z"));
+    assert!(matches!(lapsed, LicenseStatus::Valid { grace: false, .. }));
+    assert_eq!(
+        lapsed.support_at(now.unix_timestamp()),
+        SupportState::Lapsed
+    );
+    assert_eq!(lapsed.tier(), LicenseTier::Integrator);
+    assert_eq!(lapsed.tier(), active.tier());
+    assert_eq!(lapsed.feature_flags(), active.feature_flags());
+    assert_eq!(valid_fields(&lapsed).1, Some(SUPPORT_END));
+}
+
+#[test]
+fn support_ends_on_the_second_it_says() {
+    let status = evaluate_activation(&per_site(Some(SUPPORT_END)), at("2026-10-28T00:00:00Z"));
+    assert_eq!(status.support_at(SUPPORT_END - 1), SupportState::Active);
+    assert_eq!(status.support_at(SUPPORT_END), SupportState::Lapsed);
+}
+
+#[test]
+fn site_id_without_a_name_shows_the_id() {
+    let mut a = per_site(None);
+    a.site_name = None;
+    let status = evaluate_activation(&a, at("2026-10-28T00:00:00Z"));
+    let (site, _) = valid_fields(&status);
+    assert_eq!(site.unwrap().name, "0b0e8a5c-1f3a-4f6e-9d0a-5d1d8f4c7a11");
+}
+
+#[test]
+fn a_name_without_an_id_is_not_a_site() {
+    let mut a = per_site(None);
+    a.site_id = None;
+    let status = evaluate_activation(&a, at("2026-10-28T00:00:00Z"));
+    assert_eq!(valid_fields(&status).0, None);
+}
+
+#[test]
+fn support_does_not_change_the_monthly_expiry_rules() {
+    // A monthly key past its grace period is Expired whatever the support contract says.
+    let mut a = per_site(Some(SUPPORT_END));
+    a.expires_at = Some("2026-11-01T00:00:00Z".to_string());
+    let status = evaluate_activation(&a, at("2026-11-09T00:00:00Z"));
+    assert!(matches!(status, LicenseStatus::Expired { .. }));
 }
