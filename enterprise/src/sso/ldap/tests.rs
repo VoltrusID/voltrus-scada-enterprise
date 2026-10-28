@@ -345,7 +345,8 @@ fn pki(server_names: &[&str]) -> Pki {
             .collect::<Vec<_>>(),
     )
     .unwrap();
-    let cert = params.signed_by(&key, &ca, &ca_key).unwrap();
+    let issuer = rcgen::Issuer::from_params(&ca_params, &ca_key);
+    let cert = params.signed_by(&key, &issuer).unwrap();
 
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let config = rustls::ServerConfig::builder_with_provider(provider)
