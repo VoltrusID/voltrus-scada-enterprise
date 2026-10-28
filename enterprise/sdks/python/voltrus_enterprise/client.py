@@ -11,6 +11,7 @@ too low.
 """
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlencode
 
 from voltrus import VoltrusClient
 
@@ -280,16 +281,31 @@ class VoltrusEnterpriseClient(VoltrusClient):
     # ── Hot standby ─────────────────────────────────────────
 
     def get_ha_status(self) -> Dict[str, Any]:
-        """Role, peer state, sync lag and failover time of this node."""
+        """Role (``primary``, ``standby``, ``fenced``), epoch, peer and sync state,
+        replication lag and the last failover of this node."""
         return self._request("GET", "/api/v1/ha/status")
 
-    def force_ha_sync(self) -> Dict[str, Any]:
-        """Ask the pair to sync now. 400 when HA is not enabled."""
-        return self._request("POST", "/api/v1/ha/force-sync")
+    def force_ha_sync(self, wait_secs: Optional[int] = None) -> Dict[str, Any]:
+        """Run a full resynchronisation of the standby from a fresh snapshot of the
+        primary (admin only). Returns ``{"status": "synced", "report": {...}}``, or
+        ``{"status": "sync_in_progress"}`` when it is still running after
+        ``wait_secs`` (default 30). 400 when HA is not enabled, 409 without a peer."""
+        return self._request("POST", "/api/v1/ha/force-sync" + _query(wait_secs=wait_secs))
 
-    def force_ha_failover(self) -> Dict[str, Any]:
-        """Start a failover. 400 when HA is not enabled."""
-        return self._request("POST", "/api/v1/ha/force-failover")
+    def force_ha_failover(
+        self, wait_secs: Optional[int] = None, force: bool = False
+    ) -> Dict[str, Any]:
+        """Switch the roles of the pair (admin only). On the primary: a controlled
+        switchover. On a linked standby: asks the primary to hand over. On a standby
+        without a link: takes over; ``force`` skips the data and reachability
+        checks. Returns once the roles have changed:
+        ``{"status": "failover_complete", "new_role", "epoch", "duration_ms"}``.
+        409 with the reason when it cannot."""
+        return self._request(
+            "POST",
+            "/api/v1/ha/force-failover"
+            + _query(wait_secs=wait_secs, force="true" if force else None),
+        )
 
     # ── SSO ─────────────────────────────────────────────────
 
@@ -299,3 +315,9 @@ class VoltrusEnterpriseClient(VoltrusClient):
         server returns an empty list."""
         data = self._request("GET", "/api/v1/auth/providers")
         return [p for p in data.get("providers", []) if p.get("provider") != "local"]
+
+
+def _query(**params: Any) -> str:
+    """``?a=1&b=2`` for the parameters that are set, else an empty string."""
+    given = {k: v for k, v in params.items() if v is not None}
+    return "?" + urlencode(given) if given else ""

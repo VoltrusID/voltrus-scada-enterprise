@@ -321,24 +321,62 @@ export interface UpdateBrandingRequest {
 
 // ── Hot standby ────────────────────────────────────────────────
 
+export type HaRole = 'primary' | 'standby' | 'fenced';
+
+export interface HaFullSyncReport {
+  at: string;
+  tables: number;
+  rows: number;
+  duration_ms: number;
+}
+
 export interface HaStatus {
   enabled: boolean;
-  role: 'primary' | 'standby';
+  role: HaRole;
+  /** This node polls devices, writes to them and stores history. */
+  active: boolean;
   node_id: string;
+  /** The term. Grows with every new primary. */
+  epoch: number;
   peer_id?: string | null;
-  peer_status: string;
+  peer_role?: HaRole | null;
+  peer_epoch?: number | null;
+  /** `connected`: a replication session is up. `degraded`: the peer answers, no session. */
+  peer_status: 'connected' | 'degraded' | 'disconnected' | string;
+  sync_state: 'waiting' | 'unsynced' | 'streaming' | 'full_sync' | 'error' | string;
+  sync_progress?: { tables_done: number; tables_total: number; rows: number } | null;
+  /** Age of the oldest change the standby has not acknowledged. */
   sync_lag_ms?: number | null;
+  pending_changes?: number | null;
   last_sync_seq?: number | null;
+  last_sync_at?: string | null;
+  sync_error?: string | null;
+  /** When this node last took over the primary role. */
   failover_ts?: string | null;
+  failover_reason?: string | null;
   uptime_as_role_secs: number;
+  failover_after_ms: number;
+  /** Standby: its copy is complete, so it may take over. */
+  can_take_over: boolean;
+  promotion_blocked?: string | null;
+  witness?: { kind: 'arbiter' | 'tcp' | 'http' | string; reachable?: boolean | null; detail?: string | null } | null;
+  last_full_sync?: HaFullSyncReport | null;
+  link_auth_failures: number;
 }
 
 export interface HaSyncResponse {
-  status: 'sync_requested';
+  status: 'synced' | 'sync_in_progress';
+  report?: HaFullSyncReport | null;
+  progress?: { tables_done: number; tables_total: number; rows: number } | null;
 }
 
 export interface HaFailoverResponse {
-  status: 'failover_initiated';
+  status: 'failover_complete';
+  node_id: string;
+  /** The role of the node that was asked, after the switch. */
+  new_role: HaRole;
+  epoch: number;
+  duration_ms: number;
 }
 
 // ── SSO ────────────────────────────────────────────────────────
