@@ -1,6 +1,6 @@
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
-use voltrus::license::LicenseStatus;
+use voltrus::license::{LicenseSite, LicenseStatus};
 use voltrus::models::LicenseActivationRow;
 use voltrus::storage::Storage;
 
@@ -99,7 +99,25 @@ pub fn evaluate_activation(activation: &LicenseActivation, now: OffsetDateTime) 
         tier: activation.tier.clone(),
         grace,
         legacy_white_label: is_legacy_white_label(activation.tier.as_deref()),
+        site: license_site(activation),
+        // Informational: a lapsed contract never changes the tier, the features or Core.
+        support_until: activation.support_until,
     }
+}
+
+/// The site a per-site key was issued for. A key signed with a site id but no name
+/// shows the id; a name without an id (never issued) is not a site.
+fn license_site(activation: &LicenseActivation) -> Option<LicenseSite> {
+    let id = activation.site_id.as_deref().filter(|id| !id.is_empty())?;
+    let name = activation
+        .site_name
+        .as_deref()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(id);
+    Some(LicenseSite {
+        id: id.to_string(),
+        name: name.to_string(),
+    })
 }
 
 /// Starter and Edge keys were sold with a logo swap. The open core now includes
