@@ -42,8 +42,9 @@ Request and response shapes come from `enterprise/src/**/handlers.rs`,
 | `ha` | `get_ha_status`, `force_ha_sync`, `force_ha_failover` | `/api/v1/ha/status`, `force-sync`, `force-failover` |
 | `sso` | `list_sso_providers` | `/api/v1/auth/providers` (non-local entries) |
 
-Not wrapped: `POST /api/v1/auth/saml/metadata` (browser SAML flow) and the SSO
-login redirects.
+Not wrapped: the browser sign-in flows (`GET /api/v1/auth/saml/{login,metadata}`,
+`POST /api/v1/auth/saml/acs`, `GET /api/v1/auth/oidc/{login,callback}`) and
+`POST /api/v1/auth/ldap/login`, which start a cookie session. See `docs/sso.md`.
 
 ## Develop
 

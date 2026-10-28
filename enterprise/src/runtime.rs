@@ -13,6 +13,7 @@ use voltrus::ws_manager::WsManager;
 use crate::ha::HaState;
 use crate::hub::HubManager;
 use crate::sms;
+use crate::sso::SsoRuntime;
 use crate::sso::oidc::{JwksManager, OidcConfig};
 use crate::video::StreamProxy;
 use crate::{licensing, reports};
@@ -34,6 +35,7 @@ pub struct Runtime {
     pub ha_state: HaState,
     pub oidc: OidcConfig,
     pub jwks: JwksManager,
+    pub sso: SsoRuntime,
     hub_started: AtomicBool,
     scheduler_started: AtomicBool,
     ha_started: AtomicBool,
@@ -125,6 +127,8 @@ pub(crate) async fn start(ctx: StartContext) {
         tracing::info!("OIDC enabled, issuer: {}", oidc.issuer);
     }
 
+    let sso = SsoRuntime::start(&ctx.config_path, &oidc).await;
+
     let ha_state = if ctx.config.ha.enabled {
         HaState::new(&ctx.config.ha)
     } else {
@@ -144,6 +148,7 @@ pub(crate) async fn start(ctx: StartContext) {
         ha_state,
         oidc,
         jwks,
+        sso,
         hub_started: AtomicBool::new(false),
         scheduler_started: AtomicBool::new(false),
         ha_started: AtomicBool::new(false),
