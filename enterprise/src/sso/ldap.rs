@@ -1,521 +1,564 @@
+//! LDAP and Active Directory sign-in.
+//!
+//! The password is verified with a bind as the user, never compared locally.
+//! Connections use `ldaps://` or StartTLS with certificate and hostname
+//! verification (system roots, or the CA configured here). Cleartext `ldap://`
+//! is refused unless the operator explicitly allows it.
+//!
+//! Two modes:
+//! * search (set `bind_dn`): bind as a service account, find the user with
+//!   `user_filter`, then bind as the found DN with the typed password;
+//! * direct (set `bind_dn_format` instead): bind as `{username}@corp.example.com`
+//!   or `uid={username},ou=people,...`, then read the user's own entry.
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use ldap3::{Ldap, LdapConnAsync, LdapConnSettings, Scope, SearchEntry, dn_escape, ldap_escape};
 use serde::{Deserialize, Serialize};
 
-/// LDAP authentication configuration.
+use super::config::{RoleMapping, secret};
+
+/// Longest username accepted.
+const MAX_USERNAME: usize = 256;
+/// LDAP result code for invalidCredentials.
+const RC_INVALID_CREDENTIALS: u32 = 49;
+/// AD's transitive membership matching rule (members of nested groups).
+const AD_IN_CHAIN: &str = "1.2.840.113556.1.4.1941";
+
+/// `sso.ldap` in the configuration file.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LdapConfig {
     #[serde(default)]
     pub enabled: bool,
+    /// Button text on the login page.
+    #[serde(default = "default_label")]
+    pub label: String,
+    /// `ldaps://dc1.example.com` (port 636) or `ldap://dc1.example.com` with `starttls`.
     #[serde(default)]
-    pub server_url: String,
+    pub url: String,
+    /// Upgrade an `ldap://` connection with StartTLS.
     #[serde(default)]
-    pub base_dn: String,
+    pub starttls: bool,
+    /// Allow cleartext `ldap://` without StartTLS. Sends passwords unencrypted.
+    #[serde(default)]
+    pub allow_plain_ldap: bool,
+    /// PEM file with the CA that signed the server certificate. When set, only
+    /// this CA is trusted; otherwise the system roots are used.
+    #[serde(default)]
+    pub ca_cert_file: String,
+    #[serde(default)]
+    pub ca_cert: String,
+    #[serde(default = "default_timeout")]
+    pub timeout_secs: u64,
+
+    /// Service account for search mode.
+    #[serde(default)]
+    pub bind_dn: String,
+    #[serde(default)]
+    pub bind_password: String,
+    #[serde(default)]
+    pub bind_password_env: String,
+    /// Direct mode bind name, `{username}` is replaced (DN-escaped).
     #[serde(default)]
     pub bind_dn_format: String,
+
     #[serde(default)]
-    pub use_tls: bool,
+    pub base_dn: String,
+    /// `{username}` is replaced (filter-escaped). AD: `(sAMAccountName={username})`.
+    #[serde(default = "default_user_filter")]
+    pub user_filter: String,
+    /// Attribute used as the local login name; empty uses the typed name.
     #[serde(default)]
-    pub search_filter: String,
-    #[serde(default = "default_ldap_port")]
-    pub port: u16,
+    pub username_attribute: String,
+    #[serde(default = "default_email_attribute")]
+    pub email_attribute: String,
+    #[serde(default = "default_display_name_attribute")]
+    pub display_name_attribute: String,
+
+    /// Attribute on the user entry listing group DNs. Empty to skip.
+    #[serde(default = "default_member_of")]
+    pub member_of_attribute: String,
+    /// Also search for groups, including nested ones (AD transitive membership).
+    #[serde(default)]
+    pub nested_groups: bool,
+    /// Group search filter with `{user_dn}` and `{username}`; overrides `nested_groups`.
+    #[serde(default)]
+    pub group_filter: String,
+    #[serde(default)]
+    pub group_base_dn: String,
+    #[serde(default)]
+    pub role_mapping: RoleMapping,
 }
 
-fn default_ldap_port() -> u16 {
-    389
+fn default_label() -> String {
+    "LDAP".to_string()
+}
+fn default_timeout() -> u64 {
+    10
+}
+fn default_user_filter() -> String {
+    "(uid={username})".to_string()
+}
+fn default_email_attribute() -> String {
+    "mail".to_string()
+}
+fn default_display_name_attribute() -> String {
+    "displayName".to_string()
+}
+fn default_member_of() -> String {
+    "memberOf".to_string()
 }
 
 impl Default for LdapConfig {
     fn default() -> Self {
-        Self {
-            enabled: false,
-            server_url: String::new(),
-            base_dn: String::new(),
-            bind_dn_format: String::new(),
-            use_tls: false,
-            search_filter: String::new(),
-            port: 389,
+        serde_yaml_neo::from_str("{}").expect("empty LDAP config deserializes")
+    }
+}
+
+/// A directory user that proved their password.
+#[derive(Debug, Clone)]
+pub struct LdapUser {
+    pub dn: String,
+    /// Local login name (lowercase).
+    pub username: String,
+    pub email: String,
+    pub display_name: String,
+    /// Group DNs and their CNs, for role mapping.
+    pub groups: Vec<String>,
+}
+
+#[derive(Debug)]
+pub enum LdapLoginError {
+    /// Unknown user or wrong password. The two are not distinguished.
+    InvalidCredentials,
+    /// Directory unreachable, TLS failure or misconfiguration.
+    Directory(String),
+}
+
+impl std::fmt::Display for LdapLoginError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LdapLoginError::InvalidCredentials => f.write_str("invalid credentials"),
+            LdapLoginError::Directory(m) => f.write_str(m),
         }
     }
 }
 
-/// Result of an LDAP authentication attempt.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LdapAuthResult {
-    pub success: bool,
-    pub username: String,
-    pub dn: String,
-    pub message: String,
+impl std::error::Error for LdapLoginError {}
+
+fn directory_err(what: &str, e: impl std::fmt::Display) -> LdapLoginError {
+    LdapLoginError::Directory(format!("{what}: {e}"))
 }
 
-/// LDAP message types for protocol encoding.
-#[repr(u8)]
-enum LdapTag {
-    BindRequest = 0x60,
-    BindResponse = 0x61,
-    Integer = 0x02,
-    OctetString = 0x04,
-    Sequence = 0x30,
-    Enumeration = 0x0A,
+pub struct LdapProvider {
+    pub cfg: LdapConfig,
+    service_password: String,
+    tls: Arc<rustls::ClientConfig>,
 }
 
-/// Performs an LDAP simple bind authentication.
-/// Connects to the LDAP server and attempts to bind with the given credentials.
-pub async fn ldap_authenticate(
-    server: &str,
-    port: u16,
-    bind_dn: &str,
-    password: &str,
-    use_tls: bool,
-) -> Result<LdapAuthResult, String> {
-    let addr = format!("{}:{}", server, port);
+fn parse_pem_certs(pem: &str) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, String> {
+    rustls_pemfile::certs(&mut pem.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("invalid CA certificate PEM: {e}"))
+}
 
-    // Connect via TCP
-    let stream = tokio::net::TcpStream::connect(&addr)
-        .await
-        .map_err(|e| format!("LDAP connection failed: {}", e))?;
+/// TLS settings that verify the server: the configured CA only, or the system roots.
+pub fn build_tls_config(cfg: &LdapConfig) -> Result<Arc<rustls::ClientConfig>, String> {
+    let mut roots = rustls::RootCertStore::empty();
+    let pem = if !cfg.ca_cert.trim().is_empty() {
+        Some(cfg.ca_cert.clone())
+    } else if !cfg.ca_cert_file.is_empty() {
+        Some(
+            std::fs::read_to_string(&cfg.ca_cert_file)
+                .map_err(|e| format!("cannot read ca_cert_file {}: {e}", cfg.ca_cert_file))?,
+        )
+    } else {
+        None
+    };
+    match pem {
+        Some(pem) => {
+            let certs = parse_pem_certs(&pem)?;
+            if certs.is_empty() {
+                return Err("ca_cert holds no certificate".into());
+            }
+            for c in certs {
+                roots
+                    .add(c)
+                    .map_err(|e| format!("unusable CA certificate: {e}"))?;
+            }
+        }
+        None => {
+            let native = rustls_native_certs::load_native_certs();
+            for c in native.certs {
+                let _ = roots.add(c);
+            }
+            if roots.is_empty() {
+                return Err("no system CA certificates found; set ldap.ca_cert_file".into());
+            }
+        }
+    }
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| e.to_string())?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    Ok(Arc::new(config))
+}
 
-    if use_tls {
-        // For LDAPS/TLS, we would need a TLS connector.
-        // Since we cannot add new crate dependencies, we log a warning
-        // and proceed without TLS for now.
-        tracing::warn!(
-            "LDAP TLS requested but native-tls not available; connection may be insecure"
-        );
+impl LdapProvider {
+    pub fn new(cfg: LdapConfig) -> Result<Arc<Self>, String> {
+        cfg.role_mapping
+            .validate()
+            .map_err(|e| format!("ldap.role_mapping: {e}"))?;
+        let url = reqwest::Url::parse(&cfg.url).map_err(|e| format!("ldap.url: {e}"))?;
+        match url.scheme() {
+            "ldaps" => {}
+            "ldap" if cfg.starttls || cfg.allow_plain_ldap => {}
+            "ldap" => {
+                return Err(
+                    "ldap.url is cleartext ldap://: use ldaps://, set starttls: true, or allow_plain_ldap: true"
+                        .into(),
+                );
+            }
+            other => return Err(format!("ldap.url scheme '{other}' is not supported")),
+        }
+        if url.scheme() == "ldaps" && cfg.starttls {
+            return Err("starttls applies to ldap:// URLs, not ldaps://".into());
+        }
+        if cfg.bind_dn.is_empty() && cfg.bind_dn_format.is_empty() {
+            return Err("ldap needs bind_dn (search mode) or bind_dn_format (direct mode)".into());
+        }
+        if !cfg.bind_dn.is_empty() && cfg.base_dn.is_empty() {
+            return Err("ldap search mode needs base_dn".into());
+        }
+        if !cfg.bind_dn_format.is_empty() && !cfg.bind_dn_format.contains("{username}") {
+            return Err("ldap.bind_dn_format must contain {username}".into());
+        }
+        if !cfg.user_filter.contains("{username}") {
+            return Err("ldap.user_filter must contain {username}".into());
+        }
+        let tls = build_tls_config(&cfg)?;
+        let service_password = secret(&cfg.bind_password, &cfg.bind_password_env);
+        Ok(Arc::new(Self {
+            cfg,
+            service_password,
+            tls,
+        }))
     }
 
-    // Build LDAP BindRequest
-    // LDAPMessage ::= SEQUENCE {
-    //   messageID  INTEGER,
-    //   protocolOp CHOICE { bindRequest [APPLICATION 0] SEQUENCE { ... } }
-    // }
-    let message_id: u32 = 1;
-
-    // Encode the BindRequest:
-    // BindRequest ::= [APPLICATION 0] SEQUENCE {
-    //   version    INTEGER (3),
-    //   name       OCTET STRING,
-    //   authentication CHOICE { simple [0] OCTET STRING }
-    // }
-    let version_bytes = encode_integer(3);
-    let name_bytes = encode_octet_string(bind_dn.as_bytes());
-    let auth_bytes = encode_context_octet_string(0, password.as_bytes());
-
-    let bind_request_inner = encode_sequence(&[&version_bytes, &name_bytes, &auth_bytes]);
-    let bind_request = wrap_tag(LdapTag::BindRequest as u8, &bind_request_inner);
-
-    // Full LDAP message
-    let message_id_bytes = encode_integer(message_id as i64);
-    let ldap_message = encode_sequence(&[&message_id_bytes, &bind_request]);
-
-    // Send the bind request using tokio TCP
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut stream = stream;
-
-    // LDAP messages are preceded by BER length encoding
-    stream
-        .write_all(&ldap_message)
-        .await
-        .map_err(|e| format!("LDAP write failed: {}", e))?;
-
-    // Read response
-    let mut buf = vec![0u8; 4096];
-    let n = stream
-        .read(&mut buf)
-        .await
-        .map_err(|e| format!("LDAP read failed: {}", e))?;
-
-    if n == 0 {
-        return Err("LDAP server closed connection".to_string());
+    fn timeout(&self) -> Duration {
+        Duration::from_secs(self.cfg.timeout_secs.max(1))
     }
 
-    // Parse the LDAP BindResponse
-    let result = parse_bind_response(&buf[..n])?;
+    async fn connect(&self) -> Result<Ldap, LdapLoginError> {
+        let settings = LdapConnSettings::new()
+            .set_conn_timeout(self.timeout())
+            .set_starttls(self.cfg.starttls)
+            .set_config(self.tls.clone());
+        let (conn, ldap) = LdapConnAsync::with_settings(settings, &self.cfg.url)
+            .await
+            .map_err(|e| directory_err("connecting to the directory failed", e))?;
+        ldap3::drive!(conn);
+        Ok(ldap)
+    }
 
-    Ok(LdapAuthResult {
-        success: result.success,
-        username: bind_dn.to_string(),
-        dn: bind_dn.to_string(),
-        message: result.message,
+    /// Check a username and password against the directory.
+    pub async fn authenticate(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<LdapUser, LdapLoginError> {
+        validate_credentials(username, password)?;
+        if self.cfg.bind_dn.is_empty() {
+            self.authenticate_direct(username, password).await
+        } else {
+            self.authenticate_search(username, password).await
+        }
+    }
+
+    async fn authenticate_search(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<LdapUser, LdapLoginError> {
+        let mut svc = self.connect().await?;
+        let result = self.search_mode(&mut svc, username, password).await;
+        let _ = svc.unbind().await;
+        result
+    }
+
+    async fn search_mode(
+        &self,
+        svc: &mut Ldap,
+        username: &str,
+        password: &str,
+    ) -> Result<LdapUser, LdapLoginError> {
+        let t = self.timeout();
+        svc.with_timeout(t)
+            .simple_bind(&self.cfg.bind_dn, &self.service_password)
+            .await
+            .and_then(|r| r.success())
+            .map_err(|e| directory_err("service account bind failed", e))?;
+
+        let entry = self
+            .find_user(svc, username)
+            .await?
+            .ok_or(LdapLoginError::InvalidCredentials)?;
+
+        // Verify the password with a bind as the user on a separate connection,
+        // so the service session stays authenticated for the group lookup.
+        let mut user_conn = self.connect().await?;
+        let bound = user_conn
+            .with_timeout(t)
+            .simple_bind(&entry.dn, password)
+            .await;
+        let _ = user_conn.unbind().await;
+        match bound {
+            Ok(r) if r.rc == 0 => {}
+            Ok(r) if r.rc == RC_INVALID_CREDENTIALS => {
+                return Err(LdapLoginError::InvalidCredentials);
+            }
+            Ok(r) => {
+                return Err(directory_err(
+                    "user bind failed",
+                    format!("rc={} {}", r.rc, r.text),
+                ));
+            }
+            Err(e) => return Err(directory_err("user bind failed", e)),
+        }
+
+        self.build_user(svc, username, entry).await
+    }
+
+    async fn authenticate_direct(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<LdapUser, LdapLoginError> {
+        let mut conn = self.connect().await?;
+        let result = self.direct_mode(&mut conn, username, password).await;
+        let _ = conn.unbind().await;
+        result
+    }
+
+    async fn direct_mode(
+        &self,
+        conn: &mut Ldap,
+        username: &str,
+        password: &str,
+    ) -> Result<LdapUser, LdapLoginError> {
+        let t = self.timeout();
+        let name = self
+            .cfg
+            .bind_dn_format
+            .replace("{username}", &dn_escape(username));
+        match conn.with_timeout(t).simple_bind(&name, password).await {
+            Ok(r) if r.rc == 0 => {}
+            Ok(r) if r.rc == RC_INVALID_CREDENTIALS => {
+                return Err(LdapLoginError::InvalidCredentials);
+            }
+            Ok(r) => {
+                return Err(directory_err(
+                    "bind failed",
+                    format!("rc={} {}", r.rc, r.text),
+                ));
+            }
+            Err(e) => return Err(directory_err("bind failed", e)),
+        }
+        if self.cfg.base_dn.is_empty() {
+            // No search base: no profile and no groups, the default role applies.
+            return Ok(LdapUser {
+                dn: name,
+                username: username.to_lowercase(),
+                email: String::new(),
+                display_name: String::new(),
+                groups: Vec::new(),
+            });
+        }
+        let entry = self.find_user(conn, username).await?.ok_or_else(|| {
+            LdapLoginError::Directory("authenticated, but the user filter finds no entry".into())
+        })?;
+        self.build_user(conn, username, entry).await
+    }
+
+    fn user_attrs(&self) -> Vec<String> {
+        let mut a = Vec::new();
+        for x in [
+            &self.cfg.username_attribute,
+            &self.cfg.email_attribute,
+            &self.cfg.display_name_attribute,
+            &self.cfg.member_of_attribute,
+        ] {
+            if !x.is_empty() {
+                a.push(x.clone());
+            }
+        }
+        a
+    }
+
+    async fn find_user(
+        &self,
+        ldap: &mut Ldap,
+        username: &str,
+    ) -> Result<Option<SearchEntry>, LdapLoginError> {
+        let filter = self
+            .cfg
+            .user_filter
+            .replace("{username}", &ldap_escape(username));
+        let (entries, _) = ldap
+            .with_timeout(self.timeout())
+            .search(
+                &self.cfg.base_dn,
+                Scope::Subtree,
+                &filter,
+                self.user_attrs(),
+            )
+            .await
+            .and_then(|r| r.success())
+            .map_err(|e| directory_err("user search failed", e))?;
+        let mut found: Vec<SearchEntry> = entries
+            .into_iter()
+            .map(SearchEntry::construct)
+            // Search continuation references are not entries.
+            .filter(|e| !e.dn.is_empty())
+            .collect();
+        match found.len() {
+            0 => Ok(None),
+            1 => Ok(found.pop()),
+            n => {
+                tracing::warn!(
+                    "LDAP user filter matched {n} entries for one username; refusing the login"
+                );
+                Err(LdapLoginError::InvalidCredentials)
+            }
+        }
+    }
+
+    async fn build_user(
+        &self,
+        ldap: &mut Ldap,
+        typed_username: &str,
+        entry: SearchEntry,
+    ) -> Result<LdapUser, LdapLoginError> {
+        let first = |attr: &str| -> String {
+            if attr.is_empty() {
+                return String::new();
+            }
+            attr_values(&entry, attr)
+                .into_iter()
+                .next()
+                .unwrap_or_default()
+        };
+        let username = {
+            let from_dir = first(&self.cfg.username_attribute);
+            if from_dir.is_empty() {
+                typed_username.to_string()
+            } else {
+                from_dir
+            }
+        }
+        .to_lowercase();
+
+        let mut group_dns: Vec<String> = if self.cfg.member_of_attribute.is_empty() {
+            Vec::new()
+        } else {
+            attr_values(&entry, &self.cfg.member_of_attribute)
+        };
+        let filter = if !self.cfg.group_filter.is_empty() {
+            Some(self.cfg.group_filter.clone())
+        } else if self.cfg.nested_groups {
+            Some(format!("(member:{AD_IN_CHAIN}:={{user_dn}})"))
+        } else {
+            None
+        };
+        if let Some(filter) = filter {
+            let filter = filter
+                .replace("{user_dn}", &ldap_escape(&entry.dn))
+                .replace("{username}", &ldap_escape(&username));
+            let base = if self.cfg.group_base_dn.is_empty() {
+                &self.cfg.base_dn
+            } else {
+                &self.cfg.group_base_dn
+            };
+            let (groups, _) = ldap
+                .with_timeout(self.timeout())
+                .search(base, Scope::Subtree, &filter, vec!["1.1"])
+                .await
+                .and_then(|r| r.success())
+                .map_err(|e| directory_err("group search failed", e))?;
+            group_dns.extend(groups.into_iter().map(|g| SearchEntry::construct(g).dn));
+        }
+
+        let mut groups = Vec::new();
+        for dn in group_dns {
+            if let Some(cn) = common_name(&dn) {
+                groups.push(cn);
+            }
+            groups.push(dn);
+        }
+        groups.sort();
+        groups.dedup();
+
+        Ok(LdapUser {
+            email: first(&self.cfg.email_attribute),
+            display_name: first(&self.cfg.display_name_attribute),
+            dn: entry.dn,
+            username,
+            groups,
+        })
+    }
+}
+
+/// Reject input that is empty (an empty password makes many servers accept an
+/// unauthenticated bind as success) or malformed.
+fn validate_credentials(username: &str, password: &str) -> Result<(), LdapLoginError> {
+    let bad = username.trim().is_empty()
+        || password.is_empty()
+        || username.len() > MAX_USERNAME
+        || username.chars().any(|c| c.is_control())
+        || password.contains('\0');
+    if bad {
+        return Err(LdapLoginError::InvalidCredentials);
+    }
+    Ok(())
+}
+
+/// Attribute values, matching the attribute name case-insensitively.
+fn attr_values(entry: &SearchEntry, name: &str) -> Vec<String> {
+    entry
+        .attrs
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
+        .map(|(_, v)| v.clone())
+        .unwrap_or_default()
+}
+
+/// The first CN of a DN, with escapes resolved (`CN=Plant\, East,OU=...` -> `Plant, East`).
+pub fn common_name(dn: &str) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut chars = dn.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                if let Some(n) = chars.next() {
+                    cur.push(n);
+                }
+            }
+            ',' => parts.push(std::mem::take(&mut cur)),
+            c => cur.push(c),
+        }
+    }
+    parts.push(cur);
+    parts.into_iter().find_map(|p| {
+        let (k, v) = p.split_once('=')?;
+        k.trim()
+            .eq_ignore_ascii_case("cn")
+            .then(|| v.trim().to_string())
     })
 }
 
-struct BindResponseResult {
-    success: bool,
-    message: String,
-}
-
-/// Parses an LDAP BindResponse from raw bytes.
-fn parse_bind_response(data: &[u8]) -> Result<BindResponseResult, String> {
-    // LDAP BindResponse ::= [APPLICATION 1] SEQUENCE {
-    //   resultCode ENUMERATED,
-    //   matchedDN  OCTET STRING,
-    //   diagMsg    OCTET STRING
-    // }
-
-    if data.len() < 2 {
-        return Err("LDAP response too short".to_string());
-    }
-
-    // Skip outer sequence tag and length
-    let mut pos = 0;
-    if data[pos] != LdapTag::Sequence as u8 {
-        return Err(format!("Expected SEQUENCE tag, got {:02X}", data[pos]));
-    }
-    pos += 1;
-    let (_seq_len, consumed) = read_ber_length(&data[pos..]);
-    pos += consumed;
-
-    // Skip message ID (INTEGER)
-    if data[pos] != LdapTag::Integer as u8 {
-        return Err(format!(
-            "Expected INTEGER tag for messageID, got {:02X}",
-            data[pos]
-        ));
-    }
-    pos += 1;
-    let (int_len, consumed) = read_ber_length(&data[pos..]);
-    pos += consumed + int_len;
-
-    // Check for BindResponse tag [APPLICATION 1] = 0x61
-    if pos >= data.len() {
-        return Err("LDAP response truncated before BindResponse".to_string());
-    }
-    if data[pos] != LdapTag::BindResponse as u8 {
-        return Err(format!(
-            "Expected BindResponse tag 0x61, got {:02X}",
-            data[pos]
-        ));
-    }
-    pos += 1;
-    let (_resp_len, consumed) = read_ber_length(&data[pos..]);
-    pos += consumed;
-
-    // Read resultCode (ENUMERATED)
-    if pos >= data.len() || data[pos] != LdapTag::Enumeration as u8 {
-        return Err("Expected ENUMERATED tag for resultCode".to_string());
-    }
-    pos += 1;
-    let (enum_len, consumed) = read_ber_length(&data[pos..]);
-    pos += consumed;
-
-    let result_code = if enum_len == 1 {
-        data[pos] as u32
-    } else if enum_len == 2 {
-        u32::from_be_bytes([0, 0, data[pos], data[pos + 1]])
-    } else {
-        0
-    };
-    pos += enum_len;
-
-    // Skip matchedDN (OCTET STRING)
-    if pos < data.len() && data[pos] == LdapTag::OctetString as u8 {
-        pos += 1;
-        let (str_len, consumed) = read_ber_length(&data[pos..]);
-        pos += consumed + str_len;
-    }
-
-    // Read diagnostic message (OCTET STRING)
-    let mut message = String::new();
-    if pos < data.len() && data[pos] == LdapTag::OctetString as u8 {
-        pos += 1;
-        let (str_len, consumed) = read_ber_length(&data[pos..]);
-        pos += consumed;
-        if pos + str_len <= data.len() {
-            message = String::from_utf8_lossy(&data[pos..pos + str_len]).to_string();
-        }
-    }
-
-    // LDAP result codes: 0 = success
-    let success = result_code == 0;
-
-    Ok(BindResponseResult { success, message })
-}
-
-// ── BER/DER encoding helpers ──
-
-fn encode_integer(value: i64) -> Vec<u8> {
-    let tag = vec![LdapTag::Integer as u8];
-    if value == 0 {
-        return encode_tlv(tag, vec![0]);
-    }
-    let mut val_bytes = vec![];
-    let mut v = value as u64;
-    while v > 0 {
-        val_bytes.push((v & 0xFF) as u8);
-        v >>= 8;
-    }
-    val_bytes.reverse();
-    // Add leading zero if high bit set (to keep it positive)
-    if val_bytes[0] & 0x80 != 0 {
-        val_bytes.insert(0, 0);
-    }
-    encode_tlv(tag, val_bytes)
-}
-
-fn encode_octet_string(data: &[u8]) -> Vec<u8> {
-    let tag = vec![LdapTag::OctetString as u8];
-    encode_tlv(tag, data.to_vec())
-}
-
-fn encode_context_octet_string(context: u8, data: &[u8]) -> Vec<u8> {
-    // Context-specific constructed: 0x80 | context
-    let tag = vec![0x80 | context];
-    encode_tlv(tag, data.to_vec())
-}
-
-fn encode_sequence(parts: &[&[u8]]) -> Vec<u8> {
-    let mut content = vec![];
-    for part in parts {
-        content.extend_from_slice(part);
-    }
-    let tag = vec![LdapTag::Sequence as u8];
-    encode_tlv(tag, content)
-}
-
-fn wrap_tag(tag: u8, content: &[u8]) -> Vec<u8> {
-    encode_tlv(vec![tag], content.to_vec())
-}
-
-fn encode_tlv(tag: Vec<u8>, value: Vec<u8>) -> Vec<u8> {
-    let mut result = tag;
-    result.extend_from_slice(&encode_ber_length(value.len()));
-    result.extend_from_slice(&value);
-    result
-}
-
-fn encode_ber_length(len: usize) -> Vec<u8> {
-    if len < 128 {
-        vec![len as u8]
-    } else if len < 256 {
-        vec![0x81, len as u8]
-    } else {
-        vec![0x82, (len >> 8) as u8, (len & 0xFF) as u8]
-    }
-}
-
-fn read_ber_length(data: &[u8]) -> (usize, usize) {
-    if data.is_empty() {
-        return (0, 0);
-    }
-    if data[0] < 128 {
-        (data[0] as usize, 1)
-    } else if data[0] == 0x81 && data.len() > 1 {
-        (data[1] as usize, 2)
-    } else if data[0] == 0x82 && data.len() > 2 {
-        ((data[1] as usize) << 8 | data[2] as usize, 3)
-    } else {
-        (0, 1)
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_encode_integer_zero() {
-        let encoded = encode_integer(0);
-        assert_eq!(encoded, vec![0x02, 0x01, 0x00]);
-    }
-
-    #[test]
-    fn test_encode_integer_one() {
-        let encoded = encode_integer(1);
-        assert_eq!(encoded, vec![0x02, 0x01, 0x01]);
-    }
-
-    #[test]
-    fn test_encode_integer_three() {
-        let encoded = encode_integer(3);
-        assert_eq!(encoded, vec![0x02, 0x01, 0x03]);
-    }
-
-    #[test]
-    fn test_encode_integer_large() {
-        let encoded = encode_integer(256);
-        assert_eq!(encoded, vec![0x02, 0x02, 0x01, 0x00]);
-    }
-
-    #[test]
-    fn test_encode_octet_string() {
-        let encoded = encode_octet_string(b"hello");
-        assert_eq!(encoded, vec![0x04, 0x05, b'h', b'e', b'l', b'l', b'o']);
-    }
-
-    #[test]
-    fn test_encode_octet_string_empty() {
-        let encoded = encode_octet_string(b"");
-        assert_eq!(encoded, vec![0x04, 0x00]);
-    }
-
-    #[test]
-    fn test_encode_context_octet_string() {
-        let encoded = encode_context_octet_string(0, b"secret");
-        assert_eq!(
-            encoded,
-            vec![0x80, 0x06, b's', b'e', b'c', b'r', b'e', b't']
-        );
-    }
-
-    #[test]
-    fn test_encode_sequence() {
-        let a = encode_integer(3);
-        let b = encode_octet_string(b"cn=admin");
-        let seq = encode_sequence(&[&a, &b]);
-        // Sequence tag + length + content
-        assert_eq!(seq[0], 0x30);
-        // Verify it contains both parts
-        assert!(seq.len() > a.len() + b.len());
-    }
-
-    #[test]
-    fn test_encode_ber_length_short() {
-        assert_eq!(encode_ber_length(5), vec![5]);
-    }
-
-    #[test]
-    fn test_encode_ber_length_medium() {
-        assert_eq!(encode_ber_length(200), vec![0x81, 200]);
-    }
-
-    #[test]
-    fn test_encode_ber_length_long() {
-        assert_eq!(encode_ber_length(300), vec![0x82, 0x01, 0x2C]);
-    }
-
-    #[test]
-    fn test_read_ber_length_short() {
-        assert_eq!(read_ber_length(&[5]), (5, 1));
-    }
-
-    #[test]
-    fn test_read_ber_length_medium() {
-        assert_eq!(read_ber_length(&[0x81, 200]), (200, 2));
-    }
-
-    #[test]
-    fn test_read_ber_length_long() {
-        assert_eq!(read_ber_length(&[0x82, 0x01, 0x2C]), (300, 3));
-    }
-
-    #[test]
-    fn test_ldap_bind_request_construction() {
-        // Build a complete bind request and verify structure
-        let version_bytes = encode_integer(3);
-        let name_bytes = encode_octet_string(b"cn=admin,dc=example,dc=com");
-        let auth_bytes = encode_context_octet_string(0, b"password");
-
-        let bind_request_inner = encode_sequence(&[&version_bytes, &name_bytes, &auth_bytes]);
-        let bind_request = wrap_tag(0x60, &bind_request_inner);
-
-        let message_id_bytes = encode_integer(1);
-        let ldap_message = encode_sequence(&[&message_id_bytes, &bind_request]);
-
-        // Verify the message starts with a SEQUENCE
-        assert_eq!(ldap_message[0], 0x30);
-        // Message should contain the bind DN
-        let msg_str = String::from_utf8_lossy(&ldap_message);
-        assert!(msg_str.contains("cn=admin,dc=example,dc=com"));
-    }
-
-    #[test]
-    fn test_parse_bind_response_success() {
-        // Construct a successful bind response:
-        // SEQUENCE { INTEGER 1, BindResponse { ENUMERATED 0, OCTET STRING "", OCTET STRING "" } }
-        let mut response = vec![];
-        // Build from inside out
-        let result_code = vec![0x0A, 0x01, 0x00]; // ENUMERATED 0 (success)
-        let matched_dn = vec![0x04, 0x00]; // OCTET STRING ""
-        let diag_msg = vec![0x04, 0x00]; // OCTET STRING ""
-
-        let mut bind_resp_content = vec![];
-        bind_resp_content.extend_from_slice(&result_code);
-        bind_resp_content.extend_from_slice(&matched_dn);
-        bind_resp_content.extend_from_slice(&diag_msg);
-
-        let mut bind_resp = vec![0x61]; // BindResponse tag
-        bind_resp.extend_from_slice(&encode_ber_length(bind_resp_content.len()));
-        bind_resp.extend_from_slice(&bind_resp_content);
-
-        let message_id = vec![0x02, 0x01, 0x01]; // INTEGER 1
-        let mut seq_content = vec![];
-        seq_content.extend_from_slice(&message_id);
-        seq_content.extend_from_slice(&bind_resp);
-
-        response.push(0x30); // SEQUENCE
-        response.extend_from_slice(&encode_ber_length(seq_content.len()));
-        response.extend_from_slice(&seq_content);
-
-        let result = parse_bind_response(&response).unwrap();
-        assert!(result.success);
-    }
-
-    #[test]
-    fn test_parse_bind_response_failure() {
-        // Construct a failed bind response (resultCode = 49 = invalidCredentials)
-        let result_code = vec![0x0A, 0x01, 0x31]; // ENUMERATED 49
-        let matched_dn = vec![0x04, 0x00];
-        let diag_msg = vec![0x04, 0x13]; // 0x13 = 19 bytes for "Invalid credentials"
-        let diag_text = b"Invalid credentials";
-        let mut diag = diag_msg;
-        diag.extend_from_slice(diag_text);
-
-        let mut bind_resp_content = vec![];
-        bind_resp_content.extend_from_slice(&result_code);
-        bind_resp_content.extend_from_slice(&matched_dn);
-        bind_resp_content.extend_from_slice(&diag);
-
-        let mut bind_resp = vec![0x61];
-        bind_resp.extend_from_slice(&encode_ber_length(bind_resp_content.len()));
-        bind_resp.extend_from_slice(&bind_resp_content);
-
-        let message_id = vec![0x02, 0x01, 0x01];
-        let mut seq_content = vec![];
-        seq_content.extend_from_slice(&message_id);
-        seq_content.extend_from_slice(&bind_resp);
-
-        let mut response = vec![0x30];
-        response.extend_from_slice(&encode_ber_length(seq_content.len()));
-        response.extend_from_slice(&seq_content);
-
-        let result = parse_bind_response(&response).unwrap();
-        assert!(!result.success);
-        assert_eq!(result.message, "Invalid credentials");
-    }
-
-    #[test]
-    fn test_ldap_config_default() {
-        let config = LdapConfig::default();
-        assert!(!config.enabled);
-        assert_eq!(config.port, 389);
-        assert!(!config.use_tls);
-    }
-
-    #[test]
-    fn test_ldap_bind_request_build() {
-        // Verify that we can construct a valid LDAP bind request for various DNs
-        let test_cases = vec![
-            ("cn=admin,dc=example,dc=com", "password123"),
-            ("uid=user,ou=people,dc=corp,dc=com", "secret"),
-            ("admin@example.com", "pass"),
-        ];
-
-        for (dn, pw) in test_cases {
-            let version_bytes = encode_integer(3);
-            let name_bytes = encode_octet_string(dn.as_bytes());
-            let auth_bytes = encode_context_octet_string(0, pw.as_bytes());
-
-            let bind_inner = encode_sequence(&[&version_bytes, &name_bytes, &auth_bytes]);
-            let bind_req = wrap_tag(0x60, &bind_inner);
-            let msg_id = encode_integer(1);
-            let msg = encode_sequence(&[&msg_id, &bind_req]);
-
-            // Verify it's non-empty and starts with SEQUENCE
-            assert!(!msg.is_empty());
-            assert_eq!(msg[0], 0x30);
-
-            // Verify DN is in the message
-            let msg_str = String::from_utf8_lossy(&msg);
-            assert!(msg_str.contains(dn));
-        }
-    }
-}
+mod tests;

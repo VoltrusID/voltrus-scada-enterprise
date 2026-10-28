@@ -66,5 +66,6 @@ namespace (`useTranslation('enterprise')`). The current panels use plain English
 ## Server endpoints used
 
 `/api/license/{status,activate,request,refresh}`, `/api/v1/settings/branding`, `/api/v1/auth/providers`,
-`/api/v1/auth/ldap/login`, `/api/v1/auth/{oidc,saml}/login` (assumed browser-redirect endpoints that start OIDC/SAML sign-in; the current server does not route them), `/api/v1/hub/*`,
+`/api/v1/auth/ldap/login` (the login panel's directory form), `/api/v1/auth/{oidc,saml}/login` (browser redirects
+that start OIDC/SAML sign-in; the server sets the session cookies on return, see `docs/sso.md`), `/api/v1/hub/*`,
 `/api/v1/cameras/*`, `/api/v1/reports/*`, `/api/v1/security/*`, `/api/v1/compliance/*`, `/api/v1/ha/status`.

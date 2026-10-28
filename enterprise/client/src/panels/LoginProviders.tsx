@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchJson } from '@voltrus/core/queries/fetch'
 import type { LoginProvidersProps } from '@voltrus/core/edition/types'
+import { providerLoginUrl } from './loginUrl'
 
 interface AuthProvider {
   provider: string
@@ -105,7 +106,7 @@ export function LoginProviders({ onLoggedIn }: LoginProvidersProps) {
             key={p.provider}
             type="button"
             style={BUTTON}
-            onClick={() => { window.location.href = `/api/v1/auth/${encodeURIComponent(p.provider)}/login` }}
+            onClick={() => { window.location.href = providerLoginUrl(p.provider, window.location.pathname + window.location.search) }}
           >
             Sign in with {p.label}
           </button>
