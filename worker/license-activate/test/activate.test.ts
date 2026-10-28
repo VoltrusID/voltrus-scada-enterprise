@@ -1,115 +1,19 @@
 // Activation and renewal against a fake D1 / Polar / console: the signed `tier` and `expires_at`, the
 // renewal path (same key + same fingerprint, never binds, never spends a Polar usage) and refusals.
-import { getPublicKey, verify } from "@noble/ed25519";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import worker from "../src/index";
-import type { Env, PolarKeyInfo } from "../src/env";
 
-const PRIVATE_KEY = "11".repeat(32);
-const FP = "fp-device-1";
-const KEY = "VOLTRUS-AAAA-BBBB";
-const DAY = 86_400_000;
-
-type Binding = { fingerprint_hash: string; revoked: number; tier: string | null; device_limit: number | null };
-type ConsoleLicense = { id: string; status: string; expires_at: number | null; seat_limit: number | null; tier: string | null };
-
-// Just enough D1: statements are routed by their leading SQL.
-function fakeDb(routes: Record<string, (args: unknown[]) => unknown>) {
-  const calls: { sql: string; args: unknown[] }[] = [];
-  const db = {
-    calls,
-    prepare(sql: string) {
-      return {
-        bind(...args: unknown[]) {
-          const run = () => {
-            calls.push({ sql, args });
-            const route = Object.entries(routes).find(([prefix]) => sql.startsWith(prefix));
-            if (!route) throw new Error(`unrouted SQL: ${sql}`);
-            return route[1](args);
-          };
-          return {
-            first: async () => run() ?? null,
-            run: async () => ({ meta: { changes: 1, last_row_id: 1 }, result: run() }),
-            all: async () => ({ results: [run()] }),
-          };
-        },
-      };
-    },
-  };
-  return db;
-}
-
-function setup(opts: {
-  binding?: Binding | null;
-  info?: PolarKeyInfo | null;
-  polarStatus?: string;
-  polarHttp?: number;
-  consoleLicense?: ConsoleLicense | null;
-  seated?: boolean;
-}) {
-  const bindings = fakeDb({
-    "SELECT fingerprint_hash": () => opts.binding ?? null,
-    "UPDATE license_bindings": () => null,
-    "INSERT INTO license_bindings": () => null,
-    "INSERT INTO activation_signings": () => null,
-  });
-  const consoleDb = fakeDb({
-    "SELECT id, status, expires_at": () => opts.consoleLicense ?? null,
-    "SELECT id FROM license_activations": () => (opts.seated ? { id: "seat-1" } : null),
-    "SELECT COUNT(*)": () => ({ n: opts.seated ? 1 : 0 }),
-    "INSERT OR IGNORE INTO license_activations": () => null,
-  });
-  const polarBodies: Record<string, unknown>[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (_url: string, init: RequestInit) => {
-      polarBodies.push(JSON.parse(String(init.body)));
-      if (opts.polarHttp && opts.polarHttp !== 200) return new Response(JSON.stringify({ detail: "polar says no" }), { status: opts.polarHttp });
-      return new Response(JSON.stringify({ id: "polar-key-1", status: opts.polarStatus ?? "granted", expires_at: null }));
-    })
-  );
-  const env = {
-    DB: bindings,
-    CONSOLE_DB: consoleDb,
-    CONSOLE: { polarKeyInfo: async () => opts.info ?? null },
-    ED25519_PRIVATE_KEY: PRIVATE_KEY,
-    POLAR_API_KEY: "polar-key",
-    POLAR_ORG_ID: "org-1",
-  } as unknown as Env;
-  return { env, bindings, consoleDb, polarBodies };
-}
-
-// The VOLREQ file the app uploads.
-function volreq(key = KEY, fingerprint = FP): Blob {
-  return new Blob(["VOLREQ\x01" + JSON.stringify({ license_key: key, fingerprint: { hash: fingerprint, components: { hostname: "plant-1" } } })]);
-}
-function post(env: Env, path: "/activate" | "/renew", body: Blob | Record<string, unknown>): Promise<Response> {
-  if (body instanceof Blob) {
-    const form = new FormData();
-    form.set("file", body);
-    return worker.fetch(new Request(`https://activate.test${path}`, { method: "POST", body: form }), env);
-  }
-  return worker.fetch(
-    new Request(`https://activate.test${path}`, { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }),
-    env
-  );
-}
-
-type Reply = { success: boolean; error?: string; code?: string; activation_file?: string; tier?: string; expires_at?: string | null };
-async function reply(res: Response): Promise<Reply> {
-  return res.json();
-}
-
-// Decode a VOLACT file and check its Ed25519 signature the way the SCADA server does.
-async function openActivation(file: string) {
-  const bytes = Uint8Array.from(atob(file), (c) => c.charCodeAt(0));
-  expect(new TextDecoder().decode(bytes.slice(0, 7))).toBe("VOLACT\x01");
-  const { signature, ...payload } = JSON.parse(new TextDecoder().decode(bytes.slice(7))) as Record<string, unknown> & { signature: string };
-  const sig = Uint8Array.from(signature.match(/../g)!.map((h) => parseInt(h, 16)));
-  const pub = getPublicKey(Uint8Array.from("11".repeat(32).match(/../g)!.map((h) => parseInt(h, 16))));
-  expect(verify(sig, new TextEncoder().encode(JSON.stringify(payload)), pub)).toBe(true);
-  return payload as { tier: string; expires_at: string | null; license_key: string; fingerprint_hash: string; device_limit: number | null };
-}
+import {
+  DAY,
+  FP,
+  KEY,
+  openActivation,
+  post,
+  reply,
+  setup,
+  volreq,
+  type Binding,
+  type ConsoleLicense,
+} from "./helpers";
 
 beforeEach(() => {
   vi.spyOn(console, "log").mockImplementation(() => {});

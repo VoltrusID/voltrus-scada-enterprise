@@ -18,6 +18,7 @@ crons = ["23 3 * * *"]
 binding = "DB"
 database_name = "voltrus-licenses"
 database_id = "fdbe7ce9-aa43-479a-b026-26cd2f2d2bb9"
+migrations_dir = "migrations"
 
 [[d1_databases]]
 binding = "CONSOLE_DB"
