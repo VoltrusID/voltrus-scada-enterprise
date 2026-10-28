@@ -21,8 +21,8 @@ docs/         internal docs (this file, plans, old specs)
 `enterprise/` in release mode. The enterprise crate's `voltrus` binary calls
 `voltrus::run(Arc::new(Enterprise))`. It is Core plus: licensing (offline
 signed keys, 7 day grace, online renew), SSO, 21 CFR Part 11, IEC 62443 audit,
-hot standby, multi-site hub, RTSP video, white-label, scheduled PDF/SMS
-reports, hosted Voltrus AI provider.
+hot standby, multi-site hub, RTSP video, white-label, scheduled PDF
+reports, Telegram/WhatsApp alarm notifications, hosted Voltrus AI provider.
 
 `release.sh` and `scripts/release-local.sh` build the official artifacts from this
 layout: `voltrus` from `enterprise/`, `modbus-sim` from `core/`, the client from

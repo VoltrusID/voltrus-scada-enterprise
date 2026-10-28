@@ -12,7 +12,6 @@ use voltrus::ws_manager::WsManager;
 
 use crate::ha::HaState;
 use crate::hub::HubManager;
-use crate::sms;
 use crate::sso::oidc::{JwksManager, OidcConfig};
 use crate::video::StreamProxy;
 use crate::{licensing, reports};
@@ -108,7 +107,7 @@ impl Runtime {
 }
 
 pub(crate) async fn start(ctx: StartContext) {
-    voltrus::edition::register_sms_sender(Arc::new(sms::CarrierSms));
+    voltrus::edition::register_chat_sender(Arc::new(crate::chat::ChatChannels::default()));
     voltrus::edition::register_hosted_ai(Arc::new(crate::ai::VoltrusAi));
 
     let oidc = OidcConfig {

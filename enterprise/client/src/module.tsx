@@ -2,7 +2,8 @@ import type { EnterpriseClientModule } from '@voltrus/core/edition/types'
 import { FeatureGate } from './components/FeatureGate'
 import { Banners } from './components/Banners'
 import { BrandingDialogHost } from './components/BrandingDialogHost'
-import { smsChannel } from './channels/sms'
+import { telegramChannel } from './channels/telegram'
+import { whatsappChannel } from './channels/whatsapp'
 import { CameraManager } from './panels/CameraManager'
 import { CompliancePanel } from './panels/CompliancePanel'
 import { HubManager } from './panels/HubManager'
@@ -101,7 +102,7 @@ const enterprise: EnterpriseClientModule = {
   LoginProviders,
   branding: { useBranding, Dialog: BrandingDialogHost },
   Banners,
-  notificationChannels: [smsChannel],
+  notificationChannels: [telegramChannel, whatsappChannel],
   locales: { en, id, zh, de },
 }
 
