@@ -18,8 +18,16 @@ fn public() -> Router<AppState> {
     Router::new()
         .route(
             "/api/v1/auth/saml/metadata",
-            post(sso::handlers::saml_metadata),
+            get(sso::handlers::saml_metadata),
         )
+        .route("/api/v1/auth/saml/login", get(sso::handlers::saml_login))
+        .route("/api/v1/auth/saml/acs", post(sso::handlers::saml_acs))
+        .route("/api/v1/auth/oidc/login", get(sso::handlers::oidc_login))
+        .route(
+            "/api/v1/auth/oidc/callback",
+            get(sso::handlers::oidc_callback),
+        )
+        .route("/api/v1/auth/ldap/login", post(sso::handlers::ldap_login))
         .route(
             "/api/v1/settings/branding",
             get(branding::handlers::get_branding),
