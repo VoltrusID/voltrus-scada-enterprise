@@ -135,8 +135,26 @@ fn get_disk_serial() -> String {
 /// Interface name prefixes of virtual adapters (containers, bridges, VPNs): their MAC
 /// changes with software state, so they never identify the machine.
 const VIRTUAL_INTERFACE_PREFIXES: &[&str] = &[
-    "lo", "veth", "docker", "br-", "virbr", "vnet", "tun", "tap", "tailscale", "zt", "wg",
-    "loopback", "awdl", "llw", "bridge", "utun", "gif", "stf", "anpi", "ap",
+    "lo",
+    "veth",
+    "docker",
+    "br-",
+    "virbr",
+    "vnet",
+    "tun",
+    "tap",
+    "tailscale",
+    "zt",
+    "wg",
+    "loopback",
+    "awdl",
+    "llw",
+    "bridge",
+    "utun",
+    "gif",
+    "stf",
+    "anpi",
+    "ap",
 ];
 
 /// MAC of the first physical-looking interface, by name. The interface list comes out
