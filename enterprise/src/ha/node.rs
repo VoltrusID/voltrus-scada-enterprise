@@ -277,7 +277,8 @@ impl Node {
         if epoch <= self.epoch() {
             return Ok(());
         }
-        self.update_record(move |r| r.epoch = epoch.max(r.epoch)).await?;
+        self.update_record(move |r| r.epoch = epoch.max(r.epoch))
+            .await?;
         self.epoch.fetch_max(epoch, Ordering::SeqCst);
         Ok(())
     }
@@ -362,7 +363,11 @@ impl Node {
             _ => bail!("peer sent no hello"),
         };
         if let Err(reason) = self.check_peer(&ph, &peer.node_id) {
-            let _ = peer.send(&Msg::Reject { reason: reason.clone() }).await;
+            let _ = peer
+                .send(&Msg::Reject {
+                    reason: reason.clone(),
+                })
+                .await;
             bail!(reason);
         }
         peer.send(&Msg::Hello(self.hello().await)).await?;
@@ -387,7 +392,10 @@ impl Node {
             return Err("hello does not match the authenticated node id".into());
         }
         if ph.node_id == self.cfg.node_id {
-            let msg = format!("both nodes are called '{}': give each node its own ha.node_id", ph.node_id);
+            let msg = format!(
+                "both nodes are called '{}': give each node its own ha.node_id",
+                ph.node_id
+            );
             lock(&self.dynamic).sync_error = Some(msg.clone());
             return Err(msg);
         }
@@ -399,7 +407,10 @@ impl Node {
     async fn connect_once(self: &Arc<Self>) -> Result<()> {
         let link = self
             .security
-            .dial(&self.cfg.peer_address, self.cfg.heartbeat.max(Duration::from_secs(1)))
+            .dial(
+                &self.cfg.peer_address,
+                self.cfg.heartbeat.max(Duration::from_secs(1)),
+            )
             .await?;
         let mut peer = link.into_peer(self.write_timeout());
         peer.send(&Msg::Hello(self.hello().await)).await?;
@@ -457,7 +468,12 @@ impl Node {
             // A standby that cannot apply what it is sent would otherwise be
             // full-synced over and over: slow down while it is in error.
             let broken = matches!(lock(&self.dynamic).sync, SyncState::Error(_));
-            sleep(if broken { Duration::from_secs(5) } else { Duration::from_millis(500) }).await;
+            sleep(if broken {
+                Duration::from_secs(5)
+            } else {
+                Duration::from_millis(500)
+            })
+            .await;
         }
     }
 
@@ -479,18 +495,34 @@ impl Node {
         let (mine, my_epoch) = (self.role(), self.epoch());
         match mine {
             HaRole::Primary | HaRole::Fenced if ph.epoch > my_epoch => {
-                self.demote(ph.epoch, &format!("{} is at epoch {} (this node: {my_epoch})", ph.node_id, ph.epoch))
-                    .await;
+                self.demote(
+                    ph.epoch,
+                    &format!(
+                        "{} is at epoch {} (this node: {my_epoch})",
+                        ph.node_id, ph.epoch
+                    ),
+                )
+                .await;
             }
             HaRole::Primary if role == HaRole::Primary && ph.epoch == my_epoch => {
                 // Two primaries in one term: the lower node id keeps the role.
                 if ph.node_id < self.cfg.node_id {
-                    self.demote(ph.epoch, &format!("{} is also primary at epoch {} and ranks first", ph.node_id, ph.epoch))
-                        .await;
+                    self.demote(
+                        ph.epoch,
+                        &format!(
+                            "{} is also primary at epoch {} and ranks first",
+                            ph.node_id, ph.epoch
+                        ),
+                    )
+                    .await;
                 }
             }
             HaRole::Fenced if role == HaRole::Primary => {
-                self.demote(ph.epoch.max(my_epoch), &format!("{} is primary", ph.node_id)).await;
+                self.demote(
+                    ph.epoch.max(my_epoch),
+                    &format!("{} is primary", ph.node_id),
+                )
+                .await;
             }
             _ => {}
         }
@@ -591,7 +623,8 @@ impl Node {
             d.primary_contact = Some(Instant::now());
         }
         tracing::warn!("HA: handed the primary role over at epoch {epoch}; now following");
-        self.audit("ha_handed_over", &format!("epoch {epoch}")).await;
+        self.audit("ha_handed_over", &format!("epoch {epoch}"))
+            .await;
         Ok(())
     }
 
@@ -611,7 +644,11 @@ impl Node {
     pub(super) async fn resume_primary(self: &Arc<Self>) -> Result<()> {
         let _g = self.transition.lock().await;
         if self.witness.is_arbiter() {
-            match self.witness.acquire(&self.cfg.node_id, self.epoch(), self.lease_ttl()).await? {
+            match self
+                .witness
+                .acquire(&self.cfg.node_id, self.epoch(), self.lease_ttl())
+                .await?
+            {
                 Reply::Granted { epoch } => {
                     drop(_g);
                     self.adopt_epoch(epoch).await?;
@@ -643,7 +680,9 @@ impl Node {
             .await?
             .context("no HA record")?;
         if rec.needs_full_sync && !force {
-            bail!("this standby has no complete copy of the data yet (a full sync has not finished); promote with force only if that is intended");
+            bail!(
+                "this standby has no complete copy of the data yet (a full sync has not finished); promote with force only if that is intended"
+            );
         }
         let peer_epoch = lock(&self.dynamic).peer_epoch.unwrap_or(0);
         let known_epoch = self.epoch().max(peer_epoch);
@@ -658,7 +697,9 @@ impl Node {
                     *lock(&self.lease_until) = Some(Instant::now() + self.lease_ttl() * 3 / 4);
                     epoch
                 }
-                Ok(Reply::Denied { holder, remaining, .. }) => {
+                Ok(Reply::Denied {
+                    holder, remaining, ..
+                }) => {
                     let msg = format!(
                         "the witness lease is still held by {holder} for {} ms",
                         remaining.as_millis()
@@ -685,7 +726,9 @@ impl Node {
 
         let reason = match &why {
             Promote::Auto(r) => r.clone(),
-            Promote::Operator { force } => format!("operator request{}", if *force { " (forced)" } else { "" }),
+            Promote::Operator { force } => {
+                format!("operator request{}", if *force { " (forced)" } else { "" })
+            }
             Promote::Handoff { .. } => "controlled switchover".to_string(),
         };
         let now = voltrus::timeutil::now_secs();
@@ -726,7 +769,8 @@ impl Node {
         self.set_role(HaRole::Primary);
         self.go_active().await;
         tracing::warn!("HA: promoted to primary at epoch {new_epoch} ({reason})");
-        self.audit("ha_promoted", &format!("epoch {new_epoch}: {reason}")).await;
+        self.audit("ha_promoted", &format!("epoch {new_epoch}: {reason}"))
+            .await;
         Ok(Transition {
             role: HaRole::Primary,
             epoch: new_epoch,
@@ -744,7 +788,8 @@ impl Node {
     // ── the monitor ──
 
     async fn run_monitor(self: Arc<Self>) {
-        let tick = (self.cfg.heartbeat / 4).clamp(Duration::from_millis(50), Duration::from_millis(500));
+        let tick =
+            (self.cfg.heartbeat / 4).clamp(Duration::from_millis(50), Duration::from_millis(500));
         let mut interval = tokio::time::interval(tick);
         let mut last_witness = Instant::now() - self.cfg.heartbeat;
         let mut last_housekeeping = Instant::now();
@@ -759,7 +804,8 @@ impl Node {
             }
             if last_housekeeping.elapsed() >= Duration::from_secs(5) {
                 last_housekeeping = Instant::now();
-                self.housekeeping(last_triggers.elapsed() >= Duration::from_secs(60)).await;
+                self.housekeeping(last_triggers.elapsed() >= Duration::from_secs(60))
+                    .await;
                 if last_triggers.elapsed() >= Duration::from_secs(60) {
                     last_triggers = Instant::now();
                 }
@@ -792,7 +838,11 @@ impl Node {
     async fn quick_probe(&self) -> Option<Hello> {
         let wait = self.cfg.failover_timeout().min(Duration::from_secs(2));
         let attempt = async {
-            let link = self.security.dial(&self.cfg.peer_address, wait).await.ok()?;
+            let link = self
+                .security
+                .dial(&self.cfg.peer_address, wait)
+                .await
+                .ok()?;
             let mut peer = link.into_peer(wait);
             let mut mine = self.hello().await;
             mine.role = WireRole::Fenced; // a probe never asks to be served
@@ -828,7 +878,9 @@ impl Node {
             Ok(t) => tracing::warn!("HA: failover complete in {} ms", t.duration_ms),
             Err(e) => {
                 if warned_at.is_none_or(|t| t.elapsed() > Duration::from_secs(10)) {
-                    tracing::warn!("HA: the primary is silent but this node cannot take over: {e:#}");
+                    tracing::warn!(
+                        "HA: the primary is silent but this node cannot take over: {e:#}"
+                    );
                     *warned_at = Some(Instant::now());
                 }
                 let mut d = lock(&self.dynamic);
@@ -853,7 +905,11 @@ impl Node {
                 *last_witness = Instant::now();
                 let sent = Instant::now();
                 let ttl = self.lease_ttl();
-                match self.witness.acquire(&self.cfg.node_id, self.epoch(), ttl).await {
+                match self
+                    .witness
+                    .acquire(&self.cfg.node_id, self.epoch(), ttl)
+                    .await
+                {
                     Ok(Reply::Granted { epoch }) => {
                         *lock(&self.lease_until) = Some(sent + ttl * 3 / 4);
                         self.set_witness(Some(true), Some(format!("lease held, epoch {epoch}")));
@@ -863,13 +919,15 @@ impl Node {
                     }
                     Ok(Reply::Denied { epoch, holder, .. }) => {
                         self.set_witness(Some(true), Some(format!("lease held by {holder}")));
-                        self.demote(epoch, &format!("the witness granted the lease to {holder}")).await;
+                        self.demote(epoch, &format!("the witness granted the lease to {holder}"))
+                            .await;
                     }
                     Err(e) => {
                         self.set_witness(Some(false), Some(format!("{e:#}")));
                         let expired = lock(&self.lease_until).is_none_or(|t| Instant::now() >= t);
                         if expired {
-                            self.fence("the witness lease could not be renewed in time").await;
+                            self.fence("the witness lease could not be renewed in time")
+                                .await;
                         }
                     }
                 }
@@ -878,7 +936,8 @@ impl Node {
                 let peer_ok = {
                     let d = lock(&self.dynamic);
                     d.session_up
-                        || d.peer_seen.is_some_and(|t| t.elapsed() < self.cfg.failover_timeout())
+                        || d.peer_seen
+                            .is_some_and(|t| t.elapsed() < self.cfg.failover_timeout())
                 };
                 if peer_ok {
                     lock(&self.dynamic).peer_lost_since = None;
@@ -889,13 +948,16 @@ impl Node {
                     }
                     return;
                 }
-                let lost_for = *lock(&self.dynamic).peer_lost_since.get_or_insert_with(Instant::now);
+                let lost_for = *lock(&self.dynamic)
+                    .peer_lost_since
+                    .get_or_insert_with(Instant::now);
                 if last_witness.elapsed() >= self.cfg.heartbeat {
                     *last_witness = Instant::now();
                     let ok = self.witness.reachable().await;
                     self.set_witness(Some(ok), None);
                     if !ok && lost_for.elapsed() >= self.cfg.failover_timeout() {
-                        self.fence("the standby and the witness host are both unreachable").await;
+                        self.fence("the standby and the witness host are both unreachable")
+                            .await;
                     }
                 }
             }
@@ -910,7 +972,11 @@ impl Node {
         *last_witness = Instant::now();
         match &self.witness {
             Witness::Arbiter { .. } => {
-                match self.witness.acquire(&self.cfg.node_id, self.epoch(), self.lease_ttl()).await {
+                match self
+                    .witness
+                    .acquire(&self.cfg.node_id, self.epoch(), self.lease_ttl())
+                    .await
+                {
                     Ok(Reply::Granted { epoch }) => {
                         *lock(&self.lease_until) = Some(Instant::now() + self.lease_ttl() * 3 / 4);
                         let _ = self.adopt_epoch(epoch).await;
@@ -918,7 +984,8 @@ impl Node {
                         self.unfence("the witness granted the lease again").await;
                     }
                     Ok(Reply::Denied { epoch, holder, .. }) => {
-                        self.demote(epoch, &format!("the witness granted the lease to {holder}")).await;
+                        self.demote(epoch, &format!("the witness granted the lease to {holder}"))
+                            .await;
                     }
                     Err(e) => self.set_witness(Some(false), Some(format!("{e:#}"))),
                 }
@@ -930,7 +997,8 @@ impl Node {
                     .peer_seen
                     .is_some_and(|t| t.elapsed() < self.cfg.failover_timeout());
                 if ok || peer_ok {
-                    self.unfence("the witness or the peer is reachable again").await;
+                    self.unfence("the witness or the peer is reachable again")
+                        .await;
                 }
             }
             Witness::None => self.unfence("no witness is configured").await,
@@ -981,10 +1049,11 @@ impl Node {
             uptime_as_role_secs: d.role_since.map_or(0, |t| t.elapsed().as_secs()),
             failover_after_ms: self.cfg.failover_timeout().as_millis() as u64,
             can_take_over: role == HaRole::Standby && !d.needs_full_sync,
-            promotion_blocked: d
-                .promotion_blocked
-                .clone()
-                .filter(|_| role == HaRole::Standby && d.primary_contact.unwrap_or(self.started).elapsed() >= self.cfg.failover_timeout()),
+            promotion_blocked: d.promotion_blocked.clone().filter(|_| {
+                role == HaRole::Standby
+                    && d.primary_contact.unwrap_or(self.started).elapsed()
+                        >= self.cfg.failover_timeout()
+            }),
             witness: self.witness.kind_name().map(|k| WitnessStatus {
                 kind: k.to_string(),
                 reachable: d.witness_ok,
@@ -1004,16 +1073,24 @@ impl Node {
         sync_rx.mark_unchanged();
         match self.role() {
             HaRole::Primary => {
-                let tx = lock(&self.primary_cmd).clone().context("no standby is connected")?;
+                let tx = lock(&self.primary_cmd)
+                    .clone()
+                    .context("no standby is connected")?;
                 let (reply_tx, reply_rx) = oneshot::channel();
-                tx.send(PrimaryCmd::Resync(reply_tx)).await.context("the standby session just ended")?;
+                tx.send(PrimaryCmd::Resync(reply_tx))
+                    .await
+                    .context("the standby session just ended")?;
                 if let Ok(r) = timeout(wait, reply_rx).await {
                     r.context("the session ended before the sync finished")??;
                 }
             }
             HaRole::Standby => {
-                let tx = lock(&self.standby_cmd).clone().context("not connected to a primary")?;
-                tx.send(StandbyCmd::Resync).await.context("the primary session just ended")?;
+                let tx = lock(&self.standby_cmd)
+                    .clone()
+                    .context("not connected to a primary")?;
+                tx.send(StandbyCmd::Resync)
+                    .await
+                    .context("the primary session just ended")?;
                 let _ = timeout(wait, sync_rx.changed()).await;
             }
             HaRole::Fenced => bail!("this node is fenced and has no peer to sync with"),
@@ -1022,7 +1099,11 @@ impl Node {
     }
 
     /// Switch the roles of the pair. Returns once the other node is primary.
-    pub async fn force_failover(self: &Arc<Self>, force: bool, wait: Duration) -> Result<Transition> {
+    pub async fn force_failover(
+        self: &Arc<Self>,
+        force: bool,
+        wait: Duration,
+    ) -> Result<Transition> {
         let started = Instant::now();
         match self.role() {
             HaRole::Primary => {
@@ -1049,7 +1130,9 @@ impl Node {
                     // The primary is there: ask it to hand over cleanly.
                     let mut role_rx = self.role_tx.subscribe();
                     role_rx.mark_unchanged();
-                    tx.send(StandbyCmd::Switchover).await.context("the primary session just ended")?;
+                    tx.send(StandbyCmd::Switchover)
+                        .await
+                        .context("the primary session just ended")?;
                     let deadline = Instant::now() + wait;
                     while self.role() != HaRole::Primary {
                         let left = deadline.saturating_duration_since(Instant::now());
@@ -1067,14 +1150,21 @@ impl Node {
                     self.promote(Promote::Operator { force }).await
                 }
             }
-            HaRole::Fenced => bail!("this node is fenced; it resumes by itself once the witness answers"),
+            HaRole::Fenced => {
+                bail!("this node is fenced; it resumes by itself once the witness answers")
+            }
         }
     }
 
     /// Sorted map of the replicated tables, for tests and diagnostics.
     pub async fn replicated_tables(&self) -> Result<BTreeMap<String, usize>> {
         self.storage
-            .with_conn(|c| Ok(store::table_schemas(c)?.into_iter().map(|(k, v)| (k, v.cols.len())).collect()))
+            .with_conn(|c| {
+                Ok(store::table_schemas(c)?
+                    .into_iter()
+                    .map(|(k, v)| (k, v.cols.len()))
+                    .collect())
+            })
             .await
     }
 }
@@ -1082,7 +1172,10 @@ impl Node {
 /// Whether two hellos describe the same lineage (used by the primary to choose
 /// between an incremental and a full sync).
 pub(super) fn can_resume(ph: &Hello, my_epoch: u64, floor: u64, max_seq: u64) -> bool {
-    !ph.needs_full_sync && ph.epoch == my_epoch && ph.applied_seq >= floor && ph.applied_seq <= max_seq
+    !ph.needs_full_sync
+        && ph.epoch == my_epoch
+        && ph.applied_seq >= floor
+        && ph.applied_seq <= max_seq
 }
 
 #[allow(dead_code)]
@@ -1109,12 +1202,30 @@ mod tests {
     #[test]
     fn a_standby_resumes_only_inside_the_same_term_and_the_retained_log() {
         assert!(can_resume(&hello(3, 50, false), 3, 40, 80));
-        assert!(can_resume(&hello(3, 40, false), 3, 40, 80), "exactly at the floor is fine");
-        assert!(can_resume(&hello(3, 80, false), 3, 40, 80), "fully caught up");
-        assert!(!can_resume(&hello(3, 39, false), 3, 40, 80), "behind the trimmed log");
-        assert!(!can_resume(&hello(3, 81, false), 3, 40, 80), "ahead of the primary: a different history");
-        assert!(!can_resume(&hello(2, 50, false), 3, 40, 80), "an older term");
+        assert!(
+            can_resume(&hello(3, 40, false), 3, 40, 80),
+            "exactly at the floor is fine"
+        );
+        assert!(
+            can_resume(&hello(3, 80, false), 3, 40, 80),
+            "fully caught up"
+        );
+        assert!(
+            !can_resume(&hello(3, 39, false), 3, 40, 80),
+            "behind the trimmed log"
+        );
+        assert!(
+            !can_resume(&hello(3, 81, false), 3, 40, 80),
+            "ahead of the primary: a different history"
+        );
+        assert!(
+            !can_resume(&hello(2, 50, false), 3, 40, 80),
+            "an older term"
+        );
         assert!(!can_resume(&hello(4, 50, false), 3, 40, 80), "a newer term");
-        assert!(!can_resume(&hello(3, 50, true), 3, 40, 80), "marked for a full sync");
+        assert!(
+            !can_resume(&hello(3, 50, true), 3, 40, 80),
+            "marked for a full sync"
+        );
     }
 }

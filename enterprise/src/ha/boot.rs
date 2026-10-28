@@ -19,13 +19,13 @@ use voltrus::models::AppConfig;
 use voltrus::node_role::Start;
 use voltrus::storage::Storage;
 
+use super::HaRole;
 use super::link::LinkSecurity;
 use super::node::Boot;
 use super::settings::{HaSettings, InitialRole};
 use super::store::{self, NodeRecord, StoredRole};
 use super::wire::{Hello, Msg, PROTOCOL_VERSION, WireRole};
 use super::witness::{Reply, Witness};
-use super::HaRole;
 
 /// Paths a passive node still accepts writes on: sign-in, the pair's own
 /// controls, and the machine-bound licence activation.
@@ -59,7 +59,11 @@ fn hello(node_id: &str, role: WireRole, epoch: u64) -> Hello {
 }
 
 /// Ask the peer who it is and what it holds. `None` when it cannot be reached.
-async fn probe_peer(security: &LinkSecurity, settings: &HaSettings, mine: Hello) -> Result<Option<Hello>> {
+async fn probe_peer(
+    security: &LinkSecurity,
+    settings: &HaSettings,
+    mine: Hello,
+) -> Result<Option<Hello>> {
     let wait = settings.failover_timeout().max(Duration::from_secs(2));
     let attempt = async {
         let link = security.dial(&settings.peer_address, wait).await?;
@@ -74,7 +78,10 @@ async fn probe_peer(security: &LinkSecurity, settings: &HaSettings, mine: Hello)
     match timeout(wait, attempt).await {
         Ok(Ok(h)) => {
             if h.node_id == settings.node_id {
-                bail!("both nodes are called '{}': give each node its own ha.node_id", h.node_id);
+                bail!(
+                    "both nodes are called '{}': give each node its own ha.node_id",
+                    h.node_id
+                );
             }
             Ok(Some(h))
         }
@@ -108,7 +115,10 @@ pub async fn resolve_node_role(
     let security = LinkSecurity::new(
         &settings.node_id,
         &settings.secret,
-        settings.tls_files.as_ref().map(|(c, k)| (c.as_str(), k.as_str())),
+        settings
+            .tls_files
+            .as_ref()
+            .map(|(c, k)| (c.as_str(), k.as_str())),
     )?;
     voltrus::node_role::set_passive_write_exemptions(PASSIVE_WRITE_EXEMPTIONS);
 
@@ -130,7 +140,13 @@ pub async fn resolve_node_role(
                 InitialRole::Primary => (StoredRole::Primary, 1, false),
                 InitialRole::Standby => (StoredRole::Standby, 0, true),
                 InitialRole::Auto => {
-                    match probe_peer(&security, &settings, hello(&settings.node_id, WireRole::Fenced, 0)).await? {
+                    match probe_peer(
+                        &security,
+                        &settings,
+                        hello(&settings.node_id, WireRole::Fenced, 0),
+                    )
+                    .await?
+                    {
                         Some(ph) if ph.role == WireRole::Primary => (StoredRole::Standby, 0, true),
                         // Both fresh and both up: the lower node id leads.
                         Some(ph) if settings.node_id > ph.node_id => (StoredRole::Standby, 0, true),
@@ -159,10 +175,17 @@ pub async fn resolve_node_role(
 
     if role == HaRole::Primary {
         // A node that was primary must not simply resume.
-        let peer = probe_peer(&security, &settings, hello(&settings.node_id, WireRole::Primary, rec.epoch)).await?;
+        let peer = probe_peer(
+            &security,
+            &settings,
+            hello(&settings.node_id, WireRole::Primary, rec.epoch),
+        )
+        .await?;
         if let Some(ph) = &peer {
             let outranked = ph.epoch > rec.epoch
-                || (ph.role == WireRole::Primary && ph.epoch == rec.epoch && ph.node_id < settings.node_id);
+                || (ph.role == WireRole::Primary
+                    && ph.epoch == rec.epoch
+                    && ph.node_id < settings.node_id);
             if outranked {
                 tracing::warn!(
                     "HA: peer {} is already primary at epoch {}; this node starts as its standby",
@@ -185,7 +208,9 @@ pub async fn resolve_node_role(
                     match witness.acquire(&settings.node_id, rec.epoch, ttl).await {
                         Ok(Reply::Granted { epoch }) => rec.epoch = rec.epoch.max(epoch),
                         Ok(Reply::Denied { epoch, holder, .. }) => {
-                            tracing::warn!("HA: the witness lease is held by {holder}; this node starts as its standby");
+                            tracing::warn!(
+                                "HA: the witness lease is held by {holder}; this node starts as its standby"
+                            );
                             rec.role = StoredRole::Standby;
                             rec.epoch = epoch.max(rec.epoch);
                             rec.applied_seq = 0;
@@ -193,14 +218,18 @@ pub async fn resolve_node_role(
                             role = HaRole::Standby;
                         }
                         Err(e) => {
-                            tracing::error!("HA: the witness is unreachable ({e:#}); this node starts fenced");
+                            tracing::error!(
+                                "HA: the witness is unreachable ({e:#}); this node starts fenced"
+                            );
                             role = HaRole::Fenced;
                         }
                     }
                 }
                 Witness::Reachability { .. } => {
                     if peer.is_none() && !witness.reachable().await {
-                        tracing::error!("HA: neither the peer nor the witness host is reachable; this node starts fenced");
+                        tracing::error!(
+                            "HA: neither the peer nor the witness host is reachable; this node starts fenced"
+                        );
                         role = HaRole::Fenced;
                     }
                 }
@@ -209,7 +238,9 @@ pub async fn resolve_node_role(
     }
 
     let saved = rec.clone();
-    storage.with_conn(move |c| store::save_node(c, &saved)).await?;
+    storage
+        .with_conn(move |c| store::save_node(c, &saved))
+        .await?;
 
     let start = Start {
         active: role == HaRole::Primary,
@@ -218,7 +249,10 @@ pub async fn resolve_node_role(
     *BOOT.lock().unwrap_or_else(|e| e.into_inner()) = Some(BootInfo {
         settings,
         security,
-        boot: Boot { role, epoch: rec.epoch },
+        boot: Boot {
+            role,
+            epoch: rec.epoch,
+        },
         record: rec,
     });
     Ok(start)
@@ -248,7 +282,12 @@ async fn unlicensed(config: &AppConfig, storage: &Storage) -> Result<Start> {
             "Hot standby is configured but the licence does not include it. This node is the standby, so it stays passive and does not poll devices."
         );
     } else {
-        tracing::warn!("Hot standby is configured but the licence does not include it: running as a single node.");
+        tracing::warn!(
+            "Hot standby is configured but the licence does not include it: running as a single node."
+        );
     }
-    Ok(Start { active: !standby, passive_polling: config.ha.standby_polling })
+    Ok(Start {
+        active: !standby,
+        passive_polling: config.ha.standby_polling,
+    })
 }

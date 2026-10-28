@@ -55,9 +55,8 @@ impl Extension for Enterprise {
     }
 
     fn cli_help(&self) -> &'static str {
-        static HELP: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
-            format!("{}{}", licensing::cli::HELP, ha::witness::HELP)
-        });
+        static HELP: std::sync::LazyLock<String> =
+            std::sync::LazyLock::new(|| format!("{}{}", licensing::cli::HELP, ha::witness::HELP));
         HELP.as_str()
     }
 

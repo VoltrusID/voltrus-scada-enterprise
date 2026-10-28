@@ -11,8 +11,8 @@
 //!
 //! The design notes and the data-loss bound are in `docs/hot-standby.md`.
 
-pub mod ha_api;
 mod boot;
+pub mod ha_api;
 pub mod link;
 mod node;
 mod session;
@@ -93,7 +93,11 @@ impl SyncState {
 
     pub fn progress(&self) -> Option<SyncProgress> {
         match self {
-            SyncState::FullSync { tables_done, tables_total, rows } => Some(SyncProgress {
+            SyncState::FullSync {
+                tables_done,
+                tables_total,
+                rows,
+            } => Some(SyncProgress {
                 tables_done: *tables_done,
                 tables_total: *tables_total,
                 rows: *rows,
@@ -201,7 +205,10 @@ impl HaStatus {
 }
 
 pub(crate) fn rfc3339(secs: i64) -> Option<String> {
-    OffsetDateTime::from_unix_timestamp(secs).ok()?.format(&Rfc3339).ok()
+    OffsetDateTime::from_unix_timestamp(secs)
+        .ok()?
+        .format(&Rfc3339)
+        .ok()
 }
 
 /// The handle the rest of the add-on holds. Disabled when HA is off or not licensed.
@@ -217,12 +224,20 @@ impl HaState {
 
     /// Build the node from the role decision made at boot. Disabled unless the
     /// process started with HA configured and licensed.
-    pub fn build(config: &HaConfig, storage: Storage, pollers: PollerManager) -> anyhow::Result<Self> {
+    pub fn build(
+        config: &HaConfig,
+        storage: Storage,
+        pollers: PollerManager,
+    ) -> anyhow::Result<Self> {
         if !config.enabled {
             return Ok(Self::disabled());
         }
         match boot::take() {
-            Some(b) => Ok(Self { node: Some(Node::new(b.settings, b.security, storage, pollers, b.boot, &b.record)?) }),
+            Some(b) => Ok(Self {
+                node: Some(Node::new(
+                    b.settings, b.security, storage, pollers, b.boot, &b.record,
+                )?),
+            }),
             None => {
                 tracing::warn!(
                     "Hot standby is configured but this process started without a hot standby licence; restart after activating one"

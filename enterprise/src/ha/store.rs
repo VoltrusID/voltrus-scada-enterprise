@@ -339,7 +339,9 @@ pub fn table_schema(conn: &Connection, name: &str) -> Result<Option<TableSchema>
         cols.push(col);
     }
     pk.sort();
-    let blob_key = pk.iter().any(|(_, _, ty)| ty.to_uppercase().contains("BLOB"));
+    let blob_key = pk
+        .iter()
+        .any(|(_, _, ty)| ty.to_uppercase().contains("BLOB"));
     let keyed_by_rowid = pk.is_empty() || (blob_key && has_rowid);
     if keyed_by_rowid && !has_rowid {
         return Ok(None); // WITHOUT ROWID with no usable key cannot exist; blob keys are unsupported
@@ -469,8 +471,9 @@ fn trigger_sql(s: &TableSchema) -> [(String, String); 3] {
 /// number of triggers created.
 pub fn install_triggers(conn: &Connection) -> Result<usize> {
     let existing: std::collections::HashSet<String> = {
-        let mut stmt = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'ha_trg_%'")?;
+        let mut stmt = conn.prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'ha_trg_%'",
+        )?;
         stmt.query_map([], |r| r.get::<_, String>(0))?
             .collect::<std::result::Result<_, _>>()?
     };
@@ -492,8 +495,9 @@ pub fn install_triggers(conn: &Connection) -> Result<usize> {
 /// off, so the log does not grow without a consumer.
 pub fn teardown(conn: &Connection) -> Result<()> {
     let names: Vec<String> = {
-        let mut stmt = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'ha_trg_%'")?;
+        let mut stmt = conn.prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'ha_trg_%'",
+        )?;
         stmt.query_map([], |r| r.get::<_, String>(0))?
             .collect::<std::result::Result<_, _>>()?
     };
@@ -524,19 +528,17 @@ pub struct LogEntry {
 
 /// Highest sequence number ever assigned.
 pub fn max_seq(conn: &Connection) -> Result<u64> {
-    Ok(conn
-        .query_row(
-            "SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'ha_changelog'), 0)",
-            [],
-            |r| r.get::<_, i64>(0),
-        )? as u64)
+    Ok(conn.query_row(
+        "SELECT COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'ha_changelog'), 0)",
+        [],
+        |r| r.get::<_, i64>(0),
+    )? as u64)
 }
 
 /// A standby whose position is at least this can continue incrementally.
 pub fn log_floor(conn: &Connection) -> Result<u64> {
     let max = max_seq(conn)?;
-    let min: Option<i64> =
-        conn.query_row("SELECT MIN(seq) FROM ha_changelog", [], |r| r.get(0))?;
+    let min: Option<i64> = conn.query_row("SELECT MIN(seq) FROM ha_changelog", [], |r| r.get(0))?;
     Ok(match min {
         Some(m) => (m as u64).saturating_sub(1),
         None => max,
@@ -724,7 +726,13 @@ fn select_sql(s: &TableSchema) -> String {
     let cols = s
         .cols
         .iter()
-        .map(|c| if c == "rowid" && s.keyed_by_rowid { "rowid".to_string() } else { quote_ident(c) })
+        .map(|c| {
+            if c == "rowid" && s.keyed_by_rowid {
+                "rowid".to_string()
+            } else {
+                quote_ident(c)
+            }
+        })
         .collect::<Vec<_>>()
         .join(", ");
     let wher = s
@@ -732,7 +740,11 @@ fn select_sql(s: &TableSchema) -> String {
         .iter()
         .enumerate()
         .map(|(i, c)| {
-            let col = if c == "rowid" && s.keyed_by_rowid { "rowid".to_string() } else { quote_ident(c) };
+            let col = if c == "rowid" && s.keyed_by_rowid {
+                "rowid".to_string()
+            } else {
+                quote_ident(c)
+            };
             format!("{col} = ?{}", i + 1)
         })
         .collect::<Vec<_>>()
@@ -793,7 +805,9 @@ fn local_schema<'a>(
         );
     }
     anyhow::ensure!(
-        t.key.iter().all(|k| s.key.contains(k) || s.cols.contains(k)),
+        t.key
+            .iter()
+            .all(|k| s.key.contains(k) || s.cols.contains(k)),
         "key of table {} does not match this node",
         t.name
     );
@@ -808,7 +822,11 @@ fn apply_table(
 ) -> Result<()> {
     let schema = local_schema(tx, cache, t)?.clone();
     let key_col = |c: &String| {
-        if c == "rowid" && schema.keyed_by_rowid { "rowid".to_string() } else { quote_ident(c) }
+        if c == "rowid" && schema.keyed_by_rowid {
+            "rowid".to_string()
+        } else {
+            quote_ident(c)
+        }
     };
 
     if !t.delete_runs.is_empty() {
@@ -895,7 +913,9 @@ fn apply_changes_inner(
     tables: &[TableChanges],
     position: Option<Position>,
 ) -> Result<ApplyStats> {
-    let tx = conn.transaction().context("Failed to begin the apply transaction")?;
+    let tx = conn
+        .transaction()
+        .context("Failed to begin the apply transaction")?;
     tx.execute("UPDATE ha_guard SET mute = 1 WHERE id = 1", [])?;
     let mut cache = HashMap::new();
     let mut stats = ApplyStats::default();
@@ -915,7 +935,8 @@ fn apply_changes_inner(
         )?;
     }
     tx.execute("UPDATE ha_guard SET mute = 0 WHERE id = 1", [])?;
-    tx.commit().context("Failed to commit the apply transaction")?;
+    tx.commit()
+        .context("Failed to commit the apply transaction")?;
     Ok(stats)
 }
 
@@ -955,7 +976,13 @@ pub fn snapshot_rows(
     let cols = s
         .cols
         .iter()
-        .map(|c| if c == "rowid" && s.keyed_by_rowid { "rowid".to_string() } else { quote_ident(c) })
+        .map(|c| {
+            if c == "rowid" && s.keyed_by_rowid {
+                "rowid".to_string()
+            } else {
+                quote_ident(c)
+            }
+        })
         .collect::<Vec<_>>()
         .join(", ");
     let n = s.cols.len();
@@ -985,7 +1012,12 @@ pub fn snapshot_rows(
         Ok((rows, if count == limit { Some(last) } else { None }))
     } else {
         // WITHOUT ROWID: page by offset in key order.
-        let order = s.key.iter().map(|c| quote_ident(c)).collect::<Vec<_>>().join(", ");
+        let order = s
+            .key
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
         let sql = format!(
             "SELECT {cols} FROM {} ORDER BY {order} LIMIT ?1 OFFSET ?2",
             quote_ident(&s.name)
@@ -1004,7 +1036,14 @@ pub fn snapshot_rows(
                 return Ok((rows, Some(cursor + count as i64)));
             }
         }
-        Ok((rows, if count == limit { Some(cursor + count as i64) } else { None }))
+        Ok((
+            rows,
+            if count == limit {
+                Some(cursor + count as i64)
+            } else {
+                None
+            },
+        ))
     }
 }
 
@@ -1041,7 +1080,10 @@ fn begin_full_sync_inner(conn: &mut Connection, tables: &[SnapshotTable]) -> Res
         )? != 0;
         if !exists {
             anyhow::ensure!(
-                t.create_sql.trim_start().to_uppercase().starts_with("CREATE TABLE"),
+                t.create_sql
+                    .trim_start()
+                    .to_uppercase()
+                    .starts_with("CREATE TABLE"),
                 "refusing a schema statement that is not CREATE TABLE"
             );
             tx.execute_batch(&t.create_sql)?;
@@ -1067,7 +1109,11 @@ pub fn finish_full_sync(conn: &mut Connection, epoch: u64, snapshot_seq: u64) ->
     tx.execute(
         "UPDATE ha_node SET epoch = ?1, applied_seq = ?2, needs_full_sync = 0, updated_at = ?3
          WHERE id = 1",
-        params![epoch as i64, snapshot_seq as i64, voltrus::timeutil::now_secs()],
+        params![
+            epoch as i64,
+            snapshot_seq as i64,
+            voltrus::timeutil::now_secs()
+        ],
     )?;
     tx.commit()?;
     Ok(())
@@ -1103,9 +1149,18 @@ mod tests {
             let cols = schema
                 .cols
                 .iter()
-                .map(|c| if c == "rowid" { "rowid".to_string() } else { quote_ident(c) })
+                .map(|c| {
+                    if c == "rowid" {
+                        "rowid".to_string()
+                    } else {
+                        quote_ident(c)
+                    }
+                })
                 .collect::<Vec<_>>();
-            let order = (1..=cols.len()).map(|i| i.to_string()).collect::<Vec<_>>().join(", ");
+            let order = (1..=cols.len())
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
             let mut stmt = conn
                 .prepare(&format!(
                     "SELECT {} FROM {} ORDER BY {order}",
@@ -1144,7 +1199,11 @@ mod tests {
             apply_changes(
                 dst,
                 &b.tables,
-                Some(Position { epoch: 1, applied_seq: b.seq_to, needs_full_sync: false }),
+                Some(Position {
+                    epoch: 1,
+                    applied_seq: b.seq_to,
+                    needs_full_sync: false,
+                }),
             )
             .unwrap();
             pos = b.seq_to;
@@ -1201,7 +1260,9 @@ mod tests {
         pos = ship(&a, &mut b, pos, 3);
         assert_eq!(dump(&a), dump(&b));
         assert_eq!(
-            b.query_row("SELECT applied_seq FROM ha_node", [], |r| r.get::<_, i64>(0)).unwrap(),
+            b.query_row("SELECT applied_seq FROM ha_node", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
             pos as i64
         );
     }
@@ -1222,8 +1283,11 @@ mod tests {
                 let k = next(12) as i64;
                 match next(7) {
                     0 | 1 => {
-                        a.execute("INSERT INTO t_int (v) VALUES (?1)", [format!("v{}", next(100))])
-                            .unwrap();
+                        a.execute(
+                            "INSERT INTO t_int (v) VALUES (?1)",
+                            [format!("v{}", next(100))],
+                        )
+                        .unwrap();
                     }
                     2 => {
                         a.execute(
@@ -1240,11 +1304,15 @@ mod tests {
                         .unwrap();
                     }
                     4 => {
-                        a.execute("DELETE FROM t_int WHERE id % 5 = ?1", [k % 5]).unwrap();
+                        a.execute("DELETE FROM t_int WHERE id % 5 = ?1", [k % 5])
+                            .unwrap();
                     }
                     5 => {
-                        a.execute("INSERT INTO t_rowid VALUES (?1, ?2)", params![format!("x{k}"), k])
-                            .unwrap();
+                        a.execute(
+                            "INSERT INTO t_rowid VALUES (?1, ?2)",
+                            params![format!("x{k}"), k],
+                        )
+                        .unwrap();
                     }
                     _ => {
                         a.execute("DELETE FROM t_rowid WHERE y = ?1", [k]).unwrap();
@@ -1266,12 +1334,18 @@ mod tests {
         let (_d, a, mut b) = pair();
         a.execute("INSERT INTO t_int (v) VALUES ('x')", []).unwrap();
         ship(&a, &mut b, 0, 10);
-        assert_eq!(max_seq(&b).unwrap(), 0, "applying must not log on the standby");
+        assert_eq!(
+            max_seq(&b).unwrap(),
+            0,
+            "applying must not log on the standby"
+        );
         // Outside an apply the standby's triggers work again.
-        b.execute("INSERT INTO t_int (v) VALUES ('local')", []).unwrap();
+        b.execute("INSERT INTO t_int (v) VALUES ('local')", [])
+            .unwrap();
         assert_eq!(max_seq(&b).unwrap(), 1);
         assert_eq!(
-            b.query_row("SELECT mute FROM ha_guard", [], |r| r.get::<_, i64>(0)).unwrap(),
+            b.query_row("SELECT mute FROM ha_guard", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
             0
         );
     }
@@ -1287,18 +1361,35 @@ mod tests {
             ..Default::default()
         };
         assert!(apply_changes(&mut b, &[bad], None).is_err());
-        b.execute("INSERT INTO t_int (v) VALUES ('after')", []).unwrap();
-        assert_eq!(max_seq(&b).unwrap(), 1, "the guard is released after a failed apply");
+        b.execute("INSERT INTO t_int (v) VALUES ('after')", [])
+            .unwrap();
+        assert_eq!(
+            max_seq(&b).unwrap(),
+            1,
+            "the guard is released after a failed apply"
+        );
 
         let injected = TableChanges {
             name: "t_int\"; DROP TABLE users; --".into(),
             ..Default::default()
         };
         assert!(apply_changes(&mut b, &[injected], None).is_err());
-        let node = TableChanges { name: "ha_node".into(), ..Default::default() };
-        assert!(apply_changes(&mut b, &[node], None).is_err(), "bookkeeping tables never replicate");
-        let lic = TableChanges { name: "license_activation".into(), ..Default::default() };
-        assert!(apply_changes(&mut b, &[lic], None).is_err(), "the licence never replicates");
+        let node = TableChanges {
+            name: "ha_node".into(),
+            ..Default::default()
+        };
+        assert!(
+            apply_changes(&mut b, &[node], None).is_err(),
+            "bookkeeping tables never replicate"
+        );
+        let lic = TableChanges {
+            name: "license_activation".into(),
+            ..Default::default()
+        };
+        assert!(
+            apply_changes(&mut b, &[lic], None).is_err(),
+            "the licence never replicates"
+        );
     }
 
     #[test]
@@ -1309,7 +1400,11 @@ mod tests {
         let schemas = table_schemas(&a).unwrap();
         let batch = build_batch(&a, &schemas, &read_log(&a, 0, 100).unwrap()).unwrap();
         assert_eq!(batch.tables.len(), 1);
-        assert_eq!(batch.tables[0].rows.len(), 1, "three changes to one row ship one image");
+        assert_eq!(
+            batch.tables[0].rows.len(),
+            1,
+            "three changes to one row ship one image"
+        );
         assert_eq!(batch.tables[0].rows[0][1], Cell::Text("c".into()));
 
         let mark = max_seq(&a).unwrap();
@@ -1322,7 +1417,11 @@ mod tests {
         let batch = build_batch(&a, &schemas, &entries).unwrap();
         let t = &batch.tables[0];
         assert!(t.rows.is_empty() && t.deletes.is_empty());
-        assert_eq!(t.delete_runs, vec![(2, 5001)], "5000 deleted rows are one run");
+        assert_eq!(
+            t.delete_runs,
+            vec![(2, 5001)],
+            "5000 deleted rows are one run"
+        );
         assert_eq!(batch.change_count(), 5000);
         let _ = mark;
     }
@@ -1333,14 +1432,17 @@ mod tests {
         a.execute_batch("INSERT INTO t_text VALUES ('gone', 1.0, 1); INSERT INTO t_text VALUES ('stays', 2.0, 2);")
             .unwrap();
         let first = max_seq(&a).unwrap();
-        a.execute("DELETE FROM t_text WHERE k = 'gone'", []).unwrap();
+        a.execute("DELETE FROM t_text WHERE k = 'gone'", [])
+            .unwrap();
         // Ship only the insert entries: the image fetch finds the row already deleted.
         let schemas = table_schemas(&a).unwrap();
         let entries = read_log(&a, 0, 2).unwrap();
         assert!(max_seq(&a).unwrap() > first);
         let batch = build_batch(&a, &schemas, &entries).unwrap();
         apply_changes(&mut b, &batch.tables, None).unwrap();
-        let n: i64 = b.query_row("SELECT COUNT(*) FROM t_text", [], |r| r.get(0)).unwrap();
+        let n: i64 = b
+            .query_row("SELECT COUNT(*) FROM t_text", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(n, 1);
         ship(&a, &mut b, batch.seq_to, 10);
         assert_eq!(dump(&a), dump(&b));
@@ -1406,12 +1508,24 @@ mod tests {
 
         assert_eq!(dump(&a), dump(&b));
         let node = load_node(&b).unwrap().unwrap();
-        assert_eq!((node.epoch, node.applied_seq, node.needs_full_sync), (3, snap_seq, false));
+        assert_eq!(
+            (node.epoch, node.applied_seq, node.needs_full_sync),
+            (3, snap_seq, false)
+        );
         let lic: String = b
-            .query_row("SELECT license_key FROM license_activation", [], |r| r.get(0))
+            .query_row("SELECT license_key FROM license_activation", [], |r| {
+                r.get(0)
+            })
             .unwrap();
-        assert_eq!(lic, "node-b-key", "the machine-bound licence is never replicated");
-        assert_eq!(max_seq(&b).unwrap(), local_log, "a full sync logs nothing on the standby");
+        assert_eq!(
+            lic, "node-b-key",
+            "the machine-bound licence is never replicated"
+        );
+        assert_eq!(
+            max_seq(&b).unwrap(),
+            local_log,
+            "a full sync logs nothing on the standby"
+        );
     }
 
     #[test]
@@ -1419,7 +1533,8 @@ mod tests {
         let (_d, a, _b) = pair();
         assert_eq!(max_seq(&a).unwrap(), 0);
         assert_eq!(log_floor(&a).unwrap(), 0);
-        a.execute_batch("INSERT INTO t_int (v) VALUES ('1'), ('2'), ('3'), ('4');").unwrap();
+        a.execute_batch("INSERT INTO t_int (v) VALUES ('1'), ('2'), ('3'), ('4');")
+            .unwrap();
         assert_eq!((log_floor(&a).unwrap(), max_seq(&a).unwrap()), (0, 4));
         prune_log(&a, 2).unwrap();
         assert_eq!((log_floor(&a).unwrap(), max_seq(&a).unwrap()), (2, 4));
@@ -1429,27 +1544,43 @@ mod tests {
             (4, 4),
             "an emptied log keeps counting where it stopped"
         );
-        a.execute_batch("INSERT INTO t_int (v) VALUES ('5');").unwrap();
+        a.execute_batch("INSERT INTO t_int (v) VALUES ('5');")
+            .unwrap();
         assert_eq!((log_floor(&a).unwrap(), max_seq(&a).unwrap()), (4, 5));
         for _ in 0..10 {
-            a.execute_batch("INSERT INTO t_int (v) VALUES ('x');").unwrap();
+            a.execute_batch("INSERT INTO t_int (v) VALUES ('x');")
+                .unwrap();
         }
-        assert_eq!(trim_log(&a, 4).unwrap(), 7, "trim keeps the newest 4 of the 11 logged");
+        assert_eq!(
+            trim_log(&a, 4).unwrap(),
+            7,
+            "trim keeps the newest 4 of the 11 logged"
+        );
         assert_eq!(log_floor(&a).unwrap(), 11);
     }
 
     #[test]
     fn tables_created_later_are_picked_up_and_teardown_cleans_up() {
         let (_d, a, _b) = pair();
-        assert_eq!(install_triggers(&a).unwrap(), 0, "second call finds nothing to do");
-        a.execute_batch("CREATE TABLE history_blocks (id INTEGER PRIMARY KEY, packed BLOB);").unwrap();
+        assert_eq!(
+            install_triggers(&a).unwrap(),
+            0,
+            "second call finds nothing to do"
+        );
+        a.execute_batch("CREATE TABLE history_blocks (id INTEGER PRIMARY KEY, packed BLOB);")
+            .unwrap();
         assert_eq!(install_triggers(&a).unwrap(), 3);
-        a.execute("INSERT INTO history_blocks VALUES (1, x'0102')", []).unwrap();
+        a.execute("INSERT INTO history_blocks VALUES (1, x'0102')", [])
+            .unwrap();
         let e = read_log(&a, 0, 10).unwrap();
-        assert_eq!((e[0].tbl.as_str(), e[0].pk.as_str()), ("history_blocks", "[1]"));
+        assert_eq!(
+            (e[0].tbl.as_str(), e[0].pk.as_str()),
+            ("history_blocks", "[1]")
+        );
         teardown(&a).unwrap();
         assert!(!has_triggers(&a).unwrap());
-        a.execute("INSERT INTO history_blocks VALUES (2, x'03')", []).unwrap();
+        a.execute("INSERT INTO history_blocks VALUES (2, x'03')", [])
+            .unwrap();
     }
 
     #[test]
@@ -1468,7 +1599,14 @@ mod tests {
         };
         save_node(&a, &n).unwrap();
         assert_eq!(load_node(&a).unwrap(), Some(n.clone()));
-        save_node(&a, &NodeRecord { epoch: 8, ..n.clone() }).unwrap();
+        save_node(
+            &a,
+            &NodeRecord {
+                epoch: 8,
+                ..n.clone()
+            },
+        )
+        .unwrap();
         assert_eq!(load_node(&a).unwrap().unwrap().epoch, 8);
     }
 
@@ -1495,7 +1633,12 @@ mod tests {
         // Children are logged before the parents of other keys can be: a batch of two
         // entries holds only the children.
         let schemas = table_schemas(&a).unwrap();
-        let child_only = vec![LogEntry { seq: 1, tbl: "child".into(), op: OP_UPSERT, pk: "[10]".into() }];
+        let child_only = vec![LogEntry {
+            seq: 1,
+            tbl: "child".into(),
+            op: OP_UPSERT,
+            pk: "[10]".into(),
+        }];
         let batch = build_batch(&a, &schemas, &child_only).unwrap();
         apply_changes(&mut b, &batch.tables, None).expect("a child may arrive before its parent");
         b.execute_batch("DELETE FROM child").unwrap();
@@ -1510,12 +1653,15 @@ mod tests {
             .map(|e| format!("{}:{}:{}", e.tbl, e.op, e.pk))
             .collect();
         assert!(
-            logged.contains(&"child:2:[10]".to_string()) && logged.contains(&"child:2:[11]".to_string()),
+            logged.contains(&"child:2:[10]".to_string())
+                && logged.contains(&"child:2:[11]".to_string()),
             "cascaded deletes are logged: {logged:?}"
         );
         ship(&a, &mut b, before, 100);
         assert_eq!(dump(&a), dump(&b));
-        let fk: i64 = b.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
+        let fk: i64 = b
+            .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(fk, 1, "enforcement is restored after an apply");
     }
 }
