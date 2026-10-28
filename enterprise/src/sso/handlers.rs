@@ -44,14 +44,31 @@ const FLOW_COOKIE_SECS: i64 = 600;
 struct Client {
     ip: String,
     user_agent: Option<String>,
+    /// Whether cookies for this request get the `Secure` attribute: the
+    /// `cookie_secure` setting resolved from this request's peer and headers,
+    /// exactly as local login does.
+    secure: bool,
 }
 
-fn client(parts: &Parts) -> Client {
+/// The `cookie_secure` setting resolved for this request's peer and headers.
+fn request_secure(setting: voltrus::models::CookieSecure, parts: &Parts) -> bool {
+    let peer = parts
+        .extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(p)| *p);
+    setting.resolve(voltrus::security::request_is_https(
+        peer.as_ref(),
+        &parts.headers,
+    ))
+}
+
+fn client(parts: &Parts, state: &AppState) -> Client {
     let peer = parts
         .extensions
         .get::<ConnectInfo<SocketAddr>>()
         .map(|ConnectInfo(p)| *p);
     Client {
+        secure: request_secure(state.cookie_secure, parts),
         ip: voltrus::security::client_ip_from_parts(peer, &parts.headers),
         user_agent: parts
             .headers
@@ -138,13 +155,13 @@ fn tier_page(jar: CookieJar) -> Response {
 }
 
 fn flow_cookie(
-    state: &AppState,
+    secure: bool,
     name: &'static str,
     value: String,
     path: &'static str,
     same_site: SameSite,
 ) -> Cookie<'static> {
-    let mut cookie = flow_cookie_for(state.cookie_secure, same_site);
+    let mut cookie = flow_cookie_for(secure, same_site);
     cookie.set_name(name);
     cookie.set_value(value);
     cookie.set_path(path);
@@ -282,8 +299,10 @@ pub async fn saml_metadata(State(state): State<AppState>) -> Response {
 pub async fn saml_login(
     State(state): State<AppState>,
     jar: CookieJar,
+    parts: Parts,
     Query(q): Query<LoginQuery>,
 ) -> Response {
+    let c = client(&parts, &state);
     if !state.tier().sso_saml() {
         return tier_page(jar);
     }
@@ -298,7 +317,7 @@ pub async fn saml_login(
         Ok((url, binding)) => {
             // The ACS is a cross-site POST, so the cookie must be SameSite=None.
             let jar = jar.add(flow_cookie(
-                &state,
+                c.secure,
                 SAML_BINDING_COOKIE,
                 binding,
                 "/api/v1/auth/saml",
@@ -330,7 +349,7 @@ pub async fn saml_acs(
     parts: Parts,
     Form(form): Form<AcsForm>,
 ) -> Result<Response, AppError> {
-    let c = client(&parts);
+    let c = client(&parts, &state);
     if !state.tier().sso_saml() {
         return Ok(tier_page(jar));
     }
@@ -346,7 +365,7 @@ pub async fn saml_acs(
 
     // Cookie binding needs SameSite=None, which browsers only keep over HTTPS.
     let (assertion, pending) = match saml
-        .process_response(&form.saml_response, binding.as_deref(), state.cookie_secure)
+        .process_response(&form.saml_response, binding.as_deref(), c.secure)
         .await
     {
         Ok(ok) => ok,
@@ -388,7 +407,7 @@ pub async fn saml_acs(
     match complete_login(
         &state.storage,
         &state.auth_secret,
-        state.cookie_secure,
+        c.secure,
         jar.clone(),
         &c,
         ExternalLogin {
@@ -417,8 +436,10 @@ pub async fn saml_acs(
 pub async fn oidc_login(
     State(state): State<AppState>,
     jar: CookieJar,
+    parts: Parts,
     Query(q): Query<LoginQuery>,
 ) -> Response {
+    let c = client(&parts, &state);
     if !state.tier().sso() {
         return tier_page(jar);
     }
@@ -433,7 +454,7 @@ pub async fn oidc_login(
         Ok((url, st)) => {
             // The provider redirects back with a GET, which Lax cookies accompany.
             let jar = jar.add(flow_cookie(
-                &state,
+                c.secure,
                 OIDC_STATE_COOKIE,
                 st,
                 "/api/v1/auth/oidc",
@@ -467,7 +488,7 @@ pub async fn oidc_callback(
     parts: Parts,
     Query(q): Query<OidcCallback>,
 ) -> Result<Response, AppError> {
-    let c = client(&parts);
+    let c = client(&parts, &state);
     if !state.tier().sso() {
         return Ok(tier_page(jar));
     }
@@ -544,7 +565,7 @@ pub async fn oidc_callback(
     match complete_login(
         &state.storage,
         &state.auth_secret,
-        state.cookie_secure,
+        c.secure,
         jar.clone(),
         &c,
         ExternalLogin {
@@ -582,7 +603,7 @@ pub async fn ldap_login(
     parts: Parts,
     Json(body): Json<LdapLoginRequest>,
 ) -> Result<Response, AppError> {
-    let c = client(&parts);
+    let c = client(&parts, &state);
     if !state.tier().sso_saml() {
         return Ok((
             StatusCode::FORBIDDEN,
@@ -680,7 +701,7 @@ pub async fn ldap_login(
     match complete_login(
         &state.storage,
         &state.auth_secret,
-        state.cookie_secure,
+        c.secure,
         jar,
         &c,
         ExternalLogin {
@@ -718,6 +739,7 @@ mod tests {
         Client {
             ip: "203.0.113.5".into(),
             user_agent: Some("test".into()),
+            secure: true,
         }
     }
 
@@ -888,6 +910,64 @@ mod tests {
         assert_eq!(
             flow_cookie_for(true, SameSite::Lax).same_site(),
             Some(SameSite::Lax)
+        );
+    }
+
+    fn parts(peer: &str, headers: &[(&str, &str)]) -> Parts {
+        let mut b = axum::http::Request::builder()
+            .extension(ConnectInfo(peer.parse::<SocketAddr>().unwrap()));
+        for (k, v) in headers {
+            b = b.header(*k, *v);
+        }
+        b.body(()).unwrap().into_parts().0
+    }
+
+    #[test]
+    fn auto_cookie_secure_follows_the_request_like_local_login() {
+        use voltrus::models::CookieSecure::{Always, Auto, Never};
+        let direct_http = parts("203.0.113.9:5000", &[]);
+        let proxied_https = parts("127.0.0.1:5000", &[("x-forwarded-proto", "https")]);
+        let proxied_http = parts("127.0.0.1:5000", &[("x-forwarded-proto", "http")]);
+        // A remote peer cannot claim HTTPS with a header.
+        let spoofed = parts("203.0.113.9:5000", &[("x-forwarded-proto", "https")]);
+
+        assert!(!request_secure(Auto, &direct_http));
+        assert!(request_secure(Auto, &proxied_https));
+        assert!(!request_secure(Auto, &proxied_http));
+        assert!(!request_secure(Auto, &spoofed));
+        assert!(request_secure(Always, &direct_http));
+        assert!(!request_secure(Never, &proxied_https));
+    }
+
+    #[test]
+    fn saml_binding_cookie_is_none_and_secure_behind_an_https_proxy_but_lax_over_plain_http() {
+        let proxied = flow_cookie(
+            request_secure(
+                voltrus::models::CookieSecure::Auto,
+                &parts("127.0.0.1:1", &[("x-forwarded-proto", "https")]),
+            ),
+            SAML_BINDING_COOKIE,
+            "v".into(),
+            "/api/v1/auth/saml",
+            SameSite::None,
+        );
+        assert_eq!(
+            (proxied.same_site(), proxied.secure()),
+            (Some(SameSite::None), Some(true))
+        );
+        let plain = flow_cookie(
+            request_secure(
+                voltrus::models::CookieSecure::Auto,
+                &parts("203.0.113.9:1", &[]),
+            ),
+            SAML_BINDING_COOKIE,
+            "v".into(),
+            "/api/v1/auth/saml",
+            SameSite::None,
+        );
+        assert_eq!(
+            (plain.same_site(), plain.secure()),
+            (Some(SameSite::Lax), Some(false))
         );
     }
 }
