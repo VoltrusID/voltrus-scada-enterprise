@@ -16,7 +16,7 @@ REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 DEPLOY="$REPO/scenarios/wtp-hmi/deploy"
 SIM="$REPO/core/scenarios/wtp-hmi"
 TARGET="x86_64-unknown-linux-musl"
-BIN="$REPO/enterprise/target/$TARGET/release/voltrus"
+BIN="${CARGO_TARGET_DIR:-$REPO/enterprise/target}/$TARGET/release/voltrus"
 
 if [ "${1:-}" != "--no-build" ]; then
   (cd "$REPO/core/client" && npm ci && VOLTRUS_ENTERPRISE_CLIENT="$REPO/enterprise/client/src/index.ts" npm run build)
