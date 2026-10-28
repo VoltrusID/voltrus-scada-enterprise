@@ -7,7 +7,8 @@
 # Installs to /opt/voltrus-scada as user voltrus-scada: the server on 127.0.0.1:3310 and the
 # plant simulator on 127.0.0.1:5030. Public access is the host's Cloudflare tunnel
 # (/etc/cloudflared/config.yml ingress demo.voltrus.id -> http://127.0.0.1:3310), set up once.
-# config.yaml and data/ on the VPS are never overwritten.
+# config.yaml and data/ on the VPS are never overwritten. The web UI is embedded in the binary
+# (core/client is built first, then the release build embeds core/static), so no static/ is deployed.
 set -euo pipefail
 
 HOST="${VPS_HOST:-voltrus-vps}"
@@ -27,7 +28,6 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 cp "$BIN" "$SIM/plant-sim.py" "$SIM/seed.py" "$DEPLOY/config.yaml" \
    "$DEPLOY/voltrus-scada.service" "$DEPLOY/voltrus-scada-plant.service" "$STAGE/"
-cp -r "$REPO/core/static" "$STAGE/static"
 tar -czf "$STAGE.tgz" -C "$STAGE" .
 scp -q "$STAGE.tgz" "$HOST:/tmp/voltrus-scada.tgz"
 rm -f "$STAGE.tgz"
@@ -42,13 +42,13 @@ cd /tmp/voltrus-scada
 sudo install -m 755 voltrus "$D/voltrus.new"
 sudo install -m 644 plant-sim.py seed.py "$D/"
 [ -f "$D/config.yaml" ] || sudo install -m 640 config.yaml "$D/config.yaml"
-sudo rm -rf "$D/static.new" && sudo cp -r static "$D/static.new"
 sudo install -m 644 voltrus-scada.service voltrus-scada-plant.service /etc/systemd/system/
 sudo chown -R voltrus-scada:voltrus-scada "$D"
 sudo systemctl daemon-reload
 sudo systemctl stop voltrus-scada 2>/dev/null || true
 sudo mv "$D/voltrus.new" "$D/voltrus"
-sudo rm -rf "$D/static" && sudo mv "$D/static.new" "$D/static"
+# The web UI is inside the binary; a static/ folder from an earlier deploy would override it.
+sudo rm -rf "$D/static"
 sudo systemctl enable --now voltrus-scada-plant >/dev/null
 sudo systemctl restart voltrus-scada-plant
 sudo systemctl enable --now voltrus-scada >/dev/null
