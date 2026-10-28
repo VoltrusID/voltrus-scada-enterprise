@@ -514,6 +514,7 @@ impl Node {
             d.session_up = true;
             d.sync_error = None;
             d.primary_contact = Some(Instant::now());
+            d.promotion_blocked = None;
         }
         tracing::info!("HA: following primary {} (epoch {})", ph.node_id, ph.epoch);
         let silence = self.cfg.failover_timeout();
