@@ -147,11 +147,15 @@ pub async fn write_msg<W: AsyncWrite + Unpin>(w: &mut W, msg: &Msg) -> io::Resul
 pub async fn read_msg<R: AsyncRead + Unpin>(r: &mut R) -> io::Result<Msg> {
     let len = r.read_u32().await? as usize;
     if len > MAX_FRAME {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "frame too large",
+        ));
     }
     let mut body = vec![0u8; len];
     r.read_exact(&mut body).await?;
-    rmp_serde::from_slice(&body).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+    rmp_serde::from_slice(&body)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
 }
 
 #[cfg(test)]
@@ -185,13 +189,18 @@ mod tests {
             Msg::Batch(got) => assert_eq!(got, batch, "1.0 stays a REAL, 7 stays an INTEGER"),
             other => panic!("unexpected {other:?}"),
         }
-        assert!(matches!(read_msg(&mut b).await.unwrap(), Msg::Ack { seq: 9 }));
+        assert!(matches!(
+            read_msg(&mut b).await.unwrap(),
+            Msg::Ack { seq: 9 }
+        ));
     }
 
     #[tokio::test]
     async fn an_oversized_frame_is_refused_before_it_is_read() {
         let (mut a, mut b) = tokio::io::duplex(64);
-        a.write_all(&((MAX_FRAME as u32) + 1).to_be_bytes()).await.unwrap();
+        a.write_all(&((MAX_FRAME as u32) + 1).to_be_bytes())
+            .await
+            .unwrap();
         let err = read_msg(&mut b).await.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }

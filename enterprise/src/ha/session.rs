@@ -12,7 +12,9 @@ use tokio::time::{sleep, timeout};
 use voltrus::storage::Storage;
 
 use super::link::Peer;
-use super::node::{Node, Promote, PrimaryCmd, StandbyCmd, SwitchoverReport, can_resume, lock, now_ms};
+use super::node::{
+    Node, PrimaryCmd, Promote, StandbyCmd, SwitchoverReport, can_resume, lock, now_ms,
+};
 use super::store::{self, Position, SnapshotTable, TableChanges, TableSchema};
 use super::wire::{Hello, Msg};
 use super::{FullSyncReport, HaRole, SyncState};
@@ -96,7 +98,12 @@ impl Node {
             d.session_up = true;
             d.sync_error = None;
         }
-        tracing::info!("HA: standby {} attached (epoch {}, position {})", ph.node_id, ph.epoch, ph.applied_seq);
+        tracing::info!(
+            "HA: standby {} attached (epoch {}, position {})",
+            ph.node_id,
+            ph.epoch,
+            ph.applied_seq
+        );
         let result = self.serve_loop(peer, ph, gen_id, cmd_rx).await;
         if self.session_gen.load(Ordering::SeqCst) == gen_id {
             *lock(&self.primary_cmd) = None;
@@ -138,7 +145,10 @@ impl Node {
             resync_waiters: Vec::new(),
         };
         if can_resume(&ph, self.epoch(), floor, max_seq) {
-            peer.send(&Msg::PlanIncremental { from_seq: ph.applied_seq }).await?;
+            peer.send(&Msg::PlanIncremental {
+                from_seq: ph.applied_seq,
+            })
+            .await?;
             s.sent = ph.applied_seq;
             s.acked = ph.applied_seq;
             lock(&self.dynamic).sync = SyncState::Streaming;
@@ -253,8 +263,14 @@ impl Node {
         while s.inflight.front().is_some_and(|(to, _)| *to <= seq) {
             s.inflight.pop_front();
         }
-        let lag = s.inflight.front().map_or(0, |(_, at)| at.elapsed().as_millis() as u64);
-        let max = reader.run(|r| store::max_seq(&r.conn)).await.unwrap_or(s.sent);
+        let lag = s
+            .inflight
+            .front()
+            .map_or(0, |(_, at)| at.elapsed().as_millis() as u64);
+        let max = reader
+            .run(|r| store::max_seq(&r.conn))
+            .await
+            .unwrap_or(s.sent);
         {
             let mut d = lock(&self.dynamic);
             d.lag_ms = Some(lag);
@@ -273,8 +289,14 @@ impl Node {
     }
 
     async fn send_heartbeat(&self, peer: &mut Peer, reader: &Reader, s: &Sess) -> Result<()> {
-        let max_seq = reader.run(|r| store::max_seq(&r.conn)).await.unwrap_or(s.sent);
-        let lag = s.inflight.front().map_or(0, |(_, at)| at.elapsed().as_millis() as u64);
+        let max_seq = reader
+            .run(|r| store::max_seq(&r.conn))
+            .await
+            .unwrap_or(s.sent);
+        let lag = s
+            .inflight
+            .front()
+            .map_or(0, |(_, at)| at.elapsed().as_millis() as u64);
         {
             let mut d = lock(&self.dynamic);
             d.lag_ms = Some(lag);
@@ -310,7 +332,9 @@ impl Node {
                         {
                             schemas = r.schemas(true)?;
                         }
-                        Ok::<_, anyhow::Error>(Some(store::build_batch(&r.conn, &schemas, &entries)?))
+                        Ok::<_, anyhow::Error>(Some(store::build_batch(
+                            &r.conn, &schemas, &entries,
+                        )?))
                     })();
                     let _ = r.conn.execute_batch("COMMIT");
                     built
@@ -337,7 +361,9 @@ impl Node {
                 Ok((seq, tables))
             })
             .await?;
-        let result = self.send_snapshot(peer, reader, snapshot_seq, &tables).await;
+        let result = self
+            .send_snapshot(peer, reader, snapshot_seq, &tables)
+            .await;
         let _ = reader
             .run(|r| {
                 let _ = r.conn.execute_batch("ROLLBACK");
@@ -389,7 +415,9 @@ impl Node {
             loop {
                 let sch = schema.clone();
                 let (rows, next) = reader
-                    .run(move |r| store::snapshot_rows(&r.conn, &sch, cursor, CHUNK_ROWS, CHUNK_BYTES))
+                    .run(move |r| {
+                        store::snapshot_rows(&r.conn, &sch, cursor, CHUNK_ROWS, CHUNK_BYTES)
+                    })
                     .await?;
                 if !rows.is_empty() {
                     rows_sent += rows.len() as u64;
@@ -430,7 +458,9 @@ impl Node {
             tracing::warn!("HA: switchover failed: {e:#}");
             if self.role() == HaRole::Fenced {
                 if let Err(e2) = self.resume_primary().await {
-                    tracing::error!("HA: could not resume as primary after a failed switchover: {e2:#}");
+                    tracing::error!(
+                        "HA: could not resume as primary after a failed switchover: {e2:#}"
+                    );
                 }
             }
         }
@@ -460,7 +490,10 @@ impl Node {
             let target = self.storage.with_conn(|c| store::max_seq(c)).await?;
             while s.acked < target {
                 if Instant::now() > deadline {
-                    bail!("the standby did not catch up in time ({} of {target} changes)", s.acked);
+                    bail!(
+                        "the standby did not catch up in time ({} of {target} changes)",
+                        s.acked
+                    );
                 }
                 self.ship_pending(peer, reader, s).await?;
                 match timeout(Duration::from_millis(100), peer.recv()).await {
@@ -495,7 +528,9 @@ impl Node {
                         duration_ms: started.elapsed().as_millis() as u64,
                     });
                 }
-                Ok(Some(Ok(Msg::HandoffRefused { reason }))) => bail!("the standby refused to take over: {reason}"),
+                Ok(Some(Ok(Msg::HandoffRefused { reason }))) => {
+                    bail!("the standby refused to take over: {reason}")
+                }
                 Ok(Some(Ok(_))) => {}
                 Ok(Some(Err(e))) => bail!("link error: {e}"),
                 Ok(None) => bail!("the standby closed the link before confirming"),
@@ -581,16 +616,40 @@ impl Node {
                 lock(&self.dynamic).sync = SyncState::Streaming;
                 tracing::info!("HA: incremental sync from change {from_seq}");
             }
-            Msg::PlanFull { snapshot_seq, tables } => {
-                tracing::info!("HA: full sync started ({} tables, snapshot at change {snapshot_seq})", tables.len());
+            Msg::PlanFull {
+                snapshot_seq,
+                tables,
+            } => {
+                tracing::info!(
+                    "HA: full sync started ({} tables, snapshot at change {snapshot_seq})",
+                    tables.len()
+                );
                 let tables2 = tables.clone();
-                self.storage.with_conn(move |c| store::begin_full_sync(c, &tables2)).await?;
+                self.storage
+                    .with_conn(move |c| store::begin_full_sync(c, &tables2))
+                    .await?;
                 lock(&self.dynamic).needs_full_sync = true;
-                lock(&self.dynamic).sync = SyncState::FullSync { tables_done: 0, tables_total: tables.len(), rows: 0 };
-                *full = Some(FullApply { total: tables.len(), done: 0, current: None, rows: 0 });
+                lock(&self.dynamic).sync = SyncState::FullSync {
+                    tables_done: 0,
+                    tables_total: tables.len(),
+                    rows: 0,
+                };
+                *full = Some(FullApply {
+                    total: tables.len(),
+                    done: 0,
+                    current: None,
+                    rows: 0,
+                });
             }
-            Msg::Chunk { table, cols, key, rows } => {
-                let Some(f) = full.as_mut() else { bail!("a chunk arrived outside a full sync") };
+            Msg::Chunk {
+                table,
+                cols,
+                key,
+                rows,
+            } => {
+                let Some(f) = full.as_mut() else {
+                    bail!("a chunk arrived outside a full sync")
+                };
                 if f.current.as_deref() != Some(table.as_str()) {
                     if f.current.is_some() {
                         f.done += 1;
@@ -599,7 +658,13 @@ impl Node {
                 }
                 f.rows += rows.len() as u64;
                 let n = rows.len() as u64;
-                let changes = TableChanges { name: table, cols, key, rows, ..Default::default() };
+                let changes = TableChanges {
+                    name: table,
+                    cols,
+                    key,
+                    rows,
+                    ..Default::default()
+                };
                 self.storage
                     .with_conn(move |c| store::apply_changes(c, &[changes], None))
                     .await
@@ -612,7 +677,9 @@ impl Node {
                 };
             }
             Msg::FullEnd { snapshot_seq } => {
-                let f = full.take().context("a full sync end arrived outside a full sync")?;
+                let f = full
+                    .take()
+                    .context("a full sync end arrived outside a full sync")?;
                 let epoch = ph.epoch;
                 self.storage
                     .with_conn(move |c| store::finish_full_sync(c, epoch, snapshot_seq))
@@ -633,7 +700,10 @@ impl Node {
                     });
                 }
                 self.sync_tx.send_modify(|g| *g += 1);
-                tracing::info!("HA: full sync complete at change {snapshot_seq} ({} rows)", f.rows);
+                tracing::info!(
+                    "HA: full sync complete at change {snapshot_seq} ({} rows)",
+                    f.rows
+                );
                 peer.send(&Msg::Ack { seq: snapshot_seq }).await?;
             }
             Msg::Batch(batch) => {
@@ -645,7 +715,11 @@ impl Node {
                         store::apply_changes(
                             c,
                             &tables,
-                            Some(Position { epoch, applied_seq: seq_to, needs_full_sync: false }),
+                            Some(Position {
+                                epoch,
+                                applied_seq: seq_to,
+                                needs_full_sync: false,
+                            }),
                         )
                     })
                     .await;
@@ -670,7 +744,13 @@ impl Node {
                     }
                 }
             }
-            Msg::Heartbeat { epoch, max_seq, lag_ms, pollers, .. } => {
+            Msg::Heartbeat {
+                epoch,
+                max_seq,
+                lag_ms,
+                pollers,
+                ..
+            } => {
                 if epoch > self.epoch() {
                     // The same primary re-numbered its term (its witness did): follow it.
                     self.adopt_epoch(epoch).await?;
@@ -688,7 +768,11 @@ impl Node {
                 if changed {
                     let _ = self.update_record(move |r| r.peer_running = pollers).await;
                 }
-                peer.send(&Msg::HeartbeatAck { applied_seq: applied, now_ms: now_ms() }).await?;
+                peer.send(&Msg::HeartbeatAck {
+                    applied_seq: applied,
+                    now_ms: now_ms(),
+                })
+                .await?;
             }
             Msg::Handoff { final_seq } => return self.accept_handoff(peer, final_seq).await,
             Msg::Reject { reason } => bail!("the primary refused the session: {reason}"),
@@ -702,8 +786,13 @@ impl Node {
         let rec = self.storage.with_conn(|c| store::load_node(c)).await?;
         let applied = rec.as_ref().map_or(0, |r| r.applied_seq);
         if applied < final_seq {
-            let reason = format!("this standby has applied change {applied} but the primary stopped at {final_seq}");
-            peer.send(&Msg::HandoffRefused { reason: reason.clone() }).await?;
+            let reason = format!(
+                "this standby has applied change {applied} but the primary stopped at {final_seq}"
+            );
+            peer.send(&Msg::HandoffRefused {
+                reason: reason.clone(),
+            })
+            .await?;
             bail!(reason);
         }
         match self.promote(Promote::Handoff { final_seq }).await {
@@ -712,7 +801,11 @@ impl Node {
                 Ok(true)
             }
             Err(e) => {
-                let _ = peer.send(&Msg::HandoffRefused { reason: format!("{e:#}") }).await;
+                let _ = peer
+                    .send(&Msg::HandoffRefused {
+                        reason: format!("{e:#}"),
+                    })
+                    .await;
                 Err(e)
             }
         }

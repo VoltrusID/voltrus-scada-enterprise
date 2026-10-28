@@ -15,7 +15,10 @@ fn requires_enterprise() -> (StatusCode, Json<serde_json::Value>) {
 }
 
 fn not_enabled() -> (StatusCode, Json<serde_json::Value>) {
-    (StatusCode::BAD_REQUEST, Json(json!({"error": "HA not enabled"})))
+    (
+        StatusCode::BAD_REQUEST,
+        Json(json!({"error": "HA not enabled"})),
+    )
 }
 
 #[derive(Deserialize)]
@@ -65,17 +68,31 @@ pub async fn force_sync(
     let Some(node) = ha.node() else {
         return not_enabled();
     };
-    audit(&state, &user, "ha_force_sync", format!("role {:?}", node.role()));
+    audit(
+        &state,
+        &user,
+        "ha_force_sync",
+        format!("role {:?}", node.role()),
+    );
     match node.force_sync(q.wait()).await {
         Ok(report) => {
             let status = node.status().await;
             if status.sync_state == "full_sync" {
-                (StatusCode::ACCEPTED, Json(json!({"status": "sync_in_progress", "progress": status.sync_progress})))
+                (
+                    StatusCode::ACCEPTED,
+                    Json(json!({"status": "sync_in_progress", "progress": status.sync_progress})),
+                )
             } else {
-                (StatusCode::OK, Json(json!({"status": "synced", "report": report})))
+                (
+                    StatusCode::OK,
+                    Json(json!({"status": "synced", "report": report})),
+                )
             }
         }
-        Err(e) => (StatusCode::CONFLICT, Json(json!({"error": format!("{e:#}")}))),
+        Err(e) => (
+            StatusCode::CONFLICT,
+            Json(json!({"error": format!("{e:#}")})),
+        ),
     }
 }
 
@@ -99,7 +116,12 @@ pub async fn force_failover(
     let Some(node) = ha.node() else {
         return not_enabled();
     };
-    audit(&state, &user, "ha_force_failover", format!("role {:?}, force {}", node.role(), q.force));
+    audit(
+        &state,
+        &user,
+        "ha_force_failover",
+        format!("role {:?}, force {}", node.role(), q.force),
+    );
     match node.force_failover(q.force, q.wait()).await {
         Ok(t) => (
             StatusCode::OK,
@@ -111,6 +133,9 @@ pub async fn force_failover(
                 "duration_ms": t.duration_ms,
             })),
         ),
-        Err(e) => (StatusCode::CONFLICT, Json(json!({"error": format!("{e:#}")}))),
+        Err(e) => (
+            StatusCode::CONFLICT,
+            Json(json!({"error": format!("{e:#}")})),
+        ),
     }
 }

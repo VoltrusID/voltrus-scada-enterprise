@@ -32,7 +32,11 @@ const PASSWORD: &str = "ha-test-password-1";
 static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn free_port() -> u16 {
-    StdListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
+    StdListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
 }
 
 // ── a node process ──
@@ -90,7 +94,9 @@ impl Node {
                 self.role, self.name, self.ha, self.peer
             ));
             if let Some(w) = &self.witness {
-                y.push_str(&format!("  witness:\n    kind: arbiter\n    address: \"{w}\"\n    timeout_ms: 1000\n"));
+                y.push_str(&format!(
+                    "  witness:\n    kind: arbiter\n    address: \"{w}\"\n    timeout_ms: 1000\n"
+                ));
             }
         }
         y
@@ -138,7 +144,11 @@ impl Drop for Node {
         if std::thread::panicking() {
             let log = self.log();
             let tail: Vec<&str> = log.lines().rev().take(60).collect();
-            eprintln!("---- last log lines of {} ----\n{}", self.name, tail.into_iter().rev().collect::<Vec<_>>().join("\n"));
+            eprintln!(
+                "---- last log lines of {} ----\n{}",
+                self.name,
+                tail.into_iter().rev().collect::<Vec<_>>().join("\n")
+            );
         }
     }
 }
@@ -153,7 +163,10 @@ struct Api {
 
 impl Api {
     async fn login(node: &Node) -> Api {
-        let http = reqwest::Client::builder().timeout(Duration::from_secs(5)).build().unwrap();
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
         let resp = http
             .post(node.url("/api/v1/auth/login"))
             .json(&json!({"username": "admin", "password": PASSWORD}))
@@ -175,8 +188,17 @@ impl Api {
         Api { http, cookie }
     }
 
-    async fn call(&self, method: reqwest::Method, node: &Node, path: &str, body: Option<Value>) -> Option<(u16, Value, Option<String>)> {
-        let mut req = self.http.request(method, node.url(path)).header("Cookie", &self.cookie);
+    async fn call(
+        &self,
+        method: reqwest::Method,
+        node: &Node,
+        path: &str,
+        body: Option<Value>,
+    ) -> Option<(u16, Value, Option<String>)> {
+        let mut req = self
+            .http
+            .request(method, node.url(path))
+            .header("Cookie", &self.cookie);
         if let Some(b) = body {
             req = req.json(&b);
         }
@@ -192,11 +214,19 @@ impl Api {
     }
 
     async fn get(&self, node: &Node, path: &str) -> Option<(u16, Value)> {
-        self.call(reqwest::Method::GET, node, path, None).await.map(|(s, v, _)| (s, v))
+        self.call(reqwest::Method::GET, node, path, None)
+            .await
+            .map(|(s, v, _)| (s, v))
     }
 
-    async fn post(&self, node: &Node, path: &str, body: Value) -> Option<(u16, Value, Option<String>)> {
-        self.call(reqwest::Method::POST, node, path, Some(body)).await
+    async fn post(
+        &self,
+        node: &Node,
+        path: &str,
+        body: Value,
+    ) -> Option<(u16, Value, Option<String>)> {
+        self.call(reqwest::Method::POST, node, path, Some(body))
+            .await
     }
 
     async fn status(&self, node: &Node) -> Option<Value> {
@@ -217,7 +247,10 @@ where
         if let Some(v) = f().await {
             return v;
         }
-        assert!(start.elapsed() < within, "timed out after {within:?} waiting for: {what}");
+        assert!(
+            start.elapsed() < within,
+            "timed out after {within:?} waiting for: {what}"
+        );
         sleep(Duration::from_millis(40)).await;
     }
 }
@@ -225,11 +258,28 @@ where
 /// Waits until the node answers HTTP. Returns the `x-voltrus-node-role` header of
 /// its first answer: `standby` when it came up passive, `None` when active.
 async fn wait_up(n: &Node) -> Option<String> {
-    let http = reqwest::Client::builder().timeout(Duration::from_secs(2)).build().unwrap();
-    wait_until(&format!("{} to answer HTTP", n.name), Duration::from_secs(60), || async {
-        let r = http.get(n.url("/api/v1/health")).send().await.ok().filter(|r| r.status().is_success())?;
-        Some(r.headers().get("x-voltrus-node-role").and_then(|v| v.to_str().ok()).map(str::to_string))
-    })
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+    wait_until(
+        &format!("{} to answer HTTP", n.name),
+        Duration::from_secs(60),
+        || async {
+            let r = http
+                .get(n.url("/api/v1/health"))
+                .send()
+                .await
+                .ok()
+                .filter(|r| r.status().is_success())?;
+            Some(
+                r.headers()
+                    .get("x-voltrus-node-role")
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string),
+            )
+        },
+    )
     .await
 }
 
@@ -243,18 +293,27 @@ fn is_active(s: &Value) -> bool {
 
 async fn wait_role(api: &Api, n: &Node, role: &str, within: Duration) -> Value {
     wait_until(&format!("{} to be {role}", n.name), within, || async {
-        api.status(n).await.filter(|s| role_of(s) == role && (role != "primary" || is_active(s)))
+        api.status(n)
+            .await
+            .filter(|s| role_of(s) == role && (role != "primary" || is_active(s)))
     })
     .await
 }
 
 /// A standby that follows and has applied everything.
 async fn wait_streaming(api: &Api, standby: &Node) -> Value {
-    wait_until(&format!("{} to stream", standby.name), Duration::from_secs(60), || async {
-        api.status(standby)
-            .await
-            .filter(|s| role_of(s) == "standby" && s["sync_state"] == "streaming" && s["peer_status"] == "connected" && s["can_take_over"] == true)
-    })
+    wait_until(
+        &format!("{} to stream", standby.name),
+        Duration::from_secs(60),
+        || async {
+            api.status(standby).await.filter(|s| {
+                role_of(s) == "standby"
+                    && s["sync_state"] == "streaming"
+                    && s["peer_status"] == "connected"
+                    && s["can_take_over"] == true
+            })
+        },
+    )
     .await
 }
 
@@ -263,7 +322,10 @@ async fn wait_streaming(api: &Api, standby: &Node) -> Value {
 async fn seed_admin(db: &Path) {
     let storage = voltrus::storage::Storage::new(db.to_str().unwrap()).unwrap();
     let hash = voltrus::api::auth::hash_password(PASSWORD);
-    storage.create_user("admin", &hash, "", "admin").await.unwrap();
+    storage
+        .create_user("admin", &hash, "", "admin")
+        .await
+        .unwrap();
 }
 
 fn ro(db: &Path) -> Option<Connection> {
@@ -272,7 +334,10 @@ fn ro(db: &Path) -> Option<Connection> {
 
 /// One number from a query, integer or REAL (`MAX(value)` is REAL).
 fn scalar(db: &Path, sql: &str) -> Option<i64> {
-    let v = ro(db)?.query_row(sql, [], |r| r.get::<_, Option<f64>>(0)).ok().flatten()?;
+    let v = ro(db)?
+        .query_row(sql, [], |r| r.get::<_, Option<f64>>(0))
+        .ok()
+        .flatten()?;
     Some(v as i64)
 }
 
@@ -295,7 +360,11 @@ fn fingerprint(db: &Path) -> Option<String> {
         "SELECT COUNT(*) FROM users",
         "SELECT COUNT(*) FROM audit_log",
     ] {
-        out.push(c.query_row(sql, [], |r| r.get::<_, f64>(0)).ok()?.to_string());
+        out.push(
+            c.query_row(sql, [], |r| r.get::<_, f64>(0))
+                .ok()?
+                .to_string(),
+        );
     }
     Some(out.join("/"))
 }
@@ -341,7 +410,11 @@ impl Writer {
                 std::thread::sleep(Duration::from_millis(2));
             }
         });
-        Writer { stop, counter, handle: Some(handle) }
+        Writer {
+            stop,
+            counter,
+            handle: Some(handle),
+        }
     }
 
     fn committed(&self) -> i64 {
@@ -397,13 +470,21 @@ impl DualActiveMonitor {
                 sleep(Duration::from_millis(30)).await;
             }
         });
-        Self { stop, violations, samples, handle }
+        Self {
+            stop,
+            violations,
+            samples,
+            handle,
+        }
     }
 
     async fn finish(self) -> (u32, u32) {
         self.stop.store(true, Ordering::SeqCst);
         let _ = self.handle.await;
-        (self.violations.load(Ordering::SeqCst), self.samples.load(Ordering::SeqCst))
+        (
+            self.violations.load(Ordering::SeqCst),
+            self.samples.load(Ordering::SeqCst),
+        )
     }
 }
 
@@ -411,10 +492,17 @@ impl DualActiveMonitor {
 async fn assert_passive(api: &Api, n: &Node) {
     for (path, body) in [
         ("/api/v1/tags/1/write", json!({"value": 1.0})),
-        ("/api/v1/modbus-devices", json!({"id": "nope", "name": "x", "ip": "127.0.0.1", "registers": []})),
+        (
+            "/api/v1/modbus-devices",
+            json!({"id": "nope", "name": "x", "ip": "127.0.0.1", "registers": []}),
+        ),
     ] {
         let (status, v, role) = api.post(n, path, body).await.expect("passive node answers");
-        assert_eq!(status, 503, "{}: POST {path} must be refused, got {status} {v}", n.name);
+        assert_eq!(
+            status, 503,
+            "{}: POST {path} must be refused, got {status} {v}",
+            n.name
+        );
         assert_eq!(v["code"], "standby_read_only");
         assert_eq!(role.as_deref(), Some("standby"));
     }
@@ -434,7 +522,11 @@ async fn device_ids(api: &Api, n: &Node) -> Option<Vec<String>> {
     let (s, v) = api.get(n, "/api/v1/modbus-devices").await?;
     (s == 200).then(|| {
         v.as_array()
-            .map(|a| a.iter().filter_map(|d| d["id"].as_str().map(str::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|d| d["id"].as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default()
     })
 }
@@ -443,7 +535,11 @@ async fn poller_ids(api: &Api, n: &Node) -> Vec<String> {
     match api.get(n, "/api/v1/modbus-devices/status").await {
         Some((200, v)) => v
             .as_array()
-            .map(|a| a.iter().filter_map(|d| d["device_id"].as_str().map(str::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|d| d["device_id"].as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default(),
         _ => vec![],
     }
@@ -460,7 +556,12 @@ async fn config_data_failover_rejoin_and_switchover() {
     let _serial = SERIAL.lock().await;
     let root = tempfile::tempdir().unwrap();
     let mut a = Node::new(root.path(), "node-a", "primary", String::new());
-    let mut b = Node::new(root.path(), "node-b", "standby", format!("127.0.0.1:{}", a.ha));
+    let mut b = Node::new(
+        root.path(),
+        "node-b",
+        "standby",
+        format!("127.0.0.1:{}", a.ha),
+    );
     a.peer = format!("127.0.0.1:{}", b.ha);
 
     // ── start the pair ──
@@ -472,9 +573,18 @@ async fn config_data_failover_rejoin_and_switchover() {
     assert_eq!(first["epoch"], 1);
     assert!(first["failover_ts"].is_null());
 
-    let (status, _, _) = api.post(&a, "/api/v1/modbus-devices", device_json("plc1")).await.unwrap();
-    assert!((200..300).contains(&status), "create device on the primary: {status}");
-    assert!(poller_ids(&api, &a).await.contains(&"plc1".to_string()), "the primary polls");
+    let (status, _, _) = api
+        .post(&a, "/api/v1/modbus-devices", device_json("plc1"))
+        .await
+        .unwrap();
+    assert!(
+        (200..300).contains(&status),
+        "create device on the primary: {status}"
+    );
+    assert!(
+        poller_ids(&api, &a).await.contains(&"plc1".to_string()),
+        "the primary polls"
+    );
 
     b.start();
     wait_up(&b).await;
@@ -482,35 +592,68 @@ async fn config_data_failover_rejoin_and_switchover() {
     assert_eq!(sb["epoch"], 1);
     assert_eq!(sb["active"], false);
     // The session cookie of the primary works on the standby: users and the signing secret are shared.
-    assert_eq!(device_ids(&api, &b).await.unwrap(), vec!["plc1"], "the first full sync copied the device");
-    assert!(poller_ids(&api, &b).await.is_empty(), "the standby does not poll devices");
+    assert_eq!(
+        device_ids(&api, &b).await.unwrap(),
+        vec!["plc1"],
+        "the first full sync copied the device"
+    );
+    assert!(
+        poller_ids(&api, &b).await.is_empty(),
+        "the standby does not poll devices"
+    );
     assert_passive(&api, &b).await;
-    wait_same(&a, &b, "the standby to match the primary after the first sync").await;
+    wait_same(
+        &a,
+        &b,
+        "the standby to match the primary after the first sync",
+    )
+    .await;
 
     // ── config change on the primary shows up on the standby ──
     let t = Instant::now();
-    let (s, _, _) = api.post(&a, "/api/v1/modbus-devices", device_json("plc2")).await.unwrap();
+    let (s, _, _) = api
+        .post(&a, "/api/v1/modbus-devices", device_json("plc2"))
+        .await
+        .unwrap();
     assert!((200..300).contains(&s));
     wait_until("plc2 on the standby", Duration::from_secs(10), || async {
-        device_ids(&api, &b).await.filter(|d| d.contains(&"plc2".to_string()))
+        device_ids(&api, &b)
+            .await
+            .filter(|d| d.contains(&"plc2".to_string()))
     })
     .await;
-    measured(format!("config change visible on the standby after {} ms", t.elapsed().as_millis()));
+    measured(format!(
+        "config change visible on the standby after {} ms",
+        t.elapsed().as_millis()
+    ));
     let (s, _) = api
-        .call(reqwest::Method::DELETE, &a, "/api/v1/modbus-devices/plc2", None)
+        .call(
+            reqwest::Method::DELETE,
+            &a,
+            "/api/v1/modbus-devices/plc2",
+            None,
+        )
         .await
         .map(|(s, v, _)| (s, v))
         .unwrap();
     assert!((200..300).contains(&s), "delete device: {s}");
-    wait_until("plc2 deleted on the standby", Duration::from_secs(10), || async {
-        device_ids(&api, &b).await.filter(|d| !d.contains(&"plc2".to_string()))
-    })
+    wait_until(
+        "plc2 deleted on the standby",
+        Duration::from_secs(10),
+        || async {
+            device_ids(&api, &b)
+                .await
+                .filter(|d| !d.contains(&"plc2".to_string()))
+        },
+    )
     .await;
 
     // ── telemetry and alarms replicate ──
     {
         let rt_db = a.db();
-        let rows: Vec<(String, i64, String, f64)> = (0..3000).map(|i| ("plc1".into(), 1_000 + i, "temp".into(), i as f64)).collect();
+        let rows: Vec<(String, i64, String, f64)> = (0..3000)
+            .map(|i| ("plc1".into(), 1_000 + i, "temp".into(), i as f64))
+            .collect();
         let storage = voltrus::storage::Storage::new(rt_db.to_str().unwrap()).unwrap();
         storage.insert_batch(&rows).await.unwrap();
         storage
@@ -518,14 +661,26 @@ async fn config_data_failover_rejoin_and_switchover() {
             .await
             .unwrap();
     }
-    wait_until("telemetry and the alarm on the standby", Duration::from_secs(15), || async {
-        let n = scalar(&b.db(), "SELECT COUNT(*) FROM telemetry WHERE device_id = 'plc1'")?;
-        let al = scalar(&b.db(), "SELECT COUNT(*) FROM alarms")?;
-        (n == 3000 && al == 1).then_some(())
-    })
+    wait_until(
+        "telemetry and the alarm on the standby",
+        Duration::from_secs(15),
+        || async {
+            let n = scalar(
+                &b.db(),
+                "SELECT COUNT(*) FROM telemetry WHERE device_id = 'plc1'",
+            )?;
+            let al = scalar(&b.db(), "SELECT COUNT(*) FROM alarms")?;
+            (n == 3000 && al == 1).then_some(())
+        },
+    )
     .await;
     assert!(
-        scalar(&b.db(), "SELECT COUNT(*) FROM audit_log WHERE action LIKE '%modbus_device%'").unwrap_or(0) >= 1,
+        scalar(
+            &b.db(),
+            "SELECT COUNT(*) FROM audit_log WHERE action LIKE '%modbus_device%'"
+        )
+        .unwrap_or(0)
+            >= 1,
         "the audit stream replicates"
     );
     wait_same(&a, &b, "databases to match").await;
@@ -542,14 +697,24 @@ async fn config_data_failover_rejoin_and_switchover() {
     let at_kill = writer.committed();
     let promoted = wait_role(&api, &b, "primary", Duration::from_secs(20)).await;
     let failover_ms = t_kill.elapsed().as_millis();
-    wait_until("writes accepted on the new primary", Duration::from_secs(20), || async {
-        let (s, _, _) = api.post(&b, "/api/v1/modbus-devices", device_json("plc3")).await?;
-        (s < 300).then_some(())
-    })
+    wait_until(
+        "writes accepted on the new primary",
+        Duration::from_secs(20),
+        || async {
+            let (s, _, _) = api
+                .post(&b, "/api/v1/modbus-devices", device_json("plc3"))
+                .await?;
+            (s < 300).then_some(())
+        },
+    )
     .await;
     let writable_ms = t_kill.elapsed().as_millis();
     let tail = writer.stop();
-    let replicated = scalar(&b.db(), "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'").unwrap();
+    let replicated = scalar(
+        &b.db(),
+        "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'",
+    )
+    .unwrap();
     let lost = at_kill - replicated;
     measured(format!(
         "kill -9 primary: standby active after {failover_ms} ms, accepting writes after {writable_ms} ms (failover_after_ms={})",
@@ -561,24 +726,63 @@ async fn config_data_failover_rejoin_and_switchover() {
         tail - at_kill
     ));
     assert!(failover_ms < 6000, "failover took {failover_ms} ms");
-    assert!(lost <= 150, "lost {lost} rows, more than the replication window allows");
+    assert!(
+        lost <= 150,
+        "lost {lost} rows, more than the replication window allows"
+    );
     assert_eq!(promoted["epoch"], 2, "a new term");
-    assert_eq!(promoted["failover_reason"].as_str().map(|r| r.contains("no answer")), Some(true));
-    assert!(poller_ids(&api, &b).await.contains(&"plc1".to_string()), "the new primary started the device pollers");
-    assert!(device_ids(&api, &b).await.unwrap().contains(&"plc1".to_string()), "config survived");
-    assert_eq!(scalar(&b.db(), "SELECT COUNT(*) FROM telemetry WHERE device_id = 'plc1'"), Some(3000), "history survived");
+    assert_eq!(
+        promoted["failover_reason"]
+            .as_str()
+            .map(|r| r.contains("no answer")),
+        Some(true)
+    );
+    assert!(
+        poller_ids(&api, &b).await.contains(&"plc1".to_string()),
+        "the new primary started the device pollers"
+    );
+    assert!(
+        device_ids(&api, &b)
+            .await
+            .unwrap()
+            .contains(&"plc1".to_string()),
+        "config survived"
+    );
+    assert_eq!(
+        scalar(
+            &b.db(),
+            "SELECT COUNT(*) FROM telemetry WHERE device_id = 'plc1'"
+        ),
+        Some(3000),
+        "history survived"
+    );
 
     // ── the old primary comes back and must not be active ──
     a.start();
     let first = wait_up(&a).await;
-    assert_eq!(first.as_deref(), Some("standby"), "a restarted old primary must come up passive, not resume");
+    assert_eq!(
+        first.as_deref(),
+        Some("standby"),
+        "a restarted old primary must come up passive, not resume"
+    );
     let sa = wait_streaming(&api, &a).await;
     assert_passive(&api, &a).await;
     assert_eq!(sa["epoch"], 2);
-    assert!(poller_ids(&api, &a).await.is_empty(), "the old primary stopped polling");
-    wait_same(&a, &b, "the old primary to take a full sync from the new one").await;
+    assert!(
+        poller_ids(&api, &a).await.is_empty(),
+        "the old primary stopped polling"
+    );
+    wait_same(
+        &a,
+        &b,
+        "the old primary to take a full sync from the new one",
+    )
+    .await;
     assert_eq!(
-        scalar(&a.db(), "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'"),
+        scalar(
+            &a.db(),
+            "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'"
+        ),
         Some(replicated),
         "the rows the new primary never received are not kept on the old one"
     );
@@ -586,51 +790,101 @@ async fn config_data_failover_rejoin_and_switchover() {
     // ── force-sync really resyncs ──
     exec(&a.db(), "DELETE FROM modbus_devices");
     sleep(Duration::from_millis(600)).await;
-    assert_eq!(scalar(&a.db(), "SELECT COUNT(*) FROM modbus_devices"), Some(0), "incremental sync does not repair a tampered standby");
-    let (s, v, _) = api.post(&b, "/api/v1/ha/force-sync?wait_secs=30", json!({})).await.unwrap();
+    assert_eq!(
+        scalar(&a.db(), "SELECT COUNT(*) FROM modbus_devices"),
+        Some(0),
+        "incremental sync does not repair a tampered standby"
+    );
+    let (s, v, _) = api
+        .post(&b, "/api/v1/ha/force-sync?wait_secs=30", json!({}))
+        .await
+        .unwrap();
     assert_eq!(s, 200, "force-sync: {v}");
     assert_eq!(v["status"], "synced");
-    assert!(v["report"]["rows"].as_u64().unwrap() > 3000, "the full sync sent the data: {v}");
-    assert!(scalar(&a.db(), "SELECT COUNT(*) FROM modbus_devices").unwrap() >= 1, "force-sync restored the standby");
+    assert!(
+        v["report"]["rows"].as_u64().unwrap() > 3000,
+        "the full sync sent the data: {v}"
+    );
+    assert!(
+        scalar(&a.db(), "SELECT COUNT(*) FROM modbus_devices").unwrap() >= 1,
+        "force-sync restored the standby"
+    );
     wait_same(&a, &b, "after force-sync").await;
     // A standby asks its primary: same result.
     exec(&a.db(), "DELETE FROM modbus_devices");
-    let (s, v, _) = api.post(&a, "/api/v1/ha/force-sync?wait_secs=30", json!({})).await.unwrap();
+    let (s, v, _) = api
+        .post(&a, "/api/v1/ha/force-sync?wait_secs=30", json!({}))
+        .await
+        .unwrap();
     assert_eq!(s, 200, "force-sync from the standby: {v}");
     wait_same(&a, &b, "after force-sync requested by the standby").await;
     wait_streaming(&api, &a).await;
 
     // ── controlled switchover from the primary: nothing is lost, no full sync ──
     {
-        let rows: Vec<(String, i64, String, f64)> = (0..500).map(|i| ("sw".into(), 9_000 + i, "m".into(), i as f64)).collect();
+        let rows: Vec<(String, i64, String, f64)> = (0..500)
+            .map(|i| ("sw".into(), 9_000 + i, "m".into(), i as f64))
+            .collect();
         let storage = voltrus::storage::Storage::new(b.db().to_str().unwrap()).unwrap();
         storage.insert_batch(&rows).await.unwrap();
     }
     let mark = a.log_len();
     let t = Instant::now();
-    let (s, v, _) = api.post(&b, "/api/v1/ha/force-failover?wait_secs=30", json!({})).await.unwrap();
+    let (s, v, _) = api
+        .post(&b, "/api/v1/ha/force-failover?wait_secs=30", json!({}))
+        .await
+        .unwrap();
     assert_eq!(s, 200, "switchover: {v}");
     assert_eq!(v["status"], "failover_complete");
     assert_eq!(v["new_role"], "standby");
-    measured(format!("controlled switchover (primary asked): {} ms, reported {} ms", t.elapsed().as_millis(), v["duration_ms"]));
+    measured(format!(
+        "controlled switchover (primary asked): {} ms, reported {} ms",
+        t.elapsed().as_millis(),
+        v["duration_ms"]
+    ));
     let pa = wait_role(&api, &a, "primary", Duration::from_secs(20)).await;
     assert_eq!(pa["epoch"], 3);
-    assert_eq!(scalar(&a.db(), "SELECT COUNT(*) FROM telemetry WHERE device_id = 'sw'"), Some(500), "nothing lost in a controlled switchover");
+    assert_eq!(
+        scalar(
+            &a.db(),
+            "SELECT COUNT(*) FROM telemetry WHERE device_id = 'sw'"
+        ),
+        Some(500),
+        "nothing lost in a controlled switchover"
+    );
     let sb = wait_streaming(&api, &b).await;
     assert_eq!(sb["epoch"], 3);
     assert_passive(&api, &b).await;
     assert!(poller_ids(&api, &b).await.is_empty() && !poller_ids(&api, &a).await.is_empty());
     let b_log = b.log();
-    assert!(b_log.contains("incremental sync from change"), "the old primary follows incrementally");
-    assert!(!a.log()[mark..].contains("full sync started") && !b.log().rsplit("handed the primary role over").next().unwrap_or("").contains("full sync started"), "no full sync after a clean switchover");
+    assert!(
+        b_log.contains("incremental sync from change"),
+        "the old primary follows incrementally"
+    );
+    assert!(
+        !a.log()[mark..].contains("full sync started")
+            && !b
+                .log()
+                .rsplit("handed the primary role over")
+                .next()
+                .unwrap_or("")
+                .contains("full sync started"),
+        "no full sync after a clean switchover"
+    );
     wait_same(&a, &b, "after the switchover").await;
 
     // ── and back, requested on the standby ──
     let t = Instant::now();
-    let (s, v, _) = api.post(&b, "/api/v1/ha/force-failover?wait_secs=30", json!({})).await.unwrap();
+    let (s, v, _) = api
+        .post(&b, "/api/v1/ha/force-failover?wait_secs=30", json!({}))
+        .await
+        .unwrap();
     assert_eq!(s, 200, "switchover requested by the standby: {v}");
     assert_eq!(v["new_role"], "primary");
-    measured(format!("controlled switchover (standby asked): {} ms", t.elapsed().as_millis()));
+    measured(format!(
+        "controlled switchover (standby asked): {} ms",
+        t.elapsed().as_millis()
+    ));
     wait_role(&api, &b, "primary", Duration::from_secs(10)).await;
     wait_role(&api, &a, "standby", Duration::from_secs(10)).await;
     wait_streaming(&api, &a).await;
@@ -643,11 +897,21 @@ async fn config_data_failover_rejoin_and_switchover() {
 
 /// The standby holds everything the primary committed so far (the primary keeps writing).
 async fn wait_same_prefix_caught_up(a: &Node, b: &Node) {
-    wait_until("the standby to be caught up", Duration::from_secs(10), || async {
-        let pa = scalar(&a.db(), "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'")?;
-        let pb = scalar(&b.db(), "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'")?;
-        (pa - pb < 60 && pb > 0).then_some(())
-    })
+    wait_until(
+        "the standby to be caught up",
+        Duration::from_secs(10),
+        || async {
+            let pa = scalar(
+                &a.db(),
+                "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'",
+            )?;
+            let pb = scalar(
+                &b.db(),
+                "SELECT COALESCE(MAX(value), 0) FROM telemetry WHERE device_id = 'loss1'",
+            )?;
+            (pa - pb < 60 && pb > 0).then_some(())
+        },
+    )
     .await
 }
 
@@ -670,7 +934,9 @@ impl Proxy {
         let (bl, cs) = (blocked.clone(), conns.clone());
         let accept = tokio::spawn(async move {
             loop {
-                let Ok((mut client, _)) = listener.accept().await else { continue };
+                let Ok((mut client, _)) = listener.accept().await else {
+                    continue;
+                };
                 if bl.load(Ordering::SeqCst) {
                     continue; // dropped: the dialer sees a reset
                 }
@@ -683,7 +949,12 @@ impl Proxy {
                 cs.lock().unwrap().push(h.abort_handle());
             }
         });
-        Proxy { port, blocked, conns, accept }
+        Proxy {
+            port,
+            blocked,
+            conns,
+            accept,
+        }
     }
 
     fn block(&self) {
@@ -717,7 +988,9 @@ async fn a_partition_never_produces_two_primaries_with_an_arbiter() {
     let state = root.path().join("witness.json");
     let start_arbiter = |state: PathBuf| async move {
         let l = TcpListener::bind(("127.0.0.1", wport)).await.unwrap();
-        tokio::spawn(voltrus_enterprise::ha::witness::run_arbiter_on(l, SECRET, state))
+        tokio::spawn(voltrus_enterprise::ha::witness::run_arbiter_on(
+            l, SECRET, state,
+        ))
     };
     let arbiter = start_arbiter(state.clone()).await;
 
@@ -736,7 +1009,10 @@ async fn a_partition_never_produces_two_primaries_with_an_arbiter() {
     wait_up(&a).await;
     let api = Api::login(&a).await;
     let pa = wait_role(&api, &a, "primary", Duration::from_secs(30)).await;
-    assert_eq!(pa["epoch"], 2, "the arbiter hands out the epoch: the first term is its second grant here");
+    assert_eq!(
+        pa["epoch"], 2,
+        "the arbiter hands out the epoch: the first term is its second grant here"
+    );
     assert_eq!(pa["witness"]["kind"], "arbiter");
     b.start();
     wait_up(&b).await;
@@ -750,9 +1026,15 @@ async fn a_partition_never_produces_two_primaries_with_an_arbiter() {
     let sa = api.status(&a).await.unwrap();
     let sb = api.status(&b).await.unwrap();
     assert_eq!(role_of(&sa), "primary", "the primary keeps its lease: {sa}");
-    assert_eq!(role_of(&sb), "standby", "the standby must not take over while the lease is held: {sb}");
+    assert_eq!(
+        role_of(&sb),
+        "standby",
+        "the standby must not take over while the lease is held: {sb}"
+    );
     assert!(
-        sb["promotion_blocked"].as_str().is_some_and(|m| m.contains("lease")),
+        sb["promotion_blocked"]
+            .as_str()
+            .is_some_and(|m| m.contains("lease")),
         "it says why: {}",
         sb["promotion_blocked"]
     );
@@ -763,7 +1045,10 @@ async fn a_partition_never_produces_two_primaries_with_an_arbiter() {
     proxy_to_b.unblock();
     proxy_to_a.unblock();
     let healed = wait_streaming(&api, &b).await;
-    assert!(healed["promotion_blocked"].is_null(), "the stale warning is cleared once the primary answers");
+    assert!(
+        healed["promotion_blocked"].is_null(),
+        "the stale warning is cleared once the primary answers"
+    );
 
     // 2. The primary loses the arbiter: it fences itself. Nobody else may act either.
     arbiter.abort();
@@ -782,17 +1067,26 @@ async fn a_partition_never_produces_two_primaries_with_an_arbiter() {
     let t = Instant::now();
     a.kill();
     let promoted = wait_role(&api, &b, "primary", Duration::from_secs(30)).await;
-    measured(format!("kill -9 primary with an arbiter: standby active after {} ms", t.elapsed().as_millis()));
+    measured(format!(
+        "kill -9 primary with an arbiter: standby active after {} ms",
+        t.elapsed().as_millis()
+    ));
     assert!(promoted["epoch"].as_u64().unwrap() > pa["epoch"].as_u64().unwrap());
 
     // 4. The old primary returns: it asks the arbiter, is told the lease is B's, and follows.
     a.start();
     let first = wait_up(&a).await;
-    assert_eq!(first.as_deref(), Some("standby"), "a restarted old primary must come up passive");
+    assert_eq!(
+        first.as_deref(),
+        Some("standby"),
+        "a restarted old primary must come up passive"
+    );
     wait_streaming(&api, &a).await;
 
     let (violations, samples) = monitor.finish().await;
-    measured(format!("dual-active samples with an arbiter: {violations} of {samples}"));
+    measured(format!(
+        "dual-active samples with an arbiter: {violations} of {samples}"
+    ));
     assert!(samples > 100);
     assert_eq!(violations, 0, "two nodes reported active at the same time");
     arbiter.abort();
@@ -814,8 +1108,15 @@ async fn a_node_with_ha_disabled_behaves_as_before() {
         let c = Connection::open(n.db()).unwrap();
         voltrus_enterprise::ha::store::init_schema(&c).unwrap();
         voltrus_enterprise::ha::store::install_triggers(&c).unwrap();
-        c.execute("INSERT INTO settings (key, value) VALUES ('probe', '1')", []).unwrap();
-        assert!(voltrus_enterprise::ha::store::max_seq(&c).unwrap() > 0, "the capture was active");
+        c.execute(
+            "INSERT INTO settings (key, value) VALUES ('probe', '1')",
+            [],
+        )
+        .unwrap();
+        assert!(
+            voltrus_enterprise::ha::store::max_seq(&c).unwrap() > 0,
+            "the capture was active"
+        );
     }
 
     n.start();
@@ -823,29 +1124,56 @@ async fn a_node_with_ha_disabled_behaves_as_before() {
     let api = Api::login(&n).await;
 
     // The boot path started the pollers, exactly as the open core does.
-    assert!(poller_ids(&api, &n).await.contains(&"boot_dev".to_string()), "boot starts the configured devices");
+    assert!(
+        poller_ids(&api, &n).await.contains(&"boot_dev".to_string()),
+        "boot starts the configured devices"
+    );
 
     // HA off: no capture triggers, no change log, no guard. (`ha_node`, the node's
     // recorded role, stays: it is a single row and keeps the identity if HA is turned on again.)
-    let ha_objects = scalar(&n.db(), "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('ha_changelog', 'ha_guard') OR name LIKE 'ha_trg_%'");
-    assert_eq!(ha_objects, Some(0), "the leftovers of an earlier pair are removed");
+    let ha_objects = scalar(
+        &n.db(),
+        "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('ha_changelog', 'ha_guard') OR name LIKE 'ha_trg_%'",
+    );
+    assert_eq!(
+        ha_objects,
+        Some(0),
+        "the leftovers of an earlier pair are removed"
+    );
 
     // Work as usual, then check nothing grows.
-    let (s, _, role) = api.post(&n, "/api/v1/modbus-devices", device_json("extra")).await.unwrap();
+    let (s, _, role) = api
+        .post(&n, "/api/v1/modbus-devices", device_json("extra"))
+        .await
+        .unwrap();
     assert!((200..300).contains(&s), "writes are accepted: {s}");
     assert_eq!(role, None, "no passive marker on a single node");
     let writer = Writer::start(n.db(), "solo");
     sleep(Duration::from_millis(500)).await;
     writer.stop();
     assert_eq!(
-        scalar(&n.db(), "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('ha_changelog', 'ha_guard') OR name LIKE 'ha_trg_%'"),
+        scalar(
+            &n.db(),
+            "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('ha_changelog', 'ha_guard') OR name LIKE 'ha_trg_%'"
+        ),
         Some(0),
         "no change log appears while the node works"
     );
     let (s, st) = api.get(&n, "/api/v1/ha/status").await.unwrap();
     assert_eq!(s, 200);
-    assert_eq!((st["enabled"].clone(), st["role"].clone(), st["active"].clone()), (json!(false), json!("primary"), json!(true)));
-    let (s, v) = api.post(&n, "/api/v1/ha/force-failover", json!({})).await.map(|(s, v, _)| (s, v)).unwrap();
+    assert_eq!(
+        (
+            st["enabled"].clone(),
+            st["role"].clone(),
+            st["active"].clone()
+        ),
+        (json!(false), json!("primary"), json!(true))
+    );
+    let (s, v) = api
+        .post(&n, "/api/v1/ha/force-failover", json!({}))
+        .await
+        .map(|(s, v, _)| (s, v))
+        .unwrap();
     assert_eq!(s, 400, "no HA, nothing to switch: {v}");
 }
 
@@ -860,18 +1188,33 @@ async fn changelog_overhead_on_telemetry_inserts() {
     let db = dir.path().join("bench.db");
     let storage = voltrus::storage::Storage::new(db.to_str().unwrap()).unwrap();
 
-    async fn run(storage: &voltrus::storage::Storage, batches: usize, metrics: usize, base_ts: i64) -> f64 {
+    async fn run(
+        storage: &voltrus::storage::Storage,
+        batches: usize,
+        metrics: usize,
+        base_ts: i64,
+    ) -> f64 {
         let t = Instant::now();
         for i in 0..batches {
             let rows: Vec<(String, i64, String, f64)> = (0..metrics)
-                .map(|m| ("dev".to_string(), base_ts + i as i64, format!("m{m}"), i as f64))
+                .map(|m| {
+                    (
+                        "dev".to_string(),
+                        base_ts + i as i64,
+                        format!("m{m}"),
+                        i as f64,
+                    )
+                })
                 .collect();
             storage.insert_batch(&rows).await.unwrap();
         }
         (batches * metrics) as f64 / t.elapsed().as_secs_f64()
     }
 
-    for (batches, metrics, label) in [(20_000usize, 6usize, "1 device, 6 metrics per batch"), (2_000, 600, "100 devices, 600 rows per batch")] {
+    for (batches, metrics, label) in [
+        (20_000usize, 6usize, "1 device, 6 metrics per batch"),
+        (2_000, 600, "100 devices, 600 rows per batch"),
+    ] {
         let off = run(&storage, batches, metrics, 0).await;
         storage
             .with_conn(|c| {
@@ -887,7 +1230,14 @@ async fn changelog_overhead_on_telemetry_inserts() {
             let t = Instant::now();
             for i in 0..batches {
                 let rows: Vec<(String, i64, String, f64)> = (0..metrics)
-                    .map(|m| ("dev".to_string(), 20_000_000 + i as i64, format!("m{m}"), i as f64))
+                    .map(|m| {
+                        (
+                            "dev".to_string(),
+                            20_000_000 + i as i64,
+                            format!("m{m}"),
+                            i as f64,
+                        )
+                    })
                     .collect();
                 storage.insert_batch(&rows).await.unwrap();
                 if i % 200 == 0 {

@@ -40,7 +40,10 @@ impl HaSettings {
     }
 
     pub fn from_config(cfg: &HaConfig) -> Result<Self> {
-        if cfg.node_id.is_empty() || cfg.node_id.len() > 128 || cfg.node_id.contains(char::is_whitespace) {
+        if cfg.node_id.is_empty()
+            || cfg.node_id.len() > 128
+            || cfg.node_id.contains(char::is_whitespace)
+        {
             bail!("ha.node_id must be 1 to 128 characters without spaces");
         }
         let initial_role = match cfg.role.as_str() {
@@ -142,6 +145,12 @@ mod tests {
         bad(|c| c.peer_address.clear());
         bad(|c| c.failover_after_missed = 1);
         bad(|c| c.heartbeat_interval_ms = 10);
-        bad(|c| c.witness = Some(HaWitnessConfig { kind: "magic".into(), address: "x".into(), timeout_ms: 1000 }));
+        bad(|c| {
+            c.witness = Some(HaWitnessConfig {
+                kind: "magic".into(),
+                address: "x".into(),
+                timeout_ms: 1000,
+            })
+        });
     }
 }

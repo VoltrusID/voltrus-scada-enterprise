@@ -67,12 +67,20 @@ pub struct Arbiter {
 
 impl Arbiter {
     pub fn new(now: Instant) -> Self {
-        Self { epoch: 0, holder: None, expires: now }
+        Self {
+            epoch: 0,
+            holder: None,
+            expires: now,
+        }
     }
 
     /// Resume from a persisted term. The recorded holder is protected for the grace period.
     fn restored(p: Persisted, now: Instant) -> Self {
-        Self { epoch: p.epoch, holder: p.holder, expires: now + RESTART_GRACE }
+        Self {
+            epoch: p.epoch,
+            holder: p.holder,
+            expires: now + RESTART_GRACE,
+        }
     }
 
     pub fn epoch(&self) -> u64 {
@@ -84,7 +92,13 @@ impl Arbiter {
     }
 
     /// `node` asks for the lease at `epoch` (the term it holds or has seen).
-    pub fn acquire(&mut self, now: Instant, node: &str, epoch: u64, ttl: Duration) -> LeaseDecision {
+    pub fn acquire(
+        &mut self,
+        now: Instant,
+        node: &str,
+        epoch: u64,
+        ttl: Duration,
+    ) -> LeaseDecision {
         let remaining = self.expires.saturating_duration_since(now);
         match self.holder.as_deref() {
             Some(h) if h == node => {
@@ -134,7 +148,10 @@ impl Arbiter {
     }
 
     fn persisted(&self) -> Persisted {
-        Persisted { epoch: self.epoch, holder: self.holder.clone() }
+        Persisted {
+            epoch: self.epoch,
+            holder: self.holder.clone(),
+        }
     }
 }
 
@@ -143,7 +160,10 @@ fn load_state(path: &Path, now: Instant) -> Arbiter {
         Ok(text) => match serde_json::from_str::<Persisted>(&text) {
             Ok(p) => Arbiter::restored(p, now),
             Err(e) => {
-                tracing::warn!("HA witness: ignoring unreadable state {}: {e}", path.display());
+                tracing::warn!(
+                    "HA witness: ignoring unreadable state {}: {e}",
+                    path.display()
+                );
                 Arbiter::new(now)
             }
         },
@@ -171,7 +191,11 @@ pub async fn run_arbiter(bind: &str, secret: &str, state_path: PathBuf) -> Resul
 }
 
 /// The arbiter on an already bound listener.
-pub async fn run_arbiter_on(listener: TcpListener, secret: &str, state_path: PathBuf) -> Result<()> {
+pub async fn run_arbiter_on(
+    listener: TcpListener,
+    secret: &str,
+    state_path: PathBuf,
+) -> Result<()> {
     let security = LinkSecurity::new("ha-witness", secret, None)?;
     let state = Arc::new(Mutex::new(load_state(&state_path, Instant::now())));
     tracing::info!(
@@ -196,10 +220,17 @@ async fn serve_one(
     state: Arc<Mutex<Arbiter>>,
     state_path: &Path,
 ) -> Result<()> {
-    let mut peer = security.accept(tcp).await?.into_peer(Duration::from_secs(5));
+    let mut peer = security
+        .accept(tcp)
+        .await?
+        .into_peer(Duration::from_secs(5));
     while let Ok(Some(msg)) = timeout(Duration::from_secs(30), peer.recv()).await {
         let reply = match msg? {
-            Msg::LeaseAcquire { node_id, epoch, ttl_ms } => {
+            Msg::LeaseAcquire {
+                node_id,
+                epoch,
+                ttl_ms,
+            } => {
                 // A lease longer than a minute would defeat the failover time.
                 let ttl = Duration::from_millis(ttl_ms.clamp(500, 60_000));
                 let (decision, changed) = {
@@ -287,15 +318,29 @@ pub async fn handle_cli(args: &[String]) -> bool {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Reply {
-    Granted { epoch: u64 },
-    Denied { epoch: u64, holder: String, remaining: Duration },
+    Granted {
+        epoch: u64,
+    },
+    Denied {
+        epoch: u64,
+        holder: String,
+        remaining: Duration,
+    },
 }
 
 #[derive(Clone)]
 pub enum Witness {
     None,
-    Arbiter { address: String, timeout: Duration, security: LinkSecurity },
-    Reachability { kind: Reach, address: String, timeout: Duration },
+    Arbiter {
+        address: String,
+        timeout: Duration,
+        security: LinkSecurity,
+    },
+    Reachability {
+        kind: Reach,
+        address: String,
+        timeout: Duration,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -312,14 +357,26 @@ impl Witness {
         anyhow::ensure!(!cfg.address.is_empty(), "ha.witness.address is required");
         let t = Duration::from_millis(cfg.timeout_ms.clamp(100, 30_000));
         Ok(match cfg.kind.as_str() {
-            "arbiter" => Witness::Arbiter { address: cfg.address.clone(), timeout: t, security: security.clone() },
-            "tcp" => Witness::Reachability { kind: Reach::Tcp, address: cfg.address.clone(), timeout: t },
+            "arbiter" => Witness::Arbiter {
+                address: cfg.address.clone(),
+                timeout: t,
+                security: security.clone(),
+            },
+            "tcp" => Witness::Reachability {
+                kind: Reach::Tcp,
+                address: cfg.address.clone(),
+                timeout: t,
+            },
             "http" => {
                 anyhow::ensure!(
                     cfg.address.starts_with("http://") || cfg.address.starts_with("https://"),
                     "ha.witness.address must be an http(s) URL for kind http"
                 );
-                Witness::Reachability { kind: Reach::Http, address: cfg.address.clone(), timeout: t }
+                Witness::Reachability {
+                    kind: Reach::Http,
+                    address: cfg.address.clone(),
+                    timeout: t,
+                }
             }
             other => bail!("ha.witness.kind must be arbiter, tcp or http, not '{other}'"),
         })
@@ -329,8 +386,12 @@ impl Witness {
         match self {
             Witness::None => None,
             Witness::Arbiter { .. } => Some("arbiter"),
-            Witness::Reachability { kind: Reach::Tcp, .. } => Some("tcp"),
-            Witness::Reachability { kind: Reach::Http, .. } => Some("http"),
+            Witness::Reachability {
+                kind: Reach::Tcp, ..
+            } => Some("tcp"),
+            Witness::Reachability {
+                kind: Reach::Http, ..
+            } => Some("http"),
         }
     }
 
@@ -340,48 +401,94 @@ impl Witness {
 
     /// Ask the arbiter for (or renew) the lease. `Err` when it cannot be reached.
     pub async fn acquire(&self, node_id: &str, epoch: u64, ttl: Duration) -> Result<Reply> {
-        let Witness::Arbiter { address, timeout: t, security } = self else {
+        let Witness::Arbiter {
+            address,
+            timeout: t,
+            security,
+        } = self
+        else {
             bail!("not an arbiter witness");
         };
-        let msg = Msg::LeaseAcquire { node_id: node_id.to_string(), epoch, ttl_ms: ttl.as_millis() as u64 };
+        let msg = Msg::LeaseAcquire {
+            node_id: node_id.to_string(),
+            epoch,
+            ttl_ms: ttl.as_millis() as u64,
+        };
         Self::exchange(security, address, *t, &msg).await
     }
 
     /// Give the lease up before a controlled hand-over.
     pub async fn release(&self, node_id: &str, epoch: u64) -> Result<()> {
-        let Witness::Arbiter { address, timeout: t, security } = self else {
+        let Witness::Arbiter {
+            address,
+            timeout: t,
+            security,
+        } = self
+        else {
             return Ok(());
         };
-        let msg = Msg::LeaseRelease { node_id: node_id.to_string(), epoch };
-        Self::exchange(security, address, *t, &msg).await.map(|_| ())
+        let msg = Msg::LeaseRelease {
+            node_id: node_id.to_string(),
+            epoch,
+        };
+        Self::exchange(security, address, *t, &msg)
+            .await
+            .map(|_| ())
     }
 
-    async fn exchange(security: &LinkSecurity, address: &str, t: Duration, msg: &Msg) -> Result<Reply> {
+    async fn exchange(
+        security: &LinkSecurity,
+        address: &str,
+        t: Duration,
+        msg: &Msg,
+    ) -> Result<Reply> {
         let attempt = async {
             let mut peer = security.dial(address, t).await?.into_peer(t);
             peer.send(msg).await?;
             match peer.recv().await {
-                Some(Ok(Msg::LeaseReply { granted, epoch, holder, remaining_ms })) => Ok(if granted {
+                Some(Ok(Msg::LeaseReply {
+                    granted,
+                    epoch,
+                    holder,
+                    remaining_ms,
+                })) => Ok(if granted {
                     Reply::Granted { epoch }
                 } else {
-                    Reply::Denied { epoch, holder, remaining: Duration::from_millis(remaining_ms) }
+                    Reply::Denied {
+                        epoch,
+                        holder,
+                        remaining: Duration::from_millis(remaining_ms),
+                    }
                 }),
                 Some(Ok(other)) => bail!("unexpected answer from the witness: {other:?}"),
                 Some(Err(e)) => Err(e.into()),
                 None => bail!("the witness closed the connection"),
             }
         };
-        timeout(t * 2, attempt).await.context("the witness did not answer in time")?
+        timeout(t * 2, attempt)
+            .await
+            .context("the witness did not answer in time")?
     }
 
     /// Whether the witness host answers (reachability kinds). Arbiters are
     /// judged by [`Witness::acquire`], not by this.
     pub async fn reachable(&self) -> bool {
         match self {
-            Witness::Reachability { kind: Reach::Tcp, address, timeout: t } => {
-                matches!(timeout(*t, tokio::net::TcpStream::connect(address)).await, Ok(Ok(_)))
+            Witness::Reachability {
+                kind: Reach::Tcp,
+                address,
+                timeout: t,
+            } => {
+                matches!(
+                    timeout(*t, tokio::net::TcpStream::connect(address)).await,
+                    Ok(Ok(_))
+                )
             }
-            Witness::Reachability { kind: Reach::Http, address, timeout: t } => {
+            Witness::Reachability {
+                kind: Reach::Http,
+                address,
+                timeout: t,
+            } => {
                 let client = match reqwest::Client::builder().timeout(*t).build() {
                     Ok(c) => c,
                     Err(_) => return false,
@@ -447,7 +554,11 @@ mod tests {
         let t0 = Instant::now();
         let mut a = Arbiter::new(t0);
         a.acquire(t0, "a", 5, s(30));
-        assert_eq!(a.epoch(), 6, "the epoch follows the highest the caller has seen");
+        assert_eq!(
+            a.epoch(),
+            6,
+            "the epoch follows the highest the caller has seen"
+        );
         a.release(t0 + s(1), "a", 6);
         let d = a.acquire(t0 + s(1), "b", 6, s(30));
         assert!(d.granted && d.epoch == 7);
@@ -465,16 +576,31 @@ mod tests {
         let mut a2 = Arbiter::new(t0 + s(1));
         let d = a2.acquire(t0 + s(1), "a", 9, s(3));
         assert!(d.granted);
-        assert_eq!(d.epoch, 10, "no term below one the node has seen is ever granted");
+        assert_eq!(
+            d.epoch, 10,
+            "no term below one the node has seen is ever granted"
+        );
     }
 
     #[test]
     fn a_restarted_arbiter_protects_the_recorded_holder_for_a_grace_period() {
         let t0 = Instant::now();
-        let mut a = Arbiter::restored(Persisted { epoch: 4, holder: Some("a".into()) }, t0);
+        let mut a = Arbiter::restored(
+            Persisted {
+                epoch: 4,
+                holder: Some("a".into()),
+            },
+            t0,
+        );
         assert!(!a.acquire(t0 + s(1), "b", 4, s(3)).granted);
         assert!(a.acquire(t0 + s(2), "a", 4, s(3)).granted);
-        let mut a = Arbiter::restored(Persisted { epoch: 4, holder: Some("a".into()) }, t0);
+        let mut a = Arbiter::restored(
+            Persisted {
+                epoch: 4,
+                holder: Some("a".into()),
+            },
+            t0,
+        );
         assert!(a.acquire(t0 + RESTART_GRACE + s(1), "b", 4, s(3)).granted);
     }
 
@@ -490,21 +616,36 @@ mod tests {
         let witness = |node: &str| {
             let sec = LinkSecurity::new(node, secret, None).unwrap();
             Witness::from_config(
-                Some(&HaWitnessConfig { kind: "arbiter".into(), address: addr.clone(), timeout_ms: 2000 }),
+                Some(&HaWitnessConfig {
+                    kind: "arbiter".into(),
+                    address: addr.clone(),
+                    timeout_ms: 2000,
+                }),
                 &sec,
             )
             .unwrap()
         };
         let (a, b) = (witness("a"), witness("b"));
 
-        assert_eq!(a.acquire("a", 0, s(5)).await.unwrap(), Reply::Granted { epoch: 1 });
+        assert_eq!(
+            a.acquire("a", 0, s(5)).await.unwrap(),
+            Reply::Granted { epoch: 1 }
+        );
         match b.acquire("b", 0, s(5)).await.unwrap() {
-            Reply::Denied { epoch: 1, holder, .. } => assert_eq!(holder, "a"),
+            Reply::Denied {
+                epoch: 1, holder, ..
+            } => assert_eq!(holder, "a"),
             other => panic!("{other:?}"),
         }
         a.release("a", 1).await.unwrap();
-        assert_eq!(b.acquire("b", 1, s(5)).await.unwrap(), Reply::Granted { epoch: 2 });
-        assert!(matches!(a.acquire("a", 1, s(5)).await.unwrap(), Reply::Denied { epoch: 2, .. }));
+        assert_eq!(
+            b.acquire("b", 1, s(5)).await.unwrap(),
+            Reply::Granted { epoch: 2 }
+        );
+        assert!(matches!(
+            a.acquire("a", 1, s(5)).await.unwrap(),
+            Reply::Denied { epoch: 2, .. }
+        ));
 
         let saved: Persisted = serde_json::from_slice(&std::fs::read(&state).unwrap()).unwrap();
         assert_eq!((saved.epoch, saved.holder.as_deref()), (2, Some("b")));
@@ -512,7 +653,11 @@ mod tests {
         // A node with the wrong secret cannot reach the arbiter at all.
         let intruder = LinkSecurity::new("a", &secret.replace('0', "7"), None).unwrap();
         let w = Witness::from_config(
-            Some(&HaWitnessConfig { kind: "arbiter".into(), address: addr.clone(), timeout_ms: 2000 }),
+            Some(&HaWitnessConfig {
+                kind: "arbiter".into(),
+                address: addr.clone(),
+                timeout_ms: 2000,
+            }),
             &intruder,
         )
         .unwrap();
@@ -522,12 +667,21 @@ mod tests {
 
     #[tokio::test]
     async fn reachability_witnesses_report_what_they_can_connect_to() {
-        let sec = LinkSecurity::new("a", "0123456789abcdef0123456789abcdef0123456789abcdef", None).unwrap();
+        let sec = LinkSecurity::new(
+            "a",
+            "0123456789abcdef0123456789abcdef0123456789abcdef",
+            None,
+        )
+        .unwrap();
         let open = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let open_addr = open.local_addr().unwrap().to_string();
         let tcp = |addr: &str| {
             Witness::from_config(
-                Some(&HaWitnessConfig { kind: "tcp".into(), address: addr.into(), timeout_ms: 300 }),
+                Some(&HaWitnessConfig {
+                    kind: "tcp".into(),
+                    address: addr.into(),
+                    timeout_ms: 300,
+                }),
                 &sec,
             )
             .unwrap()
@@ -540,7 +694,11 @@ mod tests {
         assert!(!tcp(&closed).reachable().await);
         assert!(
             Witness::from_config(
-                Some(&HaWitnessConfig { kind: "http".into(), address: "no-scheme".into(), timeout_ms: 300 }),
+                Some(&HaWitnessConfig {
+                    kind: "http".into(),
+                    address: "no-scheme".into(),
+                    timeout_ms: 300
+                }),
                 &sec
             )
             .is_err()

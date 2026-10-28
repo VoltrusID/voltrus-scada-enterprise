@@ -100,7 +100,8 @@ impl Runtime {
             }
         }
 
-        if tier.ha() && self.ha_state.is_enabled() && !self.ha_started.swap(true, Ordering::SeqCst) {
+        if tier.ha() && self.ha_state.is_enabled() && !self.ha_started.swap(true, Ordering::SeqCst)
+        {
             self.ha_state.start();
             tracing::info!(
                 "HA enabled, node_id={}, role={}",
@@ -138,11 +139,15 @@ pub(crate) async fn start(ctx: StartContext) {
 
     let sso = SsoRuntime::start(&ctx.config_path, &oidc).await;
 
-    let ha_state = HaState::build(&ctx.config.ha, ctx.storage.clone(), ctx.poller_manager.clone())
-        .unwrap_or_else(|e| {
-            tracing::error!("Hot standby could not be set up: {e:#}");
-            HaState::disabled()
-        });
+    let ha_state = HaState::build(
+        &ctx.config.ha,
+        ctx.storage.clone(),
+        ctx.poller_manager.clone(),
+    )
+    .unwrap_or_else(|e| {
+        tracing::error!("Hot standby could not be set up: {e:#}");
+        HaState::disabled()
+    });
 
     let runtime = Runtime {
         config: ctx.config,

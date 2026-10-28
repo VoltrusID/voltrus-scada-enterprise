@@ -102,7 +102,10 @@ impl ServerCertVerifier for AnyCertificate {
     }
 }
 
-fn load_identity(cert_path: &str, key_path: &str) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+fn load_identity(
+    cert_path: &str,
+    key_path: &str,
+) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
     let certs = CertificateDer::pem_file_iter(cert_path)
         .with_context(|| format!("Cannot read HA TLS certificate {cert_path}"))?
         .collect::<std::result::Result<Vec<_>, _>>()
@@ -173,7 +176,11 @@ impl LinkSecurity {
             .await
             .context("TLS handshake timed out")?
             .context("TLS handshake failed")?;
-        let ekm = exporter(tls.get_ref().1.export_keying_material([0u8; 32], EXPORTER_LABEL, None))?;
+        let ekm = exporter(tls.get_ref().1.export_keying_material(
+            [0u8; 32],
+            EXPORTER_LABEL,
+            None,
+        ))?;
         let mut stream: TlsStream<TcpStream> = tls.into();
 
         let mut nonce_c = [0u8; 16];
@@ -191,17 +198,36 @@ impl LinkSecurity {
         let reply = timeout(HANDSHAKE_TIMEOUT, read_msg(&mut stream))
             .await
             .context("authentication timed out")??;
-        let Msg::AuthReply { node_id, nonce, mac } = reply else {
+        let Msg::AuthReply {
+            node_id,
+            nonce,
+            mac,
+        } = reply
+        else {
             bail!("peer did not answer the authentication challenge");
         };
         if self
-            .verify(b"reply", &ekm, &[self.node_id.as_bytes(), &nonce_c, node_id.as_bytes(), &nonce], &mac)
+            .verify(
+                b"reply",
+                &ekm,
+                &[
+                    self.node_id.as_bytes(),
+                    &nonce_c,
+                    node_id.as_bytes(),
+                    &nonce,
+                ],
+                &mac,
+            )
             .is_err()
         {
             AUTH_FAILURES.fetch_add(1, Ordering::Relaxed);
             bail!("peer {addr} failed authentication (wrong shared secret?)");
         }
-        Ok(Link { peer_node_id: node_id, peer_addr, stream })
+        Ok(Link {
+            peer_node_id: node_id,
+            peer_addr,
+            stream,
+        })
     }
 
     /// Authenticate an accepted connection.
@@ -212,19 +238,31 @@ impl LinkSecurity {
             .await
             .context("TLS handshake timed out")?
             .context("TLS handshake failed")?;
-        let ekm = exporter(tls.get_ref().1.export_keying_material([0u8; 32], EXPORTER_LABEL, None))?;
+        let ekm = exporter(tls.get_ref().1.export_keying_material(
+            [0u8; 32],
+            EXPORTER_LABEL,
+            None,
+        ))?;
         let mut stream: TlsStream<TcpStream> = tls.into();
 
         let init = timeout(HANDSHAKE_TIMEOUT, read_msg(&mut stream))
             .await
             .context("authentication timed out")??;
-        let Msg::AuthInit { node_id, nonce, mac } = init else {
+        let Msg::AuthInit {
+            node_id,
+            nonce,
+            mac,
+        } = init
+        else {
             bail!("peer {peer_addr} did not start with authentication");
         };
         if node_id.is_empty() || node_id.len() > 128 || nonce.len() != 16 {
             bail!("peer {peer_addr} sent a malformed authentication");
         }
-        if self.verify(b"init", &ekm, &[node_id.as_bytes(), &nonce], &mac).is_err() {
+        if self
+            .verify(b"init", &ekm, &[node_id.as_bytes(), &nonce], &mac)
+            .is_err()
+        {
             AUTH_FAILURES.fetch_add(1, Ordering::Relaxed);
             bail!("peer {peer_addr} failed authentication (wrong shared secret?)");
         }
@@ -233,7 +271,12 @@ impl LinkSecurity {
         let mac_s = self.mac(
             b"reply",
             &ekm,
-            &[node_id.as_bytes(), &nonce, self.node_id.as_bytes(), &nonce_s],
+            &[
+                node_id.as_bytes(),
+                &nonce,
+                self.node_id.as_bytes(),
+                &nonce_s,
+            ],
         );
         write_msg(
             &mut stream,
@@ -244,7 +287,11 @@ impl LinkSecurity {
             },
         )
         .await?;
-        Ok(Link { peer_node_id: node_id, peer_addr, stream })
+        Ok(Link {
+            peer_node_id: node_id,
+            peer_addr,
+            stream,
+        })
     }
 
     fn keyed(&self, label: &[u8], ekm: &[u8; 32], parts: &[&[u8]]) -> HmacSha256 {
@@ -260,11 +307,16 @@ impl LinkSecurity {
     }
 
     fn mac(&self, label: &[u8], ekm: &[u8; 32], parts: &[&[u8]]) -> Vec<u8> {
-        self.keyed(label, ekm, parts).finalize().into_bytes().to_vec()
+        self.keyed(label, ekm, parts)
+            .finalize()
+            .into_bytes()
+            .to_vec()
     }
 
     fn verify(&self, label: &[u8], ekm: &[u8; 32], parts: &[&[u8]], mac: &[u8]) -> Result<(), ()> {
-        self.keyed(label, ekm, parts).verify_slice(mac).map_err(|_| ())
+        self.keyed(label, ekm, parts)
+            .verify_slice(mac)
+            .map_err(|_| ())
     }
 }
 
@@ -372,13 +424,24 @@ mod tests {
         let b = LinkSecurity::new("node-b", SECRET, None).unwrap();
         let echo = tokio::spawn(async move {
             let (tcp, _) = l.accept().await.unwrap();
-            let mut p = b.accept(tcp).await.unwrap().into_peer(Duration::from_secs(2));
+            let mut p = b
+                .accept(tcp)
+                .await
+                .unwrap()
+                .into_peer(Duration::from_secs(2));
             let m = p.recv().await.unwrap().unwrap();
             p.send(&m).await.unwrap();
         });
-        let mut p = a.dial(&addr, Duration::from_secs(2)).await.unwrap().into_peer(Duration::from_secs(2));
+        let mut p = a
+            .dial(&addr, Duration::from_secs(2))
+            .await
+            .unwrap()
+            .into_peer(Duration::from_secs(2));
         p.send(&Msg::Ack { seq: 42 }).await.unwrap();
-        assert!(matches!(p.recv().await.unwrap().unwrap(), Msg::Ack { seq: 42 }));
+        assert!(matches!(
+            p.recv().await.unwrap().unwrap(),
+            Msg::Ack { seq: 42 }
+        ));
         echo.await.unwrap();
     }
 
@@ -433,6 +496,9 @@ mod tests {
         });
 
         assert!(a.dial(&mitm_addr, Duration::from_secs(2)).await.is_err());
-        assert!(server.await.unwrap().is_err(), "the server rejects the relayed proof");
+        assert!(
+            server.await.unwrap().is_err(),
+            "the server rejects the relayed proof"
+        );
     }
 }
