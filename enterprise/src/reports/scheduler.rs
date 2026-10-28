@@ -20,6 +20,10 @@ async fn run_scheduler_loop(storage: Storage, cache: DeviceCache, email_notifier
 
     loop {
         ticker.tick().await;
+        // Only the active node of a hot standby pair sends reports.
+        if !voltrus::node_role::is_active() {
+            continue;
+        }
         if let Err(e) = process_reports(&storage, &cache, &email_notifier).await {
             tracing::error!("Report scheduler error: {}", e);
         }
