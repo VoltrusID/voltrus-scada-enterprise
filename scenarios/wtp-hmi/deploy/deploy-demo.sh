@@ -12,21 +12,22 @@ set -euo pipefail
 
 HOST="${VPS_HOST:-voltrus-vps}"
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
-HERE="$REPO/scenarios/wtp-hmi"
+DEPLOY="$REPO/scenarios/wtp-hmi/deploy"
+SIM="$REPO/core/scenarios/wtp-hmi"
 TARGET="x86_64-unknown-linux-musl"
-BIN="$REPO/target/$TARGET/release/voltrus"
+BIN="$REPO/enterprise/target/$TARGET/release/voltrus"
 
 if [ "${1:-}" != "--no-build" ]; then
-  (cd "$REPO/client" && bun run build)
-  (cd "$REPO" && ulimit -n 65536 && cargo zigbuild --release --target "$TARGET" --bin voltrus)
+  (cd "$REPO/core/client" && npm ci && VOLTRUS_ENTERPRISE_CLIENT="$REPO/enterprise/client/src/index.ts" npm run build)
+  (cd "$REPO/enterprise" && ulimit -n 65536 && cargo zigbuild --release --locked --target "$TARGET" --bin voltrus)
 fi
 [ -x "$BIN" ] || { echo "missing $BIN (build first)"; exit 1; }
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-cp "$BIN" "$HERE/plant-sim.py" "$HERE/seed.py" "$HERE/deploy/config.yaml" \
-   "$HERE/deploy/voltrus-scada.service" "$HERE/deploy/voltrus-scada-plant.service" "$STAGE/"
-cp -r "$REPO/static" "$STAGE/static"
+cp "$BIN" "$SIM/plant-sim.py" "$SIM/seed.py" "$DEPLOY/config.yaml" \
+   "$DEPLOY/voltrus-scada.service" "$DEPLOY/voltrus-scada-plant.service" "$STAGE/"
+cp -r "$REPO/core/static" "$STAGE/static"
 tar -czf "$STAGE.tgz" -C "$STAGE" .
 scp -q "$STAGE.tgz" "$HOST:/tmp/voltrus-scada.tgz"
 rm -f "$STAGE.tgz"
