@@ -1,0 +1,12 @@
+# Local TLS (Caddy's internal CA) in front of Voltrus and Keycloak.
+{
+	auto_https disable_redirects
+}
+scada.localhost:8443 {
+	tls internal
+	reverse_proxy 127.0.0.1:3101
+}
+kc.localhost:8444 {
+	tls internal
+	reverse_proxy 127.0.0.1:8081
+}

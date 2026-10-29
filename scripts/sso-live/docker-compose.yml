@@ -1,0 +1,40 @@
+# Real identity servers for the SSO live tests. Driven by run.sh.
+name: voltrus-sso-live
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_TAG:-latest}
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded   # the https listener in front (kc.localhost:8444) is a Caddy proxy
+    ports:
+      - "127.0.0.1:8081:8080"
+
+  # Samba AD DC: sAMAccountName, memberOf, nested groups, LDAPS with its own CA.
+  samba:
+    image: nowsci/samba-domain
+    hostname: dc1
+    domainname: corp.example
+    privileged: true
+    environment:
+      DOMAIN: CORP.EXAMPLE
+      DOMAINPASS: "Adm1n-Pass!"
+      HOSTIP: 127.0.0.1
+      DNSFORWARDER: 1.1.1.1
+      NOCOMPLEXITY: "true"
+      INSECURELDAP: "true"
+      JOIN: "false"
+    volumes:
+      - samba-data:/var/lib/samba
+      - samba-etc:/etc/samba/external
+    ports:
+      - "127.0.0.1:389:389"
+      - "127.0.0.1:636:636"
+
+volumes:
+  samba-data:
+  samba-etc:

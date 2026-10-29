@@ -583,3 +583,55 @@ fn small_rsa_keys_are_not_trusted() {
     let err = xmldsig::rsa_public_key_checked(&rsa::RsaPublicKey::from(&small)).unwrap_err();
     assert!(err.0.contains("2048"));
 }
+
+#[tokio::test]
+async fn idp_metadata_behind_a_private_ca_needs_ca_cert() {
+    let cert: String = IDP_PEM
+        .lines()
+        .filter(|l| !l.starts_with("-----"))
+        .collect();
+    let stub = crate::sso::test_tls::serve(vec![(
+        "/metadata".into(),
+        "application/samlmetadata+xml",
+        metadata(&cert),
+    )])
+    .await;
+    let url = format!("https://localhost:{}/metadata", stub.port);
+    let cfg = |f: &dyn Fn(&mut SamlConfig)| {
+        let mut c = SamlConfig::default();
+        c.enabled = true;
+        c.idp_metadata_url = url.clone();
+        f(&mut c);
+        c
+    };
+    let public_url = "https://scada.example.com";
+
+    let err = SamlProvider::new(cfg(&|_| {}), public_url)
+        .await
+        .err()
+        .unwrap();
+    assert!(err.0.contains("fetching IdP metadata"), "{}", err.0);
+
+    let pem = stub.ca_pem.clone();
+    assert!(
+        SamlProvider::new(cfg(&|c| c.ca_cert = pem.clone()), public_url)
+            .await
+            .is_ok()
+    );
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ca.pem");
+    std::fs::write(&path, &stub.ca_pem).unwrap();
+    let file = path.to_string_lossy().into_owned();
+    assert!(
+        SamlProvider::new(cfg(&|c| c.ca_cert_file = file.clone()), public_url)
+            .await
+            .is_ok()
+    );
+
+    let err = SamlProvider::new(cfg(&|c| c.ca_cert = "not a certificate".into()), public_url)
+        .await
+        .err()
+        .unwrap();
+    assert!(err.0.contains("certificate"), "{}", err.0);
+}

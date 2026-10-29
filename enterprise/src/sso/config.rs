@@ -161,6 +161,36 @@ pub fn secret(value: &str, env_name: &str) -> String {
     value.to_string()
 }
 
+/// Trust an extra CA for HTTPS requests to an identity provider, on top of the
+/// built-in public roots: a Keycloak or ADFS server behind a private CA. `ca_cert`
+/// is PEM text and wins over `ca_cert_file`. Both empty leaves the builder as is.
+pub fn with_extra_ca(
+    mut builder: reqwest::ClientBuilder,
+    ca_cert: &str,
+    ca_cert_file: &str,
+) -> Result<reqwest::ClientBuilder, String> {
+    let pem = if !ca_cert.trim().is_empty() {
+        ca_cert.to_string()
+    } else if !ca_cert_file.is_empty() {
+        std::fs::read_to_string(ca_cert_file)
+            .map_err(|e| format!("cannot read ca_cert_file {ca_cert_file}: {e}"))?
+    } else {
+        return Ok(builder);
+    };
+    let certs = rustls_pemfile::certs(&mut pem.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("invalid CA certificate PEM: {e}"))?;
+    if certs.is_empty() {
+        return Err("ca_cert holds no certificate".into());
+    }
+    for der in certs {
+        let cert = reqwest::Certificate::from_der(der.as_ref())
+            .map_err(|e| format!("unusable CA certificate: {e}"))?;
+        builder = builder.add_root_certificate(cert);
+    }
+    Ok(builder)
+}
+
 /// Local redirect target after sign-in. Only same-site absolute paths pass, so
 /// a crafted `return_to` cannot turn the login flow into an open redirect.
 pub fn safe_return_to(candidate: Option<&str>) -> String {
