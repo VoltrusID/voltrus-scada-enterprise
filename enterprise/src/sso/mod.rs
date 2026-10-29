@@ -11,6 +11,9 @@ pub mod oidc;
 pub mod saml;
 pub mod xmldsig;
 
+#[cfg(test)]
+mod test_tls;
+
 use std::sync::Arc;
 
 use serde_json::json;

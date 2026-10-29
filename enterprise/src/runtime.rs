@@ -131,7 +131,22 @@ pub(crate) async fn start(ctx: StartContext) {
         role_claim: ctx.config.oidc_role_claim.clone(),
         admin_role: ctx.config.oidc_admin_role.clone(),
     };
-    let jwks = JwksManager::new(&oidc.jwks_url);
+    // Bearer validation fetches the same provider's keys: it trusts `sso.oidc.ca_cert*` too.
+    let jwks = match crate::sso::config::SsoConfig::load(&ctx.config_path).and_then(|c| {
+        crate::sso::config::with_extra_ca(
+            reqwest::Client::builder().timeout(std::time::Duration::from_secs(15)),
+            &c.oidc.ca_cert,
+            &c.oidc.ca_cert_file,
+        )
+        .and_then(|b| b.build().map_err(|e| e.to_string()))
+        .map_err(|e| anyhow::anyhow!("sso.oidc: {e}"))
+    }) {
+        Ok(http) => JwksManager::with_client(&oidc.jwks_url, http),
+        Err(e) => {
+            tracing::error!("OIDC bearer keys use the default CA roots: {e:#}");
+            JwksManager::new(&oidc.jwks_url)
+        }
+    };
     if oidc.enabled {
         crate::sso::oidc::spawn_jwks_refresh(jwks.clone());
         tracing::info!("OIDC enabled, issuer: {}", oidc.issuer);
