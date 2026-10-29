@@ -41,6 +41,8 @@ VERSION="$(grep '^version' enterprise/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*
 TAG="v${VERSION}"
 R2_BUCKET="voltrus-releases"
 BUILD_DIR="${BUILD_DIR:-target/release-artifacts}"
+# Absolute: uploads run wrangler from the worker directory.
+[[ "$BUILD_DIR" = /* ]] || BUILD_DIR="$ROOT/$BUILD_DIR"
 ENTERPRISE_TARGET_DIR="${CARGO_TARGET_DIR:-enterprise/target}"
 CORE_TARGET_DIR="${CARGO_TARGET_DIR:-core/target}"
 FD_LIMIT=65536
