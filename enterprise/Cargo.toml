@@ -3,7 +3,7 @@
 
 [package]
 name = "voltrus-enterprise"
-version = "0.50.0"
+version = "0.50.1"
 edition = "2024"
 license-file = "LICENSE"
 publish = false
