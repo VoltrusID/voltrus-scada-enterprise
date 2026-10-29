@@ -61,6 +61,12 @@ pub struct SamlConfig {
     /// IdP metadata read from a file, at startup and on every refresh.
     #[serde(default)]
     pub idp_metadata_file: String,
+    /// CA (PEM text or file) for the HTTPS server behind `idp_metadata_url`, when
+    /// it is not a public one. Added to the built-in public roots.
+    #[serde(default)]
+    pub ca_cert: String,
+    #[serde(default)]
+    pub ca_cert_file: String,
     /// IdP metadata XML inline.
     #[serde(default)]
     pub idp_metadata_xml: String,
@@ -725,11 +731,16 @@ impl SamlProvider {
             MetadataSource::Explicit
         };
 
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(15))
-            .redirect(reqwest::redirect::Policy::limited(3))
-            .build()
-            .map_err(|e| SamlError(format!("http client: {e}")))?;
+        let http = super::config::with_extra_ca(
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(15))
+                .redirect(reqwest::redirect::Policy::limited(3)),
+            &cfg.ca_cert,
+            &cfg.ca_cert_file,
+        )
+        .map_err(SamlError)?
+        .build()
+        .map_err(|e| SamlError(format!("http client: {e}")))?;
 
         let sp_certificate = if !cfg.sp_certificate.is_empty() {
             cfg.sp_certificate.clone()
