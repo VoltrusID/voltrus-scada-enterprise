@@ -27,7 +27,7 @@ server_host: "0.0.0.0"
 db_path: "{db}"
 persist_interval_secs: 1
 cookie_secure: {cookie_secure}
-auth_secret: "sso-live-secret-sso-live-secret-0123456789"
+auth_secret: "{os.urandom(32).hex()}"
 oidc_issuer: {issuer}
 
 sso:

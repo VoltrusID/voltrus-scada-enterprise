@@ -14,10 +14,12 @@ paths = [
   '''native/src/api\.rs''',
 ]
 
-# Hot standby tests: a hex counting pattern used as the shared link secret.
+# Test-only secrets: a hex counting pattern used as the hot standby link secret,
+# and the fixed auth secret an early version of scripts/sso-live used locally.
 [[allowlists]]
-description = "Hot standby test secret"
+description = "Test secrets"
 regexTarget = "match"
 regexes = [
   '''0123456789abcdef0123456789abcdef0123456789abcdef''',
+  '''sso-live-secret-sso-live-secret-0123456789''',
 ]
