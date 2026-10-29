@@ -13,3 +13,11 @@ paths = [
   '''docs/superpowers/specs/2025-05-01-license-activation-design\.md''',
   '''native/src/api\.rs''',
 ]
+
+# Hot standby tests: a hex counting pattern used as the shared link secret.
+[[allowlists]]
+description = "Hot standby test secret"
+regexTarget = "match"
+regexes = [
+  '''0123456789abcdef0123456789abcdef0123456789abcdef''',
+]
