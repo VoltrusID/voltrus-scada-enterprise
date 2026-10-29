@@ -158,14 +158,21 @@ fn parse_jwks(jwks: &serde_json::Value) -> Vec<JwkKey> {
 
 impl JwksManager {
     pub fn new(jwks_url: &str) -> Self {
+        Self::with_client(
+            jwks_url,
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(15))
+                .build()
+                .unwrap_or_default(),
+        )
+    }
+
+    pub fn with_client(jwks_url: &str, http: reqwest::Client) -> Self {
         Self {
             keys: Arc::new(RwLock::new(Vec::new())),
             jwks_url: jwks_url.to_string(),
             last_fetch: Arc::new(std::sync::Mutex::new(None)),
-            http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(15))
-                .build()
-                .unwrap_or_default(),
+            http,
         }
     }
 
@@ -339,6 +346,12 @@ pub struct OidcLoginConfig {
     /// Environment variable holding the client secret (wins over `client_secret`).
     #[serde(default)]
     pub client_secret_env: String,
+    /// CA (PEM text or file) for an identity provider behind a private CA: discovery,
+    /// token and JWKS requests. Added to the built-in public roots.
+    #[serde(default)]
+    pub ca_cert: String,
+    #[serde(default)]
+    pub ca_cert_file: String,
     /// Default `<public_url>/api/v1/auth/oidc/callback`; register it at the provider.
     #[serde(default)]
     pub redirect_uri: String,
@@ -405,6 +418,7 @@ pub struct OidcLogin {
     pub issuer: String,
     client_secret: String,
     http: reqwest::Client,
+    jwks_http: reqwest::Client,
     discovery: RwLock<Option<(Discovery, JwksManager)>>,
     pending: DashMap<String, PendingOidc>,
 }
@@ -478,15 +492,26 @@ impl OidcLogin {
             return Err("oidc.client_auth must be 'post' or 'basic'".into());
         }
         let client_secret = secret(&cfg.client_secret, &cfg.client_secret_env);
+        let client = |redirect: reqwest::redirect::Policy| {
+            super::config::with_extra_ca(
+                reqwest::Client::builder()
+                    .timeout(Duration::from_secs(15))
+                    .redirect(redirect),
+                &cfg.ca_cert,
+                &cfg.ca_cert_file,
+            )
+            .map_err(|e| format!("oidc: {e}"))?
+            .build()
+            .map_err(|e| e.to_string())
+        };
+        let http = client(reqwest::redirect::Policy::none())?;
+        let jwks_http = client(reqwest::redirect::Policy::default())?;
         Ok(Arc::new(Self {
             cfg,
             issuer: issuer.to_string(),
             client_secret,
-            http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(15))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .map_err(|e| e.to_string())?,
+            http,
+            jwks_http,
             discovery: RwLock::new(None),
             pending: DashMap::new(),
         }))
@@ -527,7 +552,7 @@ impl OidcLogin {
             token_endpoint: field("token_endpoint")?,
             jwks_uri: field("jwks_uri")?,
         };
-        let jwks = JwksManager::new(&d.jwks_uri);
+        let jwks = JwksManager::with_client(&d.jwks_uri, self.jwks_http.clone());
         let _ = jwks.refresh().await;
         *self.discovery.write().await = Some((d.clone(), jwks.clone()));
         Ok((d, jwks))

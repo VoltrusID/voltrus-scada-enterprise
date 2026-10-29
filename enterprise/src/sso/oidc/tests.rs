@@ -460,3 +460,41 @@ async fn discovery_for_a_different_issuer_is_refused() {
     .unwrap();
     assert!(mismatched.begin("/").await.is_err());
 }
+
+#[tokio::test]
+async fn a_provider_behind_a_private_ca_needs_ca_cert() {
+    let stub = crate::sso::test_tls::serve(vec![
+        (
+            "/.well-known/openid-configuration".into(),
+            "application/json",
+            r#"{"issuer":"https://localhost:{PORT}","authorization_endpoint":"https://localhost:{PORT}/auth","token_endpoint":"https://localhost:{PORT}/token","jwks_uri":"https://localhost:{PORT}/jwks"}"#.into(),
+        ),
+        ("/jwks".into(), "application/json", r#"{"keys":[]}"#.into()),
+    ])
+    .await;
+    let issuer = format!("https://localhost:{}", stub.port);
+
+    let plain = OidcLogin::new(login_cfg(), &issuer, "https://scada.example.com").unwrap();
+    let err = plain.begin("/").await.unwrap_err();
+    assert!(err.contains("discovery failed"), "{err}");
+
+    let mut cfg = login_cfg();
+    cfg.ca_cert = stub.ca_pem.clone();
+    let trusting = OidcLogin::new(cfg, &issuer, "https://scada.example.com").unwrap();
+    assert!(trusting.begin("/").await.is_ok());
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ca.pem");
+    std::fs::write(&path, &stub.ca_pem).unwrap();
+    let mut cfg = login_cfg();
+    cfg.ca_cert_file = path.to_string_lossy().into_owned();
+    let from_file = OidcLogin::new(cfg, &issuer, "https://scada.example.com").unwrap();
+    assert!(from_file.begin("/").await.is_ok());
+
+    let mut cfg = login_cfg();
+    cfg.ca_cert_file = "/nonexistent/ca.pem".into();
+    let err = OidcLogin::new(cfg, &issuer, "https://scada.example.com")
+        .err()
+        .expect("a missing CA file is a configuration error");
+    assert!(err.contains("ca_cert_file"), "{err}");
+}
