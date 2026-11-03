@@ -10,7 +10,6 @@ description = "Placeholder keys and mock data"
 paths = [
   '''client/src/App\.tsx''',
   '''client/tests/edition\.test\.ts''',
-  '''docs/superpowers/specs/2025-05-01-license-activation-design\.md''',
   '''native/src/api\.rs''',
 ]
 
