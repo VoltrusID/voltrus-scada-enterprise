@@ -53,6 +53,8 @@ export default {
       return new Response(null, { headers: isAdmin ? CORS_HEADERS_ADMIN : CORS_HEADERS_PUBLIC });
     }
     const url = new URL(request.url);
+    if (url.pathname === "/robots.txt") return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=86400" } });
+
     const path = url.pathname;
     try {
       if (path === "/activate" && request.method === "POST") {
