@@ -1,7 +1,9 @@
 //! Test-only tool: sign a licence activation file the way the activation worker does.
 //!
-//! Private repository only. It reads a private key from a file the caller names
-//! (the real key lives outside git, in the secrets directory) and binds the file
+//! For local test keys. The real signing key is never in this repository: it
+//! lives only in the activation worker's secrets. This tool reads a private key
+//! from a file the caller names (for example a key pair you generated for tests)
+//! and binds the file
 //! to this machine's fingerprint unless `--fingerprint` says otherwise. The
 //! official binary has no way to trust any other key than its embedded ones, so
 //! activations made here only verify when signed with a real trusted key.
