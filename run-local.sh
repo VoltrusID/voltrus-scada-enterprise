@@ -7,6 +7,7 @@
 # Defaults avoid clashes with other local services (excon-api :3000,
 # nats :1883): voltrus → :3300, mqtt-sim → :1884. Override via env:
 #   VOLTRUS_PORT=4000 MQTT_PORT=1883 ./run-local.sh
+# GATEWAY_DIR must point at a voltrus-gateway checkout.
 set -euo pipefail
 
 SCENARIO="${1:-solar-farm}"
@@ -17,7 +18,7 @@ fi
 
 # Paths
 VOLTRUS_DIR="$(cd "$(dirname "$0")" && pwd)"
-GATEWAY_DIR="${GATEWAY_DIR:-/Users/macbookpro/Documents/JoyoDigitama/MacTools/gateway}"
+GATEWAY_DIR="${GATEWAY_DIR:?set GATEWAY_DIR to your voltrus-gateway checkout}"
 SCENARIO_DIR="$VOLTRUS_DIR/scenarios/$SCENARIO"
 [ -d "$SCENARIO_DIR" ] || { echo "unknown scenario: $SCENARIO"; exit 1; }
 
