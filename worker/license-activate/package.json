@@ -18,5 +18,9 @@
     "typescript": "^5.6.0",
     "vitest": "^5.0.5",
     "wrangler": "^4.0.0"
+  },
+  "overrides": {
+    "wrangler": "4.158.0",
+    "workerd": "1.20261104.1"
   }
 }

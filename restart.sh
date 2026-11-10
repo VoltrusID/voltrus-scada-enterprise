@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-cd /Users/macbookpro/Documents/JoyoDigitama/voltrus/voltrus
+cd "$(cd "$(dirname "$0")" && pwd)"
 
 echo "Stopping all..."
 pkill -f "voltrus|modbus-sim|s7-sim|opcua-sim|enip-sim|dnp3-sim|bacnet-sim|mqtt-sim" 2>/dev/null || true

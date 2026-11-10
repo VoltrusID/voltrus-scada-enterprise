@@ -1,0 +1,19 @@
+Licences in this repository
+
+This repository holds two separately licensed parts. There is no single
+licence for the whole repository.
+
+  core/        Git submodule of VoltrusID/voltrus-scada. GNU Affero General
+               Public License v3.0 or later, see core/LICENSE. The Core SDKs
+               in core/sdks/ are MIT, see core/sdks/LICENSE.
+
+  enterprise/  Voltrus Enterprise License (source available, not open
+               source), see enterprise/LICENSE. Production use needs a paid
+               licence key.
+
+  everything   worker/, the release and deploy scripts at the root, and all
+  else         other files: the Voltrus Enterprise License in
+               enterprise/LICENSE, unless a LICENSE file in a subdirectory
+               says otherwise.
+
+Copyright (c) 2026 JoyoDigitama. Questions: support@voltrus.id

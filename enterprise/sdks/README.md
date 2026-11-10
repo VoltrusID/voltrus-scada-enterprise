@@ -1,6 +1,7 @@
 # Enterprise SDK extensions
 
-PRIVATE. Official client packages for the endpoints that only the Enterprise
+Not published to npm or PyPI. Licensed under the Voltrus Enterprise License
+(`enterprise/LICENSE`), like the rest of `enterprise/`. Official client packages for the endpoints that only the Enterprise
 add-on serves. They extend the public Core SDKs; they do not replace them.
 
 | Package | Path | Import |

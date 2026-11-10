@@ -16,3 +16,10 @@ client/dist/
 .env.*
 .dev.vars
 *.p8
+
+# Python bytecode and stray run state.
+__pycache__/
+*.py[cod]
+scripts/sso-live/pid
+# SDKs live in core/sdks and enterprise/sdks, not at the root.
+/sdks/
