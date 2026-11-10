@@ -7,8 +7,9 @@ This license covers everything in the "enterprise/" directory of this
 repository (the "Enterprise Software"), plus the "worker/" directory and the
 release and deploy scripts at the repository root. It does not cover "core/",
 which is a separate project (VoltrusID/voltrus-scada) licensed under the GNU
-Affero General Public License v3.0 or later. It does not cover "sdks/", which is
-MIT licensed where a LICENSE file in that directory says so.
+Affero General Public License v3.0 or later; the Core SDKs in "core/sdks/" are
+MIT licensed. The Enterprise SDK extensions in "enterprise/sdks/" are part of
+the Enterprise Software.
 
 The source code of the Enterprise Software is visible so that you can read it,
 audit it and learn from it. It is source available, not open source. Reading the
