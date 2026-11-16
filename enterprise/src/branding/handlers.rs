@@ -152,7 +152,8 @@ pub async fn update_branding(
             .await?;
     }
     if let Some(logo) = logo {
-        let sanitized = voltrus::security::sanitize_logo_input(logo);
+        let sanitized = voltrus::security::sanitize_logo_input(logo)
+            .map_err(|e| AppError::bad_request(e.1))?;
         state
             .storage
             .upsert_setting("brand_logo", &sanitized)
