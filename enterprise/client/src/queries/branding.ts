@@ -4,13 +4,35 @@ import type { BrandingSettings } from '@voltrus/core/edition/branding'
 import { hasFeature, type LicenseInfo } from '@voltrus/core/edition/license'
 import { enterpriseQueryKeys } from './keys'
 import { fetchJson, fetchOk } from '@voltrus/core/queries/fetch'
-import { isValidAccent } from '../panels/brandingPayload'
+import { themeCss, type Theme } from '../panels/themeModel'
 
-/** Core branding plus the accent colour the white-label theme adds. */
-export type EnterpriseBranding = BrandingSettings & { accent?: string }
+/** Core branding plus the theme the white-label licence adds. */
+export type EnterpriseBranding = BrandingSettings & {
+  accent?: string
+  theme_level?: 'none' | 'basic' | 'full'
+  theme?: Theme
+  font_url?: string | null
+  font_name?: string
+  fonts?: { id: string; label: string }[]
+}
 
-/** CSS variable the core theme uses for its accent (buttons, links, active tabs). */
-const ACCENT_VAR = '--cyan'
+/** The <style> element that carries the brand theme. */
+const STYLE_ID = 'voltrus-brand-theme'
+
+/** Put `css` into the page (after core's stylesheet, whose rules it overrides), or remove it. */
+export function applyThemeCss(css: string) {
+  let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null
+  if (!css) {
+    el?.remove()
+    return
+  }
+  if (!el) {
+    el = document.createElement('style')
+    el.id = STYLE_ID
+    document.head.appendChild(el)
+  }
+  if (el.textContent !== css) el.textContent = css
+}
 
 /** Server branding, only while the licence includes white_label (otherwise the Voltrus default applies). */
 export function useBranding(license: LicenseInfo): EnterpriseBranding | null {
@@ -22,32 +44,47 @@ export function useBranding(license: LicenseInfo): EnterpriseBranding | null {
     retry: false,
   })
   const branding = enabled ? data ?? null : null
-  const accent = branding?.accent ?? ''
+  const css = themeCss(branding)
 
-  // An inline style on <html> wins over both the dark and the light theme, so one
-  // brand colour serves both. Called from the app root, so the login page gets it too.
-  useEffect(() => {
-    const root = document.documentElement.style
-    if (accent && isValidAccent(accent)) root.setProperty(ACCENT_VAR, accent)
-    else root.removeProperty(ACCENT_VAR)
-  }, [accent])
+  // Called from the app root, so the login page gets the theme too.
+  useEffect(() => { applyThemeCss(css) }, [css])
 
   return branding
+}
+
+async function put(path: string, body: unknown) {
+  await fetchOk(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
 
 export function useSaveBranding() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (settings: Partial<EnterpriseBranding>) => {
-      await fetchOk('/api/v1/settings/branding', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-      })
+      await put('/api/v1/settings/branding', settings)
       return settings
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: enterpriseQueryKeys.branding })
     },
+  })
+}
+
+export function useUploadBrandFont() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (font: { name: string; data: string }) => put('/api/v1/settings/branding/font', font),
+    onSuccess: () => qc.invalidateQueries({ queryKey: enterpriseQueryKeys.branding }),
+  })
+}
+
+export function useDeleteBrandFont() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => fetchOk('/api/v1/settings/branding/font', { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: enterpriseQueryKeys.branding }),
   })
 }

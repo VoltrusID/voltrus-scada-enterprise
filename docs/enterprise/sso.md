@@ -465,7 +465,7 @@ All keys below live under `sso:` except the three top-level `oidc_*` keys.
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `oidc_issuer` (top level) | | OIDC issuer URL; browser sign-in and bearer tokens share it. https, or http on loopback only |
-| `oidc_enabled` (top level) | `false` | Accept `Authorization: Bearer` ID/access tokens from the issuer on API routes |
+| `oidc_enabled` (top level) | `false` | Accept `Authorization: Bearer` ID/access tokens from the issuer on API routes. A token acts as the same account the browser sign-in creates, `oidc:<id>` (`<id>` is the `sso.oidc.username_claim` of the token if it carries it, else `sub`), so disabling that account in **Admin › Users** locks its tokens out too |
 | `oidc_audience`, `oidc_jwks_url` (top level) | | Bearer validation: expected `aud`, JWKS URL |
 | `oidc_role_claim`, `oidc_admin_role` (top level) | `realm_access.roles`, `voltrus-admin` | Bearer tokens: a token whose `realm_access.roles` or `groups` contains `oidc_admin_role` is `admin`, any other valid token is `user` |
 | `sso.public_url` | | Address browsers use, no trailing slash |

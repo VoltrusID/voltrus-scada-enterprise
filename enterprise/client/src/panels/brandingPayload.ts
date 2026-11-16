@@ -8,14 +8,14 @@ export interface BrandingForm {
 }
 
 /**
- * Largest logo file the dialog accepts. The server stores at most 50,000 bytes and the
+ * Largest logo file the dialog accepts, the core limit (`MAX_LOGO_FILE_BYTES`, 100 KB). The
  * file is sent base64 encoded (4/3 of its size plus the `data:` prefix).
  */
-export const MAX_LOGO_FILE_BYTES = 36_000
+export const MAX_LOGO_FILE_BYTES = 100_000
 
-/** True for an accent the server accepts: `#rrggbb`, or empty to reset it. */
+/** True for an accent the server accepts: `#rgb` or `#rrggbb`, or empty to reset it. */
 export function isValidAccent(value: string): boolean {
-  return value === '' || /^#[0-9a-fA-F]{6}$/.test(value)
+  return value === '' || /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)
 }
 
 /**

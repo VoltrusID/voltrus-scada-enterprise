@@ -17,7 +17,7 @@ test('a logo-only licence sends the logo and nothing else', () => {
   assert.deepEqual(brandingPayload(form, true), { logo: 'https://example.com/logo.png' })
 })
 
-test('only #rrggbb accents or an empty reset are valid', () => {
-  for (const ok of ['', '#0055aa', '#A1B2C3']) assert.equal(isValidAccent(ok), true, ok)
-  for (const bad of ['red', '#fff', '0055aa', '#0055aa;x', '#gggggg']) assert.equal(isValidAccent(bad), false, bad)
+test('only #rgb or #rrggbb accents or an empty reset are valid', () => {
+  for (const ok of ['', '#0055aa', '#A1B2C3', '#fff']) assert.equal(isValidAccent(ok), true, ok)
+  for (const bad of ['red', '#ffff', '0055aa', '#0055aa;x', '#gggggg']) assert.equal(isValidAccent(bad), false, bad)
 })

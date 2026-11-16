@@ -521,6 +521,7 @@ fn bearer_role_settings_left_unset_use_the_documented_defaults() {
             roles: vec!["voltrus-admin".into()],
         }),
         groups: None,
+        extra: Default::default(),
     };
     assert_eq!(extract_role(&claims, &unset), "admin");
 
@@ -530,4 +531,23 @@ fn bearer_role_settings_left_unset_use_the_documented_defaults() {
     }
     .with_defaults();
     assert_eq!(custom.admin_role, "scada-admins");
+}
+
+#[test]
+fn a_bearer_token_acts_as_the_account_the_browser_sign_in_provisions() {
+    let claims: OidcClaims = serde_json::from_value(json!({
+        "sub": "f81d4fae-7dec",
+        "exp": 0,
+        "iss": "https://idp.example.com",
+        "aud": "voltrus",
+        "preferred_username": "alice",
+        "profile": {"login": "alice.k"}
+    }))
+    .unwrap();
+    // Same `oidc:<id>` name as complete_login, so core's disabled-account check matches.
+    assert_eq!(bearer_username(&claims, ""), "oidc:f81d4fae-7dec");
+    assert_eq!(bearer_username(&claims, "preferred_username"), "oidc:alice");
+    assert_eq!(bearer_username(&claims, "profile.login"), "oidc:alice.k");
+    // An access token without the configured claim falls back to sub.
+    assert_eq!(bearer_username(&claims, "email"), "oidc:f81d4fae-7dec");
 }
