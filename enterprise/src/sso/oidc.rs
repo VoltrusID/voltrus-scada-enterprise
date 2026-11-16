@@ -47,6 +47,20 @@ impl Default for OidcConfig {
     }
 }
 
+impl OidcConfig {
+    /// The top-level config keys default to empty strings; an unset `oidc_role_claim`
+    /// or `oidc_admin_role` means the documented default, not "match nothing".
+    pub fn with_defaults(mut self) -> Self {
+        if self.role_claim.trim().is_empty() {
+            self.role_claim = default_role_claim();
+        }
+        if self.admin_role.trim().is_empty() {
+            self.admin_role = default_admin_role();
+        }
+        self
+    }
+}
+
 fn default_role_claim() -> String {
     "realm_access.roles".to_string()
 }
@@ -338,6 +352,9 @@ pub fn spawn_jwks_refresh(manager: JwksManager) {
 /// `oidc_issuer`; the client ID is the audience of the ID token.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct OidcLoginConfig {
+    /// Text of the login page button ("Sign in with <label>"), e.g. `Okta`.
+    #[serde(default = "default_oidc_label")]
+    pub label: String,
     /// Setting a `client_id` turns browser sign-in on.
     #[serde(default)]
     pub client_id: String,
@@ -370,6 +387,9 @@ pub struct OidcLoginConfig {
     pub role_mapping: RoleMapping,
 }
 
+fn default_oidc_label() -> String {
+    "OpenID Connect".to_string()
+}
 fn default_scopes() -> Vec<String> {
     vec!["openid".into(), "profile".into(), "email".into()]
 }

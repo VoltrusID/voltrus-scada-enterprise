@@ -45,7 +45,7 @@ Request and response shapes come from `enterprise/src/**/handlers.rs`,
 
 Not wrapped: the browser sign-in flows (`GET /api/v1/auth/saml/{login,metadata}`,
 `POST /api/v1/auth/saml/acs`, `GET /api/v1/auth/oidc/{login,callback}`) and
-`POST /api/v1/auth/ldap/login`, which start a cookie session. See `docs/sso.md`.
+`POST /api/v1/auth/ldap/login`, which start a cookie session. See `docs/enterprise/sso.md`.
 
 ## Develop
 

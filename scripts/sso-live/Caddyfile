@@ -2,7 +2,7 @@
 {
 	auto_https disable_redirects
 }
-scada.localhost:8443 {
+scada.localhost:{$HTTPS_PORT:8443} {
 	tls internal
 	reverse_proxy 127.0.0.1:3101
 }

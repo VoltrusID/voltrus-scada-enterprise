@@ -12,6 +12,7 @@
 # Instances (all on the same Keycloak/Samba):
 #   http    http://localhost:3100              cookie_secure auto, plain http
 #   https   https://scada.localhost:8443       Caddy (internal CA) -> :3101, SameSite=None cookies
+#                                              (HTTPS_PORT=8445 ./run.sh up|test when 8443 is taken)
 #   strict  http://localhost:3102              role_mapping.default_role "": unmapped users refused
 #   tlsidp  http://localhost:3103              Keycloak over https (https://kc.localhost:8444, private CA):
 #                                              idp_metadata_url and OIDC discovery with ca_cert_file
@@ -28,6 +29,7 @@ export VOLTRUS_OIDC_CLIENT_SECRET=${OIDC_SECRET:-oidc-live-secret}
 export OIDC_SECRET=$VOLTRUS_OIDC_CLIENT_SECRET
 export VOLTRUS_LDAP_BIND_PASSWORD='Svc-Pass-1!'
 export LDAP_CA_FILE="$RUN/ldap-ca.pem"
+export HTTPS_PORT=${HTTPS_PORT:-8443}
 
 stop_instances() {
   for d in http https strict tlsidp; do
@@ -59,7 +61,7 @@ case "${1:-}" in
     "$HERE/samba-setup.sh"
     curl -fs "$KC/realms/voltrus/protocol/saml/descriptor" -o "$RUN/idp-metadata.xml"
     stop_instances
-    docker run -d --name voltrus-sso-live-caddy --network host -v "$HERE/Caddyfile:/etc/caddy/Caddyfile:ro" \
+    docker run -d --name voltrus-sso-live-caddy --network host -e HTTPS_PORT -v "$HERE/Caddyfile:/etc/caddy/Caddyfile:ro" \
       caddy:2-alpine >/dev/null
     for _ in $(seq 30); do
       docker exec voltrus-sso-live-caddy cat /data/caddy/pki/authorities/local/root.crt > "$RUN/caddy-root.pem" 2>/dev/null \
@@ -67,15 +69,15 @@ case "${1:-}" in
       sleep 1
     done
     start_instance http 3100 http://localhost:3100 viewer
-    start_instance https 3101 https://scada.localhost:8443 viewer
+    start_instance https 3101 "https://scada.localhost:$HTTPS_PORT" viewer
     start_instance strict 3102 http://localhost:3102 ""
     KC_ISSUER=https://kc.localhost:8444/realms/voltrus \
       IDP_METADATA_URL=https://kc.localhost:8444/realms/voltrus/protocol/saml/descriptor \
       IDP_CA_FILE="$RUN/caddy-root.pem" start_instance tlsidp 3103 http://localhost:3103 viewer
-    for u in http://localhost:3100 https://scada.localhost:8443 http://localhost:3102 http://localhost:3103; do
+    for u in http://localhost:3100 "https://scada.localhost:$HTTPS_PORT" http://localhost:3102 http://localhost:3103; do
       python3 "$HERE/keycloak-setup.py" saml "$u"
     done
-    echo "up. admin passwords are in $RUN/*/node.log; browse http://localhost:3100 or https://scada.localhost:8443 (accept the Caddy CA)"
+    echo "up. admin passwords are in $RUN/*/node.log; browse http://localhost:3100 or https://scada.localhost:$HTTPS_PORT (accept the Caddy CA)"
     ;;
   test)
     shift

@@ -3,13 +3,27 @@ export interface BrandingForm {
   title: string
   subtitle: string
   logo: string
+  /** Accent colour `#rrggbb`; empty keeps the theme's own. */
+  accent?: string
+}
+
+/**
+ * Largest logo file the dialog accepts. The server stores at most 50,000 bytes and the
+ * file is sent base64 encoded (4/3 of its size plus the `data:` prefix).
+ */
+export const MAX_LOGO_FILE_BYTES = 36_000
+
+/** True for an accent the server accepts: `#rrggbb`, or empty to reset it. */
+export function isValidAccent(value: string): boolean {
+  return value === '' || /^#[0-9a-fA-F]{6}$/.test(value)
 }
 
 /**
  * What the dialog sends to PUT /api/v1/settings/branding. A logo-only licence (white_label
- * without theme_full) must send the logo alone: the server refuses a body with a title or
- * subtitle, even an unchanged one.
+ * without theme_full) must send the logo alone: the server refuses a body with a title,
+ * subtitle or accent, even an unchanged one.
  */
 export function brandingPayload(form: BrandingForm, logoOnly: boolean): Partial<BrandingForm> {
-  return logoOnly ? { logo: form.logo } : form
+  if (logoOnly) return { logo: form.logo }
+  return { title: form.title, subtitle: form.subtitle, logo: form.logo, accent: form.accent ?? '' }
 }

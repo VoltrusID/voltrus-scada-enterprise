@@ -74,6 +74,10 @@ fn generate_request(args: &[String], site: Option<&str>) -> bool {
     match request::generate_request(&args[2], site) {
         Ok(path) => {
             println!("License request written to: {}", path);
+            println!(
+                "Upload it at {} from any computer with internet access, then run: voltrus --import-activation license-activation.bin",
+                request::ACTIVATION_UPLOAD_PAGE
+            );
             true
         }
         Err(e) => {

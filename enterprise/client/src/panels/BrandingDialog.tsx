@@ -2,16 +2,18 @@ import { useState, useRef } from 'react';
 import { inputStyle, labelStyle, labelTextStyle } from '@voltrus/core/styles';
 
 import { DEFAULT_BRANDING, type BrandingSettings } from '@voltrus/core/edition/branding';
-import { brandingPayload } from './brandingPayload';
+import { brandingPayload, isValidAccent, MAX_LOGO_FILE_BYTES, type BrandingForm } from './brandingPayload';
 
 export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: {
-  branding: BrandingSettings;
+  /** Current branding; the server's answer carries the accent colour too. */
+  branding: BrandingSettings & { accent?: string };
   /** Licence allows the logo only (no theme_full): title and subtitle stay the Voltrus defaults. */
   logoOnly?: boolean;
-  onSave: (settings: Partial<BrandingSettings>) => void;
+  onSave: (settings: Partial<BrandingForm>) => void;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState<BrandingSettings>({ ...branding });
+  const [form, setForm] = useState<BrandingForm>({ ...branding, accent: branding.accent ?? '' });
+  const accentOk = isValidAccent(form.accent ?? '');
   const [logoTab, setLogoTab] = useState<'url' | 'upload'>(branding.logo && !branding.logo.startsWith('data:') ? 'url' : 'upload');
   const [logoError, setLogoError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -19,8 +21,8 @@ export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 100_000) {
-      setLogoError('File too large (max 100KB)');
+    if (file.size > MAX_LOGO_FILE_BYTES) {
+      setLogoError(`File too large (max ${Math.floor(MAX_LOGO_FILE_BYTES / 1000)} KB). Use a smaller image or a URL.`);
       return;
     }
     setLogoError('');
@@ -41,7 +43,7 @@ export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {logoOnly ? (
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-              Your licence includes a custom logo. Changing the title and subtitle needs the Integrator licence.
+              Your licence includes a custom logo. Changing the title, subtitle and accent colour needs the Integrator licence.
             </div>
           ) : (
             <>
@@ -54,6 +56,16 @@ export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: 
                 <span style={labelTextStyle}>Subtitle</span>
                 <input value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder={DEFAULT_BRANDING.subtitle} style={inputStyle} />
               </label>
+
+              <div style={labelStyle}>
+                <span style={labelTextStyle}>Accent colour</span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="color" aria-label="Accent colour picker" value={accentOk && form.accent ? form.accent : '#22c55e'} onChange={e => setForm(f => ({ ...f, accent: e.target.value }))} style={{ width: 36, height: 30, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer' }} />
+                  <input aria-label="Accent colour" value={form.accent ?? ''} onChange={e => setForm(f => ({ ...f, accent: e.target.value.trim() }))} placeholder="Theme default" style={{ ...inputStyle, flex: 1, fontFamily: 'var(--font-mono)' }} />
+                  <button onClick={() => setForm(f => ({ ...f, accent: '' }))} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Default</button>
+                </div>
+                {!accentOk && <div style={{ color: 'var(--crit)', fontSize: 11, marginTop: 4 }}>Use a colour like #0055aa, or leave it empty.</div>}
+              </div>
             </>
           )}
 
@@ -94,7 +106,7 @@ export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: 
 
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
           <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg)', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => { onSave(brandingPayload(form, logoOnly)); onClose(); }} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
+          <button disabled={!accentOk} onClick={() => { onSave(brandingPayload(form, logoOnly)); onClose(); }} style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Save</button>
         </div>
       </div>
     </div>

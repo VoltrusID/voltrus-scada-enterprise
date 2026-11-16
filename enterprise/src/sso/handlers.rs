@@ -313,6 +313,7 @@ pub async fn saml_login(
             "SAML sign-in is not configured.",
         );
     };
+    saml.ensure_idp_loaded().await;
     match saml.begin_login(&safe_return_to(q.return_to.as_deref())) {
         Ok((url, binding)) => {
             // The ACS is a cross-site POST, so the cookie must be SameSite=None.

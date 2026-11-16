@@ -493,4 +493,41 @@ mod tests {
                 .is_ok()
         );
     }
+
+    /// An activation file exactly as the worker writes it (worker/license-activate, signed
+    /// with the worker tests' key 0x11.., which is `keypair(0x11)` here; regenerate by
+    /// posting `volreq()` to `/activate` in the worker test harness). Catches any drift
+    /// between the worker's JSON and `ActivationPayload` that would make real
+    /// activations fail to verify.
+    #[test]
+    fn activation_signed_by_the_worker_verifies() {
+        let blob = include_bytes!("fixtures/worker_activation.bin");
+        let (_, worker_test_key) = keypair(0x11);
+        let (activation, index) = verify_with_keys(blob, &[worker_test_key]).unwrap();
+        assert_eq!(index, 0);
+        assert_eq!(activation.license_key, "VOLTRUS-AAAA-BBBB");
+        assert_eq!(activation.fingerprint_hash, "fp-device-1");
+        assert_eq!(activation.tier.as_deref(), Some("enterprise"));
+        let now = time::OffsetDateTime::parse(
+            "2029-12-01T00:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .unwrap();
+        assert!(matches!(
+            crate::licensing::verification::evaluate_activation(&activation, now),
+            voltrus::license::LicenseStatus::Valid {
+                days_remaining: Some(31),
+                ..
+            }
+        ));
+        // The production keys do not accept a file signed with a test key.
+        assert!(verify_activation_signature(blob).is_err());
+        // Changing the signed tier breaks the signature.
+        let tampered = String::from_utf8(blob.to_vec()).unwrap().replacen(
+            "\"tier\":\"enterprise\"",
+            "\"tier\":\"integrator\"",
+            1,
+        );
+        assert!(verify_with_keys(tampered.as_bytes(), &[worker_test_key]).is_err());
+    }
 }
