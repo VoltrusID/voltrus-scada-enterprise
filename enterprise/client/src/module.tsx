@@ -13,6 +13,8 @@ import { LoginProviders } from './panels/LoginProviders'
 import { ReportManager } from './panels/ReportManager'
 import { SecurityAuditPanel } from './panels/SecurityAuditPanel'
 import { useBranding } from './queries/branding'
+import { CameraScreenWidget, CameraWidgetSettings } from './widgets/CameraScreenWidget'
+import { cameraWidgetDef } from './widgets/cameraWidgetModel'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import id from './locales/id.json'
@@ -129,6 +131,10 @@ const enterprise: EnterpriseClientModule = {
   branding: { useBranding, Dialog: BrandingDialogHost },
   Banners,
   notificationChannels: [telegramChannel, whatsappChannel],
+  // Live camera on dashboards and SCADA screens (Enterprise video).
+  screenWidgets: [
+    cameraWidgetDef({ render: CameraScreenWidget, configEditor: CameraWidgetSettings, icon: svg(CAMERA_PATHS) }),
+  ],
   locales: { en, id, zh, de },
 }
 

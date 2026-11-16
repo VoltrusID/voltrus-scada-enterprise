@@ -34,6 +34,12 @@ name = "ha_pair"
 path = "tests/ha_pair.rs"
 required-features = ["ha-test-node"]
 
+# 21 CFR Part 11 hooks end to end, on one stub-licence node.
+[[test]]
+name = "compliance_hooks"
+path = "tests/compliance_hooks.rs"
+required-features = ["ha-test-node"]
+
 [features]
 ha-test-node = []
 

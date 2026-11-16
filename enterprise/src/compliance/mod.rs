@@ -2,7 +2,9 @@
 
 pub mod export;
 pub mod handlers;
+pub mod hooks;
 pub mod pdf;
+pub mod policy;
 
 pub use voltrus::compliance::{ComplianceConfig, ElectronicSignature};
 
@@ -34,11 +36,14 @@ pub struct UpdateComplianceConfigRequest {
     pub password_require_special: Option<bool>,
     pub password_rotation_days: Option<u32>,
     pub authority_to_change: Option<bool>,
+    pub password_history: Option<u32>,
+    pub session_max_hours: Option<u32>,
+    pub signatures: Option<policy::SignaturePolicy>,
 }
 
 /// Verify password meets complexity requirements per compliance config.
 pub fn verify_password_complexity(password: &str, config: &ComplianceConfig) -> Result<(), String> {
-    if password.len() < config.password_min_length as usize {
+    if password.chars().count() < config.password_min_length as usize {
         return Err(format!(
             "Password must be at least {} characters",
             config.password_min_length
@@ -138,10 +143,21 @@ fn csv_field(s: &str) -> String {
 
 /// The signatures as CSV, with the time in UTC and whether each hash verifies.
 pub fn signatures_csv(signatures: &[ElectronicSignature]) -> String {
+    signatures_csv_with(signatures, &std::collections::HashMap::new())
+}
+
+/// The signatures as CSV with the signer's full name, the context of a
+/// signature the core asked for (origin, details) and its core audit entry.
+pub fn signatures_csv_with(
+    signatures: &[ElectronicSignature],
+    extras: &std::collections::HashMap<i64, export::SignatureExtra>,
+) -> String {
     let mut out = String::from(
-        "id,signed_at_utc,signer,meaning,reason,action,resource_type,resource_id,signature_hash,hash_valid\n",
+        "id,signed_at_utc,signer,meaning,reason,action,resource_type,resource_id,signature_hash,hash_valid,signer_full_name,origin,details,audit_entry_id\n",
     );
+    let none = export::SignatureExtra::default();
     for s in signatures {
+        let extra = extras.get(&s.id).unwrap_or(&none);
         let when = time::OffsetDateTime::from_unix_timestamp(s.created_at)
             .ok()
             .and_then(|t| {
@@ -150,7 +166,7 @@ pub fn signatures_csv(signatures: &[ElectronicSignature]) -> String {
             })
             .unwrap_or_else(|| s.created_at.to_string());
         out.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             s.id,
             when,
             csv_field(&s.user_id),
@@ -160,7 +176,11 @@ pub fn signatures_csv(signatures: &[ElectronicSignature]) -> String {
             csv_field(&s.resource_type),
             csv_field(&s.resource_id),
             s.signature_hash,
-            signature_matches(s),
+            extra.verifies(s),
+            csv_field(extra.full_name.as_deref().unwrap_or("")),
+            csv_field(extra.context.as_ref().map_or("", |c| c.origin.as_str())),
+            csv_field(extra.context.as_ref().map_or("", |c| c.details.as_str())),
+            extra.audit_id.map(|i| i.to_string()).unwrap_or_default(),
         ));
     }
     out
@@ -297,9 +317,40 @@ mod tests {
         assert_eq!(lines.len(), 3);
         assert!(lines[0].starts_with("id,signed_at_utc,signer,meaning,reason"));
         assert!(lines[1].starts_with("1,1970-01-01T00:16:40Z,op1,Approved,\"Release, after QA\""));
-        assert!(lines[1].ends_with(",true"));
+        assert!(lines[1].ends_with(",true,,,,"));
         assert!(lines[2].contains(",'=cmd,"));
-        assert!(lines[2].ends_with(",false"));
+        assert!(lines[2].ends_with(",false,,,,"));
+    }
+
+    #[test]
+    fn signatures_csv_carries_the_context_and_the_audit_entry() {
+        let sig = signed(1000, 1000);
+        let ctx = |valid| export::SignatureContext {
+            origin: "session".into(),
+            role: "operator".into(),
+            details: r#"{"previous":1.5,"value":2}"#.into(),
+            valid,
+        };
+        let mut extras = std::collections::HashMap::new();
+        extras.insert(
+            1,
+            export::SignatureExtra {
+                full_name: Some("Op One".into()),
+                name_is_current: false,
+                context: Some(ctx(true)),
+                audit_id: Some(77),
+            },
+        );
+        let csv = signatures_csv_with(std::slice::from_ref(&sig), &extras);
+        let row = csv.lines().nth(1).unwrap();
+        assert!(
+            row.ends_with(r#",true,Op One,session,"{""previous"":1.5,""value"":2}",77"#),
+            "{row}"
+        );
+        // A context row edited after signing no longer verifies.
+        extras.get_mut(&1).unwrap().context = Some(ctx(false));
+        let csv = signatures_csv_with(&[sig], &extras);
+        assert!(csv.lines().nth(1).unwrap().contains(",false,Op One,"));
     }
 
     #[test]

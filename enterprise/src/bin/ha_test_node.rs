@@ -8,7 +8,10 @@
 use std::sync::Arc;
 
 use voltrus::api::AppState;
-use voltrus::edition::{BoxFuture, Extension, ExtensionRoutes, ExternalIdentity, StartContext};
+use voltrus::edition::{
+    ActionContext, BoxFuture, Extension, ExtensionRoutes, ExternalIdentity, PasswordChangeKind,
+    PasswordCheck, SessionPolicy, SignatureRecord, SignatureRequirement, StartContext,
+};
 use voltrus::license::LicenseStatus;
 use voltrus::models::AppConfig;
 use voltrus::storage::Storage;
@@ -76,6 +79,48 @@ impl Extension for TestNode {
 
     fn auth_providers(&self) -> Vec<serde_json::Value> {
         self.0.auth_providers()
+    }
+
+    fn validate_new_password<'a>(
+        &'a self,
+        check: &'a PasswordCheck,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        self.0.validate_new_password(check)
+    }
+
+    fn password_changed<'a>(
+        &'a self,
+        username: &'a str,
+        password_hash: &'a str,
+        kind: PasswordChangeKind,
+    ) -> BoxFuture<'a, ()> {
+        self.0.password_changed(username, password_hash, kind)
+    }
+
+    fn password_expired<'a>(&'a self, user: &'a voltrus::models::User) -> BoxFuture<'a, bool> {
+        self.0.password_expired(user)
+    }
+
+    fn session_policy<'a>(
+        &'a self,
+        username: &'a str,
+        role: &'a str,
+    ) -> BoxFuture<'a, SessionPolicy> {
+        self.0.session_policy(username, role)
+    }
+
+    fn signature_required<'a>(
+        &'a self,
+        ctx: &'a ActionContext,
+    ) -> BoxFuture<'a, Option<SignatureRequirement>> {
+        self.0.signature_required(ctx)
+    }
+
+    fn record_signature<'a>(
+        &'a self,
+        record: &'a SignatureRecord,
+    ) -> BoxFuture<'a, anyhow::Result<Option<String>>> {
+        self.0.record_signature(record)
     }
 }
 

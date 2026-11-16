@@ -220,6 +220,131 @@ async fn names(
         .await
 }
 
+/// What a signature made through a core hook (a signed tag write, alarm
+/// acknowledgement, ...) carries beyond the `electronic_signatures` row.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SignatureContext {
+    /// `session` or `recipe`: who signed and how.
+    pub origin: String,
+    pub role: String,
+    /// The action's details as JSON (a tag write's `previous` and `value`).
+    pub details: String,
+    /// The context row's checksum verifies.
+    pub valid: bool,
+}
+
+/// Everything an export prints next to a signature row.
+#[derive(Debug, Clone, Default)]
+pub struct SignatureExtra {
+    pub full_name: Option<String>,
+    /// The name was not recorded at signing; it is the one on file now.
+    pub name_is_current: bool,
+    pub context: Option<SignatureContext>,
+    /// The core audit entry (`action=signature`) written for this signature.
+    pub audit_id: Option<i64>,
+}
+
+impl SignatureExtra {
+    /// The signature's hash and, when it has one, its context checksum verify.
+    pub fn verifies(&self, sig: &ElectronicSignature) -> bool {
+        signature_matches(sig) && self.context.as_ref().is_none_or(|c| c.valid)
+    }
+}
+
+/// The signature id in a core `signature` audit entry
+/// (`action=<action> signature=<id> meaning="..." reason=...`). Only the
+/// second field counts, so a reason cannot name another signature.
+pub fn audit_signature_id(details: &str) -> Option<i64> {
+    let mut fields = details.split(' ');
+    fields.next()?.strip_prefix("action=")?;
+    fields.next()?.strip_prefix("signature=")?.parse().ok()
+}
+
+/// Names, hook context and audit links for `signatures`.
+pub async fn signature_extras(
+    storage: &Storage,
+    signatures: &[ElectronicSignature],
+) -> anyhow::Result<HashMap<i64, SignatureExtra>> {
+    let (at_signing, on_file) = names(storage).await?;
+    let ids: Vec<i64> = signatures.iter().map(|s| s.id).collect();
+    let hashes: HashMap<i64, String> = signatures
+        .iter()
+        .map(|s| (s.id, s.signature_hash.clone()))
+        .collect();
+    let range = signatures
+        .iter()
+        .map(|s| s.created_at)
+        .fold(None, |acc: Option<(i64, i64)>, t| {
+            Some(acc.map_or((t, t), |(a, b)| (a.min(t), b.max(t))))
+        });
+    let (contexts, audit) = storage
+        .with_conn(move |c| {
+            super::policy::ensure_schema(c)?;
+            let mut contexts = HashMap::new();
+            let mut stmt = c.prepare(
+                "SELECT origin, role, details, checksum FROM compliance_signature_context WHERE signature_id = ?1",
+            )?;
+            for id in &ids {
+                let mut rows = stmt.query([id])?;
+                if let Some(r) = rows.next()? {
+                    let (origin, role, details, checksum): (String, String, String, String) =
+                        (r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?);
+                    let valid = hashes.get(id).is_some_and(|h| {
+                        super::hooks::context_checksum(h, &origin, &role, &details) == checksum
+                    });
+                    contexts.insert(
+                        *id,
+                        SignatureContext {
+                            origin,
+                            role,
+                            details,
+                            valid,
+                        },
+                    );
+                }
+            }
+            let mut audit = HashMap::new();
+            if let (Some((from, to)), false) = (range, contexts.is_empty()) {
+                // The core writes the entry right after the record, so a few
+                // seconds either side of the signing times is enough.
+                let mut stmt = c.prepare(
+                    "SELECT id, details FROM audit_log WHERE action = 'signature' AND created_at BETWEEN ?1 AND ?2 ORDER BY id",
+                )?;
+                let rows = stmt.query_map([from - 5, to + 60], |r| {
+                    Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?))
+                })?;
+                for row in rows {
+                    let (audit_id, details) = row?;
+                    if let Some(sig) = details.as_deref().and_then(audit_signature_id)
+                        && contexts.contains_key(&sig)
+                    {
+                        audit.entry(sig).or_insert(audit_id);
+                    }
+                }
+            }
+            Ok((contexts, audit))
+        })
+        .await?;
+    Ok(signatures
+        .iter()
+        .map(|sig| {
+            let (full_name, name_is_current) = match at_signing.get(&sig.id) {
+                Some(n) => (Some(n.clone()), false),
+                None => (on_file.get(&sig.user_id).cloned(), true),
+            };
+            (
+                sig.id,
+                SignatureExtra {
+                    full_name,
+                    name_is_current,
+                    context: contexts.get(&sig.id).cloned(),
+                    audit_id: audit.get(&sig.id).copied(),
+                },
+            )
+        })
+        .collect())
+}
+
 /// GET /api/v1/compliance/signatures/export.pdf
 pub async fn export_signatures_pdf(
     State(state): State<AppState>,
@@ -244,18 +369,17 @@ pub async fn export_signatures_pdf(
             signatures.len()
         )));
     }
-    let (at_signing, on_file) = names(&state.storage).await?;
+    let mut extras = signature_extras(&state.storage, &signatures).await?;
     let entries: Vec<SignatureEntry> = signatures
         .into_iter()
         .map(|sig| {
-            let (full_name, name_is_current) = match at_signing.get(&sig.id) {
-                Some(n) => (Some(n.clone()), false),
-                None => (on_file.get(&sig.user_id).cloned(), true),
-            };
+            let extra = extras.remove(&sig.id).unwrap_or_default();
             SignatureEntry {
-                hash_valid: signature_matches(&sig),
-                full_name,
-                name_is_current,
+                hash_valid: extra.verifies(&sig),
+                full_name: extra.full_name,
+                name_is_current: extra.name_is_current,
+                context: extra.context,
+                audit_id: extra.audit_id,
                 sig,
             }
         })

@@ -203,6 +203,20 @@ pub(crate) async fn start(ctx: StartContext) {
         return;
     }
 
+    // The add-on's Part 11 tables exist before hot standby installs its
+    // replication triggers.
+    if let Err(e) = ctx
+        .storage
+        .with_conn(|c| {
+            crate::compliance::policy::ensure_schema(c)?;
+            crate::compliance::export::ensure_schema(c)?;
+            Ok(())
+        })
+        .await
+    {
+        tracing::error!("Part 11 tables could not be created: {e:#}");
+    }
+
     licensing::online::spawn_renewal_task(ctx.storage, ctx.license_status);
     // The partner of a licensed hot standby node runs with the licence it borrowed.
     licensing::pair::publish().await;

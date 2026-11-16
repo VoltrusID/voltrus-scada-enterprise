@@ -10,6 +10,7 @@ pub(crate) fn routes(state: &AppState) -> ExtensionRoutes {
     ExtensionRoutes {
         public: public(),
         protected: protected(),
+        operate: operate(),
         operator: operator(),
         admin: admin(),
     }
@@ -55,6 +56,21 @@ fn protected() -> Router<AppState> {
         )
 }
 
+/// Running the plant: the operator role and up. Watching a camera is part of
+/// operating it; adding, changing or deleting cameras is configuration.
+fn operate() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/v1/cameras/available",
+            get(video::handlers::list_camera_names),
+        )
+        .route("/api/v1/cameras/{id}/live", get(video::handlers::live_view))
+        .route(
+            "/api/v1/cameras/{id}/snapshots/{snapshot_id}/file",
+            get(video::handlers::snapshot_file),
+        )
+}
+
 fn operator() -> Router<AppState> {
     Router::new()
         .route(
@@ -89,11 +105,6 @@ fn operator() -> Router<AppState> {
             "/api/v1/cameras/{id}/stream",
             get(video::handlers::get_stream_info),
         )
-        .route(
-            "/api/v1/cameras/{id}/snapshots/{snapshot_id}/file",
-            get(video::handlers::snapshot_file),
-        )
-        .route("/api/v1/cameras/{id}/live", get(video::handlers::live_view))
         .route(
             "/api/v1/hub/sites",
             get(hub::handlers::list_sites).post(hub::handlers::create_site),
