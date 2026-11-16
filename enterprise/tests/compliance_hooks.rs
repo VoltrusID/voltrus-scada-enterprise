@@ -402,9 +402,41 @@ async fn part_11_policy_is_enforced_through_the_core_hooks() {
         &node.db(),
         "UPDATE compliance_password_history SET changed_at = changed_at - 91 * 86400 WHERE username = 'op1'",
     );
+    let history_rows = |c: &Connection| -> i64 {
+        c.query_row(
+            "SELECT COUNT(*) FROM compliance_password_history WHERE username = 'op1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    let must_change = |c: &Connection| -> bool {
+        c.query_row(
+            "SELECT must_change_password FROM users WHERE username = 'op1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    let rows_before = history_rows(&c);
     let expired = login(&node, "op1", "Third-Pass-33").await;
     assert_eq!(expired.login["must_change_password"], true);
     assert_eq!(expired.login["password_expired"], true);
+    // The core keeps the flag on the account: the session opened before the
+    // expiry is held to the change too.
+    assert!(must_change(&c));
+    let (s, body) = fresh.get(&node, "/api/v1/screens").await;
+    assert_eq!(s, 403, "{body}");
+    assert_eq!(body["code"], "password_change_required");
+    let (s, me) = expired.get(&node, "/api/v1/auth/me").await;
+    assert_eq!(s, 200);
+    assert_eq!(me["must_change_password"], true);
+    assert_eq!(me["password_expired"], true);
+    // Signing in again while flagged answers the same and records nothing.
+    let again = login(&node, "op1", "Third-Pass-33").await;
+    assert_eq!(again.login["must_change_password"], true);
+    assert_eq!(again.login["password_expired"], true);
+    assert_eq!(history_rows(&c), rows_before, "no row per sign-in or /me");
     let (s, _) = expired
         .post(
             &node,
@@ -413,8 +445,50 @@ async fn part_11_policy_is_enforced_through_the_core_hooks() {
         )
         .await;
     assert_eq!(s, 200);
+    // The change clears the flag and restarts the clock from the new hash.
+    assert!(!must_change(&c));
+    let (kind, hash, age): (String, String, i64) = c
+        .query_row(
+            "SELECT kind, password_hash, strftime('%s','now') - changed_at FROM compliance_password_history
+             WHERE username = 'op1' ORDER BY changed_at DESC, id DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(kind, "self_service");
+    assert!(hash.starts_with("$argon2"));
+    assert!(age < 60, "changed {age}s ago");
+    let (s, body) = again.get(&node, "/api/v1/screens").await;
+    assert_eq!(s, 200, "released once changed: {body}");
     let renewed = login(&node, "op1", "Fourth-Pass-44").await;
     assert_eq!(renewed.login["must_change_password"], false);
+    assert_eq!(renewed.login["password_expired"], false);
+    let (_, me) = renewed.get(&node, "/api/v1/auth/me").await;
+    assert_eq!(me["must_change_password"], false);
+    assert!(!must_change(&c));
+
+    // An account the add-on never saw set (made before the policy): its first
+    // sign-in starts the clock once, and later sign-ins neither expire it nor
+    // add rows.
+    exec(
+        &node.db(),
+        "DELETE FROM compliance_password_history WHERE username = 'admin'",
+    );
+    let first = login(&node, "admin", ADMIN_PASSWORD).await;
+    assert_eq!(first.login["must_change_password"], false);
+    assert_eq!(first.login["password_expired"], false);
+    let second = login(&node, "admin", ADMIN_PASSWORD).await;
+    assert_eq!(second.login["must_change_password"], false);
+    let baselines: Vec<String> = c
+        .prepare("SELECT kind FROM compliance_password_history WHERE username = 'admin'")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(baselines, vec!["baseline".to_string()]);
+    let (s, body) = second.get(&node, "/api/v1/screens").await;
+    assert_eq!(s, 200, "{body}");
     let (s, _) = admin
         .put(
             &node,
