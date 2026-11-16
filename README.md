@@ -11,9 +11,11 @@ Voltrus is open core. The code is split in two parts with two licences:
 | **Enterprise** | [`enterprise/`](enterprise) | [Voltrus Enterprise License](enterprise/LICENSE) (source available) | Needs a paid subscription and a licence key |
 
 Core is the SCADA itself: protocols, dashboards, alarms, historian and the REST
-API. Enterprise adds single sign-on (SAML 2.0, OIDC, LDAP/Active Directory; see [`docs/sso.md`](docs/sso.md)), 21 CFR Part 11 controls, IEC 62443 audit,
-hot standby, multi-site hub, RTSP video, white-label, scheduled reports and
-priority support. The official binary is Core plus the Enterprise crate. Without
+API. Enterprise adds single sign-on (SAML 2.0, OIDC, LDAP/Active Directory;
+see [`docs/enterprise/sso.md`](docs/enterprise/sso.md)), 21 CFR Part 11 controls,
+IEC 62443 audit, hot standby, multi-site hub, RTSP video, white-label
+([`docs/enterprise/branding.md`](docs/enterprise/branding.md)), scheduled reports
+and priority support. The official binary is Core plus the Enterprise crate. Without
 a valid licence key it runs as Community and the Core features keep working.
 
 ## What "source available" means here
@@ -25,7 +27,9 @@ Enterprise code. The full terms are in [`enterprise/LICENSE`](enterprise/LICENSE
 
 The build always enforces licence keys: activations are Ed25519 signed, checked
 offline against the public keys compiled into the binary, and bound to the
-machine fingerprint. See [`enterprise/src/licensing/`](enterprise/src/licensing).
+machine fingerprint. Installing a key (web UI, CLI, offline):
+[`docs/enterprise/licensing.md`](docs/enterprise/licensing.md). Code:
+[`enterprise/src/licensing/`](enterprise/src/licensing).
 
 ## Pricing and licence keys
 
