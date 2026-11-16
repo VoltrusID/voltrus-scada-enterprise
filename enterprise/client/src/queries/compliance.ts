@@ -74,6 +74,34 @@ export function useElectronicSignatures(params: { resource_type?: string; limit?
   })
 }
 
+export interface SignerName {
+  username: string
+  role: string
+  /** Printed with this person's signatures; empty when none is on file. */
+  full_name: string
+}
+
+export function useSignerNames() {
+  return useQuery({
+    queryKey: enterpriseQueryKeys.signerNames,
+    queryFn: () => fetchJson<SignerName[]>('/api/v1/compliance/signer-names'),
+  })
+}
+
+export function useSaveSignerName() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ username, full_name }: { username: string; full_name: string }) => {
+      await fetchOk(`/api/v1/compliance/signer-names/${encodeURIComponent(username)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name }),
+      })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: enterpriseQueryKeys.signerNames }),
+  })
+}
+
 export function useCreateElectronicSignature() {
   const qc = useQueryClient()
   return useMutation({

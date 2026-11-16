@@ -1,6 +1,8 @@
 //! 21 CFR Part 11: electronic signatures, record integrity and password policy.
 
+pub mod export;
 pub mod handlers;
+pub mod pdf;
 
 pub use voltrus::compliance::{ComplianceConfig, ElectronicSignature};
 

@@ -4,4 +4,5 @@ export const enterpriseQueryKeys = {
   securityThresholds: ['securityThresholds'] as const,
   complianceConfig: ['complianceConfig'] as const,
   complianceSignatures: ['complianceSignatures'] as const,
+  signerNames: ['signerNames'] as const,
 }

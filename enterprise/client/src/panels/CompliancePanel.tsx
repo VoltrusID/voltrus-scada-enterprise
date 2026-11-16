@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useComplianceConfig, useUpdateComplianceConfig, useElectronicSignatures, useCreateElectronicSignature } from '../queries/compliance'
 import type { ComplianceConfig, ElectronicSignature, SignatureInput } from '../queries/compliance'
 import { btnStyle, inputStyle, labelStyle, labelTextStyle } from '@voltrus/core/styles'
+import { AuditTrailTab, SignatureExportBar, SignerNamesTab } from './ComplianceExports'
 
-const TABS = ['Policy', 'E-Signatures'] as const
+const TABS = ['Policy', 'E-Signatures', 'Audit trail', 'Signer names'] as const
 const MEANING_OPTIONS = ['Created', 'Approved', 'Reviewed', 'Verified'] as const
 
 function formatDatetime(ts: number): string {
@@ -53,6 +54,8 @@ export function CompliancePanel({ onClose, embedded }: { onClose: () => void; em
       <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
         {tab === 'Policy' && <PolicyTab />}
         {tab === 'E-Signatures' && <ESignaturesTab admin />}
+        {tab === 'Audit trail' && <AuditTrailTab />}
+        {tab === 'Signer names' && <SignerNamesTab />}
       </div>
     </>
   )
@@ -277,11 +280,6 @@ export function ESignaturesTab({ admin = false }: { admin?: boolean } = {}) {
           Electronic Signatures
         </h3>
         <div style={{ display: 'flex', gap: 8 }}>
-          {admin && (
-            <a href="/api/v1/compliance/signatures/export" download style={{ ...btnStyle, textDecoration: 'none' }}>
-              Export CSV
-            </a>
-          )}
           <button
             style={{ ...btnStyle, borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
             onClick={() => setShowSignForm(true)}
@@ -290,6 +288,9 @@ export function ESignaturesTab({ admin = false }: { admin?: boolean } = {}) {
           </button>
         </div>
       </div>
+
+      {/* Export (administrators): the same filter for the CSV and the PDF */}
+      {admin && <SignatureExportBar />}
 
       {/* Table */}
       <div style={{

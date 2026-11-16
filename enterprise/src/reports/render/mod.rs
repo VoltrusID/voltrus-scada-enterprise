@@ -1,6 +1,6 @@
 mod generator;
 mod helpers;
-mod pdf;
+pub(crate) mod pdf;
 
 #[cfg(test)]
 mod tests;
