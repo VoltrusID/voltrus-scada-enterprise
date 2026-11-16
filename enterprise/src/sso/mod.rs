@@ -114,7 +114,7 @@ pub fn auth_providers() -> Vec<serde_json::Value> {
         json!({
             "provider": "oidc",
             "enabled": oidc_enabled,
-            "label": "OpenID Connect",
+            "label": rt.sso.oidc.as_ref().map(|p| p.cfg.label.as_str()).unwrap_or("OpenID Connect"),
             "issuer": if oidc_enabled { rt.oidc.issuer.as_str() } else { "" },
         }),
         json!({

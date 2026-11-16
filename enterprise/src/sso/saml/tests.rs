@@ -606,18 +606,21 @@ async fn idp_metadata_behind_a_private_ca_needs_ca_cert() {
     };
     let public_url = "https://scada.example.com";
 
-    let err = SamlProvider::new(cfg(&|_| {}), public_url)
-        .await
-        .err()
-        .unwrap();
+    // Without the CA the fetch fails: the provider stays up without IdP trust (so a
+    // late IdP is picked up without a restart) and refuses to start a login meanwhile.
+    let untrusted = SamlProvider::new(cfg(&|_| {}), public_url).await.unwrap();
+    assert!(!untrusted.idp_loaded());
+    let err = untrusted.refresh_idp().await.err().unwrap();
     assert!(err.0.contains("fetching IdP metadata"), "{}", err.0);
+    let err = untrusted.begin_login("/").err().unwrap();
+    assert!(err.0.contains("not loaded"), "{}", err.0);
 
     let pem = stub.ca_pem.clone();
-    assert!(
-        SamlProvider::new(cfg(&|c| c.ca_cert = pem.clone()), public_url)
-            .await
-            .is_ok()
-    );
+    let trusted = SamlProvider::new(cfg(&|c| c.ca_cert = pem.clone()), public_url)
+        .await
+        .unwrap();
+    assert!(trusted.idp_loaded());
+    assert!(trusted.begin_login("/").is_ok());
 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("ca.pem");
@@ -626,7 +629,8 @@ async fn idp_metadata_behind_a_private_ca_needs_ca_cert() {
     assert!(
         SamlProvider::new(cfg(&|c| c.ca_cert_file = file.clone()), public_url)
             .await
-            .is_ok()
+            .unwrap()
+            .idp_loaded()
     );
 
     let err = SamlProvider::new(cfg(&|c| c.ca_cert = "not a certificate".into()), public_url)
@@ -634,4 +638,51 @@ async fn idp_metadata_behind_a_private_ca_needs_ca_cert() {
         .err()
         .unwrap();
     assert!(err.0.contains("certificate"), "{}", err.0);
+}
+
+#[tokio::test]
+async fn http_metadata_url_and_unreadable_metadata_file_still_refuse_to_start() {
+    let mut c = SamlConfig::default();
+    c.enabled = true;
+    c.idp_metadata_url = "http://idp.example.com/metadata".into();
+    let err = SamlProvider::new(c, "https://scada.example.com")
+        .await
+        .err()
+        .unwrap();
+    assert!(err.0.contains("https"), "{}", err.0);
+
+    let mut c = SamlConfig::default();
+    c.enabled = true;
+    c.idp_metadata_file = "/nonexistent/idp-metadata.xml".into();
+    let err = SamlProvider::new(c, "https://scada.example.com")
+        .await
+        .err()
+        .unwrap();
+    assert!(err.0.contains("cannot read"), "{}", err.0);
+}
+
+#[tokio::test]
+async fn unreachable_idp_at_startup_is_retried_at_most_once_a_minute() {
+    let mut c = SamlConfig::default();
+    c.enabled = true;
+    // Nothing listens on port 9 (discard); the connection is refused at once.
+    c.idp_metadata_url = "https://127.0.0.1:9/metadata".into();
+    let p = SamlProvider::new(c, "https://scada.example.com")
+        .await
+        .unwrap();
+    assert!(!p.idp_loaded());
+    let before = *p.last_attempt.read().unwrap();
+    p.ensure_idp_loaded().await;
+    assert_eq!(
+        *p.last_attempt.read().unwrap(),
+        before,
+        "retried within the minute"
+    );
+    *p.last_attempt.write().unwrap() = before - METADATA_RETRY_SECS;
+    p.ensure_idp_loaded().await;
+    assert!(
+        *p.last_attempt.read().unwrap() >= before,
+        "retry after a minute"
+    );
+    assert!(!p.idp_loaded());
 }

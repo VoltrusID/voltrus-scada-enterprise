@@ -3,7 +3,7 @@
 
 Plays a browser: a cookie jar, redirects followed, the Keycloak login form posted, the
 SAML auto-submit form posted to the ACS. Real-browser behaviour (SameSite handling) is
-covered by the manual browser run described in docs/sso.md; this suite is the part that
+covered by the manual browser run described in docs/enterprise/sso.md; this suite is the part that
 repeats.
 
   test_live.py            all instances run.sh started
@@ -28,7 +28,7 @@ CTX.verify_mode = ssl.CERT_NONE
 # name -> (public url, admin-log dir, default role expectation for unmapped users)
 INSTANCES = {
     "http": ("http://localhost:3100", "http", "viewer"),
-    "https": ("https://scada.localhost:8443", "https", "viewer"),
+    "https": ("https://scada.localhost:" + os.environ.get("HTTPS_PORT", "8443"), "https", "viewer"),
     "strict": ("http://localhost:3102", "strict", None),  # default_role "": unmapped users are refused
     "tlsidp": ("http://localhost:3103", "tlsidp", "viewer"),  # Keycloak over https, private CA
 }

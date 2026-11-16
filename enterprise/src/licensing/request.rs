@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 
 const REQUEST_MAGIC: &[u8] = b"VOLREQ\x01";
 
+/// Where a customer uploads `license-request.bin` for offline activation. The page posts
+/// to the activation worker (`activate.voltrus.id/activate`), whose root has no page.
+pub const ACTIVATION_UPLOAD_PAGE: &str = "https://voltrus.id/activate/";
+
 /// Longest site name the issuer accepts.
 pub const MAX_SITE_NAME_CHARS: usize = 120;
 

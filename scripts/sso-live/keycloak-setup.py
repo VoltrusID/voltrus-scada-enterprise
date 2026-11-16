@@ -129,7 +129,9 @@ def realm_exists(tok):
 
 
 def public_urls():
-    return [u for u in os.environ.get("VOLTRUS_PUBLIC_URLS", "http://localhost:3100,https://scada.localhost:8443,http://localhost:3102,http://localhost:3103").split(",") if u]
+    https = "https://scada.localhost:" + os.environ.get("HTTPS_PORT", "8443")
+    default = f"http://localhost:3100,{https},http://localhost:3102,http://localhost:3103"
+    return [u for u in os.environ.get("VOLTRUS_PUBLIC_URLS", default).split(",") if u]
 
 
 def register_saml(tok, public_url):

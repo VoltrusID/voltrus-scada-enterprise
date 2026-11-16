@@ -39,6 +39,8 @@ const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 const REQUEST_TTL_SECS: i64 = 600;
 /// Pending logins held at once; bounds memory against unauthenticated floods.
 const MAX_PENDING: usize = 10_000;
+/// How often metadata that failed to load at startup is retried.
+const METADATA_RETRY_SECS: i64 = 60;
 
 /// `sso.saml` in the configuration file.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -681,6 +683,8 @@ pub struct SamlProvider {
     source: MetadataSource,
     idp: RwLock<IdpInfo>,
     last_refresh: RwLock<i64>,
+    /// Last attempt to load metadata that never loaded (see `ensure_idp_loaded`).
+    last_attempt: RwLock<i64>,
     sp_certificate: String,
     signing_key: Option<rsa::RsaPrivateKey>,
     pending: DashMap<String, PendingRequest>,
@@ -722,6 +726,9 @@ impl SamlProvider {
         }
 
         let source = if !cfg.idp_metadata_url.is_empty() {
+            if !cfg.idp_metadata_url.starts_with("https://") {
+                return fail("idp_metadata_url must be https");
+            }
             MetadataSource::Url(cfg.idp_metadata_url.clone())
         } else if !cfg.idp_metadata_file.is_empty() {
             MetadataSource::File(cfg.idp_metadata_file.clone())
@@ -786,6 +793,7 @@ impl SamlProvider {
                 keys: Vec::new(),
             }),
             last_refresh: RwLock::new(0),
+            last_attempt: RwLock::new(now_secs()),
             sp_certificate,
             signing_key,
             pending: DashMap::new(),
@@ -793,8 +801,45 @@ impl SamlProvider {
             http,
             cfg,
         };
-        provider.refresh_idp().await?;
+        match (&provider.source, provider.refresh_idp().await) {
+            (_, Ok(())) => {}
+            // The IdP being unreachable at boot (a power cut that restarts everything, the
+            // network up after Voltrus) must not turn SAML off until the next restart:
+            // keep the provider and retry in the background and at the next sign-in.
+            (MetadataSource::Url(url), Err(e)) => tracing::warn!(
+                "SAML IdP metadata from {url} could not be loaded yet ({e}); SAML sign-in \
+                 answers \"unavailable\" until it loads, retried every {}s",
+                METADATA_RETRY_SECS
+            ),
+            (_, Err(e)) => return Err(e),
+        }
         Ok(Arc::new(provider))
+    }
+
+    /// True once the IdP's identity and signing keys are known.
+    pub fn idp_loaded(&self) -> bool {
+        let idp = self.idp.read().unwrap_or_else(|e| e.into_inner());
+        !idp.sso_url.is_empty() && !idp.keys.is_empty()
+    }
+
+    /// Load the IdP metadata now if it never loaded (IdP unreachable at boot), at most
+    /// once per [`METADATA_RETRY_SECS`] so a burst of sign-in clicks does not hammer it.
+    pub async fn ensure_idp_loaded(&self) {
+        if self.idp_loaded() {
+            return;
+        }
+        let now = now_secs();
+        {
+            let mut last = self.last_attempt.write().unwrap_or_else(|e| e.into_inner());
+            if now - *last < METADATA_RETRY_SECS {
+                return;
+            }
+            *last = now;
+        }
+        match self.refresh_idp().await {
+            Ok(()) => tracing::info!("SAML IdP metadata loaded"),
+            Err(e) => tracing::warn!("SAML IdP metadata still unavailable: {e}"),
+        }
     }
 
     /// A provider with the IdP already known and no network or files involved.
@@ -803,6 +848,7 @@ impl SamlProvider {
             source: MetadataSource::Explicit,
             idp: RwLock::new(idp),
             last_refresh: RwLock::new(now_secs()),
+            last_attempt: RwLock::new(now_secs()),
             sp_certificate: String::new(),
             signing_key: None,
             pending: DashMap::new(),
@@ -857,6 +903,12 @@ impl SamlProvider {
         tokio::spawn(async move {
             let period =
                 std::time::Duration::from_secs(me.cfg.metadata_refresh_hours.max(1) * 3600);
+            // Metadata that did not load at boot is retried every minute until it does.
+            while !me.idp_loaded() {
+                tokio::time::sleep(std::time::Duration::from_secs(METADATA_RETRY_SECS as u64))
+                    .await;
+                me.ensure_idp_loaded().await;
+            }
             let mut tick = tokio::time::interval(period);
             tick.tick().await;
             loop {
@@ -882,6 +934,9 @@ impl SamlProvider {
     /// Start a login: remember the request and return the IdP redirect URL plus
     /// the value to bind to the browser.
     pub fn begin_login(&self, return_to: &str) -> Result<(String, String), SamlError> {
+        if !self.idp_loaded() {
+            return fail("IdP metadata has not loaded yet (IdP unreachable)");
+        }
         let now = now_secs();
         self.pending
             .retain(|_, p| now - p.created < REQUEST_TTL_SECS);
