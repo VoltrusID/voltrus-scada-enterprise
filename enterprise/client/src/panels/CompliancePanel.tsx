@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useComplianceConfig, useUpdateComplianceConfig, useElectronicSignatures, useCreateElectronicSignature } from '../queries/compliance'
-import type { ComplianceConfig, ElectronicSignature } from '../queries/compliance'
+import type { ComplianceConfig, ElectronicSignature, SignatureInput } from '../queries/compliance'
 import { btnStyle, inputStyle, labelStyle, labelTextStyle } from '@voltrus/core/styles'
 
 const TABS = ['Policy', 'E-Signatures'] as const
@@ -52,7 +52,7 @@ export function CompliancePanel({ onClose, embedded }: { onClose: () => void; em
 
       <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
         {tab === 'Policy' && <PolicyTab />}
-        {tab === 'E-Signatures' && <ESignaturesTab />}
+        {tab === 'E-Signatures' && <ESignaturesTab admin />}
       </div>
     </>
   )
@@ -138,6 +138,11 @@ function PolicyTab() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 520 }}>
+      <p role="note" style={{ fontSize: 12, color: 'var(--warn)', lineHeight: 1.5 }}>
+        This policy is stored and exported with the project, but the server does not enforce it yet:
+        sign-in sessions, password rules and rotation follow the core defaults (15 minute access token,
+        8 character minimum, lockout after 10 wrong passwords). See docs/enterprise/part-11.md.
+      </p>
       {/* Session */}
       <section>
         <h3 style={sectionHeader}>Session</h3>
@@ -242,9 +247,9 @@ function PolicyTab() {
 
 /* ── E-Signatures Tab ───────────────────────────────────────────── */
 
-function ESignaturesTab() {
+export function ESignaturesTab({ admin = false }: { admin?: boolean } = {}) {
   const { data: sigData, isLoading } = useElectronicSignatures({ limit: 100 })
-  const signatures = sigData?.signatures ?? []
+  const signatures = sigData ?? []
   const createMut = useCreateElectronicSignature()
 
   const [showSignForm, setShowSignForm] = useState(false)
@@ -271,12 +276,19 @@ function ESignaturesTab() {
         }}>
           Electronic Signatures
         </h3>
-        <button
-          style={{ ...btnStyle, borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
-          onClick={() => setShowSignForm(true)}
-        >
-          + Sign
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {admin && (
+            <a href="/api/v1/compliance/signatures/export" download style={{ ...btnStyle, textDecoration: 'none' }}>
+              Export CSV
+            </a>
+          )}
+          <button
+            style={{ ...btnStyle, borderColor: 'var(--cyan)', color: 'var(--cyan)' }}
+            onClick={() => setShowSignForm(true)}
+          >
+            + Sign
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -365,7 +377,7 @@ function ESignatureRow({ sig, tdStyle }: { sig: ElectronicSignature; tdStyle: Re
 }
 
 function SignDialog({ onSave, onClose, loading, error }: {
-  onSave: (d: { resource_type: string; resource_id: string; reason: string; meaning: string }) => void
+  onSave: (d: SignatureInput) => void
   onClose: () => void
   loading?: boolean
   error?: string
@@ -374,8 +386,9 @@ function SignDialog({ onSave, onClose, loading, error }: {
   const [resourceId, setResourceId] = useState('')
   const [reason, setReason] = useState('')
   const [meaning, setMeaning] = useState<string>('Created')
+  const [password, setPassword] = useState('')
 
-  const canSubmit = resourceType.trim() && resourceId.trim() && reason.trim()
+  const canSubmit = resourceType.trim() && resourceId.trim() && reason.trim() && password
 
   return (
     <div style={{
@@ -393,7 +406,7 @@ function SignDialog({ onSave, onClose, loading, error }: {
           Create Electronic Signature
         </h3>
         <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>
-          Record a new e-signature event per 21 CFR Part 11 requirements.
+          Sign a record as yourself. The signature stores your user name, the time and the meaning, and needs your password again.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -441,6 +454,18 @@ function SignDialog({ onSave, onClose, loading, error }: {
             </select>
           </label>
 
+          <label style={labelStyle}>
+            <span style={labelTextStyle}>Your password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              placeholder="Confirm it is you"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              style={inputStyle}
+            />
+          </label>
+
           {error && <p style={{ fontSize: 12, color: 'var(--crit)' }}>{error}</p>}
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
@@ -452,6 +477,7 @@ function SignDialog({ onSave, onClose, loading, error }: {
                 resource_id: resourceId.trim(),
                 reason: reason.trim(),
                 meaning,
+                password,
               })}
               disabled={!canSubmit || loading}
             >

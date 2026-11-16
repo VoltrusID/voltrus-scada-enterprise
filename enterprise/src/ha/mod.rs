@@ -9,7 +9,7 @@
 //! * `node` and `session`: roles, epochs, the replication sessions, failover.
 //! * `boot`: deciding the role before any poller starts.
 //!
-//! The design notes and the data-loss bound are in `docs/hot-standby.md`.
+//! The design notes and the data-loss bound are in `docs/enterprise/hot-standby.md`.
 
 mod boot;
 pub mod ha_api;

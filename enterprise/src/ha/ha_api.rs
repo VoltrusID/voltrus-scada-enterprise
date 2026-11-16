@@ -139,3 +139,36 @@ pub async fn force_failover(
         ),
     }
 }
+
+/// The answer of the public active-node probe: 200 on the node that acts,
+/// 503 on a standby or fenced node.
+pub fn active_probe(active: bool) -> (StatusCode, Json<serde_json::Value>) {
+    if active {
+        (StatusCode::OK, Json(json!({"active": true})))
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"active": false})),
+        )
+    }
+}
+
+/// GET /api/v1/ha/active (no sign-in)
+///
+/// For a load balancer or keepalived health check: 200 only on the node that
+/// is active (a single node without hot standby is always active), so traffic
+/// follows a failover. It tells nothing but that.
+pub async fn ha_active() -> impl IntoResponse {
+    active_probe(voltrus::node_role::is_active())
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+
+    #[test]
+    fn only_the_active_node_answers_ok() {
+        assert_eq!(active_probe(true).0, StatusCode::OK);
+        assert_eq!(active_probe(false).0, StatusCode::SERVICE_UNAVAILABLE);
+    }
+}

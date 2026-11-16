@@ -12,7 +12,16 @@ pub struct CreateSignatureRequest {
     pub resource_id: String,
     pub reason: String,
     pub meaning: String,
+    /// The signer's own password, checked again at signing (21 CFR 11.200(a)):
+    /// a signature is never made from the session alone.
+    #[serde(default)]
+    pub password: String,
 }
+
+/// Failed signature re-authentications that lock the account, like failed
+/// sign-ins do in the core (15 minutes).
+pub const SIGN_LOCK_AFTER_FAILURES: i64 = 10;
+pub const SIGN_LOCK_SECS: i64 = 900;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateComplianceConfigRequest {
@@ -90,6 +99,69 @@ pub fn generate_signature_hash(
         user_id, action, resource_type, resource_id, reason, meaning, timestamp
     );
     compute_record_checksum(&payload)
+}
+
+/// Recompute a stored signature's hash. Rows written before the handler
+/// stored its own timestamp may carry a `created_at` up to two seconds after
+/// the one that was hashed, so those are accepted too.
+pub fn signature_matches(sig: &ElectronicSignature) -> bool {
+    (0..=2).any(|skew| {
+        let expected = generate_signature_hash(
+            &sig.user_id,
+            &sig.action,
+            &sig.resource_type,
+            &sig.resource_id,
+            &sig.reason,
+            &sig.meaning,
+            sig.created_at - skew,
+        );
+        expected == sig.signature_hash
+    })
+}
+
+fn csv_field(s: &str) -> String {
+    let s = s.replace(['\r', '\n'], " ");
+    // A leading formula character would run as a formula in a spreadsheet.
+    let s = if s.starts_with(['=', '+', '-', '@']) {
+        format!("'{s}")
+    } else {
+        s
+    };
+    if s.contains([',', '"']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s
+    }
+}
+
+/// The signatures as CSV, with the time in UTC and whether each hash verifies.
+pub fn signatures_csv(signatures: &[ElectronicSignature]) -> String {
+    let mut out = String::from(
+        "id,signed_at_utc,signer,meaning,reason,action,resource_type,resource_id,signature_hash,hash_valid\n",
+    );
+    for s in signatures {
+        let when = time::OffsetDateTime::from_unix_timestamp(s.created_at)
+            .ok()
+            .and_then(|t| {
+                t.format(&time::format_description::well_known::Rfc3339)
+                    .ok()
+            })
+            .unwrap_or_else(|| s.created_at.to_string());
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{},{}\n",
+            s.id,
+            when,
+            csv_field(&s.user_id),
+            csv_field(&s.meaning),
+            csv_field(&s.reason),
+            csv_field(&s.action),
+            csv_field(&s.resource_type),
+            csv_field(&s.resource_id),
+            s.signature_hash,
+            signature_matches(s),
+        ));
+    }
+    out
 }
 
 // ── Tests ──
@@ -175,6 +247,66 @@ mod tests {
             "user2", "create", "recipe", "42", "approved", "Created", 1000,
         );
         assert_ne!(hash1, hash2);
+    }
+
+    fn signed(created_at: i64, hashed_at: i64) -> ElectronicSignature {
+        ElectronicSignature {
+            id: 1,
+            user_id: "op1".into(),
+            action: "sign".into(),
+            resource_type: "batch".into(),
+            resource_id: "B-17".into(),
+            reason: "Release, after QA".into(),
+            meaning: "Approved".into(),
+            signature_hash: generate_signature_hash(
+                "op1",
+                "sign",
+                "batch",
+                "B-17",
+                "Release, after QA",
+                "Approved",
+                hashed_at,
+            ),
+            created_at,
+        }
+    }
+
+    #[test]
+    fn signature_hash_verifies_and_detects_tampering() {
+        let sig = signed(1000, 1000);
+        assert!(signature_matches(&sig));
+        // A legacy row stored a second after it was hashed.
+        assert!(signature_matches(&signed(1001, 1000)));
+        let mut tampered = sig.clone();
+        tampered.meaning = "Reviewed".into();
+        assert!(!signature_matches(&tampered));
+        let mut moved = sig;
+        moved.created_at = 5000;
+        assert!(!signature_matches(&moved));
+    }
+
+    #[test]
+    fn signatures_csv_quotes_and_flags_validity() {
+        let mut bad = signed(1000, 1000);
+        bad.id = 2;
+        bad.user_id = "=cmd".into();
+        let csv = signatures_csv(&[signed(1000, 1000), bad]);
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert!(lines[0].starts_with("id,signed_at_utc,signer,meaning,reason"));
+        assert!(lines[1].starts_with("1,1970-01-01T00:16:40Z,op1,Approved,\"Release, after QA\""));
+        assert!(lines[1].ends_with(",true"));
+        assert!(lines[2].contains(",'=cmd,"));
+        assert!(lines[2].ends_with(",false"));
+    }
+
+    #[test]
+    fn sign_request_takes_the_password() {
+        let req: CreateSignatureRequest = serde_json::from_str(
+            r#"{"resource_type":"batch","resource_id":"1","reason":"r","meaning":"Approved","password":"pw"}"#,
+        )
+        .unwrap();
+        assert_eq!(req.password, "pw");
     }
 
     #[test]

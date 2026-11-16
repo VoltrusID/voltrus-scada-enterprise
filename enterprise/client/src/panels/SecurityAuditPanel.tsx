@@ -8,7 +8,11 @@ const EVENT_TYPES = [
   { value: 'login_failed', label: 'Login Failed' },
   { value: 'login_locked', label: 'Account Locked' },
   { value: 'auth_401', label: 'Auth 401' },
+  { value: 'login_disabled', label: 'Disabled Account Login' },
   { value: 'config_change', label: 'Config Change' },
+  { value: 'signature_auth_failed', label: 'E-Signature Wrong Password' },
+  { value: 'device_connected', label: 'Device Connected' },
+  { value: 'device_disconnected', label: 'Device Disconnected' },
 ] as const
 
 const SEVERITY_OPTIONS = [

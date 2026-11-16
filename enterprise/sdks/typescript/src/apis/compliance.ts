@@ -6,9 +6,10 @@ import type {
   ElectronicSignature,
   ListSignaturesQuery,
   UpdateComplianceConfigRequest,
+  VerifySignaturesResponse,
 } from '../types';
 
-/** 21 CFR Part 11: compliance settings and electronic signatures. Admin only, Enterprise tier. */
+/** 21 CFR Part 11: compliance settings and electronic signatures. Enterprise tier. Signing and listing need an operator or admin session; config, verify and export need an admin. */
 export class ComplianceApi {
   constructor(private readonly http: HttpClient) {}
 
@@ -28,5 +29,10 @@ export class ComplianceApi {
 
   async listSignatures(query: ListSignaturesQuery = {}): Promise<ElectronicSignature[]> {
     return this.http.get('/api/v1/compliance/signatures', query);
+  }
+
+  /** Recompute every signature hash. */
+  async verifySignatures(): Promise<VerifySignaturesResponse> {
+    return this.http.get('/api/v1/compliance/signatures/verify');
   }
 }

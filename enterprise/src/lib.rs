@@ -73,8 +73,8 @@ impl Extension for Enterprise {
         })
     }
 
-    fn routes(&self, _state: &AppState) -> ExtensionRoutes {
-        routes::routes()
+    fn routes(&self, state: &AppState) -> ExtensionRoutes {
+        routes::routes(state)
     }
 
     fn authenticate_bearer<'a>(

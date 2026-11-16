@@ -34,7 +34,7 @@ Request and response shapes come from `enterprise/src/**/handlers.rs`,
 | Group (TypeScript) | Python methods | Endpoints |
 | --- | --- | --- |
 | `license` | `get_license_status` (public client), `activate_license`, `request_license`, `refresh_license` | `/api/license/status`, `activate`, `request`, `refresh` |
-| `compliance` | `get_compliance_config`, `update_compliance_config`, `sign_record`, `list_signatures` | `/api/v1/compliance/config`, `sign`, `signatures` |
+| `compliance` | `get_compliance_config`, `update_compliance_config`, `sign_record`, `list_signatures`, `verify_signatures` | `/api/v1/compliance/config`, `sign`, `signatures`, `signatures/verify` |
 | `security` | `list_security_events`, `export_security_events_csv`, `get_security_thresholds`, `update_security_thresholds` | `/api/v1/security/events`, `events/export`, `thresholds` |
 | `hub` | `list_hub_sites`, `create_hub_site`, `update_hub_site`, `delete_hub_site`, `start_hub_site`, `stop_hub_site`, `get_hub_status` | `/api/v1/hub/sites`, `sites/{id}`, `start`, `stop`, `/api/v1/hub/status` |
 | `cameras` | `list_cameras`, `create_camera`, `update_camera`, `delete_camera`, `get_camera_stream`, `trigger_snapshot`, `list_snapshots`, `delete_snapshot` | `/api/v1/cameras...` |

@@ -5,7 +5,8 @@ use voltrus::edition::ExtensionRoutes;
 
 use crate::{audit, branding, compliance, ha, hub, licensing, reports, sso, video};
 
-pub(crate) fn routes() -> ExtensionRoutes {
+pub(crate) fn routes(state: &AppState) -> ExtensionRoutes {
+    reports::scheduler::set_live_smtp(state.smtp_config.clone());
     ExtensionRoutes {
         public: public(),
         protected: protected(),
@@ -32,10 +33,22 @@ fn public() -> Router<AppState> {
             "/api/v1/settings/branding",
             get(branding::handlers::get_branding),
         )
+        .route("/api/v1/ha/active", get(ha::ha_api::ha_active))
 }
 
 fn protected() -> Router<AppState> {
-    Router::new().route("/api/v1/ha/status", get(ha::ha_api::ha_status))
+    Router::new()
+        .route("/api/v1/ha/status", get(ha::ha_api::ha_status))
+        // Any person with a local account signs for themselves (a read-only QA
+        // reviewer too); the handler refuses API keys and checks the password.
+        .route(
+            "/api/v1/compliance/sign",
+            post(compliance::handlers::create_electronic_signature),
+        )
+        .route(
+            "/api/v1/compliance/signatures",
+            get(compliance::handlers::list_electronic_signatures),
+        )
 }
 
 fn operator() -> Router<AppState> {
@@ -69,6 +82,11 @@ fn operator() -> Router<AppState> {
             get(video::handlers::get_stream_info),
         )
         .route(
+            "/api/v1/cameras/{id}/snapshots/{snapshot_id}/file",
+            get(video::handlers::snapshot_file),
+        )
+        .route("/api/v1/cameras/{id}/live", get(video::handlers::live_view))
+        .route(
             "/api/v1/hub/sites",
             get(hub::handlers::list_sites).post(hub::handlers::create_site),
         )
@@ -85,6 +103,10 @@ fn operator() -> Router<AppState> {
             post(hub::handlers::stop_site_connection),
         )
         .route("/api/v1/hub/status", get(hub::handlers::get_hub_status))
+        .route(
+            "/api/v1/hub/sites/{id}/import-tags",
+            post(hub::handlers::import_site_tags),
+        )
         .route(
             "/api/v1/reports",
             get(reports::handlers::list_reports).post(reports::handlers::create_report),
@@ -112,12 +134,12 @@ fn admin() -> Router<AppState> {
                 .put(compliance::handlers::update_compliance_config),
         )
         .route(
-            "/api/v1/compliance/sign",
-            post(compliance::handlers::create_electronic_signature),
+            "/api/v1/compliance/signatures/verify",
+            get(compliance::handlers::verify_electronic_signatures),
         )
         .route(
-            "/api/v1/compliance/signatures",
-            get(compliance::handlers::list_electronic_signatures),
+            "/api/v1/compliance/signatures/export",
+            get(compliance::handlers::export_electronic_signatures),
         )
         .route(
             "/api/v1/security/events",

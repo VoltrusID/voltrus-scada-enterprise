@@ -57,7 +57,7 @@ class VoltrusEnterpriseClient(VoltrusClient):
         """Renew a monthly key online. Returns ``{"ok": True, "status": {...}}``."""
         return self._request("POST", "/api/license/refresh")
 
-    # ── Compliance (21 CFR Part 11), admin only ─────────────
+    # ── Compliance (21 CFR Part 11): sign/list operator+, the rest admin ──
 
     def get_compliance_config(self) -> Dict[str, Any]:
         """Compliance settings (auto logout, password policy, rotation)."""
@@ -71,10 +71,16 @@ class VoltrusEnterpriseClient(VoltrusClient):
         return self._request("PUT", "/api/v1/compliance/config", body=changes)
 
     def sign_record(
-        self, resource_type: str, resource_id: str, reason: str, meaning: str
+        self,
+        resource_type: str,
+        resource_id: str,
+        reason: str,
+        meaning: str,
+        password: str,
     ) -> Dict[str, Any]:
-        """Sign a resource as the logged-in user. ``reason`` and ``meaning`` must
-        not be blank. Returns ``{"ok", "id", "signature_hash", "created_at"}``."""
+        """Sign a resource as the logged-in user, who enters their password again
+        (21 CFR 11.200). ``reason`` and ``meaning`` must not be blank. Returns
+        ``{"ok", "id", "signer", "meaning", "signature_hash", "created_at"}``."""
         return self._request(
             "POST",
             "/api/v1/compliance/sign",
@@ -83,8 +89,13 @@ class VoltrusEnterpriseClient(VoltrusClient):
                 "resource_id": resource_id,
                 "reason": reason,
                 "meaning": meaning,
+                "password": password,
             },
         )
+
+    def verify_signatures(self) -> Dict[str, Any]:
+        """Recompute every signature hash: ``{"ok", "checked", "invalid_ids"}``."""
+        return self._request("GET", "/api/v1/compliance/signatures/verify")
 
     def list_signatures(
         self,

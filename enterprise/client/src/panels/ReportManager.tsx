@@ -5,6 +5,7 @@ import {
   useUpdateReport,
   useDeleteReport,
   useGenerateReport,
+  useDownloadReportPdf,
 } from '../queries/reports'
 import type { Report } from '../queries/reports'
 import { inputStyle, btnStyle } from '@voltrus/core/styles'
@@ -71,6 +72,7 @@ export function ReportManager({ onClose, embedded }: { onClose: () => void; embe
   const updateMut = useUpdateReport()
   const deleteMut = useDeleteReport()
   const generateMut = useGenerateReport()
+  const pdfMut = useDownloadReportPdf()
 
   const [showForm, setShowForm] = useState(false)
   const [editState, setEditState] = useState<EditState | null>(null)
@@ -342,9 +344,25 @@ export function ReportManager({ onClose, embedded }: { onClose: () => void; embe
                               cursor: 'pointer',
                               fontSize: 11,
                             }}
-                            aria-label={`Generate ${r.name}`}
+                            aria-label={`Preview ${r.name}`}
                           >
-                            {generateMut.isPending ? '...' : 'Generate'}
+                            {generateMut.isPending ? '...' : 'Preview'}
+                          </button>
+                          <button
+                            onClick={() => pdfMut.mutate({ id: r.id, name: r.name }, { onError: () => alert('Failed to generate the PDF') })}
+                            disabled={pdfMut.isPending}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              border: '1px solid var(--green)',
+                              background: 'transparent',
+                              color: 'var(--green)',
+                              cursor: 'pointer',
+                              fontSize: 11,
+                            }}
+                            aria-label={`Download ${r.name} as PDF`}
+                          >
+                            {pdfMut.isPending ? '...' : 'PDF'}
                           </button>
                           <button
                             onClick={() => startEdit(r)}

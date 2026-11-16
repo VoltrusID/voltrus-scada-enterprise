@@ -1,21 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchJson, fetchOk } from '@voltrus/core/queries/fetch'
 
-export interface Report {
-  id: number
-  name: string
-  schedule: string
-  enabled: boolean
-  device_ids: number[]
-  email_recipients: string[]
-  last_generated: string | null
-  created_at: string
-}
+import { normalizeReport, type Report } from './reportModel'
+export type { Report } from './reportModel'
 
 export interface CreateReportInput {
   name: string
   schedule: string
-  device_ids?: number[]
+  device_ids?: string[]
   email_recipients?: string[]
   enabled?: boolean
 }
@@ -23,7 +15,7 @@ export interface CreateReportInput {
 export interface UpdateReportInput {
   name?: string
   schedule?: string
-  device_ids?: number[]
+  device_ids?: string[]
   email_recipients?: string[]
   enabled?: boolean
 }
@@ -31,7 +23,10 @@ export interface UpdateReportInput {
 export function useReports() {
   return useQuery({
     queryKey: ['reports'],
-    queryFn: () => fetchJson<Report[]>('/api/v1/reports'),
+    queryFn: async (): Promise<Report[]> => {
+      const rows = await fetchJson<unknown[]>('/api/v1/reports')
+      return Array.isArray(rows) ? rows.map(normalizeReport) : []
+    },
   })
 }
 
@@ -89,6 +84,22 @@ export function useGenerateReport() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['reports'] })
+    },
+  })
+}
+
+/** Download a preview PDF (does not move the schedule or send mail). */
+export function useDownloadReportPdf() {
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const r = await fetchOk(`/api/v1/reports/${id}/generate?format=pdf`, { method: 'POST' })
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name.replace(/[^\w.-]+/g, '_') || 'report'}.pdf`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
     },
   })
 }

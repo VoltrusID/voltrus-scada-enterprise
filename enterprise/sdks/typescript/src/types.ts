@@ -93,13 +93,23 @@ export interface CreateSignatureRequest {
   reason: string;
   /** Required, must not be blank. */
   meaning: string;
+  /** The signer's own password, checked again (21 CFR 11.200). Required. */
+  password: string;
 }
 
 export interface CreateSignatureResponse {
   ok: boolean;
   id: number;
+  signer: string;
+  meaning: string;
   signature_hash: string;
   created_at: number;
+}
+
+export interface VerifySignaturesResponse {
+  ok: boolean;
+  checked: number;
+  invalid_ids: number[];
 }
 
 export interface ElectronicSignature {

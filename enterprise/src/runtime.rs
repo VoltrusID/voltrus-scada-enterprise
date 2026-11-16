@@ -38,9 +38,15 @@ pub struct Runtime {
     hub_started: AtomicBool,
     scheduler_started: AtomicBool,
     ha_started: AtomicBool,
+    video_started: AtomicBool,
 }
 
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+/// The add-on runtime, or `None` before the extension started.
+pub fn try_rt() -> Option<&'static Runtime> {
+    RUNTIME.get()
+}
 
 /// The add-on runtime. Panics if called before the extension started.
 pub fn rt() -> &'static Runtime {
@@ -85,19 +91,18 @@ impl Runtime {
             }
         }
 
+        // The scheduler always runs with the licence: reports are saved to disk
+        // and mailed once SMTP is set, even if that happens after start.
         if tier.pdf_reporting() && !self.scheduler_started.swap(true, Ordering::SeqCst) {
-            if let Some(ref notifier) = self.email_notifier {
-                reports::scheduler::start_report_scheduler(
-                    self.storage.clone(),
-                    self.cache.clone(),
-                    notifier.clone(),
-                );
-                tracing::info!("PDF report scheduler started");
-            } else {
-                tracing::info!(
-                    "PDF reporting enabled but SMTP not configured: report scheduler not started"
-                );
-            }
+            reports::scheduler::start_report_scheduler(
+                self.storage.clone(),
+                self.config.db_path.clone(),
+                self.config.smtp.clone(),
+            );
+        }
+
+        if tier.rtsp_video() && !self.video_started.swap(true, Ordering::SeqCst) {
+            crate::video::watcher::start(self.storage.clone(), self.stream_proxy.clone());
         }
 
         if tier.ha() && self.ha_state.is_enabled() && !self.ha_started.swap(true, Ordering::SeqCst)
@@ -165,6 +170,13 @@ pub(crate) async fn start(ctx: StartContext) {
         HaState::disabled()
     });
 
+    let snapshot_dir = std::path::Path::new(&ctx.config.db_path)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("snapshots")
+        .to_string_lossy()
+        .into_owned();
     let runtime = Runtime {
         config: ctx.config,
         storage: ctx.storage.clone(),
@@ -174,7 +186,8 @@ pub(crate) async fn start(ctx: StartContext) {
         license_status: ctx.license_status.clone(),
         email_notifier: ctx.email_notifier,
         hub: HubManager::new(),
-        stream_proxy: Arc::new(StreamProxy::new("snapshots")),
+        // Snapshots are kept next to the database, like the reports.
+        stream_proxy: Arc::new(StreamProxy::new(&snapshot_dir)),
         ha_state,
         oidc,
         jwks,
@@ -182,6 +195,7 @@ pub(crate) async fn start(ctx: StartContext) {
         hub_started: AtomicBool::new(false),
         scheduler_started: AtomicBool::new(false),
         ha_started: AtomicBool::new(false),
+        video_started: AtomicBool::new(false),
     };
     if RUNTIME.set(runtime).is_err() {
         tracing::warn!("enterprise runtime was already started");

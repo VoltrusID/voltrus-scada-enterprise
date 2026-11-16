@@ -49,6 +49,15 @@ export function useUpdateComplianceConfig() {
   })
 }
 
+/** What the signer enters. `password` is their own, checked again by the server. */
+export interface SignatureInput {
+  resource_type: string
+  resource_id: string
+  reason: string
+  meaning: string
+  password: string
+}
+
 export function useElectronicSignatures(params: { resource_type?: string; limit?: number } = {}, enabled = true) {
   const sp = new URLSearchParams()
   if (params.resource_type) sp.set('resource_type', params.resource_type)
@@ -56,7 +65,11 @@ export function useElectronicSignatures(params: { resource_type?: string; limit?
   const qs = sp.toString()
   return useQuery({
     queryKey: [...enterpriseQueryKeys.complianceSignatures, params],
-    queryFn: () => fetchJson<{ signatures: ElectronicSignature[] }>(`/api/v1/compliance/signatures${qs ? '?' + qs : ''}`),
+    // The server answers a bare array (older builds were documented as { signatures }).
+    queryFn: async () => {
+      const data = await fetchJson<ElectronicSignature[] | { signatures: ElectronicSignature[] }>(`/api/v1/compliance/signatures${qs ? '?' + qs : ''}`)
+      return Array.isArray(data) ? data : (data?.signatures ?? [])
+    },
     enabled,
   })
 }
@@ -64,7 +77,7 @@ export function useElectronicSignatures(params: { resource_type?: string; limit?
 export function useCreateElectronicSignature() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (sig: { resource_type: string; resource_id: string; reason: string; meaning: string }) => {
+    mutationFn: async (sig: SignatureInput) => {
       const res = await fetchOk('/api/v1/compliance/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

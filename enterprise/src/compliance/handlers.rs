@@ -144,6 +144,18 @@ pub async fn create_electronic_signature(
             .into_response());
     }
 
+    if body.resource_type.trim().is_empty() || body.resource_id.trim().is_empty() {
+        return Ok((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "resource_type and resource_id are required"})),
+        )
+            .into_response());
+    }
+
+    if let Some(refused) = reauthenticate(&state, &auth.username, &body.password).await {
+        return Ok(refused);
+    }
+
     let now = voltrus::timeutil::now_secs();
     let signature_hash = generate_signature_hash(
         &auth.username,
@@ -155,33 +167,181 @@ pub async fn create_electronic_signature(
         now,
     );
 
-    let id = state
-        .storage
-        .create_electronic_signature(
-            &auth.username,
-            "sign",
-            &body.resource_type,
-            &body.resource_id,
-            &body.reason,
-            &body.meaning,
-            &signature_hash,
-        )
-        .await?;
+    // Stored with the same timestamp that was hashed, so the hash verifies.
+    let id = {
+        let (user, rtype, rid, reason, meaning, hash) = (
+            auth.username.clone(),
+            body.resource_type.clone(),
+            body.resource_id.clone(),
+            body.reason.clone(),
+            body.meaning.clone(),
+            signature_hash.clone(),
+        );
+        state
+            .storage
+            .with_conn(move |conn| {
+                conn.execute(
+                    "INSERT INTO electronic_signatures (user_id, action, resource_type, resource_id, reason, meaning, signature_hash, created_at) VALUES (?1, 'sign', ?2, ?3, ?4, ?5, ?6, ?7)",
+                    rusqlite::params![user, rtype, rid, reason, meaning, hash, now],
+                )?;
+                Ok(conn.last_insert_rowid())
+            })
+            .await?
+    };
 
     state.audit_logger.log(voltrus::security::AuditEvent {
         action: "electronic_signature".to_string(),
         username: auth.username.clone(),
         resource: format!("{}:{}", body.resource_type, body.resource_id),
-        details: Some(format!("meaning={}, id={}", body.meaning, id)),
+        details: Some(format!(
+            "meaning={}, reason={}, id={}, hash={}",
+            body.meaning, body.reason, id, signature_hash
+        )),
     });
 
     Ok(Json(json!({
         "ok": true,
         "id": id,
+        "signer": auth.username,
+        "meaning": body.meaning,
         "signature_hash": signature_hash,
         "created_at": now,
     }))
     .into_response())
+}
+
+fn refused(status: StatusCode, error: &str) -> Response {
+    (status, Json(json!({ "error": error }))).into_response()
+}
+
+/// Check the signer's password again. `None` when it is right; otherwise the
+/// response to send. Failures count towards the same lockout as sign-in.
+async fn reauthenticate(state: &AppState, username: &str, password: &str) -> Option<Response> {
+    if password.is_empty() {
+        return Some(refused(
+            StatusCode::BAD_REQUEST,
+            "password is required: enter your own password to sign",
+        ));
+    }
+    let user = match state.storage.get_user_by_username(username).await {
+        Ok(Some(u)) if !u.password_hash.is_empty() => u,
+        Ok(_) => {
+            // API keys and accounts without a local password (single sign-on).
+            return Some(refused(
+                StatusCode::FORBIDDEN,
+                "electronic signatures need a local user account with a password",
+            ));
+        }
+        Err(e) => {
+            tracing::error!("signature: looking up {username}: {e:#}");
+            return Some(refused(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "user lookup failed",
+            ));
+        }
+    };
+    let now = voltrus::timeutil::now_secs();
+    if user.disabled || user.locked_until.is_some_and(|t| t > now) {
+        return Some(refused(
+            StatusCode::FORBIDDEN,
+            "this account is locked or disabled and cannot sign",
+        ));
+    }
+    let hash = user.password_hash.clone();
+    let candidate = password.to_string();
+    let ok =
+        tokio::task::spawn_blocking(move || voltrus::api::auth::verify_password(&candidate, &hash))
+            .await
+            .unwrap_or(false);
+    if ok {
+        let _ = state.storage.reset_failed_attempts(username).await;
+        return None;
+    }
+
+    let attempt = user.failed_attempts + 1;
+    let _ = state.storage.increment_failed_attempts(username).await;
+    if attempt >= SIGN_LOCK_AFTER_FAILURES {
+        let _ = state
+            .storage
+            .lock_account(username, now + SIGN_LOCK_SECS)
+            .await;
+    }
+    let _ = state
+        .storage
+        .insert_security_event(&voltrus::models::CreateSecurityEvent {
+            event_type: "signature_auth_failed".into(),
+            severity: "warning".into(),
+            source_ip: None,
+            user_agent: None,
+            username: Some(username.to_string()),
+            details: Some(format!(
+                "Wrong password at electronic signature (attempt {attempt})"
+            )),
+        })
+        .await;
+    state.audit_logger.log(voltrus::security::AuditEvent {
+        action: "electronic_signature_refused".to_string(),
+        username: username.to_string(),
+        resource: "electronic_signature".to_string(),
+        details: Some(format!("wrong password, attempt {attempt}")),
+    });
+    Some(refused(StatusCode::UNAUTHORIZED, "password is incorrect"))
+}
+
+// ── Verify and export signatures ──
+
+pub async fn verify_electronic_signatures(
+    State(state): State<AppState>,
+) -> Result<Response, AppError> {
+    if !state.tier().cfr_part_11() {
+        return Ok(license_forbidden());
+    }
+    let signatures = state.storage.list_electronic_signatures(None, None).await?;
+    let invalid: Vec<i64> = signatures
+        .iter()
+        .filter(|s| !signature_matches(s))
+        .map(|s| s.id)
+        .collect();
+    Ok(Json(json!({
+        "ok": invalid.is_empty(),
+        "checked": signatures.len(),
+        "invalid_ids": invalid,
+    }))
+    .into_response())
+}
+
+pub async fn export_electronic_signatures(
+    State(state): State<AppState>,
+    Query(query): Query<SignatureQuery>,
+) -> Result<Response, AppError> {
+    if !state.tier().cfr_part_11() {
+        return Ok(license_forbidden());
+    }
+    let signatures = state
+        .storage
+        .list_electronic_signatures(query.resource_type.as_deref(), query.resource_id.as_deref())
+        .await?;
+    let filename = format!(
+        "electronic-signatures-{}.csv",
+        time::OffsetDateTime::now_utc()
+            .format(&time::format_description::well_known::Iso8601::DATE)
+            .unwrap_or_else(|_| "export".to_string())
+    );
+    Ok((
+        StatusCode::OK,
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "text/csv; charset=utf-8".to_string(),
+            ),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{filename}\""),
+            ),
+        ],
+        signatures_csv(&signatures),
+    )
+        .into_response())
 }
 
 // ── List electronic signatures ──
