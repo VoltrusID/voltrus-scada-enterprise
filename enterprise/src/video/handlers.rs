@@ -53,6 +53,24 @@ pub async fn list_cameras(
     Ok(Json(result))
 }
 
+/// GET /api/v1/cameras/available
+///
+/// The cameras an operator may pick for a screen widget: id, name and whether
+/// it is on. The RTSP address (which may carry the camera's password) stays
+/// in the admin list above.
+pub async fn list_camera_names(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    require_video(&state)?;
+    let cameras = state.storage.list_cameras().await?;
+    Ok(Json(
+        cameras
+            .iter()
+            .map(|c| json!({"id": c.id, "name": c.name, "enabled": c.enabled}))
+            .collect::<Vec<_>>(),
+    ))
+}
+
 /// POST /api/v1/cameras
 pub async fn create_camera(
     State(state): State<AppState>,
