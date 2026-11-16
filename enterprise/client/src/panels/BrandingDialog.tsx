@@ -3,6 +3,7 @@ import { inputStyle, labelStyle, labelTextStyle } from '@voltrus/core/styles';
 
 import { DEFAULT_BRANDING, type BrandingSettings } from '@voltrus/core/edition/branding';
 import { brandingPayload, isValidAccent, MAX_LOGO_FILE_BYTES, type BrandingForm } from './brandingPayload';
+import { normalizeColour } from './themeModel';
 
 export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: {
   /** Current branding; the server's answer carries the accent colour too. */
@@ -60,11 +61,12 @@ export function BrandingDialog({ branding, logoOnly = false, onSave, onClose }: 
               <div style={labelStyle}>
                 <span style={labelTextStyle}>Accent colour</span>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input type="color" aria-label="Accent colour picker" value={accentOk && form.accent ? form.accent : '#22c55e'} onChange={e => setForm(f => ({ ...f, accent: e.target.value }))} style={{ width: 36, height: 30, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer' }} />
+                  <input type="color" aria-label="Accent colour picker" value={normalizeColour(form.accent) || '#22c55e'} onChange={e => setForm(f => ({ ...f, accent: e.target.value }))} style={{ width: 36, height: 30, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer' }} />
                   <input aria-label="Accent colour" value={form.accent ?? ''} onChange={e => setForm(f => ({ ...f, accent: e.target.value.trim() }))} placeholder="Theme default" style={{ ...inputStyle, flex: 1, fontFamily: 'var(--font-mono)' }} />
                   <button onClick={() => setForm(f => ({ ...f, accent: '' }))} style={{ fontSize: 11, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Default</button>
                 </div>
                 {!accentOk && <div style={{ color: 'var(--crit)', fontSize: 11, marginTop: 4 }}>Use a colour like #0055aa, or leave it empty.</div>}
+                <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>Colours for the dark and light theme and the font: Data Manager › Admin › Branding.</div>
               </div>
             </>
           )}

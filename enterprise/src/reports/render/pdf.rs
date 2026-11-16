@@ -1,18 +1,29 @@
-//! A small PDF writer for the scheduled reports: A4 pages, the standard
-//! Helvetica fonts (no font files embedded), text, rules and trend lines.
-//! Text outside Latin-1 prints as `?`.
+//! A small PDF writer for the scheduled reports and the Part 11 exports: A4
+//! pages, the standard Helvetica and Courier fonts (no font files embedded),
+//! text, rules and trend lines, an optional header line and page numbers on
+//! every page. Text outside Latin-1 prints as `?`.
 
 use super::{ReportData, capitalize_first, format_timestamp};
 
-const PAGE_W: f64 = 595.0;
-const PAGE_H: f64 = 842.0;
-const MARGIN: f64 = 48.0;
-const BOTTOM: f64 = 64.0;
+pub(crate) const PAGE_W: f64 = 595.0;
+pub(crate) const PAGE_H: f64 = 842.0;
+pub(crate) const MARGIN: f64 = 48.0;
+pub(crate) const BOTTOM: f64 = 64.0;
 
-struct Writer {
+/// Fonts of [`Writer::text_in`].
+#[derive(Clone, Copy)]
+pub(crate) enum Font {
+    Regular,
+    Bold,
+    Mono,
+}
+
+pub(crate) struct Writer {
     pages: Vec<String>,
     page: String,
-    y: f64,
+    pub(crate) y: f64,
+    /// Printed at the top of every page (the filter of an export, for example).
+    header: Option<String>,
 }
 
 /// Escape for a PDF literal string, mapping to WinAnsi (Latin-1) bytes.
@@ -37,30 +48,100 @@ fn pdf_text(s: &str, max_chars: usize) -> Vec<u8> {
     out
 }
 
+/// Split `s` into lines of at most `width` characters, at spaces where possible.
+/// Line breaks in `s` are kept; a word longer than a line is cut.
+pub(crate) fn wrap(s: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    for para in s.split(['\n', '\r']) {
+        let mut line = String::new();
+        for word in para.split(' ') {
+            let mut word: Vec<char> = word.chars().collect();
+            loop {
+                let len = line.chars().count();
+                let sep = usize::from(len > 0);
+                if len + sep + word.len() <= width {
+                    if sep == 1 {
+                        line.push(' ');
+                    }
+                    line.extend(word.iter());
+                    break;
+                }
+                if len > 0 {
+                    lines.push(std::mem::take(&mut line));
+                    continue;
+                }
+                let rest = word.split_off(width);
+                lines.push(word.into_iter().collect());
+                word = rest;
+            }
+        }
+        lines.push(line);
+    }
+    while lines.len() > 1 && lines.last().is_some_and(String::is_empty) {
+        lines.pop();
+    }
+    lines
+}
+
 impl Writer {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             pages: Vec::new(),
             page: String::new(),
             y: PAGE_H - MARGIN,
+            header: None,
         }
     }
 
-    fn new_page(&mut self) {
+    /// A writer that prints `header` at the top of every page.
+    pub(crate) fn with_header(header: String) -> Self {
+        let mut w = Self::new();
+        w.header = Some(header);
+        w.y = Self::top(true);
+        w
+    }
+
+    fn top(header: bool) -> f64 {
+        if header {
+            PAGE_H - MARGIN - 18.0
+        } else {
+            PAGE_H - MARGIN
+        }
+    }
+
+    pub(crate) fn new_page(&mut self) {
         let page = std::mem::take(&mut self.page);
         self.pages.push(page);
-        self.y = PAGE_H - MARGIN;
+        self.y = Self::top(self.header.is_some());
     }
 
     /// Start a new page unless `height` more points fit on this one.
-    fn need(&mut self, height: f64) {
+    pub(crate) fn need(&mut self, height: f64) {
         if self.y - height < BOTTOM {
             self.new_page();
         }
     }
 
     fn text(&mut self, x: f64, y: f64, size: f64, bold: bool, s: &str, max_chars: usize) {
-        let font = if bold { "F2" } else { "F1" };
+        let font = if bold { Font::Bold } else { Font::Regular };
+        self.text_in(font, x, y, size, s, max_chars);
+    }
+
+    pub(crate) fn text_in(
+        &mut self,
+        font: Font,
+        x: f64,
+        y: f64,
+        size: f64,
+        s: &str,
+        max_chars: usize,
+    ) {
+        let font = match font {
+            Font::Regular => "F1",
+            Font::Bold => "F2",
+            Font::Mono => "F3",
+        };
         // The text bytes go in as Latin-1; the stream is assembled as bytes later.
         let escaped = pdf_text(s, max_chars);
         self.page
@@ -70,7 +151,7 @@ impl Writer {
         self.page.push_str(") Tj ET\n");
     }
 
-    fn rule(&mut self, y: f64, gray: f64) {
+    pub(crate) fn rule(&mut self, y: f64, gray: f64) {
         self.page.push_str(&format!(
             "{gray:.2} G 0.5 w {MARGIN:.1} {y:.1} m {:.1} {y:.1} l S 0 G\n",
             PAGE_W - MARGIN
@@ -100,7 +181,7 @@ impl Writer {
         self.page.push_str("S 0 G\n");
     }
 
-    fn heading(&mut self, s: &str) {
+    pub(crate) fn heading(&mut self, s: &str) {
         self.need(40.0);
         self.y -= 26.0;
         self.text(MARGIN, self.y, 13.0, true, s, 80);
@@ -109,19 +190,19 @@ impl Writer {
         self.y -= 14.0;
     }
 
-    fn finish(mut self, footer: &str) -> Vec<u8> {
+    pub(crate) fn finish(mut self, footer: &str) -> Vec<u8> {
         if !self.page.is_empty() || self.pages.is_empty() {
             self.new_page();
         }
         let n = self.pages.len();
-        // Objects: 1 catalog, 2 pages, 3 Helvetica, 4 Helvetica-Bold, then per page
-        // a page object and its content stream.
+        // Objects: 1 catalog, 2 pages, 3 Helvetica, 4 Helvetica-Bold, 5 Courier, then
+        // per page a page object and its content stream.
         let mut objects: Vec<Vec<u8>> = vec![
             b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
             format!(
                 "<< /Type /Pages /Kids [{}] /Count {n} >>",
                 (0..n)
-                    .map(|i| format!("{} 0 R", 5 + i * 2))
+                    .map(|i| format!("{} 0 R", 6 + i * 2))
                     .collect::<Vec<_>>()
                     .join(" ")
             )
@@ -130,9 +211,28 @@ impl Writer {
                 .to_vec(),
             b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
                 .to_vec(),
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>"
+                .to_vec(),
         ];
         for (i, body) in self.pages.iter().enumerate() {
             let mut content: Vec<u8> = body.chars().map(|c| c as u32 as u8).collect();
+            if let Some(header) = &self.header {
+                let top = PAGE_H - MARGIN + 4.0;
+                content.extend_from_slice(b"0.3 g ");
+                content
+                    .extend_from_slice(format!("BT /F1 8 Tf {MARGIN:.1} {top:.1} Td (").as_bytes());
+                content.extend(pdf_text(header, 130));
+                content.extend_from_slice(b") Tj ET 0 g\n");
+                content.extend_from_slice(
+                    format!(
+                        "0.75 G 0.5 w {MARGIN:.1} {:.1} m {:.1} {:.1} l S 0 G\n",
+                        top - 6.0,
+                        PAGE_W - MARGIN,
+                        top - 6.0
+                    )
+                    .as_bytes(),
+                );
+            }
             let foot = format!("{footer} - page {} of {n}", i + 1);
             content.extend_from_slice(b"0.4 g ");
             content.extend_from_slice(format!("BT /F1 8 Tf {MARGIN:.1} 36 Td (").as_bytes());
@@ -140,8 +240,8 @@ impl Writer {
             content.extend_from_slice(b") Tj ET 0 g\n");
             objects.push(
                 format!(
-                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W} {PAGE_H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {} 0 R >>",
-                    6 + i * 2
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W} {PAGE_H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents {} 0 R >>",
+                    7 + i * 2
                 )
                 .into_bytes(),
             );
@@ -368,6 +468,19 @@ mod tests {
         assert!(page_count(&pdf) >= 4);
         let text = String::from_utf8_lossy(&pdf);
         assert!(text.contains("page 1 of"));
+    }
+
+    #[test]
+    fn wrap_breaks_at_spaces_and_cuts_long_words() {
+        assert_eq!(wrap("one two three", 7), vec!["one two", "three"]);
+        assert_eq!(wrap("abcdefghij", 4), vec!["abcd", "efgh", "ij"]);
+        assert_eq!(wrap("a\nb", 10), vec!["a", "b"]);
+        assert_eq!(wrap("", 10), vec![""]);
+        assert!(
+            wrap(&"word ".repeat(50), 20)
+                .iter()
+                .all(|l| l.chars().count() <= 20)
+        );
     }
 
     #[test]

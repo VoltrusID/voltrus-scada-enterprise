@@ -26,6 +26,7 @@ use super::settings::{HaSettings, InitialRole};
 use super::store::{self, NodeRecord, StoredRole};
 use super::wire::{Hello, Msg, PROTOCOL_VERSION, WireRole};
 use super::witness::{Reply, Witness};
+use crate::licensing::pair;
 
 /// Paths a passive node still accepts writes on: sign-in, the pair's own
 /// controls, and the machine-bound licence activation.
@@ -95,6 +96,7 @@ pub async fn resolve_node_role(
     storage: &Storage,
     license: &LicenseStatus,
 ) -> Result<Start> {
+    pair::set_own(license.clone());
     if !config.ha.enabled {
         // Capture triggers without a consumer would fill the database: remove them.
         storage
@@ -105,10 +107,32 @@ pub async fn resolve_node_role(
                 Ok(())
             })
             .await?;
+        // A licence borrowed from a former partner covers a pair only.
+        pair::clear(storage).await?;
         return Ok(Start::default());
     }
     if !license.tier().ha() {
-        return unlicensed(config, storage).await;
+        // One licence covers the pair: the partner of the licensed node runs with the
+        // licence it received over the pair link (see licensing::pair).
+        if let Err(e) = pair::load(storage).await {
+            tracing::warn!("Could not read the licence shared by the pair partner: {e:#}");
+        }
+        if !pair::effective(license.clone()).tier().ha() {
+            if pair::has_share() {
+                // The partner's licence lapsed here (it was away longer than the grace
+                // period): stay in the pair, so the partner can rejoin and confirm it
+                // again, with the add-on features off meanwhile.
+                tracing::warn!(
+                    "Hot standby: the licence shared by the pair partner is no longer in force; this node stays in the pair with the add-on features off until the partner is back"
+                );
+            } else if is_standby(config, storage).await? {
+                tracing::warn!(
+                    "Hot standby: this node has no licence of its own. It joins as the standby and runs with the licence of its partner once that arrives over the pair link; it cannot take over before."
+                );
+            } else {
+                return unlicensed(config).await;
+            }
+        }
     }
 
     let settings = HaSettings::from_config(&config.ha).context("invalid ha configuration")?;
@@ -261,7 +285,19 @@ pub async fn resolve_node_role(
 /// HA is configured but the licence does not include it. The node does not
 /// take part in a pair, but it must not become a second active node either:
 /// a node that was, or is configured as, the standby stays passive.
-async fn unlicensed(config: &AppConfig, storage: &Storage) -> Result<Start> {
+async fn unlicensed(config: &AppConfig) -> Result<Start> {
+    voltrus::node_role::set_passive_write_exemptions(PASSIVE_WRITE_EXEMPTIONS);
+    tracing::warn!(
+        "Hot standby is configured but the licence does not include it: running as a single node."
+    );
+    Ok(Start {
+        active: true,
+        passive_polling: config.ha.standby_polling,
+    })
+}
+
+/// Whether this node is (recorded as) or is configured to start as the standby.
+async fn is_standby(config: &AppConfig, storage: &Storage) -> Result<bool> {
     let recorded = storage
         .with_conn(|c| {
             let exists: i64 = c.query_row(
@@ -272,22 +308,8 @@ async fn unlicensed(config: &AppConfig, storage: &Storage) -> Result<Start> {
             if exists == 0 { Ok(None) } else { store::load_node(c) }
         })
         .await?;
-    let standby = match recorded {
+    Ok(match recorded {
         Some(r) => r.role == StoredRole::Standby,
         None => config.ha.role == "standby",
-    };
-    voltrus::node_role::set_passive_write_exemptions(PASSIVE_WRITE_EXEMPTIONS);
-    if standby {
-        tracing::error!(
-            "Hot standby is configured but the licence does not include it. This node is the standby, so it stays passive and does not poll devices."
-        );
-    } else {
-        tracing::warn!(
-            "Hot standby is configured but the licence does not include it: running as a single node."
-        );
-    }
-    Ok(Start {
-        active: !standby,
-        passive_polling: config.ha.standby_polling,
     })
 }

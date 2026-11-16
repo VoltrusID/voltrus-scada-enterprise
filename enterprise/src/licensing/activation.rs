@@ -76,7 +76,62 @@ struct ActivationPayload {
 /// Check the magic header and the Ed25519 signature. Expiry is judged separately
 /// (see `verification`) because a lapsed monthly key has a grace period.
 pub fn verify_activation_signature(data: &[u8]) -> anyhow::Result<LicenseActivation> {
+    #[cfg(feature = "ha-test-node")]
+    if let Ok(found) = verify_with_keys(data, &[test_support::public_key()]) {
+        return Ok(found.0);
+    }
     verify_with_keys(data, TRUSTED_PUBLIC_KEYS).map(|(activation, _)| activation)
+}
+
+/// Signed activations for the hot standby integration test. The `ha-test-node` build
+/// (never released) also trusts this key, which is the worker test suite's key (seed
+/// `0x11` x 32), so a test can issue real, fingerprint-bound activation files without
+/// a production key.
+#[cfg(feature = "ha-test-node")]
+pub mod test_support {
+    use super::{ACTIVATION_MAGIC, ActivationPayload, LicenseActivation};
+    use ed25519_dalek::{Signer, SigningKey};
+
+    fn signing_key() -> SigningKey {
+        SigningKey::from_bytes(&[0x11; 32])
+    }
+
+    pub fn public_key() -> [u8; 32] {
+        signing_key().verifying_key().to_bytes()
+    }
+
+    /// An activation file for `fingerprint_hash`, as the worker writes it.
+    pub fn sign(fingerprint_hash: &str, tier: &str, expires_at: Option<&str>) -> Vec<u8> {
+        let payload = ActivationPayload {
+            version: 2,
+            license_key: "VOLTRUS-HA-TEST".into(),
+            fingerprint_hash: fingerprint_hash.into(),
+            issued_at: "2026-01-01T00:00:00Z".into(),
+            expires_at: expires_at.map(str::to_string),
+            tier: Some(tier.into()),
+            device_limit: None,
+            site_id: None,
+            site_name: None,
+            support_until: None,
+        };
+        let signature = signing_key().sign(&serde_json::to_vec(&payload).unwrap());
+        let activation = LicenseActivation {
+            version: payload.version,
+            license_key: payload.license_key,
+            fingerprint_hash: payload.fingerprint_hash,
+            issued_at: payload.issued_at,
+            expires_at: payload.expires_at,
+            tier: payload.tier,
+            device_limit: payload.device_limit,
+            site_id: None,
+            site_name: None,
+            support_until: None,
+            signature: hex::encode(signature.to_bytes()),
+        };
+        let mut blob = ACTIVATION_MAGIC.to_vec();
+        blob.extend_from_slice(&serde_json::to_vec(&activation).unwrap());
+        blob
+    }
 }
 
 /// True when a stored activation verifies under a retired key only, so it should
@@ -520,8 +575,11 @@ mod tests {
                 ..
             }
         ));
-        // The production keys do not accept a file signed with a test key.
+        // The production keys do not accept a file signed with a test key (the
+        // `ha-test-node` build trusts this one key on purpose).
+        #[cfg(not(feature = "ha-test-node"))]
         assert!(verify_activation_signature(blob).is_err());
+        assert!(verify_with_keys(blob, TRUSTED_PUBLIC_KEYS).is_err());
         // Changing the signed tier breaks the signature.
         let tampered = String::from_utf8(blob.to_vec()).unwrap().replacen(
             "\"tier\":\"enterprise\"",

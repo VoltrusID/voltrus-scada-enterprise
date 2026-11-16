@@ -78,6 +78,26 @@ pub struct OidcClaims {
     pub realm_access: Option<RealmAccess>,
     #[serde(default)]
     pub groups: Option<Vec<String>>,
+    /// Every other claim, for the login name claim of [`bearer_username`].
+    #[serde(flatten, default)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// The local account a bearer token acts as: the same `oidc:<id>` name the browser
+/// sign-in provisions (`<id>` is the configured `username_claim`, else `sub`), so a
+/// token user is the same account, with the same disabled flag and audit trail.
+/// A token without the configured claim falls back to `sub`.
+pub fn bearer_username(claims: &OidcClaims, username_claim: &str) -> String {
+    let id = if username_claim.is_empty() {
+        None
+    } else {
+        let value = serde_json::Value::Object(claims.extra.clone());
+        claim_at(&value, username_claim)
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    format!("oidc:{}", id.unwrap_or_else(|| claims.sub.clone()))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

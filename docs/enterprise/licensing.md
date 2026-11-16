@@ -2,12 +2,15 @@
 
 Voltrus Core needs no licence and never phones home. A licence key unlocks the
 Integrator or Enterprise add-on features of the official binary on **one machine**.
-A missing, expired or invalid licence never limits Core: the server keeps running as
-Community and only the add-on features switch off.
+An Enterprise licence also covers that machine's partner in a
+[hot standby pair](#one-licence-for-a-hot-standby-pair): activate it once, on one of
+the two. A missing, expired or invalid licence never limits Core: the server keeps
+running as Community and only the add-on features switch off.
 
 Contents: [What a key unlocks](#what-a-key-unlocks) · [How it works](#how-it-works) ·
 [Activate in the web UI](#activate-in-the-web-ui) · [Activate from the command line](#activate-from-the-command-line) ·
 [Offline (air-gapped) activation](#offline-air-gapped-activation) · [Check the status](#check-the-status) ·
+[One licence for a hot standby pair](#one-licence-for-a-hot-standby-pair) ·
 [Monthly keys, renewal and grace](#monthly-keys-renewal-and-grace) · [Moving to another machine](#moving-to-another-machine) ·
 [What happens when the licence is not valid](#what-happens-when-the-licence-is-not-valid) · [Troubleshooting](#troubleshooting) ·
 [For developers](#for-developers-testing-without-a-production-key)
@@ -16,14 +19,14 @@ Contents: [What a key unlocks](#what-a-key-unlocks) · [How it works](#how-it-wo
 
 | Flag (`/api/license/status` › `feature_flags`) | Feature | Integrator | Enterprise |
 |---|---|:-:|:-:|
-| `white_label`, `theme_full` | White-label branding: title, subtitle, logo, accent colour ([branding.md](branding.md)) | yes | yes |
+| `white_label`, `theme_full` | White-label branding: title, subtitle, logo, colours of the light and dark theme, font ([branding.md](branding.md)) | yes | yes |
 | `pdf_reporting` | Scheduled PDF reports | yes | yes |
 | `chat_notifications` | Telegram and WhatsApp alarm notifications | yes | yes |
 | `multi_site` | Multi-site hub | yes | yes |
 | `sso`, `sso_saml` | Single sign-on: OIDC; SAML 2.0 and LDAP/AD ([sso.md](sso.md)) | | yes |
 | `cfr_part_11` | 21 CFR Part 11 mode | | yes |
 | `iec_62443` | IEC 62443 security audit mode | | yes |
-| `ha` | Hot standby with automatic failover | | yes |
+| `ha` | Hot standby with automatic failover; one licence covers both nodes | | yes |
 | `rtsp_video` | RTSP video cameras | | yes |
 
 Keys sold before the open-core split keep working: `professional`/`pro` resolve to
@@ -155,6 +158,73 @@ voltrus --license-status /etc/voltrus/config.yaml
 | `InvalidFingerprint` | Fewer than 3 of 5 fingerprint components match: the database moved to another machine | off |
 | `Corrupted` | The licence row cannot be read | off |
 
+## One licence for a hot standby pair
+
+One Enterprise licence covers both machines of a [hot standby](hot-standby.md) pair.
+You activate it on **one** machine (the licensed node); its partner needs no key, no
+activation and no second purchase, and keeps every Enterprise feature when it takes
+over.
+
+### Set it up
+
+1. Install the same Voltrus version on both machines and configure the pair as in
+   [hot-standby.md](hot-standby.md#set-up-a-pair-step-by-step) (same
+   `shared_secret`, different `node_id`).
+2. On the machine that will be the primary, activate the Enterprise key (web UI,
+   CLI or offline, as above). Its License card shows Enterprise.
+3. On the second machine activate **nothing**. Give it `role: standby` in its `ha:`
+   block (a machine without a licence of its own joins a pair only as the standby).
+4. Start the primary, then the standby. The standby takes its copy of the data, and
+   with the first heartbeat of the replication session it receives the licence.
+5. Check: on the standby, **Data Manager › Admin › License** (or
+   `GET /api/license/status`) shows the same key and Enterprise, and
+   `GET /api/v1/ha/status` shows
+   `"license": {"source": "peer", "holder_node_id": "node-a", "confirmed_at": "…", "valid_until": "…"}`.
+   On the licensed node `license.source` is `own`.
+
+Nothing else is needed for failover: when the primary dies the standby takes over
+with the licence it holds, and when the old primary comes back (as the new standby)
+it confirms the licence again. A switchover (`POST /api/v1/ha/force-failover`) works
+the same way in both directions.
+
+### How it works
+
+* The licence stays bound to the licensed machine's fingerprint, exactly as for a
+  single node. Over the pair link (TLS 1.3 and the shared-secret proof bound to the
+  session) that machine sends its signed activation file with every heartbeat of a
+  replication session, in whichever direction the session runs.
+* The partner checks the Ed25519 signature against the keys built into its own
+  binary, the expiry, and that the tier includes hot standby, then runs with that
+  licence. It stores the file and the time it was last confirmed in `ha_license_share`
+  (a node-local table that never replicates), so a restart keeps it.
+* **Grace**: the partner keeps the licence for **30 days** after the licensed machine
+  was last heard. That covers a primary that died and is being repaired. After 30
+  days without it the partner's add-on features switch off (Core keeps running, it
+  stays in the pair, `license.source` turns `expired`), and they come back as soon as
+  the licensed machine rejoins. To run on the surviving machine alone for longer,
+  [move the licence](#moving-to-another-machine) to it and activate it there.
+* A monthly key is renewed by the licensed machine; the new file reaches the partner
+  with the next heartbeat.
+
+### What one licence does not allow
+
+* **A third machine.** Copying the activation file or the whole database to another
+  machine gives `This activation file was issued for a different machine.` or status
+  `InvalidFingerprint`, as before.
+* **Passing it on.** Only a machine's own, fingerprint-bound activation is ever sent:
+  a partner never forwards a licence it received, so a licence reaches one partner at
+  a time.
+* **Two independent sites.** Only the peer of a replication session confirms the
+  licence, and that peer shares the partner's database. Two machines split apart run
+  independently for the 30 days at most; joining them again makes one of them take a
+  full copy from the other (its own data is replaced). Which node is active is decided
+  by the pair's epochs and witness as always (see
+  [Failover safety](hot-standby.md#failover-safety)); configure an arbiter witness to
+  rule out two active nodes during a link failure.
+* **Taking over before the licence arrived.** A standby that has no licence of its own
+  and has not received one never promotes; `GET /api/v1/ha/status` says so in
+  `promotion_blocked`.
+
 ## Monthly keys, renewal and grace
 
 * **Lifetime keys** have no expiry.
@@ -226,7 +296,12 @@ repository can sign one, by design.
   verifier, so the two cannot drift apart.
 * `cargo build --features ha-test-node --bin voltrus-ha-test-node` builds the real
   add-on with a stub Enterprise licence for local testing (never released). The SSO
-  live suite uses it.
+  live suite uses it. With `VOLTRUS_TEST_LICENSE=real` it runs the real licence check
+  instead; that build also trusts the worker test key (seed `0x11`, see
+  `activation::test_support`), reads the machine from `VOLTRUS_TEST_MACHINE` and the
+  pair grace period from `VOLTRUS_TEST_PAIR_GRACE_SECS`. The pair licensing test
+  (`one_licence_covers_the_pair` in `enterprise/tests/ha_pair.rs`) runs three
+  "machines" that way. None of this exists in a release build.
 * `VOLTRUS_ACTIVATION_URL` points online activation and renewal at another activation
   server (e.g. `wrangler dev` of `worker/license-activate`); its files only verify if
   it signs with a production key.

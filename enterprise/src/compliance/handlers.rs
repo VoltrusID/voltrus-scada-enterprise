@@ -167,8 +167,10 @@ pub async fn create_electronic_signature(
         now,
     );
 
-    // Stored with the same timestamp that was hashed, so the hash verifies.
-    let id = {
+    // Stored with the same timestamp that was hashed, so the hash verifies. The
+    // signer's full name on file is recorded with it, so a later rename does not
+    // change what the signature manifests.
+    let (id, full_name) = {
         let (user, rtype, rid, reason, meaning, hash) = (
             auth.username.clone(),
             body.resource_type.clone(),
@@ -180,11 +182,21 @@ pub async fn create_electronic_signature(
         state
             .storage
             .with_conn(move |conn| {
-                conn.execute(
+                let full_name = super::export::full_name_of(conn, &user)?;
+                let tx = conn.unchecked_transaction()?;
+                tx.execute(
                     "INSERT INTO electronic_signatures (user_id, action, resource_type, resource_id, reason, meaning, signature_hash, created_at) VALUES (?1, 'sign', ?2, ?3, ?4, ?5, ?6, ?7)",
                     rusqlite::params![user, rtype, rid, reason, meaning, hash, now],
                 )?;
-                Ok(conn.last_insert_rowid())
+                let id = tx.last_insert_rowid();
+                if let Some(name) = &full_name {
+                    tx.execute(
+                        "INSERT OR REPLACE INTO compliance_signature_names (signature_id, full_name) VALUES (?1, ?2)",
+                        rusqlite::params![id, name],
+                    )?;
+                }
+                tx.commit()?;
+                Ok((id, full_name))
             })
             .await?
     };
@@ -203,6 +215,7 @@ pub async fn create_electronic_signature(
         "ok": true,
         "id": id,
         "signer": auth.username,
+        "signer_full_name": full_name,
         "meaning": body.meaning,
         "signature_hash": signature_hash,
         "created_at": now,
@@ -312,15 +325,20 @@ pub async fn verify_electronic_signatures(
 
 pub async fn export_electronic_signatures(
     State(state): State<AppState>,
-    Query(query): Query<SignatureQuery>,
+    Query(query): Query<super::export::SignatureFilter>,
 ) -> Result<Response, AppError> {
     if !state.tier().cfr_part_11() {
         return Ok(license_forbidden());
     }
     let signatures = state
         .storage
-        .list_electronic_signatures(query.resource_type.as_deref(), query.resource_id.as_deref())
+        .list_electronic_signatures(
+            query.resource_type.as_deref().filter(|s| !s.is_empty()),
+            query.resource_id.as_deref().filter(|s| !s.is_empty()),
+        )
         .await?;
+    // The same range and signer filter as the PDF export.
+    let signatures = super::export::filter_signatures(signatures, &query);
     let filename = format!(
         "electronic-signatures-{}.csv",
         time::OffsetDateTime::now_utc()

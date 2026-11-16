@@ -97,8 +97,16 @@ pub async fn authenticate_bearer(token: &str) -> Option<ExternalIdentity> {
     }
     let claims = rt.jwks.validate_token(token, &rt.oidc).await?;
     let role = oidc::extract_role(&claims, &rt.oidc);
+    // The browser sign-in names the account `oidc:<id>`; a token must act as that
+    // same account, or the core's disabled-account check could not match it.
+    let username_claim = rt
+        .sso
+        .oidc
+        .as_ref()
+        .map(|p| p.cfg.username_claim.as_str())
+        .unwrap_or("");
     Some(ExternalIdentity {
-        username: claims.sub,
+        username: oidc::bearer_username(&claims, username_claim),
         role,
     })
 }

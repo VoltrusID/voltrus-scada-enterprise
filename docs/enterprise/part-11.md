@@ -12,11 +12,11 @@ is in the core (`core/src/api/audit_log.rs`).
 | Control | Where | Status |
 | --- | --- | --- |
 | Electronic signature with re-authentication | `POST /api/v1/compliance/sign`, web: Data Manager › Insights › E-Signatures | Works (fixed in this audit: before, signing was admin only and took no password). The signer types their own password every time (11.200(a)); a wrong password counts towards the same lockout as sign-in (10 failures, 15 minutes) and writes a `signature_auth_failed` security event. |
-| Signature manifestation (11.50) | the signature record, the list, the CSV export | Works. Each record has the signer's user name, the UTC time, the meaning (Created, Approved, Reviewed, Verified or any text) and the reason. |
+| Signature manifestation (11.50) | the signature record, the list, the CSV and PDF exports | Works. Each record has the signer's user name and, once an admin has recorded it, the signer's full printed name (stored with the signature when it is given), the time, the meaning (Created, Approved, Reviewed, Verified or any text) and the reason. The PDF prints the time with its time zone. |
 | Signature/record linking (11.70) | `resource_type` + `resource_id` on the record, SHA-256 hash over all fields | Works. `GET /api/v1/compliance/signatures/verify` recomputes every hash. |
 | Audit trail | core audit log, hash-chained | Works. Every signature, refused signature, user change and configuration write is logged with user and time; `GET /api/v1/audit/verify` checks the chain. |
 | Retention | core retention | Works. With a Part 11 or IEC 62443 licence the audit and security logs are kept whatever `retention.*_keep_secs` says (a compliance hold). |
-| Export for inspection | Audit Log › Export CSV, Compliance › E-Signatures › Export CSV | Works, CSV. There is no PDF export. |
+| Export for inspection | Compliance › E-Signatures › Export CSV / Export PDF, Compliance › Audit trail › Export CSV / Export PDF, Audit Log › Export CSV | Works. The PDFs carry the signature manifestation, every record's checksum and whether it verifies, the result of verifying the whole audit hash chain, the filter on every page and page numbers. |
 | Account lockout | core sign-in and signatures | Works: 10 wrong passwords lock the account for 15 minutes. |
 | Password policy, auto-logout, rotation, "authority to change" | Compliance › Policy | **Stored only, not enforced.** See [Not done yet](#not-done-yet). |
 | Signature required for setpoint changes, alarm acknowledgement, mode switches | none | **Not available.** Writes can require a reason per tag (core `write_requires_reason`), but not a signature. |
@@ -47,7 +47,14 @@ includes it; nothing else needs switching on.
    `resource_type` is free text (for example `batch_record`, `recipe`, `sop`)
    and `resource_id` names the record (for example `BR-2026-0042`). Write this
    down in your SOP; the software does not enforce a list.
-3. Tell signers where to sign: **More actions (⋯) › Data Manager › Insights ›
+3. Record each signer's full name: **Admin › Compliance › Signer names**, type the
+   person's full legal name next to their user name, **Save**. The name on file is
+   stored with every signature at the moment of signing (so renaming someone later
+   does not change signatures already given) and printed with it. API:
+   `PUT /api/v1/compliance/signer-names/<username>` with `{"full_name": "Alice Kusuma"}`
+   (admin; `GET /api/v1/compliance/signer-names` lists them). Each change is in the
+   audit trail (`set_signer_name`).
+4. Tell signers where to sign: **More actions (⋯) › Data Manager › Insights ›
    E-Signatures › + Sign** (every signed-in user). Admins can also use **Admin ›
    Compliance › E-Signatures**.
 
@@ -80,12 +87,56 @@ The SDKs: `compliance.sign({..., password})` (TypeScript),
 4. As admin: `GET /api/v1/compliance/signatures/verify` returns
    `{"ok":true,"checked":N,"invalid_ids":[]}` and `GET /api/v1/audit/verify`
    returns `"ok":true`.
-5. Export: **Admin › Compliance › E-Signatures › Export CSV**
-   (`GET /api/v1/compliance/signatures/export`, admin) has one row per
-   signature with `hash_valid`. **More actions (⋯) › Audit Log › Export CSV**
-   (`GET /api/v1/audit/export`) exports the audit trail with the filters on
-   screen. The native console exports the audit trail from **More › Audit log**;
-   it has no signature screen.
+5. Export: see [Export for an inspection](#export-for-an-inspection). The native
+   console exports the audit trail as CSV from **More › Audit log**; it has no
+   signature screen.
+
+## Export for an inspection
+
+Admin only. Both exports take the same filter for CSV and PDF; times in the PDF are
+printed in the time zone of the browser that asked for it (for example
+`2026-11-16 14:03:22 UTC+07:00`).
+
+**Signature records**: **Admin › Compliance › E-Signatures**. Pick **From** and
+**To** dates and optionally a **User**, then **Export CSV** or **Export PDF**. The
+PDF has one block per signature:
+
+* **Signed by**: the full name recorded at signing and the user name, e.g.
+  `Alice Kusuma (alice)`. A signature given before a name was on file shows the name
+  on file now, marked "not recorded at signing"; with no name at all it says "no
+  full name on file".
+* **Date and time** with the time zone, **Meaning**, **Reason**, **Record**
+  (`resource_type / resource_id`).
+* **Checksum**: the SHA-256 signature hash and `verified` or `DOES NOT VERIFY`.
+
+**Audit trail**: **Admin › Compliance › Audit trail**. **From**, **To**, **User**,
+**Action**, **Contains** (searches details, resource, user and action), then
+**Export CSV** (the core export) or **Export PDF**. The PDF lists every matching
+entry, oldest first, with its time, user, action, resource, details and checksum (its
+hash in the audit chain), and on the first page the result of verifying the whole
+chain (`verified: N entries intact`, or `BROKEN at entry N`).
+
+Every page of both PDFs has the site name, the export title and the filter in its
+header, and `page n of m` in its footer; the first page says who generated it and
+when. One PDF holds at most 10,000 records: a wider filter answers `400` asking to
+narrow it. Each export is written to the audit trail (`export_signatures_pdf`,
+`export_audit_pdf`).
+
+API (admin session or API key):
+
+```sh
+# 1 to 16 November 2026 in WIB (UTC+7), signer alice
+curl -b jar -o signatures.pdf \
+  'https://scada.example.com/api/v1/compliance/signatures/export.pdf?from=1793466000&to=1794848399&username=alice&utc_offset_minutes=420'
+curl -b jar -o audit.pdf \
+  'https://scada.example.com/api/v1/compliance/audit/export.pdf?from=1793466000&to=1794848399&action=electronic_signature&utc_offset_minutes=420'
+```
+
+`from` and `to` are Unix seconds (inclusive); `utc_offset_minutes` is minutes east
+of UTC (-720 to 840, default 0). The CSV endpoint
+`/api/v1/compliance/signatures/export` takes the same `from`, `to` and `username`.
+The PDFs use the standard Helvetica and Courier fonts: characters outside Latin-1
+(for example Chinese names) print as `?`; the CSV export keeps them.
 
 Verified on 2026-11-16 against a stub-licence build (`voltrus-ha-test-node`):
 steps 1 to 5 with an operator account, plus 10 wrong passwords locking the
@@ -116,4 +167,5 @@ Recorded as gaps in the audit of 2026-11-16; each needs a hook in the open core
   (`write_requires_reason`) for the "why", and sign batch or review records
   separately.
 * **Previous value** of a tag write is not recorded in the audit trail.
-* **PDF export** of the audit trail.
+* **Non-Latin names in PDFs**: the PDF exports print characters outside Latin-1 as
+  `?` (no embedded fonts yet); use the CSV export for those.

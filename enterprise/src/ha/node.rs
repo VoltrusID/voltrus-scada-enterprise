@@ -674,6 +674,11 @@ impl Node {
             bail!("this node is not a standby");
         }
         let force = matches!(why, Promote::Operator { force: true });
+        if !crate::try_rt().is_none_or(|rt| rt.tier().ha()) {
+            let msg = "this node has no licence of its own and has not received its partner's yet: activate a licence on one of the two nodes (the partner of the licensed node needs none)".to_string();
+            lock(&self.dynamic).promotion_blocked = Some(msg.clone());
+            bail!(msg);
+        }
         let rec = self
             .storage
             .with_conn(|c| store::load_node(c))
@@ -814,6 +819,8 @@ impl Node {
     }
 
     async fn housekeeping(&self, refresh_triggers: bool) {
+        // A borrowed licence lapses when its partner stays away past the grace period.
+        crate::licensing::pair::publish().await;
         let role = self.role();
         let r = self
             .storage
@@ -1061,6 +1068,7 @@ impl Node {
             }),
             last_full_sync: d.last_full_sync.clone(),
             link_auth_failures: super::link::auth_failures(),
+            license: Some(crate::licensing::pair::share_status()),
         }
     }
 

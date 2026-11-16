@@ -33,6 +33,10 @@ fn public() -> Router<AppState> {
             "/api/v1/settings/branding",
             get(branding::handlers::get_branding),
         )
+        .route(
+            "/api/v1/settings/branding/font",
+            get(branding::handlers::get_font),
+        )
         .route("/api/v1/ha/active", get(ha::ha_api::ha_active))
 }
 
@@ -56,6 +60,10 @@ fn operator() -> Router<AppState> {
         .route(
             "/api/v1/settings/branding",
             put(branding::handlers::update_branding),
+        )
+        .route(
+            "/api/v1/settings/branding/font",
+            put(branding::handlers::put_font).delete(branding::handlers::delete_font),
         )
         .route(
             "/api/v1/cameras",
@@ -140,6 +148,22 @@ fn admin() -> Router<AppState> {
         .route(
             "/api/v1/compliance/signatures/export",
             get(compliance::handlers::export_electronic_signatures),
+        )
+        .route(
+            "/api/v1/compliance/signatures/export.pdf",
+            get(compliance::export::export_signatures_pdf),
+        )
+        .route(
+            "/api/v1/compliance/audit/export.pdf",
+            get(compliance::export::export_audit_pdf),
+        )
+        .route(
+            "/api/v1/compliance/signer-names",
+            get(compliance::export::list_signer_names),
+        )
+        .route(
+            "/api/v1/compliance/signer-names/{username}",
+            put(compliance::export::set_signer_name),
         )
         .route(
             "/api/v1/security/events",

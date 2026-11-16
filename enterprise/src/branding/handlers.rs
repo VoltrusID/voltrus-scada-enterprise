@@ -1,15 +1,33 @@
 use axum::Json;
 use axum::extract::{Extension, State};
-use axum::response::IntoResponse;
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Response};
+use base64::Engine;
 use serde_json::json;
 
 use voltrus::api::{AppError, AppState, AuthUser};
 use voltrus::security::MAX_BRAND_LENGTH;
 
-/// Longest logo value stored, in bytes (a URL or a `data:` URL), the same limit the core
-/// sanitizer cuts at. An uploaded image is base64 encoded, so this is about 36 KB of image.
-/// Longer values are refused instead of cut, which would break the image.
-pub const MAX_LOGO_BYTES: usize = 50_000;
+use super::theme::{self, MAX_FONT_BYTES, Theme};
+
+const KEYS: &[&str] = &[
+    "brand_title",
+    "brand_subtitle",
+    "brand_logo",
+    "brand_accent",
+    "brand_theme",
+    "brand_font_name",
+    "brand_font_mime",
+    "brand_font_sha",
+];
+
+/// Where the web client loads an uploaded font from (same origin, so the CSP's
+/// `font-src 'self'` covers it). `v` changes with the file, so it can be cached.
+const FONT_PATH: &str = "/api/v1/settings/branding/font";
+
+fn stored_theme(raw: &str) -> Theme {
+    serde_json::from_str(raw).unwrap_or_default()
+}
 
 /// GET /api/settings/branding — get branding settings with defaults
 pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
@@ -24,74 +42,58 @@ pub async fn get_branding(State(state): State<AppState>) -> Result<impl IntoResp
         })));
     }
 
-    let settings = state
-        .storage
-        .get_settings(&[
-            "brand_title",
-            "brand_subtitle",
-            "brand_logo",
-            "brand_accent",
-        ])
-        .await?;
-
-    let mut title = "Voltrus".to_string();
-    let mut subtitle = "Monitoring Dashboard".to_string();
-    let mut logo = "".to_string();
-    let mut accent = "".to_string();
-
-    for s in &settings {
-        match s.key.as_str() {
-            "brand_title" => title = s.value.clone(),
-            "brand_subtitle" => subtitle = s.value.clone(),
-            "brand_logo" => logo = s.value.clone(),
-            "brand_accent" => accent = s.value.clone(),
-            _ => {}
-        }
-    }
+    let settings = state.storage.get_settings(KEYS).await?;
+    let get = |key: &str| {
+        settings
+            .iter()
+            .find(|s| s.key == key)
+            .map(|s| s.value.clone())
+            .unwrap_or_default()
+    };
+    let title = Some(get("brand_title"))
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| "Voltrus".into());
+    let subtitle = Some(get("brand_subtitle"))
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| "Monitoring Dashboard".into());
 
     let full_theme = state.tier().theme_full();
-    let theme_level = if full_theme { "full" } else { "basic" };
-
+    if !full_theme {
+        // A logo-only grant shows the Voltrus colours and font.
+        return Ok(Json(json!({
+            "title": title,
+            "subtitle": subtitle,
+            "logo": get("brand_logo"),
+            "accent": "",
+            "theme_level": "basic",
+        })));
+    }
+    let theme = stored_theme(&get("brand_theme"));
+    let sha = get("brand_font_sha");
+    let font_url =
+        (theme.font == "custom" && !sha.is_empty()).then(|| format!("{FONT_PATH}?v={sha}"));
     Ok(Json(json!({
         "title": title,
         "subtitle": subtitle,
-        "logo": logo,
-        // The accent colour is part of the theme: a logo-only grant shows the default.
-        "accent": if full_theme { accent } else { String::new() },
-        "theme_level": theme_level,
+        "logo": get("brand_logo"),
+        "accent": get("brand_accent"),
+        "theme_level": "full",
+        "theme": {
+            "dark": theme.dark,
+            "light": theme.light,
+            // An uploaded font that was removed falls back to the default.
+            "font": if theme.font == "custom" && font_url.is_none() { String::new() } else { theme.font.clone() },
+        },
+        "font_url": font_url,
+        "font_name": if sha.is_empty() { String::new() } else { get("brand_font_name") },
+        "fonts": theme::FONTS.iter().map(|(id, label)| json!({"id": id, "label": label})).collect::<Vec<_>>(),
     })))
 }
 
-/// Cut `s` to at most `max` bytes on a character boundary. The core sanitizer cuts by
-/// byte index, which panics inside a multi-byte character, so text reaches it short
-/// enough already.
-fn clamp_utf8(s: &str, max: usize) -> &str {
-    if s.len() <= max {
-        return s;
-    }
-    let mut end = max;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
-/// An accent colour is `#rrggbb` (case-insensitive), stored lower case; an empty
-/// string resets it to the theme default. Anything else is refused, because the
-/// value is written into a CSS variable.
-fn parse_accent(value: &str) -> Result<String, AppError> {
-    let v = value.trim();
-    if v.is_empty() {
-        return Ok(String::new());
-    }
-    let hex = v.strip_prefix('#').unwrap_or("");
-    if hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
-        Ok(format!("#{}", hex.to_ascii_lowercase()))
-    } else {
-        Err(AppError::bad_request(
-            "accent must be a colour like #0055aa, or empty to reset it",
-        ))
-    }
+/// Cut `s` to at most `max` characters. Kept for callers that cut before the core
+/// sanitizer (which now cuts by characters itself).
+fn clamp_chars(s: &str, max: usize) -> String {
+    s.chars().take(max).collect()
 }
 
 /// PUT /api/settings/branding — update branding settings
@@ -99,7 +101,7 @@ pub async fn update_branding(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
     Json(body): Json<serde_json::Value>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response, AppError> {
     if !state.white_label() {
         return Err(AppError::forbidden(
             "White-label branding requires an Integrator or Enterprise licence",
@@ -107,14 +109,12 @@ pub async fn update_branding(
     }
 
     // Logo-only entitlements (legacy Starter/Edge keys) may update the logo; the
-    // title, subtitle, accent colour and theme need theme_full (Integrator and above).
-
+    // title, subtitle, colours, theme and font need theme_full (Integrator and above).
     let full_theme = state.tier().theme_full();
-
     if !full_theme
-        && (body.get("title").is_some()
-            || body.get("subtitle").is_some()
-            || body.get("accent").is_some())
+        && ["title", "subtitle", "accent", "theme"]
+            .iter()
+            .any(|k| body.get(*k).is_some())
     {
         return Err(AppError::forbidden(
             "Full theme customization needs an Integrator or Enterprise licence.",
@@ -122,22 +122,57 @@ pub async fn update_branding(
     }
 
     // Validate everything before writing anything, so a refused request changes nothing.
-    let logo = body.get("logo").and_then(|v| v.as_str()).map(str::trim);
-    if let Some(logo) = logo
-        && logo.len() > MAX_LOGO_BYTES
-    {
-        return Err(AppError::bad_request(format!(
-            "Logo is too large: at most {MAX_LOGO_BYTES} bytes (an uploaded image of about 36 KB). Use a smaller image or a URL."
-        )));
-    }
-    let accent = match body.get("accent").and_then(|v| v.as_str()) {
-        Some(a) => Some(parse_accent(a)?),
+    let logo = match body.get("logo").and_then(|v| v.as_str()) {
+        Some(logo) => Some(voltrus::security::sanitize_logo_input(logo)?),
         None => None,
+    };
+    let current = state
+        .storage
+        .get_settings(&["brand_accent", "brand_theme"])
+        .await?;
+    let current_of = |key: &str| {
+        current
+            .iter()
+            .find(|s| s.key == key)
+            .map(|s| s.value.clone())
+            .unwrap_or_default()
+    };
+    let accent = match body.get("accent").and_then(|v| v.as_str()) {
+        Some(a) => Some(
+            theme::normalize_colour(&voltrus::security::sanitize_brand_color(a)?)
+                .map_err(AppError::bad_request)?,
+        ),
+        None => None,
+    };
+    let new_theme = match body.get("theme") {
+        Some(v) if v.is_null() => Some(Theme::default()),
+        Some(v) => Some(
+            serde_json::from_value::<Theme>(v.clone())
+                .map_err(|e| AppError::bad_request(format!("theme: {e}")))?,
+        ),
+        None => None,
+    };
+    // The accent and the theme are judged together: a new accent against the stored
+    // theme, a new theme against the stored (or new) accent.
+    let effective_accent = accent.clone().unwrap_or_else(|| current_of("brand_accent"));
+    let new_theme = match new_theme {
+        Some(t) => Some(
+            t.validated(&effective_accent)
+                .map_err(AppError::bad_request)?,
+        ),
+        None => {
+            if accent.is_some() {
+                stored_theme(&current_of("brand_theme"))
+                    .validated(&effective_accent)
+                    .map_err(AppError::bad_request)?;
+            }
+            None
+        }
     };
 
     if let Some(title) = body.get("title").and_then(|v| v.as_str()) {
         let sanitized =
-            voltrus::security::sanitize_brand_input(clamp_utf8(title, MAX_BRAND_LENGTH));
+            voltrus::security::sanitize_brand_input(&clamp_chars(title, MAX_BRAND_LENGTH));
         state
             .storage
             .upsert_setting("brand_title", &sanitized)
@@ -145,25 +180,25 @@ pub async fn update_branding(
     }
     if let Some(subtitle) = body.get("subtitle").and_then(|v| v.as_str()) {
         let sanitized =
-            voltrus::security::sanitize_brand_input(clamp_utf8(subtitle, MAX_BRAND_LENGTH));
+            voltrus::security::sanitize_brand_input(&clamp_chars(subtitle, MAX_BRAND_LENGTH));
         state
             .storage
             .upsert_setting("brand_subtitle", &sanitized)
             .await?;
     }
     if let Some(logo) = logo {
-        let sanitized = voltrus::security::sanitize_logo_input(logo)
-            .map_err(|e| AppError::bad_request(e.1))?;
-        state
-            .storage
-            .upsert_setting("brand_logo", &sanitized)
-            .await?;
+        state.storage.upsert_setting("brand_logo", &logo).await?;
     }
-    if let Some(accent) = accent {
-        state
-            .storage
-            .upsert_setting("brand_accent", &accent)
-            .await?;
+    if let Some(accent) = &accent {
+        state.storage.upsert_setting("brand_accent", accent).await?;
+    }
+    if let Some(theme) = &new_theme {
+        let value = if theme.is_empty() {
+            String::new()
+        } else {
+            serde_json::to_string(theme).unwrap_or_default()
+        };
+        state.storage.upsert_setting("brand_theme", &value).await?;
     }
 
     state.audit_logger.log(voltrus::security::AuditEvent {
@@ -173,7 +208,181 @@ pub async fn update_branding(
         details: None,
     });
 
-    Ok(Json(json!({"ok": true})))
+    Ok(Json(json!({"ok": true})).into_response())
+}
+
+/// GET /api/v1/settings/branding/font — the uploaded font file (public: the
+/// login page uses it).
+pub async fn get_font(State(state): State<AppState>) -> Result<Response, AppError> {
+    let not_found = || {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": "no brand font"})),
+        )
+            .into_response()
+    };
+    if !state.white_label() || !state.tier().theme_full() {
+        return Ok(not_found());
+    }
+    let settings = state
+        .storage
+        .get_settings(&["brand_font_file", "brand_font_mime"])
+        .await?;
+    let get = |key: &str| {
+        settings
+            .iter()
+            .find(|s| s.key == key)
+            .map(|s| s.value.clone())
+            .unwrap_or_default()
+    };
+    let Ok(data) = base64::engine::general_purpose::STANDARD.decode(get("brand_font_file")) else {
+        return Ok(not_found());
+    };
+    // Served only as one of the font types its signature was checked against.
+    let Some(mime) = theme::font_mime(&data) else {
+        return Ok(not_found());
+    };
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, mime.to_string()),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+            (
+                header::CACHE_CONTROL,
+                "public, max-age=31536000, immutable".to_string(),
+            ),
+        ],
+        data,
+    )
+        .into_response())
+}
+
+/// PUT /api/v1/settings/branding/font — upload a font file: `{"name": "Acme Sans",
+/// "data": "<base64>"}`. WOFF2, WOFF, TTF or OTF, at most 256 KB. Selects it.
+pub async fn put_font(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Response, AppError> {
+    if !state.white_label() || !state.tier().theme_full() {
+        return Err(AppError::forbidden(
+            "A brand font needs an Integrator or Enterprise licence.",
+        ));
+    }
+    let b64 = body.get("data").and_then(|v| v.as_str()).unwrap_or("");
+    let b64 = b64.split_once("base64,").map_or(b64, |(_, d)| d).trim();
+    // Refuse an oversized upload before decoding it.
+    if b64.len() > MAX_FONT_BYTES.div_ceil(3) * 4 + 4 {
+        return Err(AppError::bad_request(format!(
+            "Font file is too large: at most {} KB",
+            MAX_FONT_BYTES / 1024
+        )));
+    }
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .map_err(|_| AppError::bad_request("data must be the font file, base64 encoded"))?;
+    if data.len() > MAX_FONT_BYTES {
+        return Err(AppError::bad_request(format!(
+            "Font file is too large: at most {} KB",
+            MAX_FONT_BYTES / 1024
+        )));
+    }
+    let Some(mime) = theme::font_mime(&data) else {
+        return Err(AppError::bad_request(
+            "Not a font file: upload a WOFF2, WOFF, TTF or OTF file",
+        ));
+    };
+    let name = voltrus::security::sanitize_brand_input(&clamp_chars(
+        body.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Custom font"),
+        60,
+    ));
+    let sha = {
+        use sha2::{Digest, Sha256};
+        hex::encode(&Sha256::digest(&data)[..8])
+    };
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&data);
+    state
+        .storage
+        .upsert_setting("brand_font_file", &encoded)
+        .await?;
+    state
+        .storage
+        .upsert_setting("brand_font_mime", mime)
+        .await?;
+    state
+        .storage
+        .upsert_setting(
+            "brand_font_name",
+            if name.is_empty() {
+                "Custom font"
+            } else {
+                &name
+            },
+        )
+        .await?;
+    state.storage.upsert_setting("brand_font_sha", &sha).await?;
+    // Uploading a font selects it.
+    let current = state.storage.get_settings(&["brand_theme"]).await?;
+    let mut theme = stored_theme(&current.first().map(|s| s.value.as_str()).unwrap_or(""));
+    theme.font = "custom".into();
+    state
+        .storage
+        .upsert_setting(
+            "brand_theme",
+            &serde_json::to_string(&theme).unwrap_or_default(),
+        )
+        .await?;
+    state.audit_logger.log(voltrus::security::AuditEvent {
+        action: "update_branding_font".to_string(),
+        username: auth.username.clone(),
+        resource: "settings:branding".to_string(),
+        details: Some(format!("{mime}, {} bytes, sha256 {sha}", data.len())),
+    });
+    Ok(
+        Json(json!({"ok": true, "font_url": format!("{FONT_PATH}?v={sha}"), "mime": mime}))
+            .into_response(),
+    )
+}
+
+/// DELETE /api/v1/settings/branding/font — remove the uploaded font; the theme
+/// falls back to the default font.
+pub async fn delete_font(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<Response, AppError> {
+    if !state.white_label() || !state.tier().theme_full() {
+        return Err(AppError::forbidden(
+            "A brand font needs an Integrator or Enterprise licence.",
+        ));
+    }
+    for key in [
+        "brand_font_file",
+        "brand_font_mime",
+        "brand_font_name",
+        "brand_font_sha",
+    ] {
+        state.storage.upsert_setting(key, "").await?;
+    }
+    let current = state.storage.get_settings(&["brand_theme"]).await?;
+    let mut theme = stored_theme(&current.first().map(|s| s.value.as_str()).unwrap_or(""));
+    if theme.font == "custom" {
+        theme.font = String::new();
+        let value = if theme.is_empty() {
+            String::new()
+        } else {
+            serde_json::to_string(&theme).unwrap_or_default()
+        };
+        state.storage.upsert_setting("brand_theme", &value).await?;
+    }
+    state.audit_logger.log(voltrus::security::AuditEvent {
+        action: "delete_branding_font".to_string(),
+        username: auth.username.clone(),
+        resource: "settings:branding".to_string(),
+        details: None,
+    });
+    Ok(Json(json!({"ok": true})).into_response())
 }
 
 #[cfg(test)]
@@ -182,30 +391,20 @@ mod tests {
 
     #[test]
     fn clamp_never_cuts_inside_a_character() {
-        let title = format!("a{}", "Ä".repeat(150));
-        let cut = clamp_utf8(&title, MAX_BRAND_LENGTH);
-        assert!(cut.len() <= MAX_BRAND_LENGTH);
-        assert_eq!(cut.len(), MAX_BRAND_LENGTH - 1);
-        // The core sanitizer must not panic on what we hand it.
-        let sanitized = voltrus::security::sanitize_brand_input(cut);
+        let title = format!("a{}", "Ä".repeat(250));
+        let cut = clamp_chars(&title, MAX_BRAND_LENGTH);
+        assert_eq!(cut.chars().count(), MAX_BRAND_LENGTH);
+        let sanitized = voltrus::security::sanitize_brand_input(&cut);
         assert!(sanitized.starts_with('a'));
-        assert_eq!(clamp_utf8("Acme", MAX_BRAND_LENGTH), "Acme");
+        assert_eq!(clamp_chars("Acme", MAX_BRAND_LENGTH), "Acme");
     }
 
     #[test]
-    fn accent_accepts_hex_colours_and_reset_only() {
-        assert_eq!(parse_accent("#0055AA").unwrap(), "#0055aa");
-        assert_eq!(parse_accent(" #a1b2c3 ").unwrap(), "#a1b2c3");
-        assert_eq!(parse_accent("").unwrap(), "");
-        for bad in [
-            "red",
-            "#fff",
-            "0055aa",
-            "#0055aa;background:url(x)",
-            "#gggggg",
-            "#0055aa00",
-        ] {
-            assert!(parse_accent(bad).is_err(), "{bad}");
-        }
+    fn a_stored_theme_that_does_not_parse_is_the_default() {
+        assert_eq!(stored_theme(""), Theme::default());
+        assert_eq!(stored_theme("{not json"), Theme::default());
+        let t = stored_theme(r##"{"dark":{"background":"#000000"},"font":"serif"}"##);
+        assert_eq!(t.dark.background, "#000000");
+        assert_eq!(t.font, "serif");
     }
 }

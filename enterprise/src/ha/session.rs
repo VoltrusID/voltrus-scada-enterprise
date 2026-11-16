@@ -18,6 +18,7 @@ use super::node::{
 use super::store::{self, Position, SnapshotTable, TableChanges, TableSchema};
 use super::wire::{Hello, Msg};
 use super::{FullSyncReport, HaRole, SyncState};
+use crate::licensing::pair;
 
 /// Batches in flight before the primary waits for acknowledgements.
 const WINDOW: usize = 8;
@@ -230,8 +231,16 @@ impl Node {
         lock(&self.dynamic).peer_seen = Some(Instant::now());
         match msg {
             Msg::Ack { seq } => self.on_ack(reader, s, seq).await,
-            Msg::HeartbeatAck { applied_seq, .. } => {
+            Msg::HeartbeatAck {
+                applied_seq,
+                license,
+                ..
+            } => {
                 lock(&self.dynamic).last_seq = Some(applied_seq);
+                let peer_id = lock(&self.dynamic).peer_id.clone();
+                if let (Some(blob), Some(peer_id)) = (license, peer_id) {
+                    self.receive_license(peer_id, blob);
+                }
             }
             Msg::ResyncRequest => {
                 self.send_full_sync(peer, reader, s).await?;
@@ -308,8 +317,18 @@ impl Node {
             lag_ms: lag,
             pollers: self.pollers.running_ids().await,
             now_ms: now_ms(),
+            license: pair::own_shareable(&self.storage).await,
         })
         .await
+    }
+
+    /// The partner sent its licence in this session: take it in the background,
+    /// so the session never waits for the database.
+    fn receive_license(&self, holder: String, blob: Vec<u8>) {
+        let storage = self.storage.clone();
+        tokio::spawn(async move {
+            pair::receive(&storage, &holder, blob).await;
+        });
     }
 
     async fn ship_pending(&self, peer: &mut Peer, reader: &Reader, s: &mut Sess) -> Result<()> {
@@ -749,8 +768,12 @@ impl Node {
                 max_seq,
                 lag_ms,
                 pollers,
+                license,
                 ..
             } => {
+                if let Some(blob) = license {
+                    self.receive_license(ph.node_id.clone(), blob);
+                }
                 if epoch > self.epoch() {
                     // The same primary re-numbered its term (its witness did): follow it.
                     self.adopt_epoch(epoch).await?;
@@ -771,6 +794,7 @@ impl Node {
                 peer.send(&Msg::HeartbeatAck {
                     applied_seq: applied,
                     now_ms: now_ms(),
+                    license: pair::own_shareable(&self.storage).await,
                 })
                 .await?;
             }

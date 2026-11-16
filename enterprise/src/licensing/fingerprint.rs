@@ -61,12 +61,30 @@ impl Fingerprint {
 }
 
 pub fn collect_fingerprint() -> Fingerprint {
+    #[cfg(feature = "ha-test-node")]
+    if let Ok(machine) = std::env::var("VOLTRUS_TEST_MACHINE") {
+        return test_fingerprint(&machine);
+    }
     Fingerprint {
         hostname: get_hostname(),
         cpu: get_cpu_info(),
         disk_serial: get_disk_serial(),
         mac: get_mac_address(),
         machine_id: get_machine_id(),
+    }
+}
+
+/// The fingerprint of a simulated machine. Only the `ha-test-node` build reads
+/// `VOLTRUS_TEST_MACHINE`, so the integration test can run several "machines" on one
+/// host: every component differs between two names.
+#[cfg(feature = "ha-test-node")]
+pub fn test_fingerprint(machine: &str) -> Fingerprint {
+    Fingerprint {
+        hostname: format!("{machine}-host"),
+        cpu: format!("{machine}-cpu"),
+        disk_serial: format!("{machine}-disk"),
+        mac: format!("{machine}-mac"),
+        machine_id: format!("{machine}-id"),
     }
 }
 

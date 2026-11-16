@@ -11,7 +11,7 @@ export function BrandingDialogHost({ branding, onClose }: { branding: BrandingSe
   const save = useSaveBranding()
 
   if (hasFeature(license, 'white_label')) {
-    return <BrandingDialog branding={branding} logoOnly={!hasFeature(license, 'theme_full')} onSave={settings => save.mutate(settings)} onClose={onClose} />
+    return <BrandingDialog branding={branding} logoOnly={!hasFeature(license, 'theme_full')} onSave={settings => save.mutate(settings, { onError: e => window.alert(`Branding not saved: ${e instanceof Error ? e.message : String(e)}`) })} onClose={onClose} />
   }
 
   return (
