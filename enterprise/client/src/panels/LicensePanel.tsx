@@ -7,7 +7,8 @@ import { normalizeLicense, type LicenseInfo } from '@voltrus/core/edition/licens
 import { btnStyle, inputStyle } from '@voltrus/core/styles'
 
 const CONSOLE_URL = 'https://console.voltrus.id'
-const ACTIVATE_URL = 'https://activate.voltrus.id'
+/** The upload page for offline activation (activate.voltrus.id is the API only; its root answers 404). */
+const ACTIVATE_URL = 'https://voltrus.id/activate/'
 
 const TIER_LABEL: Record<LicenseInfo['tier'], string> = {
   community: 'Community',
@@ -191,7 +192,7 @@ export function LicensePanel() {
         <h3 style={HEADING}>Offline activation</h3>
         <p style={HINT}>
           For installs without internet access: enter the key above and save a request file, upload it at{' '}
-          <a href={ACTIVATE_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--cyan)' }}>activate.voltrus.id</a> from a connected PC,
+          <a href={ACTIVATE_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--cyan)' }}>voltrus.id/activate</a> from a connected PC,
           then import the activation file it returns.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
