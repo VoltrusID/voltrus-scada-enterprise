@@ -498,3 +498,36 @@ async fn a_provider_behind_a_private_ca_needs_ca_cert() {
         .expect("a missing CA file is a configuration error");
     assert!(err.contains("ca_cert_file"), "{err}");
 }
+
+#[test]
+fn bearer_role_settings_left_unset_use_the_documented_defaults() {
+    let unset = OidcConfig {
+        enabled: true,
+        issuer: "https://idp.example.com".into(),
+        audience: String::new(),
+        jwks_url: String::new(),
+        role_claim: String::new(),
+        admin_role: String::new(),
+    }
+    .with_defaults();
+    assert_eq!(unset.role_claim, "realm_access.roles");
+    assert_eq!(unset.admin_role, "voltrus-admin");
+    let claims = OidcClaims {
+        sub: "alice".into(),
+        exp: 0,
+        iss: unset.issuer.clone(),
+        aud: json!("voltrus"),
+        realm_access: Some(RealmAccess {
+            roles: vec!["voltrus-admin".into()],
+        }),
+        groups: None,
+    };
+    assert_eq!(extract_role(&claims, &unset), "admin");
+
+    let custom = OidcConfig {
+        admin_role: "scada-admins".into(),
+        ..unset.clone()
+    }
+    .with_defaults();
+    assert_eq!(custom.admin_role, "scada-admins");
+}

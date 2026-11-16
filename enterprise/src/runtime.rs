@@ -130,7 +130,8 @@ pub(crate) async fn start(ctx: StartContext) {
         jwks_url: ctx.config.oidc_jwks_url.clone(),
         role_claim: ctx.config.oidc_role_claim.clone(),
         admin_role: ctx.config.oidc_admin_role.clone(),
-    };
+    }
+    .with_defaults();
     // Bearer validation fetches the same provider's keys: it trusts `sso.oidc.ca_cert*` too.
     let jwks = match crate::sso::config::SsoConfig::load(&ctx.config_path).and_then(|c| {
         crate::sso::config::with_extra_ca(
