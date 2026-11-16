@@ -5,6 +5,72 @@ writes to them, stores history and evaluates alarms. The other (standby) keeps a
 copy of everything and takes over when the primary is gone. Licence: one
 Enterprise licence covers both nodes. Code: `enterprise/src/ha/`.
 
+## Set up a pair, step by step
+
+There is no screen for hot standby: it is set in `config.yaml` on both
+machines and watched in the web client's banner and `GET /api/v1/ha/status`.
+
+1. Two machines that reach each other on a TCP port (default 7901) and both
+   reach the devices. Install the same Voltrus version on both.
+2. Activate the Enterprise licence on each machine (**More actions (⋯) › Data
+   Manager › Admin › License**); an activation is bound to its machine and is
+   the one thing that does not replicate. A node without a hot standby licence
+   logs `Hot standby is configured but this process started without a hot
+   standby licence` and runs alone.
+3. Generate one secret: `openssl rand -hex 32`. Put it in `ha.shared_secret`
+   on both nodes, or in the environment variable `VOLTRUS_HA_SECRET`.
+4. Write the `ha:` block (see [Configuration](#configuration)) on both nodes:
+   same `auth_secret`, `shared_secret`, devices, `smtp` and the rest of
+   `config.yaml`; different `node_id`, `bind_address`, `peer_address`; `role:
+   primary` on the first node, `role: standby` on the second.
+5. Start the primary, then the standby. The standby takes a full copy, then
+   streams.
+6. Optional, recommended: a witness on a third machine,
+   `VOLTRUS_HA_SECRET=<secret> voltrus --ha-witness --bind 0.0.0.0:7902`, and
+   `witness: {kind: arbiter, address: <third machine>:7902}` on both nodes.
+7. Point users at the active node. The pair has no shared IP of its own: use a
+   load balancer, keepalived or a DNS name with a health check on
+   `GET /api/v1/ha/active` (no sign-in; `200 {"active":true}` on the active
+   node, `503` on the standby). Native consoles and bookmarks that name one
+   node must be switched by hand after a failover.
+
+### Check it works
+
+1. `GET /api/v1/ha/status` (signed in) on the primary: `role: primary`,
+   `active: true`, `peer_status: connected`, `sync_state: streaming`; on the
+   standby `role: standby`, `active: false`. The web client shows the pair
+   state in a banner.
+2. Change something on the primary (add a user); it is on the standby within a
+   second. A change on the standby answers `503 standby_read_only`.
+3. Stop the primary (`kill -9` or pull its network). After
+   `heartbeat_interval_ms × failover_after_missed` the standby reports
+   `role: primary`, `active: true`, `failover_reason: no answer from the
+   primary for … ms`, polls the devices and accepts changes.
+4. Start the old primary: it asks its peer, rejoins as `standby` and streams.
+5. Fail back when convenient: `POST /api/v1/ha/force-failover` (admin) on
+   either node is a controlled switchover with no data loss.
+
+Verified on 2026-11-16 with the configuration above (1 s heartbeat, 3 missed):
+the standby was active 2.9 s after `kill -9` of the primary, kept the users
+created before, accepted writes, stored history; the old primary rejoined as
+standby with every change; a switchover asked on the standby took 327 ms; the
+active probe answered 503 on the standby and 200 after takeover. The
+integration test (`cargo test --features ha-test-node --test ha_pair`) passed:
+failover 1044 ms with a 1 s window, 13 rows lost at `kill -9` under a 2 ms
+write load, 0 samples with two active nodes.
+
+### Troubleshooting
+
+| Status | Cause and fix |
+| --- | --- |
+| `peer_status: disconnected`, `link_auth_failures` rising | Different `shared_secret`, or something terminates TLS between the nodes. |
+| `sync_state: full_sync` for long | First copy or a standby that was away longer than the log holds; wait. Reads on the standby can fail meanwhile. |
+| `sync_state: error`, `sync_error` | The standby runs a different version; upgrade the standby first, then the primary. |
+| `role: fenced`, `promotion_blocked` | The node may not act: it lost its witness lease, or cannot reach peer and witness. It resumes by itself when they are back. |
+| Both nodes active after a link failure | No witness configured: the epochs sort it out when the link heals, the loser resyncs. Configure an arbiter witness. |
+| Users must sign in again after a failover | `auth_secret` differs between the nodes. |
+| Snapshots, report files missing after failover | Files on disk (`snapshots/`, `reports/`) do not replicate, only database rows. |
+
 ## Configuration
 
 Both nodes use the same file apart from `node_id`, `bind_address`, `peer_address`
@@ -110,6 +176,7 @@ than the log holds (4 million changes) it takes a full sync instead.
 
 ## Operations
 
+* `GET /api/v1/ha/active` (no sign-in): 200 on the active node, 503 otherwise, for load balancers.
 * `GET /api/v1/ha/status`: role, epoch, peer, sync state, lag, pending changes,
   last failover and its reason, witness state.
 * `POST /api/v1/ha/force-sync` (admin): full resync now. 200 with the report, 202
