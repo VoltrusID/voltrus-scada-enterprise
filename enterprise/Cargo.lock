@@ -4490,6 +4490,7 @@ dependencies = [
  "hex",
  "hmac",
  "lettre",
+ "libc",
  "mime_guess",
  "password-hash",
  "rand 0.9.4",
