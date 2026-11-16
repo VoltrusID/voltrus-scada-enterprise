@@ -321,6 +321,15 @@ pub fn tag_id_of(resource: &str) -> Option<i64> {
     resource.strip_prefix("data_source:")?.parse().ok()
 }
 
+/// The tag an action names: `details.tag_id` (sent with every tag write),
+/// else the id in its resource.
+pub fn tag_id_of_ctx(ctx: &ActionContext) -> Option<i64> {
+    ctx.details
+        .get("tag_id")
+        .and_then(serde_json::Value::as_i64)
+        .or_else(|| tag_id_of(&ctx.resource))
+}
+
 // ── storage ──
 
 static CACHE: RwLock<Option<(Instant, Policy)>> = RwLock::new(None);
@@ -511,6 +520,25 @@ mod tests {
         assert_eq!(tag_id_of("data_source:7"), Some(7));
         assert_eq!(tag_id_of("data_source:7:write_policy"), None);
         assert_eq!(tag_id_of("alarm:7"), None);
+    }
+
+    #[test]
+    fn the_tag_comes_from_details_first() {
+        let mut w = ctx(
+            SignedAction::TagWrite,
+            ActionOrigin::Session,
+            "op",
+            "data_source:7",
+        );
+        assert_eq!(tag_id_of_ctx(&w), Some(7), "the resource without details");
+        w.details = json!({"tag_id": 9, "key": "line1.temp", "value": 3.0});
+        assert_eq!(tag_id_of_ctx(&w), Some(9), "details win");
+        w.resource = "recipe:4".into();
+        assert_eq!(tag_id_of_ctx(&w), Some(9), "only details name the tag");
+        w.details = json!({"tag_id": "x"});
+        assert_eq!(tag_id_of_ctx(&w), None, "neither names a tag");
+        w.resource = "data_source:7".into();
+        assert_eq!(tag_id_of_ctx(&w), Some(7), "a malformed tag_id falls back");
     }
 
     #[test]

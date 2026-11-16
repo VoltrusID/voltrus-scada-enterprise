@@ -232,7 +232,7 @@ async fn requires_reason(storage: &Storage, tag_id: i64) -> bool {
 pub async fn signature_required(ctx: &ActionContext) -> Option<SignatureRequirement> {
     let (storage, p) = enforced().await?;
     let sig = &p.extras.signatures;
-    let tag = policy::tag_id_of(&ctx.resource);
+    let tag = policy::tag_id_of_ctx(ctx);
     let in_scope = match (sig.tag_scope, tag) {
         (TagScope::All, _) => true,
         (TagScope::Listed, Some(id)) => sig.tag_ids.contains(&id),
