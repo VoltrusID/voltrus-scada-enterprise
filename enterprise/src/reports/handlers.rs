@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode as HttpStatus,
     response::IntoResponse,
 };
@@ -21,6 +21,67 @@ fn pdf_reporting_required(state: &AppState) -> Option<(HttpStatus, Json<serde_js
 }
 
 /// GET /api/v1/reports — list all reports
+/// A list field (recipients, devices) as stored: JSON text. Accepts a JSON
+/// array (what the web client sends), JSON text of an array (the SDKs) or the
+/// string `"all"` for devices.
+fn list_as_text<'de, D>(de: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    Ok(match Option::<serde_json::Value>::deserialize(de)? {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(s)) => Some(s),
+        Some(v @ serde_json::Value::Array(_)) => Some(
+            // Device ids are strings in the core; numbers from a client become strings.
+            serde_json::to_string(
+                &v.as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|x| match x {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(serde::de::Error::custom)?,
+        ),
+        Some(other) => {
+            return Err(serde::de::Error::custom(format!(
+                "expected a list, got {other}"
+            )));
+        }
+    })
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateReportRequest {
+    pub name: String,
+    pub schedule: String,
+    #[serde(default, deserialize_with = "list_as_text")]
+    pub device_ids: Option<String>,
+    #[serde(default, deserialize_with = "list_as_text")]
+    pub email_recipients: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateReportRequest {
+    pub name: Option<String>,
+    pub schedule: Option<String>,
+    #[serde(default, deserialize_with = "list_as_text")]
+    pub device_ids: Option<String>,
+    #[serde(default, deserialize_with = "list_as_text")]
+    pub email_recipients: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct GenerateQuery {
+    /// `html` (default) or `pdf`.
+    pub format: Option<String>,
+}
+
 pub async fn list_reports(State(state): State<AppState>) -> impl IntoResponse {
     if let Some((status, body)) = pdf_reporting_required(&state) {
         return (status, body).into_response();
@@ -39,7 +100,7 @@ pub async fn list_reports(State(state): State<AppState>) -> impl IntoResponse {
 /// POST /api/v1/reports — create report
 pub async fn create_report(
     State(state): State<AppState>,
-    Json(req): Json<voltrus::models::CreateReportRequest>,
+    Json(req): Json<CreateReportRequest>,
 ) -> impl IntoResponse {
     if let Some((status, body)) = pdf_reporting_required(&state) {
         return (status, body).into_response();
@@ -65,7 +126,8 @@ pub async fn create_report(
     }
 
     // Validate recipients
-    let recipients: Vec<String> = match serde_json::from_str(&req.email_recipients) {
+    let email_recipients = req.email_recipients.clone().unwrap_or_default();
+    let recipients: Vec<String> = match serde_json::from_str(&email_recipients) {
         Ok(r) => r,
         Err(_) => {
             return (
@@ -112,7 +174,7 @@ pub async fn create_report(
             &req.schedule,
             enabled,
             &device_ids,
-            &req.email_recipients,
+            &email_recipients,
         )
         .await
     {
@@ -141,7 +203,7 @@ pub async fn create_report(
 pub async fn update_report(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<voltrus::models::UpdateReportRequest>,
+    Json(req): Json<UpdateReportRequest>,
 ) -> impl IntoResponse {
     if let Some((status, body)) = pdf_reporting_required(&state) {
         return (status, body).into_response();
@@ -297,6 +359,7 @@ pub async fn delete_report(
 pub async fn generate_report(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    Query(query): Query<GenerateQuery>,
 ) -> impl IntoResponse {
     if let Some((status, body)) = pdf_reporting_required(&state) {
         return (status, body).into_response();
@@ -320,27 +383,72 @@ pub async fn generate_report(
         }
     };
 
-    match crate::reports::render::generate_report_html(&state.storage, &state.cache, &report).await
-    {
-        Ok(html) => {
-            // Update last_generated
-            let now = voltrus::timeutil::now_secs();
-            if let Err(e) = state.storage.update_report_last_generated(id, now).await {
-                tracing::warn!("Failed to update last_generated for report {}: {}", id, e);
-            }
-
-            // Return HTML content
-            (
-                HttpStatus::OK,
-                [("content-type", "text/html; charset=utf-8")],
-                html,
+    // A preview: it does not move the schedule (`last_generated`) and sends no mail.
+    let data = match crate::reports::render::collect_report_data(&state.storage, &report).await {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                HttpStatus::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": format!("Failed to generate report: {}", e)})),
             )
-                .into_response()
+                .into_response();
         }
-        Err(e) => (
-            HttpStatus::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": format!("Failed to generate report: {}", e)})),
+    };
+    if query.format.as_deref() == Some("pdf") {
+        let name = crate::reports::render::report_filename_with(&report, "pdf");
+        (
+            HttpStatus::OK,
+            [
+                ("content-type", "application/pdf".to_string()),
+                (
+                    "content-disposition",
+                    format!("attachment; filename=\"{name}\""),
+                ),
+            ],
+            crate::reports::render::render_pdf(&data),
         )
-            .into_response(),
+            .into_response()
+    } else {
+        (
+            HttpStatus::OK,
+            [("content-type", "text/html; charset=utf-8")],
+            crate::reports::render::render_html(&data),
+        )
+            .into_response()
+    }
+}
+
+#[cfg(test)]
+mod request_tests {
+    use super::*;
+
+    #[test]
+    fn lists_arrive_as_arrays_or_text() {
+        let from_ui: CreateReportRequest = serde_json::from_str(
+            r#"{"name":"D","schedule":"daily","email_recipients":["a@x.io","b@x.io"],"device_ids":[1,"plc2"]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            from_ui.email_recipients.as_deref(),
+            Some(r#"["a@x.io","b@x.io"]"#)
+        );
+        assert_eq!(from_ui.device_ids.as_deref(), Some(r#"["1","plc2"]"#));
+
+        let from_sdk: CreateReportRequest = serde_json::from_str(
+            r#"{"name":"D","schedule":"daily","email_recipients":"[\"a@x.io\"]","device_ids":"all"}"#,
+        )
+        .unwrap();
+        assert_eq!(from_sdk.email_recipients.as_deref(), Some(r#"["a@x.io"]"#));
+        assert_eq!(from_sdk.device_ids.as_deref(), Some("all"));
+
+        let update: UpdateReportRequest = serde_json::from_str(r#"{"enabled":false}"#).unwrap();
+        assert!(update.email_recipients.is_none() && update.device_ids.is_none());
+
+        assert!(
+            serde_json::from_str::<CreateReportRequest>(
+                r#"{"name":"D","schedule":"daily","email_recipients":5}"#
+            )
+            .is_err()
+        );
     }
 }

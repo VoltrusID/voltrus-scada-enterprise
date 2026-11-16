@@ -7,17 +7,17 @@ import {
   useDeleteHubSite,
   useStartHubSite,
   useStopHubSite,
+  useImportHubTags,
 } from '../queries/hub'
+import type { HubSiteStatus } from '../queries/hub'
 import { inputStyle, btnStyle } from '@voltrus/core/styles'
 
 type SiteRunning = 'running' | 'stopped' | 'connecting'
 
-function getSiteStatus(siteId: number, statuses: { site_id: number; running: boolean; last_seen: number | null }[]): SiteRunning {
+function getSiteStatus(siteId: number, statuses: HubSiteStatus[]): SiteRunning {
   const s = statuses.find(x => x.site_id === siteId)
   if (!s || !s.running) return 'stopped'
-  const ago = s.last_seen ? Date.now() / 1000 - s.last_seen : Infinity
-  if (ago > 30) return 'connecting'
-  return 'running'
+  return s.connected ? 'running' : 'connecting'
 }
 
 function StatusDot({ status }: { status: SiteRunning }) {
@@ -48,6 +48,7 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
   const deleteMut = useDeleteHubSite()
   const startMut = useStartHubSite()
   const stopMut = useStopHubSite()
+  const importMut = useImportHubTags()
 
   const [filter, setFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -171,15 +172,19 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <StatusDot status={status} />
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                          {status === 'running' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }} title={siteStatusEntry?.last_error ?? undefined}>
+                          {status === 'running'
+                            ? `Connected, ${siteStatusEntry?.tags ?? 0} tags`
+                            : status === 'connecting'
+                              ? (siteStatusEntry?.last_error ? `Retrying: ${siteStatusEntry.last_error}` : 'Connecting...')
+                              : 'Disconnected'}
                         </span>
                       </div>
                     </td>
                     <td style={{ ...tdStyle, fontWeight: 500 }}>{s.name}</td>
                     <td style={{ ...tdStyle, fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.url}</td>
                     <td style={{ ...tdStyle, color: 'var(--muted)', fontSize: 12 }}>
-                      {formatLastSeen(siteStatusEntry?.last_seen ?? s.last_seen)}
+                      {formatLastSeen(siteStatusEntry?.last_message_at ?? siteStatusEntry?.last_seen ?? s.last_seen)}
                     </td>
                     <td style={tdStyle}>
                       <input
@@ -191,7 +196,19 @@ export function HubManager({ onClose, embedded }: { onClose: () => void; embedde
                     </td>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                        {status === 'running' ? (
+                        <button
+                          onClick={() => importMut.mutate(s.id, {
+                            onSuccess: r => alert(`${r.created} tag(s) created, ${r.skipped} already there. They read device ${r.device_id}.`),
+                            onError: e => alert(e instanceof Error ? e.message : 'Import failed'),
+                          })}
+                          disabled={importMut.isPending}
+                          style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--cyan)', background: 'transparent', color: 'var(--cyan)', cursor: 'pointer', fontSize: 11 }}
+                          aria-label={`Import tags of ${s.name}`}
+                          title="Create a hub tag for every tag of this site"
+                        >
+                          Import tags
+                        </button>
+                        {status !== 'stopped' ? (
                           <button
                             onClick={() => stopMut.mutate(s.id)}
                             style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--crit)', background: 'transparent', color: 'var(--crit)', cursor: 'pointer', fontSize: 11 }}

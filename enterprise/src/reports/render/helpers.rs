@@ -11,8 +11,13 @@ pub fn schedule_to_duration(schedule: &str) -> std::time::Duration {
 
 /// Generates a filename for a report PDF/HTML based on the report config.
 pub fn report_filename(report: &Report) -> String {
+    report_filename_with(report, "html")
+}
+
+/// `report_<date>_<schedule>.<extension>`, for the HTML and the PDF of one run.
+pub fn report_filename_with(report: &Report, extension: &str) -> String {
     let now = chrono_or_time_format(voltrus::timeutil::now_secs());
-    format!("report_{}_{}.{}", now, report.schedule, "html")
+    format!("report_{}_{}.{}", now, report.schedule, extension)
 }
 
 pub(crate) fn html_escape(s: &str) -> String {

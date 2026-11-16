@@ -5,8 +5,6 @@ use dashmap::DashMap;
 
 use voltrus::models::{Camera, CameraSnapshot};
 
-use super::client::RtspClient;
-
 // ── Stream Proxy ──
 
 pub(crate) struct CameraState {
@@ -49,11 +47,16 @@ impl StreamProxy {
         camera: &Camera,
         alarm_source: Option<&str>,
     ) -> Result<CameraSnapshot> {
-        let mut client = RtspClient::new(&camera.url);
-        let data = client.capture_snapshot().await?;
+        let data = super::ffmpeg::grab_jpeg(&camera.url).await?;
 
         let timestamp = voltrus::timeutil::now_secs();
-        let filename = format!("cam{}_{}.jpg", camera.id, timestamp);
+        // Milliseconds keep two snapshots of one second apart.
+        let filename = format!(
+            "cam{}_{}_{}.jpg",
+            camera.id,
+            timestamp,
+            voltrus::timeutil::now_millis() % 1000
+        );
         let file_path = format!("{}/{}", self.snapshot_dir.trim_end_matches('/'), filename);
 
         std::fs::write(&file_path, &data)

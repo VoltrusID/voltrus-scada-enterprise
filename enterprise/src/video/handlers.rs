@@ -333,8 +333,81 @@ pub async fn get_stream_info(
     Ok(Json(json!({
         "camera_id": camera.id,
         "name": camera.name,
-        "stream_url": camera.url,
+        // The camera password stays on the server.
+        "stream_url": crate::video::ffmpeg::redact(&camera.url),
+        "live_url": format!("/api/v1/cameras/{}/live", camera.id),
         "enabled": camera.enabled,
         "protocol": "rtsp",
     })))
+}
+
+/// GET /api/v1/cameras/{id}/snapshots/{snapshot_id}/file
+///
+/// The JPEG of one snapshot.
+pub async fn snapshot_file(
+    State(state): State<AppState>,
+    Path((id, snapshot_id)): Path<(i64, i64)>,
+) -> Result<axum::response::Response, AppError> {
+    require_video(&state)?;
+    let snapshot = state
+        .storage
+        .list_camera_snapshots(id, 10_000)
+        .await?
+        .into_iter()
+        .find(|s| s.id == snapshot_id)
+        .ok_or_else(|| AppError::not_found("Snapshot not found"))?;
+    let bytes = tokio::fs::read(&snapshot.file_path)
+        .await
+        .map_err(|_| AppError::not_found("Snapshot file is missing on this node"))?;
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "image/jpeg"),
+            (axum::http::header::CACHE_CONTROL, "private, max-age=3600"),
+        ],
+        bytes,
+    )
+        .into_response())
+}
+
+/// GET /api/v1/cameras/{id}/live
+///
+/// The camera as MJPEG (`multipart/x-mixed-replace`), transcoded by ffmpeg on
+/// the server, so a browser shows it in an `<img>` without any plug-in and the
+/// camera itself is never exposed to the browser.
+pub async fn live_view(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<axum::response::Response, AppError> {
+    require_video(&state)?;
+    let camera = state
+        .storage
+        .get_camera(id)
+        .await?
+        .ok_or_else(|| AppError::not_found("Camera not found"))?;
+    if !camera.enabled {
+        return Err(AppError::bad_request("Camera is disabled"));
+    }
+    let Some(slot) = crate::video::ffmpeg::take_live_slot() else {
+        return Ok((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": format!(
+                "{} live views are open already; close one and try again",
+                crate::video::ffmpeg::MAX_LIVE_VIEWS
+            )})),
+        )
+            .into_response());
+    };
+    let child = crate::video::ffmpeg::spawn_live(&camera.url)?;
+    let body = axum::body::Body::from_stream(crate::video::ffmpeg::live_stream(child, slot));
+    Ok((
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                crate::video::ffmpeg::LIVE_CONTENT_TYPE,
+            ),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+        ],
+        body,
+    )
+        .into_response())
 }

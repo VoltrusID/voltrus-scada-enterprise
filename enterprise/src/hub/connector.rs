@@ -31,15 +31,47 @@ impl Backoff {
     }
 }
 
+/// What the hub knows about one site's link right now (not persisted).
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SiteLink {
+    /// The WebSocket to the site is open and authenticated.
+    pub connected: bool,
+    /// Unix seconds of the last tag update received.
+    pub last_message_at: Option<i64>,
+    /// Distinct tags received from the site since the hub started.
+    pub tags: usize,
+    /// Why the last attempt failed, until the next successful connect.
+    pub last_error: Option<String>,
+}
+
+pub type SiteLinks = std::sync::Arc<dashmap::DashMap<i64, SiteLink>>;
+
 /// Connect to a remote Voltrus instance via WebSocket and merge data into the local cache.
-/// Device IDs are prefixed with `{site_name}:` to avoid collisions.
-pub async fn connect_site(site: HubSite, cache: DeviceCache, storage: Storage) {
+/// Every tag of the site goes to the hub device `{site_name}:default`, under its
+/// original tag key.
+pub async fn connect_site(site: HubSite, cache: DeviceCache, storage: Storage, links: SiteLinks) {
     let site_id = site.id;
     let site_name = site.name.clone();
     let mut backoff = Backoff::new();
 
     loop {
-        match connect_and_stream(&site, &cache, &storage).await {
+        let result = connect_and_stream(&site, &cache, &storage, &links).await;
+        {
+            let mut link = links.entry(site_id).or_default();
+            link.connected = false;
+            if let Err(e) = &result {
+                link.last_error = Some(e.to_string());
+            }
+        }
+        // The last values stay readable but are marked bad, so the hub never
+        // shows a lost site's values as current.
+        cache
+            .set_status(
+                &site_device_id(&site_name),
+                voltrus::models::DeviceStatus::Offline,
+            )
+            .await;
+        match result {
             Ok(()) => backoff.reset(),
             Err(e) => {
                 tracing::warn!("Hub site '{}' (id={}) error: {}", site_name, site_id, e);
@@ -51,29 +83,46 @@ pub async fn connect_site(site: HubSite, cache: DeviceCache, storage: Storage) {
     }
 }
 
-async fn connect_and_stream(
-    site: &HubSite,
-    cache: &DeviceCache,
-    storage: &Storage,
-) -> anyhow::Result<()> {
+/// The hub device that holds every tag of a site.
+pub fn site_device_id(site_name: &str) -> String {
+    format!("{site_name}:default")
+}
+
+/// The WebSocket handshake request for a site: its `/api/v1/ws` with the API key.
+pub fn site_request(site: &HubSite) -> anyhow::Result<tungstenite::handshake::client::Request> {
     let ws_url = format!(
         "{}/api/v1/ws",
         site.url
             .trim_end_matches('/')
-            .replace("https://", "wss://")
-            .replace("http://", "ws://")
+            .replacen("https://", "wss://", 1)
+            .replacen("http://", "ws://", 1)
     );
+    // `into_client_request` adds the WebSocket handshake headers (key, version,
+    // upgrade); a bare http::Request has none and every site refuses it.
+    use tungstenite::client::IntoClientRequest;
+    let mut request = ws_url.as_str().into_client_request()?;
+    request.headers_mut().insert(
+        "X-API-Key",
+        tungstenite::http::HeaderValue::from_str(&site.api_key)
+            .map_err(|_| anyhow::anyhow!("the API key holds characters a header cannot carry"))?,
+    );
+    Ok(request)
+}
 
+async fn connect_and_stream(
+    site: &HubSite,
+    cache: &DeviceCache,
+    storage: &Storage,
+    links: &SiteLinks,
+) -> anyhow::Result<()> {
+    let request = site_request(site)?;
+    let ws_url = request.uri().to_string();
     let mut last_seen_update = std::time::Instant::now();
-
-    let request = tungstenite::http::Request::builder()
-        .uri(&ws_url)
-        .header("X-API-Key", &site.api_key)
-        .body(())?;
 
     let (mut ws_stream, _) = tokio_tungstenite::connect_async(request).await?;
 
     tracing::info!("Hub site '{}' connected to {}", site.name, ws_url);
+    let mut seen_tags = std::collections::HashSet::new();
 
     while let Some(msg) = ws_stream.next().await {
         match msg {
@@ -84,6 +133,23 @@ async fn connect_and_stream(
                 };
 
                 let msg_type = parsed.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                if msg_type == "AuthError" {
+                    let why = parsed
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("rejected");
+                    anyhow::bail!("site refused the API key: {why}");
+                }
+                if msg_type == "AuthOk" {
+                    links.entry(site.id).or_default().connected = true;
+                    if let Some(mut link) = links.get_mut(&site.id) {
+                        link.last_error = None;
+                    }
+                    if let Err(e) = storage.update_hub_site_last_seen(site.id).await {
+                        tracing::warn!("hub site '{}': last_seen: {e}", site.name);
+                    }
+                    last_seen_update = std::time::Instant::now();
+                }
 
                 match msg_type {
                     "TagUpdateBatch" => {
@@ -105,18 +171,22 @@ async fn connect_and_stream(
                             }
 
                             for (_device_id, metrics) in device_metrics {
-                                let prefixed_id = format!("{}:default", site.name);
+                                seen_tags.extend(metrics.keys().cloned());
+                                let prefixed_id = site_device_id(&site.name);
                                 cache.update(&prefixed_id, metrics, false).await;
                             }
+                            note_message(links, site.id, seen_tags.len());
                         }
                     }
                     "TagUpdate" => {
                         let key = parsed.get("tag_id").and_then(|v| v.as_str()).unwrap_or("");
                         let value = parsed.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
                         if !key.is_empty() {
-                            let prefixed_id = format!("{}:default", site.name);
+                            let prefixed_id = site_device_id(&site.name);
+                            seen_tags.insert(key.to_string());
                             let metrics = HashMap::from([(key.to_string(), value)]);
                             cache.update(&prefixed_id, metrics, false).await;
+                            note_message(links, site.id, seen_tags.len());
                         }
                     }
                     _ => {}
@@ -131,8 +201,8 @@ async fn connect_and_stream(
             }
         }
 
-        // Update last_seen every 60 seconds
-        if last_seen_update.elapsed() >= std::time::Duration::from_secs(60) {
+        // Update last_seen every 15 seconds while data flows
+        if last_seen_update.elapsed() >= std::time::Duration::from_secs(15) {
             if let Err(e) = storage.update_hub_site_last_seen(site.id).await {
                 tracing::warn!(
                     "Failed to update last_seen for hub site '{}': {}",
@@ -147,9 +217,47 @@ async fn connect_and_stream(
     anyhow::bail!("WebSocket stream ended for site '{}'", site.name);
 }
 
+fn note_message(links: &SiteLinks, site_id: i64, tags: usize) {
+    let mut link = links.entry(site_id).or_default();
+    // A site that sends data is connected even if its AuthOk was missed.
+    link.connected = true;
+    link.last_message_at = Some(voltrus::timeutil::now_secs());
+    link.tags = tags;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn site_request_is_a_websocket_handshake_with_the_key() {
+        let site = HubSite {
+            id: 1,
+            name: "A".into(),
+            url: "https://plant-a.example.com/".into(),
+            api_key: "k123".into(),
+            enabled: true,
+            last_seen: None,
+            created_at: 0,
+        };
+        let req = site_request(&site).unwrap();
+        assert_eq!(req.uri().to_string(), "wss://plant-a.example.com/api/v1/ws");
+        for h in [
+            "sec-websocket-key",
+            "sec-websocket-version",
+            "upgrade",
+            "connection",
+            "host",
+        ] {
+            assert!(req.headers().contains_key(h), "missing {h}");
+        }
+        assert_eq!(req.headers()["x-api-key"], "k123");
+        let bad = HubSite {
+            api_key: "bad\nkey".into(),
+            ..site
+        };
+        assert!(site_request(&bad).is_err());
+    }
 
     #[test]
     fn test_backoff_increases() {

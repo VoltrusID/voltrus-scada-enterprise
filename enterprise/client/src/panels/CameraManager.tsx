@@ -34,6 +34,7 @@ function CameraSnapshotsPanel({ camera }: { camera: Camera }) {
   const deleteMut = useDeleteSnapshot()
   const { data: streamInfo } = useStreamInfo(camera.id)
   const [expanded, setExpanded] = useState(false)
+  const [live, setLive] = useState(false)
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -69,6 +70,22 @@ function CameraSnapshotsPanel({ camera }: { camera: Camera }) {
         >
           {captureMut.isPending ? 'Capturing...' : 'Capture'}
         </button>
+        <button
+          onClick={() => setLive(v => !v)}
+          disabled={!camera.enabled}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 4,
+            border: '1px solid var(--cyan)',
+            background: 'transparent',
+            color: 'var(--cyan)',
+            cursor: camera.enabled ? 'pointer' : 'not-allowed',
+            fontSize: 11,
+          }}
+          aria-label={live ? 'Stop live view' : 'Start live view'}
+        >
+          {live ? 'Stop live' : 'Live'}
+        </button>
         {streamInfo && (
           <span style={{
             fontSize: 10,
@@ -85,6 +102,17 @@ function CameraSnapshotsPanel({ camera }: { camera: Camera }) {
           </span>
         )}
       </div>
+
+      {live && (
+        <div style={{ marginBottom: 8, background: '#000', borderRadius: 8, overflow: 'hidden', maxWidth: 640 }}>
+          {/* MJPEG transcoded on the server; the stream stops when the image is removed. */}
+          <img
+            src={`/api/v1/cameras/${camera.id}/live`}
+            alt={`Live view of ${camera.name}`}
+            style={{ display: 'block', width: '100%', height: 'auto' }}
+          />
+        </div>
+      )}
 
       {expanded && (
         <div style={{
@@ -129,7 +157,16 @@ function CameraSnapshotsPanel({ camera }: { camera: Camera }) {
                     <td style={{ padding: '6px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}>
                       {formatSize(snap.file_size)}
                     </td>
-                    <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', textAlign: 'right' }}>
+                    <td style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <a
+                        href={`/api/v1/cameras/${camera.id}/snapshots/${snap.id}/file`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: 10, color: 'var(--cyan)', marginRight: 8 }}
+                        aria-label="View snapshot"
+                      >
+                        View
+                      </a>
                       <button
                         onClick={() => deleteMut.mutate({ cameraId: camera.id, snapshotId: snap.id })}
                         style={{

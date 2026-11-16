@@ -11,12 +11,8 @@ export interface HubSite {
   created_at: number
 }
 
-export interface HubSiteStatus {
-  site_id: number
-  name: string
-  running: boolean
-  last_seen: number | null
-}
+export type { HubSiteStatus } from './hubStatus'
+import { parseHubStatus } from './hubStatus'
 
 export function useHubSites() {
   return useQuery({
@@ -34,7 +30,7 @@ export function useHubStatus() {
     queryKey: ['hub-status'],
     queryFn: async () => {
       const data = await fetchJson<any>('/api/v1/hub/status')
-      return Array.isArray(data) ? data : []
+      return parseHubStatus(data)
     },
     refetchInterval: 10_000,
   })
@@ -95,6 +91,16 @@ export function useStartHubSite() {
       await fetchOk(`/api/v1/hub/sites/${id}/start`, { method: 'POST' })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['hub-status'] }),
+  })
+}
+
+/** Create hub tags for every tag of the site (`<site>:default.<tag>`). */
+export function useImportHubTags() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetchOk(`/api/v1/hub/sites/${id}/import-tags`, { method: 'POST' })
+      return r.json() as Promise<{ created: number; skipped: number; remote_tags: number; device_id: string }>
+    },
   })
 }
 

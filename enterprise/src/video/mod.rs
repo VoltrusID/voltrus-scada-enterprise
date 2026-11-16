@@ -1,9 +1,11 @@
 //! RTSP video: camera management, snapshot capture and stream proxy.
 
 mod client;
+pub mod ffmpeg;
 pub mod handlers;
 mod proxy;
 mod types;
+pub mod watcher;
 
 pub use client::*;
 pub use proxy::*;

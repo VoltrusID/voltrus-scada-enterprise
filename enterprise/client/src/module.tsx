@@ -5,7 +5,7 @@ import { BrandingDialogHost } from './components/BrandingDialogHost'
 import { telegramChannel } from './channels/telegram'
 import { whatsappChannel } from './channels/whatsapp'
 import { CameraManager } from './panels/CameraManager'
-import { CompliancePanel } from './panels/CompliancePanel'
+import { CompliancePanel, ESignaturesTab } from './panels/CompliancePanel'
 import { HubManager } from './panels/HubManager'
 import { LicensePanel } from './panels/LicensePanel'
 import { LoginProviders } from './panels/LoginProviders'
@@ -94,6 +94,16 @@ const enterprise: EnterpriseClientModule = {
         <FeatureGate flag="cfr_part_11" tier="Enterprise" title="21 CFR Part 11" icon={svg(COMPLIANCE_PATHS, 28)}
           description="Electronic signatures, record checksums and compliance configuration.">
           <CompliancePanel onClose={onClose} embedded />
+        </FeatureGate>
+      ),
+    },
+    {
+      // Every signed-in person signs here; the Compliance tab above is for administrators.
+      id: 'e-signatures', label: 'E-Signatures', group: 'Insights', icon: svg(COMPLIANCE_PATHS),
+      render: () => (
+        <FeatureGate flag="cfr_part_11" tier="Enterprise" title="Electronic signatures" icon={svg(COMPLIANCE_PATHS, 28)}
+          description="Sign records with your password, a meaning and a reason (21 CFR Part 11).">
+          <div style={{ padding: 24 }}><ESignaturesTab /></div>
         </FeatureGate>
       ),
     },
