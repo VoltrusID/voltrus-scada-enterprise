@@ -47,6 +47,35 @@ views. It is not a video recorder (no continuous recording or playback).
    `POST /api/v1/cameras` with `{"name","url","enabled","snapshot_on_alarm","retention_hours"}`.
 5. In the camera's row: **Capture** takes a snapshot, **Snapshots (n)** lists
    them with **View** (opens the JPEG), **Live** shows the live view.
+6. Optionally put it on a screen: see
+   [Camera on a dashboard or SCADA screen](#camera-on-a-dashboard-or-scada-screen).
+
+## Camera on a dashboard or SCADA screen
+
+A live camera can sit on any dashboard or SCADA screen next to the tags.
+
+1. As an admin (or another role that edits screens), open the screen and click
+   **Edit**.
+2. Dashboard: under the breakpoint buttons, **Add widget › Camera**. SCADA
+   editor: palette **Widgets** tab, section **Add-ons**, **Camera** (click or drag
+   it onto the stage); its settings are in the inspector.
+3. On the new dashboard tile click **Settings**, choose the camera, optionally untick
+   **Show the camera name**, **Done**. Resize the tile like any other, then
+   **Done** in the top bar to save the screen.
+
+While the screen is being edited the tile shows the camera name and opens no
+stream (each open view holds one of the 8 live slots). Outside edit mode it plays
+the live view with the camera name and a LIVE mark.
+
+Who sees it: anyone with the **Operator** role or above (Operator, Demo, Admin,
+integration keys). The tile loads the camera list from
+`GET /api/v1/cameras/available` (id, name, on/off; never the RTSP address) and
+the picture from `GET /api/v1/cameras/<id>/live`, both with the viewer's own
+session. A Viewer account sees "Your role cannot view cameras"; a deleted camera
+shows "This camera no longer exists", a disabled one "<name> is turned off", and a
+camera that gives no picture (offline, or 8 live views already open) says so on
+the tile. If the add-on is removed, the saved tile shows "Widget not available in
+this edition" and is kept in the screen unchanged.
 
 ## Check it works
 
@@ -65,6 +94,11 @@ as `401 Unauthorized` with the password masked, an alarm snapshot taken 2 s
 after a critical alarm, no snapshot for a camera without Snapshot on Alarm,
 401 for the live view without a session.
 
+Camera widget verified on 2026-11-16 on a stub-licence node: added to the
+Overview dashboard by an admin, live picture (640x360) on an Operator account,
+`401` without a session and `403` for a Viewer on both `/cameras/available` and
+`/cameras/<id>/live`.
+
 ## Troubleshooting
 
 | Message | Cause and fix |
@@ -78,13 +112,9 @@ after a critical alarm, no snapshot for a camera without Snapshot on Alarm,
 
 ## Not available
 
-* **Camera tiles on HMI screens and dashboards.** The core's screens have no
-  slot for add-on widgets, so cameras are viewed in **Data Manager › Cameras**
-  only. Needs a widget hook in the open core.
-* **Native console**: no camera screen.
-* Roles: the camera list and controls are admin only. The live view and the
-  snapshot image are also open to the Demo (operator) role and integration API
-  keys by URL; Viewer and Operator-role accounts get `403`.
+* **Native console**: no camera screen or camera widget.
+* **Viewer role**: cannot watch cameras (live view and snapshot image are in the
+  operator tier). The camera list, snapshots and camera settings are admin only.
 
 ## Fixed in the audit of 2026-11-16
 

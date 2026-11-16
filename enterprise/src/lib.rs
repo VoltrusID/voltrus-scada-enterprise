@@ -28,7 +28,10 @@ pub mod video;
 pub use runtime::{Runtime, rt, try_rt};
 
 use voltrus::api::AppState;
-use voltrus::edition::{BoxFuture, Extension, ExtensionRoutes, ExternalIdentity, StartContext};
+use voltrus::edition::{
+    ActionContext, BoxFuture, Extension, ExtensionRoutes, ExternalIdentity, PasswordChangeKind,
+    PasswordCheck, SessionPolicy, SignatureRecord, SignatureRequirement, StartContext,
+};
 use voltrus::license::LicenseStatus;
 use voltrus::storage::Storage;
 
@@ -86,5 +89,53 @@ impl Extension for Enterprise {
 
     fn auth_providers(&self) -> Vec<serde_json::Value> {
         sso::auth_providers()
+    }
+
+    // 21 CFR Part 11: answered from the Compliance settings (compliance::hooks).
+
+    fn validate_new_password<'a>(
+        &'a self,
+        check: &'a PasswordCheck,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(compliance::hooks::validate_new_password(check))
+    }
+
+    fn password_changed<'a>(
+        &'a self,
+        username: &'a str,
+        password_hash: &'a str,
+        kind: PasswordChangeKind,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(compliance::hooks::password_changed(
+            username,
+            password_hash,
+            kind,
+        ))
+    }
+
+    fn password_expired<'a>(&'a self, user: &'a voltrus::models::User) -> BoxFuture<'a, bool> {
+        Box::pin(compliance::hooks::password_expired(user))
+    }
+
+    fn session_policy<'a>(
+        &'a self,
+        _username: &'a str,
+        _role: &'a str,
+    ) -> BoxFuture<'a, SessionPolicy> {
+        Box::pin(compliance::hooks::session_policy())
+    }
+
+    fn signature_required<'a>(
+        &'a self,
+        ctx: &'a ActionContext,
+    ) -> BoxFuture<'a, Option<SignatureRequirement>> {
+        Box::pin(compliance::hooks::signature_required(ctx))
+    }
+
+    fn record_signature<'a>(
+        &'a self,
+        record: &'a SignatureRecord,
+    ) -> BoxFuture<'a, anyhow::Result<Option<String>>> {
+        Box::pin(compliance::hooks::record_signature(record))
     }
 }

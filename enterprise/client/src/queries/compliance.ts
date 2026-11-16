@@ -2,15 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { enterpriseQueryKeys } from './keys'
 import { fetchJson, fetchOk } from '@voltrus/core/queries/fetch'
 
-export interface ComplianceConfig {
-  auto_logout_minutes: number
-  password_min_length: number
-  password_require_uppercase: boolean
-  password_require_number: boolean
-  password_require_special: boolean
-  password_rotation_days: number
-  authority_to_change: boolean
-}
+import type { ComplianceConfig } from '../panels/complianceModel'
+export type { ComplianceConfig }
 
 export interface ElectronicSignature {
   id: number
@@ -35,7 +28,7 @@ export function useComplianceConfig(enabled = true) {
 export function useUpdateComplianceConfig() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (config: Partial<ComplianceConfig>) => {
+    mutationFn: async (config: Partial<ComplianceConfig>): Promise<{ ok: boolean; config: ComplianceConfig }> => {
       const res = await fetchOk('/api/v1/compliance/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

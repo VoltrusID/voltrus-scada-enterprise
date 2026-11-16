@@ -31,6 +31,11 @@ pub struct SignatureEntry {
     /// The name was not recorded at signing; it is the one on file now.
     pub name_is_current: bool,
     pub hash_valid: bool,
+    /// For a signature asked by the core (a signed tag write, alarm
+    /// acknowledgement, ...): how it was given and the action's details.
+    pub context: Option<super::export::SignatureContext>,
+    /// The core audit entry written with the signature.
+    pub audit_id: Option<i64>,
 }
 
 pub struct AuditEntry {
@@ -161,6 +166,12 @@ pub fn signatures_pdf(meta: &ExportMeta, entries: &[SignatureEntry]) -> Vec<u8> 
             (None, _) => format!("{} (no full name on file)", s.user_id),
         };
         let record = format!("{} / {}", s.resource_type, s.resource_id);
+        let action = match &e.context {
+            Some(c) => format!("{} (signed in a {} as {})", s.action, c.origin, c.role),
+            None => s.action.clone(),
+        };
+        let details = e.context.as_ref().map(|c| c.details.clone());
+        let audit = e.audit_id.map(|id| format!("#{id} (action signature)"));
         let checksum = format!(
             "{}  {}",
             s.signature_hash,
@@ -177,6 +188,9 @@ pub fn signatures_pdf(meta: &ExportMeta, entries: &[SignatureEntry]) -> Vec<u8> 
                     + field_lines(&s.meaning, WIDTH)
                     + field_lines(&s.reason, WIDTH)
                     + field_lines(&record, WIDTH)
+                    + field_lines(&action, WIDTH)
+                    + details.as_deref().map_or(0, |d| field_lines(d, WIDTH))
+                    + audit.as_deref().map_or(0, |a| field_lines(a, WIDTH))
                     + field_lines(&checksum, 66)) as f64
             + 10.0;
         w.need(height);
@@ -199,7 +213,14 @@ pub fn signatures_pdf(meta: &ExportMeta, entries: &[SignatureEntry]) -> Vec<u8> 
         );
         field(&mut w, "Meaning", &s.meaning, Font::Regular, WIDTH);
         field(&mut w, "Reason", &s.reason, Font::Regular, WIDTH);
+        field(&mut w, "Action", &action, Font::Regular, WIDTH);
         field(&mut w, "Record", &record, Font::Regular, WIDTH);
+        if let Some(d) = &details {
+            field(&mut w, "Details", d, Font::Mono, WIDTH);
+        }
+        if let Some(a) = &audit {
+            field(&mut w, "Audit entry", a, Font::Regular, WIDTH);
+        }
         field(&mut w, "Checksum", &checksum, Font::Mono, 66);
         w.y -= 3.0;
         w.rule(w.y + 4.0, 0.85);
@@ -321,6 +342,32 @@ mod tests {
             full_name: Some("Alice Kusuma".into()),
             name_is_current: false,
             hash_valid: id != 2,
+            context: None,
+            audit_id: None,
+        }
+    }
+
+    #[test]
+    fn a_signature_asked_by_the_core_shows_the_action_details_and_audit_entry() {
+        let mut e = sig(9, "Operator confirmed high level");
+        e.sig.action = "alarm_ack".into();
+        e.sig.resource_type = "alarm".into();
+        e.sig.resource_id = "41".into();
+        e.context = Some(super::super::export::SignatureContext {
+            origin: "session".into(),
+            role: "operator".into(),
+            details: r#"{"alarm_id":41}"#.into(),
+            valid: true,
+        });
+        e.audit_id = Some(1234);
+        let t = text(&signatures_pdf(&meta(), &[e]));
+        for want in [
+            "alarm_ack \\(signed in a session as operator\\)",
+            "alarm / 41",
+            r#"{"alarm_id":41}"#,
+            "#1234 \\(action signature\\)",
+        ] {
+            assert!(t.contains(want), "missing {want}");
         }
     }
 
