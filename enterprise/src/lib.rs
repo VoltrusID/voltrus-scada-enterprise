@@ -25,7 +25,7 @@ mod runtime;
 pub mod sso;
 pub mod video;
 
-pub use runtime::{Runtime, rt};
+pub use runtime::{Runtime, rt, try_rt};
 
 use voltrus::api::AppState;
 use voltrus::edition::{BoxFuture, Extension, ExtensionRoutes, ExternalIdentity, StartContext};

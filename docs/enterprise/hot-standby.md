@@ -3,7 +3,9 @@
 Two Voltrus nodes, one active. The active node (primary) polls the devices,
 writes to them, stores history and evaluates alarms. The other (standby) keeps a
 copy of everything and takes over when the primary is gone. Licence: one
-Enterprise licence covers both nodes. Code: `enterprise/src/ha/`.
+Enterprise licence covers both nodes, activated on one of them (see
+[One licence covers both machines](#one-licence-covers-both-machines)). Code:
+`enterprise/src/ha/`, `enterprise/src/licensing/pair.rs`.
 
 ## Set up a pair, step by step
 
@@ -12,19 +14,19 @@ machines and watched in the web client's banner and `GET /api/v1/ha/status`.
 
 1. Two machines that reach each other on a TCP port (default 7901) and both
    reach the devices. Install the same Voltrus version on both.
-2. Activate the Enterprise licence on each machine (**More actions (⋯) › Data
-   Manager › Admin › License**); an activation is bound to its machine and is
-   the one thing that does not replicate. A node without a hot standby licence
-   logs `Hot standby is configured but this process started without a hot
-   standby licence` and runs alone.
+2. Activate the Enterprise licence on the **first machine only** (**More actions
+   (⋯) › Data Manager › Admin › License**). The second machine needs no
+   activation: it receives the licence from the first over the pair link (see
+   [One licence covers both machines](#one-licence-covers-both-machines)).
 3. Generate one secret: `openssl rand -hex 32`. Put it in `ha.shared_secret`
    on both nodes, or in the environment variable `VOLTRUS_HA_SECRET`.
 4. Write the `ha:` block (see [Configuration](#configuration)) on both nodes:
    same `auth_secret`, `shared_secret`, devices, `smtp` and the rest of
    `config.yaml`; different `node_id`, `bind_address`, `peer_address`; `role:
-   primary` on the first node, `role: standby` on the second.
+   primary` on the licensed node, `role: standby` on the second (a node without
+   a licence of its own joins only as the standby).
 5. Start the primary, then the standby. The standby takes a full copy, then
-   streams.
+   streams, and with the first heartbeat it runs with the primary's licence.
 6. Optional, recommended: a witness on a third machine,
    `VOLTRUS_HA_SECRET=<secret> voltrus --ha-witness --bind 0.0.0.0:7902`, and
    `witness: {kind: arbiter, address: <third machine>:7902}` on both nodes.
@@ -37,9 +39,10 @@ machines and watched in the web client's banner and `GET /api/v1/ha/status`.
 ### Check it works
 
 1. `GET /api/v1/ha/status` (signed in) on the primary: `role: primary`,
-   `active: true`, `peer_status: connected`, `sync_state: streaming`; on the
-   standby `role: standby`, `active: false`. The web client shows the pair
-   state in a banner.
+   `active: true`, `peer_status: connected`, `sync_state: streaming`,
+   `license.source: own`; on the standby `role: standby`, `active: false`,
+   `license.source: peer`, and its **Admin › License** card shows the same
+   Enterprise key. The web client shows the pair state in a banner.
 2. Change something on the primary (add a user); it is on the standby within a
    second. A change on the standby answers `503 standby_read_only`.
 3. Stop the primary (`kill -9` or pull its network). After
@@ -59,10 +62,39 @@ integration test (`cargo test --features ha-test-node --test ha_pair`) passed:
 failover 1044 ms with a 1 s window, 13 rows lost at `kill -9` under a 2 ms
 write load, 0 samples with two active nodes.
 
+## One licence covers both machines
+
+The Enterprise licence is activated on one machine and bound to it as usual. Over
+the authenticated pair link that machine sends its signed activation file with
+every heartbeat of the replication session; the partner verifies the signature,
+the expiry and the tier itself and runs with it. Details and limits:
+[licensing.md › One licence for a hot standby pair](licensing.md#one-licence-for-a-hot-standby-pair).
+
+| Situation | What happens |
+| --- | --- |
+| Standby (no activation) streaming from the licensed primary | Enterprise on both. `license.source: peer` on the standby. |
+| Licensed primary dies | The standby takes over with the licence it holds: every Enterprise feature keeps working, including after a restart. |
+| Old primary back as the standby | It confirms the licence again (`license.confirmed_at` moves); no time limit while the pair is together. |
+| Licensed machine away for more than 30 days | The partner's add-on features switch off; Core and the pair link keep running; they come back when the licensed machine rejoins. To stay on the survivor, move the licence to it. |
+| Standby that never received the licence, primary silent | It does not take over: `promotion_blocked: this node has no licence of its own and has not received its partner's yet`. Activate a licence on it or bring the licensed node back. |
+| Copy of the licence or database on a third machine | Refused (`InvalidFingerprint` / "issued for a different machine"). |
+
+Verified on 2026-11-16 with `one_licence_covers_the_pair` (`enterprise/tests/ha_pair.rs`):
+three real `voltrus-ha-test-node` processes running the real licence check as three
+simulated machines, an activation signed for machine A only. B ran with A's licence
+while streaming, kept it after `kill -9` of A (Part 11 configuration answered 200,
+writes accepted), across a restart of B with A still gone, and was confirmed again
+when A rejoined as its standby; with a 4 s grace period B's add-on features
+switched off after A died for good while B stayed primary; machine C refused the
+activation file and, with a copy of A's database, reported `InvalidFingerprint`;
+an unpaired standby D reported the licence as the reason it did not take over.
+
 ### Troubleshooting
 
 | Status | Cause and fix |
 | --- | --- |
+| `license.source: none` on the standby, add-on features off | It has not had a replication session with the licensed node yet (see `peer_status`, `sync_state`), or that node's licence does not include hot standby (Integrator) or has lapsed. |
+| `license.source: expired` | The licensed node was not heard for 30 days. Bring it back, or move the licence to this machine. |
 | `peer_status: disconnected`, `link_auth_failures` rising | Different `shared_secret`, or something terminates TLS between the nodes. |
 | `sync_state: full_sync` for long | First copy or a standby that was away longer than the log holds; wait. Reads on the standby can fail meanwhile. |
 | `sync_state: error`, `sync_error` | The standby runs a different version; upgrade the standby first, then the primary. |

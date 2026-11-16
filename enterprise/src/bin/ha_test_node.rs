@@ -21,7 +21,13 @@ impl Extension for TestNode {
         "enterprise (ha test node)"
     }
 
-    fn resolve_license<'a>(&'a self, _storage: &'a Storage) -> BoxFuture<'a, LicenseStatus> {
+    fn resolve_license<'a>(&'a self, storage: &'a Storage) -> BoxFuture<'a, LicenseStatus> {
+        // `VOLTRUS_TEST_LICENSE=real`: the real licence check, with the machine named by
+        // `VOLTRUS_TEST_MACHINE` and activation files signed by the test key (see
+        // `licensing::activation::test_support`), for the pair licensing tests.
+        if std::env::var("VOLTRUS_TEST_LICENSE").as_deref() == Ok("real") {
+            return self.0.resolve_license(storage);
+        }
         Box::pin(async {
             LicenseStatus::Valid {
                 license_key: "ha-test-node".into(),

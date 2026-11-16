@@ -82,6 +82,11 @@ pub enum Msg {
         /// Device pollers running on the primary, so a takeover starts the same.
         pollers: Vec<String>,
         now_ms: i64,
+        /// The sender's own signed activation file when it includes hot standby, so
+        /// the partner runs with the same licence (see `licensing::pair`). Absent
+        /// from a node without one, and from builds before pair licensing.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        license: Option<Vec<u8>>,
     },
     /// The primary has stopped acting and the standby has every change through
     /// `final_seq`: take over.
@@ -96,6 +101,9 @@ pub enum Msg {
     HeartbeatAck {
         applied_seq: u64,
         now_ms: i64,
+        /// As in `Heartbeat`: the standby's own licence, for a primary without one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        license: Option<Vec<u8>>,
     },
     /// Run a full sync now.
     ResyncRequest,
@@ -193,6 +201,64 @@ mod tests {
             read_msg(&mut b).await.unwrap(),
             Msg::Ack { seq: 9 }
         ));
+    }
+
+    #[test]
+    fn heartbeats_with_and_without_a_licence_interoperate() {
+        // A build before pair licensing: the same variants without the field.
+        #[derive(Serialize, Deserialize, Debug)]
+        enum Old {
+            Heartbeat {
+                epoch: u64,
+                max_seq: u64,
+                lag_ms: u64,
+                pollers: Vec<String>,
+                now_ms: i64,
+            },
+            HeartbeatAck {
+                applied_seq: u64,
+                now_ms: i64,
+            },
+        }
+        let old = rmp_serde::to_vec_named(&Old::HeartbeatAck {
+            applied_seq: 7,
+            now_ms: 1,
+        })
+        .unwrap();
+        assert!(matches!(
+            rmp_serde::from_slice::<Msg>(&old).unwrap(),
+            Msg::HeartbeatAck {
+                applied_seq: 7,
+                license: None,
+                ..
+            }
+        ));
+        let new = rmp_serde::to_vec_named(&Msg::Heartbeat {
+            epoch: 3,
+            max_seq: 9,
+            lag_ms: 0,
+            pollers: vec![],
+            now_ms: 1,
+            license: Some(b"VOLACT\x01{}".to_vec()),
+        })
+        .unwrap();
+        // The older build ignores the licence it does not know.
+        assert!(matches!(
+            rmp_serde::from_slice::<Old>(&new).unwrap(),
+            Old::Heartbeat { epoch: 3, .. }
+        ));
+        match rmp_serde::from_slice::<Msg>(&new).unwrap() {
+            Msg::Heartbeat { license, .. } => assert_eq!(license.unwrap(), b"VOLACT\x01{}"),
+            other => panic!("unexpected {other:?}"),
+        }
+        // No licence: the field is not sent at all.
+        let none = rmp_serde::to_vec_named(&Msg::HeartbeatAck {
+            applied_seq: 1,
+            now_ms: 1,
+            license: None,
+        })
+        .unwrap();
+        assert!(!String::from_utf8_lossy(&none).contains("license"));
     }
 
     #[tokio::test]

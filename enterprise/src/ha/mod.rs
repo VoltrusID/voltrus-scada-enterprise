@@ -170,6 +170,9 @@ pub struct HaStatus {
     pub last_full_sync: Option<FullSyncReport>,
     /// Links that failed the shared-secret proof since this process started.
     pub link_auth_failures: u64,
+    /// Where this node's licence comes from: its own activation, or its partner's
+    /// shared over the pair link (one licence covers the pair).
+    pub license: Option<crate::licensing::pair::ShareStatus>,
 }
 
 impl HaStatus {
@@ -200,6 +203,7 @@ impl HaStatus {
             witness: None,
             last_full_sync: None,
             link_auth_failures: 0,
+            license: None,
         }
     }
 }
@@ -240,7 +244,7 @@ impl HaState {
             }),
             None => {
                 tracing::warn!(
-                    "Hot standby is configured but this process started without a hot standby licence; restart after activating one"
+                    "Hot standby is configured but this process started without a hot standby licence, of its own or from its partner; restart after activating one"
                 );
                 Ok(Self::disabled())
             }

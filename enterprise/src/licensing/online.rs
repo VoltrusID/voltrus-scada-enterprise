@@ -160,12 +160,16 @@ pub async fn apply_activation(
     refresh_status(storage, status).await
 }
 
-/// Re-read the stored activation into the shared status.
+/// Re-read the stored activation into the shared status. On the partner of a hot
+/// standby pair without a licence of its own, the licence its partner shares stays
+/// in force (see [`super::pair`]).
 pub async fn refresh_status(
     storage: &Storage,
     status: &Arc<RwLock<LicenseStatus>>,
 ) -> anyhow::Result<LicenseStatus> {
-    let fresh = resolve_license_status(storage).await;
+    let own = resolve_license_status(storage).await;
+    super::pair::set_own(own.clone());
+    let fresh = super::pair::effective(own);
     *status.write().unwrap_or_else(|e| e.into_inner()) = fresh.clone();
     Ok(fresh)
 }
@@ -242,7 +246,9 @@ pub fn spawn_renewal_task(storage: Storage, status: Arc<RwLock<LicenseStatus>>) 
                     && last_support_refresh
                         .is_none_or(|at| at.elapsed() >= SUPPORT_REFRESH_INTERVAL);
             let due = renewal_due(&current) || needs_resigning(&storage).await || support_due;
-            if due {
+            // A licence borrowed from the pair partner is renewed by the partner
+            // (this machine is not bound to the key) and arrives with its heartbeats.
+            if due && !super::pair::borrowing() {
                 if support_due {
                     last_support_refresh = Some(std::time::Instant::now());
                 }

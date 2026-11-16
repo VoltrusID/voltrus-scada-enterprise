@@ -8,6 +8,7 @@ pub mod activation;
 pub mod cli;
 pub mod fingerprint;
 pub mod online;
+pub mod pair;
 pub mod request;
 pub mod routes;
 pub mod verification;

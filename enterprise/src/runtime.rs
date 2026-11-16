@@ -105,8 +105,9 @@ impl Runtime {
             crate::video::watcher::start(self.storage.clone(), self.stream_proxy.clone());
         }
 
-        if tier.ha() && self.ha_state.is_enabled() && !self.ha_started.swap(true, Ordering::SeqCst)
-        {
+        // The node exists only when the boot decided it may join the pair: licensed,
+        // or a standby waiting for its partner's licence (licensing::pair).
+        if self.ha_state.is_enabled() && !self.ha_started.swap(true, Ordering::SeqCst) {
             self.ha_state.start();
             tracing::info!(
                 "HA enabled, node_id={}, role={}",
@@ -203,5 +204,7 @@ pub(crate) async fn start(ctx: StartContext) {
     }
 
     licensing::online::spawn_renewal_task(ctx.storage, ctx.license_status);
+    // The partner of a licensed hot standby node runs with the licence it borrowed.
+    licensing::pair::publish().await;
     rt().apply_license_effects().await;
 }

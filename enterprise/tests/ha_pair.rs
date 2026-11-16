@@ -52,6 +52,9 @@ struct Node {
     witness: Option<String>,
     ha_enabled: bool,
     extra_yaml: String,
+    /// Extra environment of the process (the pair licensing test sets the machine
+    /// and the real licence check).
+    env: Vec<(&'static str, String)>,
     child: Option<Child>,
 }
 
@@ -69,6 +72,7 @@ impl Node {
             witness: None,
             ha_enabled: true,
             extra_yaml: String::new(),
+            env: Vec::new(),
             child: None,
         }
     }
@@ -114,11 +118,35 @@ impl Node {
             .arg("config.yaml")
             .current_dir(&self.dir)
             .env("RUST_LOG", "info")
+            // Never reach the real activation server from a test.
+            .env("VOLTRUS_ACTIVATION_URL", "http://127.0.0.1:9")
+            .envs(self.env.iter().map(|(k, v)| (*k, v.as_str())))
             .stdout(Stdio::from(log.try_clone().unwrap()))
             .stderr(Stdio::from(log))
             .spawn()
             .expect("start the test node");
         self.child = Some(child);
+    }
+
+    /// Run the node binary once with CLI arguments (as an operator would, e.g.
+    /// `--import-activation`), with this node's config and environment.
+    fn cli(&self, args: &[&str]) -> (bool, String) {
+        std::fs::write(self.dir.join("config.yaml"), self.config()).unwrap();
+        let out = Command::new(env!("CARGO_BIN_EXE_voltrus-ha-test-node"))
+            .args(args)
+            .current_dir(&self.dir)
+            .env("VOLTRUS_ACTIVATION_URL", "http://127.0.0.1:9")
+            .envs(self.env.iter().map(|(k, v)| (*k, v.as_str())))
+            .output()
+            .expect("run the test node CLI");
+        (
+            out.status.success(),
+            format!(
+                "{}{}",
+                String::from_utf8_lossy(&out.stdout),
+                String::from_utf8_lossy(&out.stderr)
+            ),
+        )
     }
 
     /// kill -9
@@ -1175,6 +1203,248 @@ async fn a_node_with_ha_disabled_behaves_as_before() {
         .map(|(s, v, _)| (s, v))
         .unwrap();
     assert_eq!(s, 400, "no HA, nothing to switch: {v}");
+}
+
+// ───────────────────────── one licence for the pair ─────────────────────────
+
+/// The licence status the public endpoint reports.
+async fn license_of(n: &Node) -> Option<Value> {
+    let r = reqwest::Client::new()
+        .get(n.url("/api/license/status"))
+        .timeout(Duration::from_secs(2))
+        .send()
+        .await
+        .ok()?;
+    r.json::<Value>().await.ok()
+}
+
+fn licensed(l: &Value) -> bool {
+    l["status"] == "Valid" && l["feature_flags"]["ha"] == true
+}
+
+/// A node that runs the real licence check, as the machine `machine`.
+fn on_machine(n: &mut Node, machine: &str, grace_secs: u64) {
+    n.env = vec![
+        ("VOLTRUS_TEST_LICENSE", "real".into()),
+        ("VOLTRUS_TEST_MACHINE", machine.into()),
+        ("VOLTRUS_TEST_PAIR_GRACE_SECS", grace_secs.to_string()),
+    ];
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn one_licence_covers_the_pair() {
+    use voltrus_enterprise::licensing::{activation::test_support, fingerprint};
+
+    let _serial = SERIAL.lock().await;
+    let root = tempfile::tempdir().unwrap();
+    let mut a = Node::new(root.path(), "node-a", "primary", String::new());
+    let mut b = Node::new(
+        root.path(),
+        "node-b",
+        "standby",
+        format!("127.0.0.1:{}", a.ha),
+    );
+    a.peer = format!("127.0.0.1:{}", b.ha);
+    on_machine(&mut a, "machine-a", 3600);
+    on_machine(&mut b, "machine-b", 3600);
+
+    // ── one activation, on machine A only ──
+    let activation_file = root.path().join("license-activation.bin");
+    std::fs::write(
+        &activation_file,
+        test_support::sign(
+            &fingerprint::test_fingerprint("machine-a").hash(),
+            "enterprise",
+            None,
+        ),
+    )
+    .unwrap();
+    seed_admin(&a.db()).await;
+    let (ok, out) = a.cli(&[
+        "--import-activation",
+        activation_file.to_str().unwrap(),
+        "config.yaml",
+    ]);
+    assert!(ok, "activation on machine A: {out}");
+
+    a.start();
+    wait_up(&a).await;
+    let api = Api::login(&a).await;
+    wait_role(&api, &a, "primary", Duration::from_secs(30)).await;
+    assert!(licensed(&license_of(&a).await.unwrap()), "A is licensed");
+    assert_eq!(api.status(&a).await.unwrap()["license"]["source"], "own");
+
+    // ── B has no activation; it joins as the standby and runs with A's licence ──
+    b.start();
+    wait_up(&b).await;
+    wait_streaming(&api, &b).await;
+    let lb = wait_until(
+        "B to run with the licence A shares",
+        Duration::from_secs(20),
+        || async { license_of(&b).await.filter(licensed) },
+    )
+    .await;
+    assert_eq!(lb["license_key"], "VOLTRUS-HA-TEST");
+    let sb = api.status(&b).await.unwrap();
+    assert_eq!(sb["license"]["source"], "peer", "{sb}");
+    assert_eq!(sb["license"]["holder_node_id"], "node-a");
+    assert_eq!(
+        scalar(&b.db(), "SELECT COUNT(*) FROM license_activation"),
+        Some(0),
+        "B never activated: the activation is machine-bound and does not replicate"
+    );
+
+    // ── kill -9 A: B takes over and keeps every Enterprise feature ──
+    a.kill();
+    let t = Instant::now();
+    wait_role(&api, &b, "primary", Duration::from_secs(15)).await;
+    measured(format!(
+        "pair licence: unlicensed standby active {} ms after kill -9 of the licensed primary",
+        t.elapsed().as_millis()
+    ));
+    assert!(
+        licensed(&license_of(&b).await.unwrap()),
+        "still licensed after failover"
+    );
+    let (s, _, _) = api
+        .post(&b, "/api/v1/modbus-devices", device_json("after-failover"))
+        .await
+        .unwrap();
+    assert!(
+        (200..300).contains(&s),
+        "the promoted standby accepts writes: {s}"
+    );
+    let (s, v) = api.get(&b, "/api/v1/compliance/config").await.unwrap();
+    assert_eq!(
+        s, 200,
+        "Enterprise (Part 11) works on the promoted standby: {v}"
+    );
+
+    // ── and across a restart while A is still gone (the licence is persisted) ──
+    b.kill();
+    b.start();
+    wait_up(&b).await;
+    wait_role(&api, &b, "primary", Duration::from_secs(30)).await;
+    assert!(
+        licensed(&license_of(&b).await.unwrap()),
+        "a restart inside the grace period keeps the borrowed licence"
+    );
+
+    // ── A comes back as B's standby; the licence is confirmed again ──
+    let confirmed_before = api.status(&b).await.unwrap()["license"]["confirmed_at"].clone();
+    sleep(Duration::from_millis(1100)).await;
+    a.start();
+    wait_up(&a).await;
+    wait_streaming(&api, &a).await;
+    wait_until(
+        "A to confirm the licence to B again",
+        Duration::from_secs(20),
+        || async {
+            let s = api.status(&b).await?;
+            (s["license"]["source"] == "peer" && s["license"]["confirmed_at"] != confirmed_before)
+                .then_some(())
+        },
+    )
+    .await;
+    assert!(licensed(&license_of(&a).await.unwrap()));
+    assert_eq!(api.status(&a).await.unwrap()["license"]["source"], "own");
+
+    // ── the grace period ends when the licensed partner stays away ──
+    // B restarts with a 4 s grace period and pairs with A again (as primary or as
+    // A's standby, whichever the restart timing gives), borrowing the licence again.
+    // Then A dies for good.
+    b.kill();
+    on_machine(&mut b, "machine-b", 4);
+    b.start();
+    wait_up(&b).await;
+    wait_until(
+        "the pair to be back together with B borrowing the licence",
+        Duration::from_secs(30),
+        || async {
+            let s = api.status(&b).await?;
+            (s["peer_status"] == "connected"
+                && s["license"]["source"] == "peer"
+                && licensed(&license_of(&b).await?))
+            .then_some(())
+        },
+    )
+    .await;
+    a.kill();
+    wait_role(&api, &b, "primary", Duration::from_secs(15)).await;
+    let gone = wait_until(
+        "B's borrowed licence to lapse after its grace period",
+        Duration::from_secs(30),
+        || async { license_of(&b).await.filter(|l| !licensed(l)) },
+    )
+    .await;
+    assert_eq!(gone["status"], "Unactivated", "{gone}");
+    let sb = api.status(&b).await.unwrap();
+    assert_eq!(sb["license"]["source"], "expired", "{sb}");
+    assert_eq!(
+        sb["role"], "primary",
+        "the core keeps running without the licence"
+    );
+    assert!(b.log().contains("no longer in force"));
+    let (s, _) = api.get(&b, "/api/v1/compliance/config").await.unwrap();
+    assert_eq!(s, 403, "Enterprise features are off after the grace period");
+
+    // ── a third machine with a copy of A's licence is refused ──
+    let mut c = Node::new(root.path(), "node-c", "primary", "127.0.0.1:1".into());
+    c.ha_enabled = false;
+    on_machine(&mut c, "machine-c", 3600);
+    seed_admin(&c.db()).await;
+    let (ok, out) = c.cli(&[
+        "--import-activation",
+        activation_file.to_str().unwrap(),
+        "config.yaml",
+    ]);
+    assert!(
+        !ok,
+        "the activation file does not import on another machine"
+    );
+    assert!(out.contains("different machine"), "{out}");
+    // Copy A's whole database (with its stored activation) instead.
+    a.kill();
+    std::fs::copy(a.db(), c.db()).unwrap();
+    c.start();
+    wait_up(&c).await;
+    let lc = license_of(&c).await.unwrap();
+    assert_eq!(lc["status"], "InvalidFingerprint", "{lc}");
+    assert_eq!(lc["feature_flags"]["ha"], false);
+    let capi = Api::login(&c).await;
+    let (s, _) = capi.get(&c, "/api/v1/compliance/config").await.unwrap();
+    assert_eq!(s, 403, "no Enterprise feature on the copy");
+    c.kill();
+
+    // An unpaired machine configured as a standby has no licence and never takes over.
+    let mut d = Node::new(
+        root.path(),
+        "node-d",
+        "standby",
+        format!("127.0.0.1:{}", free_port()),
+    );
+    on_machine(&mut d, "machine-d", 3600);
+    seed_admin(&d.db()).await;
+    d.start();
+    assert_eq!(wait_up(&d).await.as_deref(), Some("standby"));
+    let dapi = Api::login(&d).await;
+    let sd = wait_until(
+        "the unpaired standby to report why it does not take over",
+        Duration::from_secs(20),
+        || async {
+            dapi.status(&d).await.filter(|s| {
+                s["promotion_blocked"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("licence"))
+            })
+        },
+    )
+    .await;
+    assert_eq!(sd["role"], "standby");
+    assert_eq!(sd["license"]["source"], "none");
+    assert!(!licensed(&license_of(&d).await.unwrap()));
+    d.kill();
+    b.kill();
 }
 
 // ───────────────────────── the cost of capturing changes ─────────────────────────
