@@ -71,6 +71,7 @@ TARGETS=(
   "linux-x86_64|x86_64-unknown-linux-musl|"
   "windows-x86_64|x86_64-pc-windows-gnu|.exe"
 )
+ALL_TARGETS=("${TARGETS[@]}")
 # Files CI builds that this script does not: platform|file name in BUILD_DIR.
 PREBUILT=(
   "windows-x86_64-setup|voltrus-${TAG}-windows-x86_64-setup.exe"
@@ -310,6 +311,22 @@ if [ "$UPLOAD" = true ]; then
       warn "No ${file} in ${BUILD_DIR}: ${name} is not published (CI builds it; publish it later with --upload-only --target ${name})"
     fi
   done
+
+  # A CI-built file on its own may only join a release whose archives are already in D1:
+  # /downloads serves the highest version in release_files, so a version holding just
+  # the installer would hide every other platform.
+  if [ ${#TARGETS[@]} -eq 0 ]; then
+    others="SELECT COUNT(*) AS n FROM release_files WHERE version = $VERSION_NUM AND platform IN ($(
+      for entry in "${ALL_TARGETS[@]}"; do IFS='|' read -r name _ _ <<< "$entry"; printf "'%s'," "$name"; done | sed 's/,$//'))"
+    if [ "$DRY_RUN" = true ]; then
+      info "[dry-run] would check that ${TAG}'s archives are in D1 first: ${others}"
+    else
+      n=$(cd "$WORKER_DIR" && npx wrangler d1 execute voltrus-releases-db --remote --json --command "$others" 2>/dev/null \
+        | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s)[0].results[0].n)}catch{console.log("")}})')
+      [ -n "$n" ] || error "Could not read release_files for ${TAG} from D1"
+      [ "$n" -gt 0 ] || error "${TAG}'s archives are not in D1: publish them first (./release.sh --upload-only), which also publishes the installer"
+    fi
+  fi
 
   for entry in "${UPLOADS[@]}"; do
     IFS='|' read -r name archive <<< "$entry"
