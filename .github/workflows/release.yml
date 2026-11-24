@@ -52,6 +52,35 @@ jobs:
           fi
           echo "tag=$v" >> "$GITHUB_OUTPUT"
 
+  # The web client with the enterprise module, for the Windows installer. Built on
+  # Linux: core/client's build script uses rm, mkdir -p and cp. release.sh builds its
+  # own copy for the archives.
+  client:
+    name: Web client (enterprise)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: core/client/package-lock.json
+      - name: Build
+        run: |
+          cd core/client
+          npm ci
+          VOLTRUS_ENTERPRISE_CLIENT="$GITHUB_WORKSPACE/enterprise/client/src/index.ts" npm run build
+          test -f ../static/index.html || { echo "the web client build did not produce core/static/index.html"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          # No hyphen: the release job attaches only `*-*` artifacts.
+          name: static
+          path: core/static
+          if-no-files-found: error
+
   build:
     name: ${{ matrix.platform }}
     needs: version
@@ -120,7 +149,7 @@ jobs:
   # on Windows; the installer is not code-signed.
   windows-installer:
     name: windows-x86_64-setup
-    needs: version
+    needs: [version, client]
     runs-on: windows-2025
     env:
       RELEASE_TAG: ${{ needs.version.outputs.tag }}
@@ -132,12 +161,6 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: core/client/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -152,21 +175,18 @@ jobs:
         shell: bash
         run: core/native/scripts/check-notices.sh
 
-      # Before the server build: a release build embeds core/static.
-      - name: Build the web client (with the enterprise module)
-        working-directory: core/client
-        run: |
-          npm ci
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:VOLTRUS_ENTERPRISE_CLIENT = Join-Path $env:GITHUB_WORKSPACE 'enterprise/client/src/index.ts'
-          npm run build
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path ../static/index.html)) { throw 'the web client build did not produce core/static/index.html' }
+      # The web client from the `client` job, before the server build: a release
+      # build embeds core/static and fails without it.
+      - uses: actions/download-artifact@v4
+        with:
+          name: static
+          path: core/static
 
       # The official server from enterprise/ and the console from core/native,
       # side by side for the installer.
       - name: Build
         run: |
+          if (-not (Test-Path core/static/index.html)) { throw 'core/static/index.html is missing: the web client has to be built first' }
           cargo build --locked --release --manifest-path enterprise/Cargo.toml --bin voltrus
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo build --locked --release --manifest-path core/Cargo.toml -p voltrus-scada-native --bin voltrus-native
