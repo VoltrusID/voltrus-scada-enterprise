@@ -22,10 +22,11 @@ pub struct CreateSignatureRequest {
     pub password: String,
 }
 
-/// Failed signature re-authentications that lock the account, like failed
-/// sign-ins do in the core (15 minutes).
-pub const SIGN_LOCK_AFTER_FAILURES: i64 = 10;
-pub const SIGN_LOCK_SECS: i64 = 900;
+/// Failed signature re-authentications lock further signatures for the
+/// account like the core's in-session password checks: after this many wrong
+/// passwords (in 15 minutes), for this long.
+pub const SIGN_LOCK_AFTER_FAILURES: i64 = voltrus::storage::PAIR_MAX_FAILURES;
+pub const SIGN_LOCK_SECS: i64 = voltrus::storage::PAIR_LOCK_SECS;
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateComplianceConfigRequest {

@@ -1,26 +1,89 @@
 name: Release
 
-# Builds the official archives (open core plus Enterprise add-on) for a tag and attaches
-# them to a GitHub release. The archives come from release.sh, so names and layout match
-# what customers download from dl-voltrus-scada.voltrus.id.
+# Builds the official archives (open core plus Enterprise add-on) and the Windows
+# installer for a tag and attaches them to a GitHub release. The archives come from
+# release.sh, so names and layout match what customers download from
+# dl-voltrus-scada.voltrus.id.
 #
 # Push a tag like v0.47.1 (it must match the version in enterprise/Cargo.toml). To publish
 # to R2 and D1 afterwards, download the release assets into target/release-artifacts and
 # run ./release.sh --upload-only (see docs/official-build.md).
+#
+# Run by hand (workflow_dispatch), or on a pull request that changes this workflow or
+# release.sh, it is a dry run: everything is built and named after the version in
+# enterprise/Cargo.toml, the Windows installer is installed and uninstalled on the
+# runner, the files are kept as workflow artifacts and nothing is published. No signing
+# secrets are used: the Windows installer is not code-signed.
 
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - release.sh
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      # The tag on a release; for a dry run, v<version in enterprise/Cargo.toml>.
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check the tag matches the version
+        id: version
+        run: |
+          v="v$(grep -m1 '^version' enterprise/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
+          if [ "${GITHUB_EVENT_NAME}" = push ] && [ "${GITHUB_REF_TYPE}" = tag ]; then
+            [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match enterprise/Cargo.toml version $v"; exit 1; }
+          else
+            echo "Dry run (${GITHUB_EVENT_NAME} on ${GITHUB_REF_NAME}): files are named $v, nothing is published"
+          fi
+          echo "tag=$v" >> "$GITHUB_OUTPUT"
+
+  # The web client with the enterprise module, for the Windows installer. Built on
+  # Linux: core/client's build script uses rm, mkdir -p and cp. release.sh builds its
+  # own copy for the archives.
+  client:
+    name: Web client (enterprise)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: core/client/package-lock.json
+      - name: Build
+        run: |
+          cd core/client
+          npm ci
+          VOLTRUS_ENTERPRISE_CLIENT="$GITHUB_WORKSPACE/enterprise/client/src/index.ts" npm run build
+          test -f ../static/index.html || { echo "the web client build did not produce core/static/index.html"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          # No hyphen: the release job attaches only `*-*` artifacts.
+          name: static
+          path: core/static
+          if-no-files-found: error
+
   build:
     name: ${{ matrix.platform }}
+    needs: version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -42,12 +105,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
-
-      - name: Check the tag matches the version
-        shell: bash
-        run: |
-          v="v$(grep -m1 '^version' enterprise/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')"
-          [ "$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match enterprise/Cargo.toml version $v"; exit 1; }
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -84,18 +142,126 @@ jobs:
             target/release-artifacts/voltrus-*.zip
           if-no-files-found: error
 
+  # Windows as a local station: core's Inno Setup installer
+  # (core/native/packaging/windows/voltrus-scada.iss) carrying the official
+  # (Enterprise) server, with the enterprise web client embedded, and core's
+  # native console. The server runs as the VoltrusSCADA service. Built with MSVC
+  # on Windows; the installer is not code-signed.
+  windows-installer:
+    name: windows-x86_64-setup
+    needs: [version, client]
+    runs-on: windows-2025
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            enterprise
+            core
+          key: windows-installer
+
+      - name: Check licence notices
+        shell: bash
+        run: core/native/scripts/check-notices.sh
+
+      # The web client from the `client` job, before the server build: a release
+      # build embeds core/static and fails without it.
+      - uses: actions/download-artifact@v4
+        with:
+          name: static
+          path: core/static
+
+      # The official server from enterprise/ and the console from core/native,
+      # side by side for the installer.
+      - name: Build
+        run: |
+          if (-not (Test-Path core/static/index.html)) { throw 'core/static/index.html is missing: the web client has to be built first' }
+          cargo build --locked --release --manifest-path enterprise/Cargo.toml --bin voltrus
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build --locked --release --manifest-path core/Cargo.toml -p voltrus-scada-native --bin voltrus-native
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force bin | Out-Null
+          Copy-Item enterprise/target/release/voltrus.exe, core/target/release/voltrus-native.exe bin/
+          # The installed server must be the Enterprise build.
+          $help = & bin/voltrus.exe --help | Out-String
+          if ($help -notmatch '--license-status') { throw 'bin/voltrus.exe is not the Enterprise build (no licence commands in --help)' }
+
+      - name: Installer
+        run: |
+          $name = "voltrus-$env:RELEASE_TAG-windows-x86_64-setup"
+          $setup = core/native/scripts/installer-windows.ps1 -BinDir bin -Out dist `
+            -Version ($env:RELEASE_TAG.TrimStart('v')) -Name $name -ExtraLicense enterprise/LICENSE
+          $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
+          [System.IO.File]::WriteAllText("$setup.sha256", "$hash  $name.exe`n")
+          "SETUP=$setup" >> $env:GITHUB_ENV
+
+      # The installer that is published, installed silently on the runner: service
+      # running, health, the console signing in by itself, uninstall. A fresh station
+      # has no licence: the Enterprise server runs it as Community (Unactivated).
+      - name: Install and uninstall
+        run: core/native/scripts/station-windows.ps1 -Installer $env:SETUP -Out station-check
+
+      # The station ran (and signed the console in) without a licence; its plant data
+      # stays after the uninstall, so ask the Enterprise build what it ran as.
+      # --license-status exits 1 for anything but a valid key.
+      - name: Licence status of the fresh station
+        run: |
+          $config = Join-Path $env:ProgramData 'Voltrus SCADA\config.yaml'
+          $json = & bin/voltrus.exe --license-status $config | Out-String
+          $code = $LASTEXITCODE
+          Write-Host $json
+          $json | Set-Content (Join-Path station-check 'license-status.json')
+          $start = $json.IndexOf('{')
+          if ($start -lt 0) { throw "no JSON from voltrus --license-status (exit $code)" }
+          $status = ($json.Substring($start) | ConvertFrom-Json).status
+          if ($status -ne 'Unactivated') { throw "a fresh station's licence status is '$status' (exit $code), not Unactivated" }
+          Write-Host 'a fresh station runs unlicensed (Community)'
+          exit 0
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # No hyphen: the release job attaches only `*-*` artifacts.
+          name: windows_station_check
+          path: station-check
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64-setup
+          path: |
+            dist/*-setup.exe
+            dist/*-setup.exe.sha256
+          if-no-files-found: error
+
   release:
     name: Publish release
-    needs: build
+    needs: [build, windows-installer]
+    # A tag push only: a run started by hand or by a pull request is a dry run.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: "*-*"
           merge-multiple: true
 
       - name: Checksums
-        run: cd artifacts && sha256sum voltrus-* > SHA256SUMS
+        run: cd artifacts && sha256sum $(ls voltrus-* | grep -v '\.sha256$') > SHA256SUMS
 
       - name: Create release
         env:
@@ -104,12 +270,11 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" artifacts/* \
             --repo "${GITHUB_REPOSITORY}" \
             --title "Voltrus SCADA ${GITHUB_REF_NAME}" \
-            --notes-file - <<'NOTES'
+            --notes-file - <<NOTES
           Official build: open Core plus the Enterprise add-on.
 
-          Licence signing key. This release no longer trusts the original licence signing key, which was replaced in the 2026-10 key rotation. Activations signed with the current key verify as before.
+          Windows: \`voltrus-${GITHUB_REF_NAME}-windows-x86_64-setup.exe\` installs this PC as a local station (the server as the VoltrusSCADA service plus the operator console). The installer is not code-signed, so Windows SmartScreen warns before it runs: choose "More info", then "Run anyway". Check it against \`SHA256SUMS\` first.
 
-          An install that holds an activation signed with the original key asks the activation server for a fresh one when it starts, and every six hours while it stays online. It is the same machine and uses no activation. An install that stays offline needs a new activation file from support.
-
-          Builds older than this release still trust the original key. Update to this release.
+          Changes in behaviour that can need action when upgrading are in the open core's upgrade notes:
+          https://github.com/VoltrusID/voltrus-scada/blob/${GITHUB_REF_NAME}/docs/upgrade-notes.md
           NOTES

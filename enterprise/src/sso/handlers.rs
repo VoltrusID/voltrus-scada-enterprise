@@ -619,7 +619,10 @@ pub async fn ldap_login(
         )
             .into_response());
     };
-    if body.username.is_empty() || body.password.is_empty() {
+    // Directories match names without the spaces around them: count failures
+    // under the trimmed name, or each padded spelling would get fresh limits.
+    let username = body.username.trim();
+    if username.is_empty() || body.password.is_empty() {
         return Ok((
             StatusCode::BAD_REQUEST,
             Json(json!({"error": "username and password are required"})),
@@ -628,10 +631,14 @@ pub async fn ldap_login(
     }
 
     let started = std::time::Instant::now();
-    // Brute-force limits, the same ones local login uses.
-    let rate_key = format!("login:ldap:{}", body.username.to_lowercase());
+    // Brute-force limits, the same ones local login uses: per account and
+    // address (so wrong passwords from one address do not shut the user out
+    // everywhere), and per address across accounts, this machine excepted.
+    let source = voltrus::security::throttle_key(&c.ip);
+    let limit_source = !voltrus::security::is_loopback(&c.ip);
+    let rate_key = format!("login:ldap:{}@{}", username.to_lowercase(), source);
     let limiter = &state.login_rate_limiter;
-    if !limiter.is_allowed(&rate_key) || !limiter.is_ip_allowed(&c.ip) {
+    if !limiter.is_allowed(&rate_key) || (limit_source && !limiter.is_ip_allowed(&source)) {
         return Ok((
             StatusCode::TOO_MANY_REQUESTS,
             Json(json!({"error": "Too many login attempts. Please try again later."})),
@@ -639,17 +646,59 @@ pub async fn ldap_login(
             .into_response());
     }
 
-    let user = match ldap.authenticate(&body.username, &body.password).await {
+    // The stored limits too (core storage/login_failures.rs): per account and
+    // address, per address, and a backoff for an account guessed at from many
+    // addresses. Counted before the directory is asked, so simultaneous
+    // guesses see each other (as local sign-in does); taken back when the
+    // directory cannot answer, which is not the user's mistake.
+    let account = format!("ldap:{}", username.to_lowercase());
+    let now = voltrus::timeutil::now_secs();
+    let attempt = match state
+        .storage
+        .begin_login_attempt(Some(&account), &source, limit_source, now)
+        .await?
+    {
+        Ok(attempt) => attempt,
+        Err(block) => {
+            let (status, error) = match block {
+                voltrus::storage::LoginBlock::Pair { .. } => (
+                    StatusCode::FORBIDDEN,
+                    "Account locked. Please try again later.",
+                ),
+                _ => (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "Too many login attempts. Please try again later.",
+                ),
+            };
+            security_event(
+                &state.storage,
+                &c,
+                "login_locked",
+                "warning",
+                Some(username),
+                "LDAP sign-in refused: too many failures".into(),
+            )
+            .await;
+            return Ok((status, Json(json!({"error": error}))).into_response());
+        }
+    };
+
+    let user = match ldap.authenticate(username, &body.password).await {
         Ok(u) => u,
         Err(LdapLoginError::InvalidCredentials) => {
             limiter.record_attempt(&rate_key);
-            limiter.record_ip_attempt(&c.ip);
+            if limit_source {
+                limiter.record_ip_attempt(&source);
+            }
+            if let Err(e) = state.storage.fail_login_attempt(attempt).await {
+                tracing::error!("recording an LDAP sign-in failure: {e:#}");
+            }
             security_event(
                 &state.storage,
                 &c,
                 "login_failed",
                 "warning",
-                Some(&body.username),
+                Some(username),
                 "Invalid LDAP credentials".into(),
             )
             .await;
@@ -666,12 +715,15 @@ pub async fn ldap_login(
         }
         Err(LdapLoginError::Directory(e)) => {
             tracing::error!("LDAP login failed: {e}");
+            if let Err(e) = state.storage.cancel_login_attempt(attempt).await {
+                tracing::error!("taking back an LDAP sign-in attempt: {e:#}");
+            }
             security_event(
                 &state.storage,
                 &c,
                 "login_failed",
                 "warning",
-                Some(&body.username),
+                Some(username),
                 format!("LDAP directory error: {e}"),
             )
             .await;
@@ -682,6 +734,12 @@ pub async fn ldap_login(
                 .into_response());
         }
     };
+
+    // The password was right: this address starts over for the account and is
+    // remembered as one the user signs in from.
+    if let Err(e) = state.storage.succeed_login_attempt(attempt).await {
+        tracing::error!("clearing LDAP sign-in failures: {e:#}");
+    }
 
     let Some(role) = ldap.cfg.role_mapping.resolve(&user.groups) else {
         security_event(

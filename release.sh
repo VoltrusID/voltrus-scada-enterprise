@@ -19,7 +19,8 @@ set -euo pipefail
 #   ./release.sh --host           # native glibc build of the host (linux-x86_64 layout) to check the
 #                                 #   packaging; never uploads (implies --skip-upload)
 #   ./release.sh --target linux-x86_64 [...]   # limit to one platform (also: macos-arm64,
-#                                              #   linux-arm64, windows-x86_64)
+#                                              #   linux-arm64, windows-x86_64, and for
+#                                              #   --upload-only windows-x86_64-setup)
 #
 # Environment: BUILD_DIR (default target/release-artifacts) moves the packaged output;
 # CARGO_TARGET_DIR, if set, is used for both cargo invocations; DESCRIPTION is the
@@ -30,6 +31,12 @@ set -euo pipefail
 # once every object is in. dl-voltrus-scada.voltrus.id serves the highest D1 version.
 # CI builds the archives on a tag (.github/workflows/release.yml) and attaches them to the
 # GitHub release; download them into BUILD_DIR and run --upload-only to publish.
+#
+# The Windows installer (voltrus-<tag>-windows-x86_64-setup.exe, platform
+# windows-x86_64-setup) is built only by CI, with MSVC on Windows, and is not
+# built here. --upload-only requires it in BUILD_DIR (with all platforms, or
+# --target windows-x86_64-setup); a full local build-and-upload publishes it
+# when it is there and warns when it is not.
 #
 # Requires: node + npm, zig, cargo-zigbuild, rustup targets
 # Upload requires: wrangler (via worker/license-activate/node_modules)
@@ -63,6 +70,11 @@ TARGETS=(
   "linux-arm64|aarch64-unknown-linux-musl|"
   "linux-x86_64|x86_64-unknown-linux-musl|"
   "windows-x86_64|x86_64-pc-windows-gnu|.exe"
+)
+ALL_TARGETS=("${TARGETS[@]}")
+# Files CI builds that this script does not: platform|file name in BUILD_DIR.
+PREBUILT=(
+  "windows-x86_64-setup|voltrus-${TAG}-windows-x86_64-setup.exe"
 )
 
 RED='\033[0;31m'
@@ -102,14 +114,25 @@ done
 
 if [ "$HOST_BUILD" = true ]; then
   TARGETS=("linux-x86_64|x86_64-unknown-linux-gnu|")
+  PREBUILT=()
 elif [ -n "$TARGET_FILTER" ]; then
   FILTERED=()
   for entry in "${TARGETS[@]}"; do
     IFS='|' read -r name _ _ <<< "$entry"
     [ "$name" = "$TARGET_FILTER" ] && FILTERED+=("$entry")
   done
-  [ ${#FILTERED[@]} -gt 0 ] || error "Unknown target '$TARGET_FILTER'. Valid: macos-arm64 linux-arm64 linux-x86_64 windows-x86_64"
-  TARGETS=("${FILTERED[@]}")
+  FILTERED_PREBUILT=()
+  for entry in "${PREBUILT[@]}"; do
+    IFS='|' read -r name _ <<< "$entry"
+    [ "$name" = "$TARGET_FILTER" ] && FILTERED_PREBUILT+=("$entry")
+  done
+  [ ${#FILTERED[@]} -gt 0 ] || [ ${#FILTERED_PREBUILT[@]} -gt 0 ] \
+    || error "Unknown target '$TARGET_FILTER'. Valid: macos-arm64 linux-arm64 linux-x86_64 windows-x86_64 windows-x86_64-setup (upload only)"
+  if [ ${#FILTERED_PREBUILT[@]} -gt 0 ] && [ "$BUILD" = true ]; then
+    error "'$TARGET_FILTER' is built by CI (.github/workflows/release.yml), not here: download it into $BUILD_DIR and use --upload-only"
+  fi
+  TARGETS=("${FILTERED[@]+"${FILTERED[@]}"}")
+  PREBUILT=("${FILTERED_PREBUILT[@]+"${FILTERED_PREBUILT[@]}"}")
 fi
 
 # ── Preflight ──
@@ -272,9 +295,41 @@ if [ "$UPLOAD" = true ]; then
     fi
   }
 
-  for entry in "${TARGETS[@]}"; do
+  # platform|file: the archives built (or downloaded) for TARGETS, then the CI-built files.
+  UPLOADS=()
+  for entry in "${TARGETS[@]+"${TARGETS[@]}"}"; do
     IFS='|' read -r name target ext <<< "$entry"
-    archive="$(archive_for "$name")"
+    UPLOADS+=("${name}|$(archive_for "$name")")
+  done
+  for entry in "${PREBUILT[@]+"${PREBUILT[@]}"}"; do
+    IFS='|' read -r name file <<< "$entry"
+    if [ -f "${BUILD_DIR}/${file}" ]; then
+      UPLOADS+=("${name}|${BUILD_DIR}/${file}")
+    elif [ "$BUILD" = false ]; then
+      error "Not found: ${BUILD_DIR}/${file} (built by CI: gh release download ${TAG} --pattern '${file}' --dir ${BUILD_DIR})"
+    else
+      warn "No ${file} in ${BUILD_DIR}: ${name} is not published (CI builds it; publish it later with --upload-only --target ${name})"
+    fi
+  done
+
+  # A CI-built file on its own may only join a release whose archives are already in D1:
+  # /downloads serves the highest version in release_files, so a version holding just
+  # the installer would hide every other platform.
+  if [ ${#TARGETS[@]} -eq 0 ]; then
+    others="SELECT COUNT(*) AS n FROM release_files WHERE version = $VERSION_NUM AND platform IN ($(
+      for entry in "${ALL_TARGETS[@]}"; do IFS='|' read -r name _ _ <<< "$entry"; printf "'%s'," "$name"; done | sed 's/,$//'))"
+    if [ "$DRY_RUN" = true ]; then
+      info "[dry-run] would check that ${TAG}'s archives are in D1 first: ${others}"
+    else
+      n=$(cd "$WORKER_DIR" && npx wrangler d1 execute voltrus-releases-db --remote --json --command "$others" 2>/dev/null \
+        | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s)[0].results[0].n)}catch{console.log("")}})')
+      [ -n "$n" ] || error "Could not read release_files for ${TAG} from D1"
+      [ "$n" -gt 0 ] || error "${TAG}'s archives are not in D1: publish them first (./release.sh --upload-only), which also publishes the installer"
+    fi
+  fi
+
+  for entry in "${UPLOADS[@]}"; do
+    IFS='|' read -r name archive <<< "$entry"
     [ -f "$archive" ] || error "Archive not found: $archive"
     upload_to_r2 "$archive" "${R2_PREFIX}/${TAG}/${name}/$(basename "$archive")"
     upload_to_r2 "$archive" "${R2_PREFIX}/latest/${name}/$(basename "$archive")"
@@ -284,22 +339,26 @@ if [ "$UPLOAD" = true ]; then
   # object is in R2: a failed upload never leaves a half-published release.
   step "Updating D1..."
   total_size=0
-  for entry in "${TARGETS[@]}"; do
-    IFS='|' read -r name target ext <<< "$entry"
-    archive="$(archive_for "$name")"
+  for entry in "${UPLOADS[@]}"; do
+    IFS='|' read -r name archive <<< "$entry"
     bytes=$(file_size "$archive")
     total_size=$((total_size + bytes))
     local_filename="$(basename "$archive")"
     insert_d1_release "$name" "$local_filename" "${R2_PREFIX}/latest/${name}/${local_filename}" "$bytes"
   done
-  insert_d1_release_meta "voltrus-${TAG}" "$total_size"
+  # A CI-built file published on its own joins a release already in D1: keep its record.
+  if [ ${#TARGETS[@]} -gt 0 ]; then
+    insert_d1_release_meta "voltrus-${TAG}" "$total_size"
+  else
+    info "Only CI-built files: the releases record of ${TAG} is left as it is"
+  fi
 
   if [ "$DRY_RUN" = true ]; then ok "Dry run finished: upload plan printed, nothing sent"; else ok "All uploads complete!"; fi
 fi
 
 echo ""
 info "Done! Artifacts in ${BUILD_DIR}/:"
-ls -lh "${BUILD_DIR}"/*.tar.gz "${BUILD_DIR}"/*.zip 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}' || true
+ls -lh "${BUILD_DIR}"/*.tar.gz "${BUILD_DIR}"/*.zip "${BUILD_DIR}"/*-setup.exe 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}' || true
 
 if [ "$UPLOAD" = true ] && [ "$DRY_RUN" = false ]; then
   echo ""

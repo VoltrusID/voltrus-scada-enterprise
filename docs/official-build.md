@@ -42,14 +42,23 @@ plan without running any remote command; `--skip-upload` (`--build-only` in
    `master`, wait for CI to pass.
 2. Tag it (`git tag v0.47.1 && git push origin v0.47.1`). `.github/workflows/release.yml`
    builds the four archives with `release.sh --build-only --target <platform>` (the
-   tag must equal the Cargo version) and attaches them, with `SHA256SUMS`, to a GitHub
-   release.
+   tag must equal the Cargo version) and the Windows installer
+   (`voltrus-<tag>-windows-x86_64-setup.exe`: core's Inno Setup script with this
+   repo's `voltrus.exe` and core's `voltrus-native.exe`, built with MSVC on
+   `windows-2025`, installed and uninstalled on the runner by core's
+   `native/scripts/station-windows.ps1`), and attaches them, with `SHA256SUMS`, to a
+   GitHub release. The installer is not code-signed: SmartScreen warns before it runs.
+   Started by hand (`gh workflow run release.yml --ref <branch>`) or by a pull request
+   that changes the workflow or `release.sh`, the same workflow is a dry run: it builds
+   and checks everything and publishes nothing.
 3. Publish to R2 and D1, which is where customers download from
    (`dl-voltrus-scada.voltrus.id`): download the assets into `target/release-artifacts`
    (`gh release download v0.47.1 --pattern 'voltrus-v*' --dir target/release-artifacts`)
    and run `DESCRIPTION='...' ./release.sh --upload-only` (`--dry-run` first). Objects go to
    `voltrus/<tag>/<platform>/` and `voltrus/latest/<platform>/` in the bucket
-   `voltrus-releases`; D1 `voltrus-releases-db` gets the records only after every
+   `voltrus-releases` (the installer as platform `windows-x86_64-setup`, which
+   `release.sh` cannot build and therefore requires in `target/release-artifacts`);
+   D1 `voltrus-releases-db` gets the records only after every
    upload succeeded, with a semver-ordered version (0.47.1 is 47001) that the worker's
    `/latest` and `/downloads` serve.
 4. `deploy/deploy.sh [latest|VERSION]` installs a release on the VPS from the same
