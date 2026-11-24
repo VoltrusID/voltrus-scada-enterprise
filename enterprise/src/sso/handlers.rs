@@ -643,12 +643,58 @@ pub async fn ldap_login(
             .into_response());
     }
 
+    // The stored limits too (core storage/login_failures.rs): per account and
+    // address, per address, and a backoff for an account guessed at from many
+    // addresses. Only a refused password counts: a directory that is down is
+    // not the user's mistake.
+    let account = format!("ldap:{}", body.username.to_lowercase());
+    let now = voltrus::timeutil::now_secs();
+    if let Some(block) = state
+        .storage
+        .login_block(Some(&account), &source, now)
+        .await?
+    {
+        let (status, error) = match block {
+            voltrus::storage::LoginBlock::Pair { .. } => (
+                StatusCode::FORBIDDEN,
+                "Account locked. Please try again later.",
+            ),
+            _ => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many login attempts. Please try again later.",
+            ),
+        };
+        security_event(
+            &state.storage,
+            &c,
+            "login_locked",
+            "warning",
+            Some(&body.username),
+            "LDAP sign-in refused: too many failures".into(),
+        )
+        .await;
+        return Ok((status, Json(json!({"error": error}))).into_response());
+    }
+
     let user = match ldap.authenticate(&body.username, &body.password).await {
         Ok(u) => u,
         Err(LdapLoginError::InvalidCredentials) => {
             limiter.record_attempt(&rate_key);
             if limit_source {
                 limiter.record_ip_attempt(&source);
+            }
+            match state
+                .storage
+                .begin_login_attempt(Some(&account), &source, limit_source, now)
+                .await
+            {
+                Ok(Ok(attempt)) => {
+                    if let Err(e) = state.storage.fail_login_attempt(attempt).await {
+                        tracing::error!("recording an LDAP sign-in failure: {e}");
+                    }
+                }
+                Ok(Err(_)) => {}
+                Err(e) => tracing::error!("recording an LDAP sign-in failure: {e}"),
             }
             security_event(
                 &state.storage,
@@ -705,6 +751,16 @@ pub async fn ldap_login(
         )
             .into_response());
     };
+    // The password was right: this address starts over for the account and is
+    // remembered as one the user signs in from.
+    if let Ok(Ok(attempt)) = state
+        .storage
+        .begin_login_attempt(Some(&account), &source, limit_source, now)
+        .await
+        && let Err(e) = state.storage.succeed_login_attempt(attempt).await
+    {
+        tracing::error!("clearing LDAP sign-in failures: {e}");
+    }
     match complete_login(
         &state.storage,
         &state.auth_secret,

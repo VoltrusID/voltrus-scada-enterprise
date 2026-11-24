@@ -201,7 +201,7 @@ jobs:
         run: |
           $name = "voltrus-$env:RELEASE_TAG-windows-x86_64-setup"
           $setup = core/native/scripts/installer-windows.ps1 -BinDir bin -Out dist `
-            -Version ($env:RELEASE_TAG.TrimStart('v')) -Name $name
+            -Version ($env:RELEASE_TAG.TrimStart('v')) -Name $name -ExtraLicense enterprise/LICENSE
           $hash = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$setup.sha256", "$hash  $name.exe`n")
           "SETUP=$setup" >> $env:GITHUB_ENV
