@@ -301,13 +301,38 @@ async fn reauthenticate(state: &AppState, username: &str, password: &str) -> Opt
             ));
         }
     };
-    let now = voltrus::timeutil::now_secs();
-    if user.disabled || user.locked_until.is_some_and(|t| t > now) {
+    if user.disabled {
         return Some(refused(
             StatusCode::FORBIDDEN,
             "this account is locked or disabled and cannot sign",
         ));
     }
+    // Wrong passwords count like the core's own in-session password checks
+    // (core/src/api/signature.rs): per account under SESSION_SOURCE, locked
+    // for PAIR_LOCK_SECS after PAIR_MAX_FAILURES, which also ends the user's
+    // sessions. The attempt is counted before the check, so parallel requests
+    // cannot slip past the limit.
+    let now = voltrus::timeutil::now_secs();
+    let session_attempt = match state
+        .storage
+        .begin_login_attempt(Some(username), voltrus::storage::SESSION_SOURCE, false, now)
+        .await
+    {
+        Ok(Ok(a)) => a,
+        Ok(Err(_)) => {
+            return Some(refused(
+                StatusCode::FORBIDDEN,
+                "this account is locked or disabled and cannot sign",
+            ));
+        }
+        Err(e) => {
+            tracing::error!("signature: counting the password check for {username}: {e:#}");
+            return Some(refused(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "password check failed",
+            ));
+        }
+    };
     let hash = user.password_hash.clone();
     let candidate = password.to_string();
     let ok =
@@ -315,18 +340,27 @@ async fn reauthenticate(state: &AppState, username: &str, password: &str) -> Opt
             .await
             .unwrap_or(false);
     if ok {
-        let _ = state.storage.reset_failed_attempts(username).await;
+        if let Err(e) = state.storage.succeed_login_attempt(session_attempt).await {
+            tracing::warn!("signature: clearing the password checks of {username}: {e:#}");
+        }
         return None;
     }
 
-    let attempt = user.failed_attempts + 1;
-    let _ = state.storage.increment_failed_attempts(username).await;
-    if attempt >= SIGN_LOCK_AFTER_FAILURES {
-        let _ = state
-            .storage
-            .lock_account(username, now + SIGN_LOCK_SECS)
-            .await;
-    }
+    let attempt = match state.storage.fail_login_attempt(session_attempt).await {
+        Ok(outcome) => {
+            if outcome.pair_locked {
+                let _ = state.storage.revoke_all_user_refresh_tokens(username).await;
+                tracing::warn!(
+                    "Electronic signatures of {username} locked after too many wrong passwords"
+                );
+            }
+            outcome.pair_failures
+        }
+        Err(e) => {
+            tracing::warn!("signature: counting a wrong password of {username}: {e:#}");
+            1
+        }
+    };
     let _ = state
         .storage
         .insert_security_event(&voltrus::models::CreateSecurityEvent {
