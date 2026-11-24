@@ -104,12 +104,9 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" artifacts/* \
             --repo "${GITHUB_REPOSITORY}" \
             --title "Voltrus SCADA ${GITHUB_REF_NAME}" \
-            --notes-file - <<'NOTES'
+            --notes-file - <<NOTES
           Official build: open Core plus the Enterprise add-on.
 
-          Licence signing key. This release no longer trusts the original licence signing key, which was replaced in the 2026-10 key rotation. Activations signed with the current key verify as before.
-
-          An install that holds an activation signed with the original key asks the activation server for a fresh one when it starts, and every six hours while it stays online. It is the same machine and uses no activation. An install that stays offline needs a new activation file from support.
-
-          Builds older than this release still trust the original key. Update to this release.
+          Changes in behaviour that can need action when upgrading are in the open core's upgrade notes:
+          https://github.com/VoltrusID/voltrus-scada/blob/${GITHUB_REF_NAME}/docs/upgrade-notes.md
           NOTES

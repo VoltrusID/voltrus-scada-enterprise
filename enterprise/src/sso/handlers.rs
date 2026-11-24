@@ -628,10 +628,14 @@ pub async fn ldap_login(
     }
 
     let started = std::time::Instant::now();
-    // Brute-force limits, the same ones local login uses.
-    let rate_key = format!("login:ldap:{}", body.username.to_lowercase());
+    // Brute-force limits, the same ones local login uses: per account and
+    // address (so wrong passwords from one address do not shut the user out
+    // everywhere), and per address across accounts, this machine excepted.
+    let source = voltrus::security::throttle_key(&c.ip);
+    let limit_source = !voltrus::security::is_loopback(&c.ip);
+    let rate_key = format!("login:ldap:{}@{}", body.username.to_lowercase(), source);
     let limiter = &state.login_rate_limiter;
-    if !limiter.is_allowed(&rate_key) || !limiter.is_ip_allowed(&c.ip) {
+    if !limiter.is_allowed(&rate_key) || (limit_source && !limiter.is_ip_allowed(&source)) {
         return Ok((
             StatusCode::TOO_MANY_REQUESTS,
             Json(json!({"error": "Too many login attempts. Please try again later."})),
@@ -643,7 +647,9 @@ pub async fn ldap_login(
         Ok(u) => u,
         Err(LdapLoginError::InvalidCredentials) => {
             limiter.record_attempt(&rate_key);
-            limiter.record_ip_attempt(&c.ip);
+            if limit_source {
+                limiter.record_ip_attempt(&source);
+            }
             security_event(
                 &state.storage,
                 &c,
