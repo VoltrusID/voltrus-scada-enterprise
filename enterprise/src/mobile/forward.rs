@@ -2,10 +2,10 @@
 //!
 //! A request goes through the same layers as one on the HTTP port: the device
 //! token is checked by the auth middleware, roles apply, and rate limits count
-//! it against [`RELAY_PEER`] (forwarded requests carry no client address).
+//! it against the phone's [`peer_for`] address.
 
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 use axum::Router;
 use axum::body::Body;
@@ -21,11 +21,26 @@ const FORWARDED_HEADERS: [&str; 3] = ["authorization", "content-type", "accept-l
 pub const MAX_REQUEST_BODY: usize = 64 * 1024;
 pub const MAX_RESPONSE_BODY: usize = 1024 * 1024;
 
-/// The peer address of every forwarded request: 192.0.2.1 (TEST-NET-1, never a
-/// real host), so the requests are not taken for local ones (loopback is exempt
-/// from rate limits and trusted for proxy headers) and show up as the relay in
-/// the security log.
+/// The peer address of a forwarded request without a client id: 192.0.2.1
+/// (TEST-NET-1, never a real host), so the requests are not taken for local ones
+/// (loopback is exempt from rate limits and trusted for proxy headers) and show
+/// up as the relay in the security log.
 pub const RELAY_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)), 0);
+
+/// The peer address of a forwarded request. The relay sends `client`, an
+/// opaque hash of the phone's address (8 hex digits); it becomes its own /64 in
+/// the documentation range 2001:db8::/32, so rate limits and login lockouts
+/// apply per phone address and one phone cannot lock out the others.
+pub fn peer_for(client: Option<&str>) -> SocketAddr {
+    let Some(bits) = client
+        .filter(|c| c.len() == 8)
+        .and_then(|c| u32::from_str_radix(c, 16).ok())
+    else {
+        return RELAY_PEER;
+    };
+    let ip = Ipv6Addr::new(0x2001, 0xdb8, (bits >> 16) as u16, bits as u16, 0, 0, 0, 1);
+    SocketAddr::new(IpAddr::V6(ip), 0)
+}
 
 /// A `request` frame.
 #[derive(Debug, Deserialize)]
@@ -39,6 +54,9 @@ pub struct RelayRequest {
     pub headers: HashMap<String, String>,
     #[serde(default)]
     pub body: Option<String>,
+    /// Opaque per-phone-address id from the relay, see [`peer_for`].
+    #[serde(default)]
+    pub client: Option<String>,
 }
 
 /// The routes a phone may reach through the relay (the relay checks the same list).
@@ -92,6 +110,7 @@ async fn run(
     if !allowed(&request.method, &request.path) {
         return Err((StatusCode::FORBIDDEN, "path_not_allowed"));
     }
+    let peer = peer_for(request.client.as_deref());
     let body = request.body.unwrap_or_default();
     if body.len() > MAX_REQUEST_BODY {
         return Err((StatusCode::PAYLOAD_TOO_LARGE, "request_too_large"));
@@ -117,7 +136,7 @@ async fn run(
     let mut req = builder
         .body(Body::from(body))
         .map_err(|_| (StatusCode::BAD_REQUEST, "bad_request"))?;
-    req.extensions_mut().insert(ConnectInfo(RELAY_PEER));
+    req.extensions_mut().insert(ConnectInfo(peer));
 
     let response = router
         .oneshot(req)
@@ -141,7 +160,22 @@ async fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::allowed;
+    use super::{RELAY_PEER, allowed, peer_for};
+
+    #[test]
+    fn each_phone_address_gets_its_own_network() {
+        assert_eq!(
+            peer_for(Some("0a0b0c0d")).ip().to_string(),
+            "2001:db8:a0b:c0d::1"
+        );
+        assert_ne!(
+            peer_for(Some("0a0b0c0d")).ip(),
+            peer_for(Some("0a0b0c0e")).ip()
+        );
+        for bad in [None, Some(""), Some("xyz"), Some("0a0b0c0d0e")] {
+            assert_eq!(peer_for(bad), RELAY_PEER);
+        }
+    }
 
     #[test]
     fn only_the_listed_routes_are_forwarded() {
