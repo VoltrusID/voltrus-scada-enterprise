@@ -2,7 +2,8 @@
 //!
 //! Plugs into the open core through [`voltrus::edition::Extension`]: licensing,
 //! SSO, 21 CFR Part 11, IEC 62443 audit mode, hot standby, multi-site hub, RTSP
-//! video, white-label branding, scheduled PDF reports and Telegram/WhatsApp alarms.
+//! video, white-label branding, scheduled PDF reports, Telegram/WhatsApp alarms and
+//! the push relay connection for the phone app.
 //!
 //! The official `voltrus` binary is this crate's `main`, which passes
 //! [`Enterprise`] to `voltrus::run`.
@@ -19,6 +20,7 @@ pub mod compliance;
 pub mod ha;
 pub mod hub;
 pub mod licensing;
+pub mod mobile;
 pub mod reports;
 mod routes;
 mod runtime;

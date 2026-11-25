@@ -67,6 +67,8 @@ futures-util = "=0.3.31"
 dashmap = "=6.1.0"
 rmp-serde = "=1.3.0"
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+# The push relay connector runs forwarded phone requests through the router.
+tower = { version = "=0.5.3", features = ["util"] }
 # SSO: SAML XML signatures (pure Rust, no xmlsec/libxml2) and LDAP over rustls.
 roxmltree = "=0.20.0"
 rsa = { version = "=0.9.10", features = ["sha2"] }

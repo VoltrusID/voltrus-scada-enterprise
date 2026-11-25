@@ -80,6 +80,9 @@ pub struct SignedActions {
     pub alarm_shelve: ActionRule,
     pub recipe_load: ActionRule,
     pub mode_switch: ActionRule,
+    /// Publishing a screen design, or requesting and approving a publish
+    /// (core `SignedAction::DesignPublish`).
+    pub design_publish: ActionRule,
 }
 
 impl Default for SignedActions {
@@ -90,6 +93,7 @@ impl Default for SignedActions {
             alarm_shelve: ActionRule::off("Reviewed"),
             recipe_load: ActionRule::off("Approved"),
             mode_switch: ActionRule::off("Approved"),
+            design_publish: ActionRule::off("Approved"),
         }
     }
 }
@@ -102,16 +106,18 @@ impl SignedActions {
             SignedAction::AlarmShelve => &self.alarm_shelve,
             SignedAction::RecipeLoad => &self.recipe_load,
             SignedAction::ModeSwitch => &self.mode_switch,
+            SignedAction::DesignPublish => &self.design_publish,
         }
     }
 
-    fn all(&self) -> [(&'static str, &ActionRule); 5] {
+    fn all(&self) -> [(&'static str, &ActionRule); 6] {
         [
             ("tag_write", &self.tag_write),
             ("alarm_ack", &self.alarm_ack),
             ("alarm_shelve", &self.alarm_shelve),
             ("recipe_load", &self.recipe_load),
             ("mode_switch", &self.mode_switch),
+            ("design_publish", &self.design_publish),
         ]
     }
 }
@@ -156,7 +162,9 @@ fn origin_name(origin: ActionOrigin) -> Option<&'static str> {
         ActionOrigin::ApiKey => Some("api_key"),
         ActionOrigin::Mcp => Some("mcp"),
         ActionOrigin::Flow => Some("flow"),
-        ActionOrigin::Session | ActionOrigin::Recipe => None,
+        // A phone is a person who cannot sign there: no exception covers it, so an
+        // action that needs a signature is done at the HMI.
+        ActionOrigin::Session | ActionOrigin::Recipe | ActionOrigin::Mobile => None,
     }
 }
 
@@ -229,6 +237,7 @@ pub fn validate_extras(mut extras: PolicyExtras) -> Result<PolicyExtras, String>
         &mut sig.actions.alarm_shelve,
         &mut sig.actions.recipe_load,
         &mut sig.actions.mode_switch,
+        &mut sig.actions.design_publish,
     ] {
         rule.meaning = rule
             .meaning

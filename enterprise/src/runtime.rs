@@ -12,6 +12,7 @@ use voltrus::ws_manager::WsManager;
 
 use crate::ha::HaState;
 use crate::hub::HubManager;
+use crate::mobile::RelayConnector;
 use crate::sso::SsoRuntime;
 use crate::sso::oidc::{JwksManager, OidcConfig};
 use crate::video::StreamProxy;
@@ -35,6 +36,8 @@ pub struct Runtime {
     pub oidc: OidcConfig,
     pub jwks: JwksManager,
     pub sso: SsoRuntime,
+    /// The push relay connection (phone app pushes and remote access).
+    pub mobile: Arc<RelayConnector>,
     hub_started: AtomicBool,
     scheduler_started: AtomicBool,
     ha_started: AtomicBool,
@@ -115,6 +118,9 @@ impl Runtime {
                 self.config.ha.role
             );
         }
+
+        // Connects when the tier includes `mobile_push` and this node is active.
+        self.mobile.wake();
     }
 
     /// Stop the services only the active node of a pair runs. They start again
@@ -122,12 +128,21 @@ impl Runtime {
     pub async fn pause_active_services(&self) {
         self.hub.stop_all().await;
         self.hub_started.store(false, Ordering::SeqCst);
+        // The relay connection follows the node role.
+        self.mobile.wake();
     }
 }
 
 pub(crate) async fn start(ctx: StartContext) {
     voltrus::edition::register_chat_sender(Arc::new(crate::chat::ChatChannels::default()));
     voltrus::edition::register_hosted_ai(Arc::new(crate::ai::VoltrusAi));
+    let mobile = Arc::new(RelayConnector::new(
+        &RelayConnector::relay_url_from_env(),
+        ctx.storage.clone(),
+        ctx.license_status.clone(),
+        crate::mobile::Timing::default(),
+    ));
+    voltrus::edition::register_mobile_push_sender(mobile.clone());
 
     let oidc = OidcConfig {
         enabled: ctx.config.oidc_enabled,
@@ -193,6 +208,7 @@ pub(crate) async fn start(ctx: StartContext) {
         oidc,
         jwks,
         sso,
+        mobile: mobile.clone(),
         hub_started: AtomicBool::new(false),
         scheduler_started: AtomicBool::new(false),
         ha_started: AtomicBool::new(false),
@@ -221,4 +237,5 @@ pub(crate) async fn start(ctx: StartContext) {
     // The partner of a licensed hot standby node runs with the licence it borrowed.
     licensing::pair::publish().await;
     rt().apply_license_effects().await;
+    mobile.spawn();
 }
