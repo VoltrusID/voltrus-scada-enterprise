@@ -26,7 +26,7 @@ fi
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
-cp "$BIN" "$SIM/plant-sim.py" "$SIM/seed.py" "$DEPLOY/config.yaml" \
+cp "$BIN" "$SIM/plant-sim.py" "$SIM/seed.py" "$SIM/line.py" "$SIM/verticals.py" "$DEPLOY/config.yaml" \
    "$DEPLOY/voltrus-scada.service" "$DEPLOY/voltrus-scada-plant.service" "$STAGE/"
 tar -czf "$STAGE.tgz" -C "$STAGE" .
 scp -q "$STAGE.tgz" "$HOST:/tmp/voltrus-scada.tgz"
@@ -40,7 +40,7 @@ sudo mkdir -p "$D/data"
 rm -rf /tmp/voltrus-scada && mkdir /tmp/voltrus-scada && tar -xzf /tmp/voltrus-scada.tgz -C /tmp/voltrus-scada
 cd /tmp/voltrus-scada
 sudo install -m 755 voltrus "$D/voltrus.new"
-sudo install -m 644 plant-sim.py seed.py "$D/"
+sudo install -m 644 plant-sim.py seed.py line.py verticals.py "$D/"
 [ -f "$D/config.yaml" ] || sudo install -m 640 config.yaml "$D/config.yaml"
 sudo install -m 644 voltrus-scada.service voltrus-scada-plant.service /etc/systemd/system/
 sudo chown -R voltrus-scada:voltrus-scada "$D"

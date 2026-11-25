@@ -6,7 +6,9 @@ use serde::Deserialize;
 use serde_json::json;
 use voltrus::edition::ChatAlarm;
 
-use super::{Attempt, ChatChannels, format_number, network_error, truncate_chars, with_retries};
+use super::{
+    Attempt, ChatChannels, network_error, threshold_text, truncate_chars, value_text, with_retries,
+};
 
 /// Telegram counts message length after parsing entities, so the caps below
 /// apply to the plain text: 1500 + 2 x 200 + the fixed lines stay under its
@@ -30,18 +32,13 @@ pub(super) fn escape_html(text: &str) -> String {
 
 /// The HTML message for an alarm. Every alarm-derived string is escaped.
 pub(super) fn format_text(alarm: &ChatAlarm) -> String {
-    let value = if alarm.unit.is_empty() {
-        format_number(alarm.value)
-    } else {
-        format!("{} {}", format_number(alarm.value), alarm.unit)
-    };
     format!(
         "<b>[{severity}] {name}</b>\n{message}\nValue: <b>{value}</b> (threshold {threshold})\nSource: <code>{key}</code>\nTime: {time}",
         severity = escape_html(&alarm.severity.to_uppercase()),
         name = escape_html(&truncate_chars(&alarm.source_name, MAX_LABEL)),
         message = escape_html(&truncate_chars(&alarm.message, MAX_ALARM_MESSAGE)),
-        value = escape_html(&value),
-        threshold = escape_html(&format_number(alarm.threshold)),
+        value = escape_html(&value_text(alarm)),
+        threshold = escape_html(&threshold_text(alarm)),
         key = escape_html(&truncate_chars(&alarm.source_key, MAX_LABEL)),
         time = escape_html(&alarm.triggered_at),
     )

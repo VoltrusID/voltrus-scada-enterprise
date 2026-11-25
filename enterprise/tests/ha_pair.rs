@@ -1284,7 +1284,8 @@ async fn one_licence_covers_the_pair() {
         || async { license_of(&b).await.filter(licensed) },
     )
     .await;
-    assert_eq!(lb["license_key"], "VOLTRUS-HA-TEST");
+    // The public status shows only a hint of the key (core bf4b8fe): VOLTRUS-HA-TEST.
+    assert_eq!(lb["license_key"], "****TEST");
     let sb = api.status(&b).await.unwrap();
     assert_eq!(sb["license"]["source"], "peer", "{sb}");
     assert_eq!(sb["license"]["holder_node_id"], "node-a");

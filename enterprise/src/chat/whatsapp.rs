@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use voltrus::edition::ChatAlarm;
 use voltrus::notification::chat::WhatsAppConfig;
 
-use super::{Attempt, ChatChannels, format_number, network_error, truncate_chars, with_retries};
+use super::{Attempt, ChatChannels, network_error, truncate_chars, value_text, with_retries};
 
 /// Graph API version the requests are made against.
 const GRAPH_VERSION: &str = "v23.0";
@@ -24,8 +24,7 @@ pub(super) fn parameter_text(field: &str, alarm: &ChatAlarm) -> String {
     let raw = match field {
         "severity" => alarm.severity.to_uppercase(),
         "source" => alarm.source_name.clone(),
-        "value" if alarm.unit.is_empty() => format_number(alarm.value),
-        "value" => format!("{} {}", format_number(alarm.value), alarm.unit),
+        "value" => value_text(alarm),
         "message" => alarm.message.clone(),
         "time" => alarm.triggered_at.clone(),
         other => other.to_string(),
