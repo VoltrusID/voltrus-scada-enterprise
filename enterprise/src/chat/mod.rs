@@ -175,6 +175,27 @@ pub(crate) fn format_number(value: f64) -> String {
     }
 }
 
+/// The alarm's value as the alarm message shows it (tag decimals and unit).
+/// Falls back to the raw number and unit when the server sent no text.
+pub(crate) fn value_text(alarm: &ChatAlarm) -> String {
+    reading_text(&alarm.value_text, alarm.value, &alarm.unit)
+}
+
+/// The limit the alarm crossed, formatted like [`value_text`].
+pub(crate) fn threshold_text(alarm: &ChatAlarm) -> String {
+    reading_text(&alarm.threshold_text, alarm.threshold, &alarm.unit)
+}
+
+fn reading_text(text: &str, value: f64, unit: &str) -> String {
+    if !text.trim().is_empty() {
+        text.to_string()
+    } else if unit.is_empty() {
+        format_number(value)
+    } else {
+        format!("{} {unit}", format_number(value))
+    }
+}
+
 /// `text` cut to at most `max` characters, with an ellipsis when cut.
 pub(crate) fn truncate_chars(text: &str, max: usize) -> String {
     if text.chars().count() <= max {

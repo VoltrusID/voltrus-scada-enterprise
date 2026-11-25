@@ -91,6 +91,9 @@ fn alarm() -> ChatAlarm {
         value: 91.5,
         threshold: 90.0,
         unit: "°C".into(),
+        // As the server formats them for a tag with 2 decimals.
+        value_text: "91.50 °C".into(),
+        threshold_text: "90.00 °C".into(),
         message: "Temp > limit & rising\nsecond line".into(),
         triggered_at: "2026-01-02T03:04:05Z".into(),
     }
@@ -127,7 +130,7 @@ fn telegram_text_escapes_html_in_every_alarm_field() {
         "{text}"
     );
     assert!(
-        text.contains("Value: <b>91.5 °C</b> (threshold 90)"),
+        text.contains("Value: <b>91.50 °C</b> (threshold 90.00 °C)"),
         "{text}"
     );
     assert!(text.contains("<code>pump_1:temp</code>"), "{text}");
@@ -138,6 +141,21 @@ fn telegram_text_escapes_html_in_every_alarm_field() {
         .replace("<code>", "")
         .replace("</code>", "");
     assert!(!stripped.contains('<') && !stripped.contains('>'), "{text}");
+}
+
+#[test]
+fn value_and_threshold_fall_back_to_the_raw_numbers() {
+    let mut a = alarm();
+    a.value_text = String::new();
+    a.threshold_text = " ".into();
+    let text = telegram::format_text(&a);
+    assert!(
+        text.contains("Value: <b>91.5 °C</b> (threshold 90 °C)"),
+        "{text}"
+    );
+    assert_eq!(whatsapp::parameter_text("value", &a), "91.5 °C");
+    a.unit = String::new();
+    assert_eq!(whatsapp::parameter_text("value", &a), "91.5");
 }
 
 #[test]
@@ -171,7 +189,7 @@ fn whatsapp_parameters_follow_the_mapping_and_obey_meta_rules() {
         [
             "Temp > limit & rising second line", // newline collapsed
             "CRITICAL",
-            "91.5 °C",
+            "91.50 °C",
             "Pump <1> & \"Co\"", // WhatsApp parameters are plain text, not HTML
             "2026-01-02T03:04:05Z",
             "Temp > limit & rising second line",
