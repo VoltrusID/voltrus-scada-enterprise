@@ -158,6 +158,16 @@ pub fn borrowing() -> bool {
     !own_covers_pair(&s) && borrowed_at(s.share.as_ref(), now_secs()).is_some()
 }
 
+/// The activation file this node runs on while it borrows its partner's licence
+/// (sent to the push relay, which checks the licence of the site, not the machine).
+pub fn borrowed_blob() -> Option<Vec<u8>> {
+    let s = state();
+    if own_covers_pair(&s) || borrowed_at(s.share.as_ref(), now_secs()).is_none() {
+        return None;
+    }
+    s.share.as_ref().map(|share| share.blob.clone())
+}
+
 /// What `GET /api/v1/ha/status` reports about the licence of this node.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct ShareStatus {

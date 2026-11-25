@@ -156,7 +156,9 @@ fn origin_name(origin: ActionOrigin) -> Option<&'static str> {
         ActionOrigin::ApiKey => Some("api_key"),
         ActionOrigin::Mcp => Some("mcp"),
         ActionOrigin::Flow => Some("flow"),
-        ActionOrigin::Session | ActionOrigin::Recipe => None,
+        // A phone is a person who cannot sign there: no exception covers it, so an
+        // action that needs a signature is done at the HMI.
+        ActionOrigin::Session | ActionOrigin::Recipe | ActionOrigin::Mobile => None,
     }
 }
 
