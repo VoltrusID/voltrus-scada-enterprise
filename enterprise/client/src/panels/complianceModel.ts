@@ -1,7 +1,7 @@
 // Part 11 settings as the Compliance › Policy tab edits them. React-free so it
 // can be tested under node.
 
-export type SignedActionName = 'tag_write' | 'alarm_ack' | 'alarm_shelve' | 'recipe_load' | 'mode_switch'
+export type SignedActionName = 'tag_write' | 'alarm_ack' | 'alarm_shelve' | 'recipe_load' | 'mode_switch' | 'design_publish'
 export type TagScope = 'all' | 'requires_reason' | 'listed'
 export type UnattendedOrigin = 'api_key' | 'mcp' | 'flow'
 
@@ -45,6 +45,7 @@ export const SIGNED_ACTIONS: { key: SignedActionName; label: string; hint: strin
   { key: 'alarm_shelve', label: 'Shelve and unshelve alarms', hint: '' },
   { key: 'recipe_load', label: 'Load recipes', hint: 'One signature covers every write of the load' },
   { key: 'mode_switch', label: 'Mode switches', hint: 'Simulation or live, go-live and rollback, start, stop and run a flow, change a write policy' },
+  { key: 'design_publish', label: 'Publish screen designs', hint: 'Publishing a design, or requesting and approving a publish' },
 ]
 
 export const MEANING_SUGGESTIONS = ['Performed', 'Reviewed', 'Approved', 'Verified', 'Authorized'] as const
@@ -66,6 +67,7 @@ export const DEFAULT_CONFIG: ComplianceConfig = {
       alarm_shelve: { enabled: false, meaning: 'Reviewed' },
       recipe_load: { enabled: false, meaning: 'Approved' },
       mode_switch: { enabled: false, meaning: 'Approved' },
+      design_publish: { enabled: false, meaning: 'Approved' },
     },
     tag_scope: 'all',
     tag_ids: [],

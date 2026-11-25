@@ -129,6 +129,7 @@ pub async fn update_compliance_config(
         ("alarm_shelve", &extras.signatures.actions.alarm_shelve),
         ("recipe_load", &extras.signatures.actions.recipe_load),
         ("mode_switch", &extras.signatures.actions.mode_switch),
+        ("design_publish", &extras.signatures.actions.design_publish),
     ]
     .into_iter()
     .filter(|(_, r)| r.enabled)

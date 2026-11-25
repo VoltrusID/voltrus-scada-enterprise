@@ -14,7 +14,7 @@ hooks, exports); the audit log and the signing prompt are in the core
 | Control | Where | Status |
 | --- | --- | --- |
 | Electronic signature with re-authentication | `POST /api/v1/compliance/sign`, web: Data Manager › Insights › E-Signatures | Works. The signer types their own password every time (11.200(a)); a wrong password counts towards the same lockout as sign-in (10 failures, 15 minutes). |
-| Signatures on control actions | Compliance › Policy › Electronic signatures | Works. An admin chooses which of tag writes, alarm acknowledge, alarm shelve, recipe load and mode switches need a signature, and the meaning of each. The person is asked for password and reason before the action runs; the action never runs unsigned or unrecorded. |
+| Signatures on control actions | Compliance › Policy › Electronic signatures | Works. An admin chooses which of tag writes, alarm acknowledge, alarm shelve, recipe load, mode switches and design publishing need a signature, and the meaning of each. The person is asked for password and reason before the action runs; the action never runs unsigned or unrecorded. |
 | Signature manifestation (11.50) | the signature record, the list, the CSV and PDF exports | Works. User name, full printed name (recorded at signing), time with time zone, meaning, reason, and for a signed action what was done (old and new value of a setpoint). |
 | Signature/record linking (11.70) | SHA-256 hash over all fields; the core audit entry of every signed action carries `signature=<id>` | Works. `GET /api/v1/compliance/signatures/verify` recomputes every hash (and the checksum of the action details). The exports name the audit entry of each signed action. |
 | Password policy | Compliance › Policy › Password Policy | **Enforced** on self-service change, admin create and admin reset: minimum length, uppercase, number, special character, not the user name, not one of the last N passwords. |
@@ -82,7 +82,7 @@ locked out on the day you switch it on.
 
 Switch on each action that needs a signature and set its **Meaning** (the
 defaults are Performed for tag writes, Reviewed for alarm acknowledge and shelve,
-Approved for recipe loads and mode switches; any text up to 80 characters).
+Approved for recipe loads, mode switches and design publishing; any text up to 80 characters).
 
 | Action | Covers |
 | --- | --- |
@@ -91,6 +91,7 @@ Approved for recipe loads and mode switches; any text up to 80 characters).
 | Shelve and unshelve alarms | Both directions. |
 | Load recipes | One signature covers every write of the load. If loads are not signed but tag writes are, a load that writes a signed tag asks once with the tag-write meaning. |
 | Mode switches | Simulation on/off, go-live and rollback, flow start/stop/run once, changing a tag's write policy. |
+| Publish screen designs | Publishing a screen design, or requesting and approving a publish when publishing needs approval (the request is signed by the author, the approval by the reviewer). |
 
 What the person sees: the action is answered `428`, and the web client opens
 **Electronic signature required** showing the meaning ("You are signing:
@@ -143,7 +144,8 @@ API (admin): `GET /api/v1/compliance/config` returns the policy plus
       "alarm_ack":   {"enabled": true,  "meaning": "Reviewed"},
       "alarm_shelve":{"enabled": false, "meaning": "Reviewed"},
       "recipe_load": {"enabled": true,  "meaning": "Approved"},
-      "mode_switch": {"enabled": false, "meaning": "Approved"}
+      "mode_switch": {"enabled": false, "meaning": "Approved"},
+      "design_publish": {"enabled": false, "meaning": "Approved"}
     },
     "tag_scope": "requires_reason", "tag_ids": [],
     "unattended_exceptions": [{"origin": "api_key", "principal": "api_key:2", "note": "MES, VAL-014"}]
