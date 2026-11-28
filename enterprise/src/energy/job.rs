@@ -540,6 +540,8 @@ async fn daily_summary(
         value: row.kvarh_charge.unwrap_or(0.0),
         threshold: 0.0,
         unit: "IDR".into(),
+        value_text: rupiah(row.kvarh_charge.unwrap_or(0.0), site.alerts.lang.as_str()),
+        threshold_text: rupiah(0.0, site.alerts.lang.as_str()),
         message,
         triggered_at: voltrus::notification::webhook::format_triggered_at(now),
         device_id: format!("energy-site-{}", site.id),
