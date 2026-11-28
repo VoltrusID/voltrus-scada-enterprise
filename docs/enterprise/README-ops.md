@@ -13,11 +13,12 @@ Audited and tested end to end on 2026-11-16.
 | Multi-site hub | Integrator, Enterprise | [multi-site.md](multi-site.md) |
 | RTSP video cameras, live camera tiles on dashboards and SCADA screens | Enterprise | [video.md](video.md) |
 | Scheduled PDF reports by email | Integrator, Enterprise | [reports.md](reports.md) |
+| Voltrus Energy: PLN bill shadow (WBP premium, excess kVArh), power factor and peak alarms | Integrator, Enterprise | [energy.md](energy.md) |
 
 Where things are in the web client: the **More actions (⋯)** button in the
 header (on phones, **Open menu**) opens **Data Manager**, **System** (SMTP)
 and **Audit Log**. Data Manager's sidebar has the groups Data (Hub, Cameras),
-Insights (Reports, E-Signatures) and Admin (Security, Compliance, Branding, License).
+Insights (PLN Bill, Reports, E-Signatures) and Admin (Security, Compliance, Branding, License).
 
 The native console (`core/native`) has no screens for these features except
 the audit log (**More › Audit log**, with CSV export); hub tags appear in it
