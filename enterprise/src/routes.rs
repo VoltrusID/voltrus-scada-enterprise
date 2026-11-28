@@ -3,6 +3,7 @@ use axum::routing::{delete, get, post, put};
 use voltrus::api::AppState;
 use voltrus::edition::ExtensionRoutes;
 
+use crate::energy::handlers as energy;
 use crate::{audit, branding, compliance, ha, hub, licensing, reports, sso, video};
 
 pub(crate) fn routes(state: &AppState) -> ExtensionRoutes {
@@ -54,6 +55,17 @@ fn protected() -> Router<AppState> {
             "/api/v1/compliance/signatures",
             get(compliance::handlers::list_electronic_signatures),
         )
+        // Voltrus Energy: anyone signed in reads the shadow bill.
+        .route("/api/v1/energy/defaults", get(energy::defaults))
+        .route("/api/v1/energy/sites", get(energy::list_sites))
+        .route("/api/v1/energy/sites/{id}", get(energy::get_site))
+        .route("/api/v1/energy/sites/{id}/bill", get(energy::get_bill))
+        .route("/api/v1/energy/sites/{id}/daily", get(energy::get_daily))
+        .route(
+            "/api/v1/energy/sites/{id}/reconcile",
+            get(energy::list_reconciled),
+        )
+        .route("/api/v1/energy/meters/{id}/hours", get(energy::meter_hours))
 }
 
 /// Running the plant: the operator role and up. Watching a camera is part of
@@ -137,6 +149,36 @@ fn operator() -> Router<AppState> {
         .route(
             "/api/v1/reports/{id}/generate",
             post(reports::handlers::generate_report),
+        )
+        // Voltrus Energy configuration, PLN bill entry and recomputation.
+        .route("/api/v1/energy/sites", post(energy::create_site))
+        .route(
+            "/api/v1/energy/sites/{id}",
+            put(energy::update_site).delete(energy::delete_site),
+        )
+        .route(
+            "/api/v1/energy/sites/{id}/tariffs",
+            post(energy::upsert_tariff),
+        )
+        .route(
+            "/api/v1/energy/tariffs/{id}",
+            put(energy::update_tariff).delete(energy::delete_tariff),
+        )
+        .route(
+            "/api/v1/energy/sites/{id}/meters",
+            post(energy::create_meter),
+        )
+        .route(
+            "/api/v1/energy/meters/{id}",
+            put(energy::update_meter).delete(energy::delete_meter),
+        )
+        .route(
+            "/api/v1/energy/sites/{id}/reconcile/{month}",
+            put(energy::put_reconcile).delete(energy::delete_reconcile),
+        )
+        .route(
+            "/api/v1/energy/sites/{id}/recompute",
+            post(energy::recompute),
         )
 }
 

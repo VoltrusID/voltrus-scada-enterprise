@@ -42,6 +42,7 @@ pub struct Runtime {
     scheduler_started: AtomicBool,
     ha_started: AtomicBool,
     video_started: AtomicBool,
+    energy_started: AtomicBool,
 }
 
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
@@ -102,6 +103,11 @@ impl Runtime {
                 self.config.db_path.clone(),
                 self.config.smtp.clone(),
             );
+        }
+
+        // The energy job checks the node role and the licence on every run.
+        if crate::energy::licensed(tier) && !self.energy_started.swap(true, Ordering::SeqCst) {
+            crate::energy::job::spawn();
         }
 
         if tier.rtsp_video() && !self.video_started.swap(true, Ordering::SeqCst) {
@@ -213,24 +219,26 @@ pub(crate) async fn start(ctx: StartContext) {
         scheduler_started: AtomicBool::new(false),
         ha_started: AtomicBool::new(false),
         video_started: AtomicBool::new(false),
+        energy_started: AtomicBool::new(false),
     };
     if RUNTIME.set(runtime).is_err() {
         tracing::warn!("enterprise runtime was already started");
         return;
     }
 
-    // The add-on's Part 11 tables exist before hot standby installs its
-    // replication triggers.
+    // The add-on's Part 11 and energy tables exist before hot standby installs
+    // its replication triggers.
     if let Err(e) = ctx
         .storage
         .with_conn(|c| {
             crate::compliance::policy::ensure_schema(c)?;
             crate::compliance::export::ensure_schema(c)?;
+            crate::energy::ensure_schema(c)?;
             Ok(())
         })
         .await
     {
-        tracing::error!("Part 11 tables could not be created: {e:#}");
+        tracing::error!("Part 11 and energy tables could not be created: {e:#}");
     }
 
     licensing::online::spawn_renewal_task(ctx.storage, ctx.license_status);
