@@ -7,6 +7,7 @@ import { whatsappChannel } from './channels/whatsapp'
 import { BrandingPanel } from './panels/BrandingPanel'
 import { CameraManager } from './panels/CameraManager'
 import { CompliancePanel, ESignaturesTab } from './panels/CompliancePanel'
+import { EnergyPanel } from './panels/EnergyPanel'
 import { HubManager } from './panels/HubManager'
 import { LicensePanel } from './panels/LicensePanel'
 import { LoginProviders } from './panels/LoginProviders'
@@ -53,6 +54,7 @@ const BRANDING_PATHS = (
     <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7H17c2.8 0 5-2.2 5-5C22 6 17.5 2 12 2z" />
   </>
 )
+const ENERGY_PATHS = <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
 const COMPLIANCE_PATHS = (
   <>
     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" />
@@ -85,6 +87,17 @@ const enterprise: EnterpriseClientModule = {
         <FeatureGate flag="pdf_reporting" tier="Integrator" title="Scheduled Reports" icon={svg(REPORT_PATHS, 28)}
           description="Schedule automated reports with sensor data and summaries delivered to your inbox.">
           <ReportManager onClose={onClose} embedded />
+        </FeatureGate>
+      ),
+    },
+    {
+      // Voltrus Energy (PLN bill shadow). Core has no `energy` flag yet: like the
+      // server, the tab follows the Integrator tier (pdf_reporting is on exactly there).
+      id: 'energy', label: 'PLN Bill', group: 'Insights', icon: svg(ENERGY_PATHS),
+      render: () => (
+        <FeatureGate flag="pdf_reporting" tier="Integrator" title="Voltrus Energy" icon={svg(ENERGY_PATHS, 28)}
+          description="Shadow your PLN bill every day: WBP premium, excess kVArh charge and power factor alerts.">
+          <EnergyPanel />
         </FeatureGate>
       ),
     },
