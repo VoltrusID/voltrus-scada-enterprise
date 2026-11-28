@@ -6,7 +6,7 @@ import {
   useDeleteReconcile, useEnergyBill, useEnergyDaily, useEnergySite, useEnergySites, useReconcile, useRecompute,
 } from '../queries/energy'
 import {
-  dailyScale, formatNumber, formatPct, formatRupiah, monthOf, numOrNull, showUnconfirmedNote,
+  dailyScale, formatNumber, formatPct, formatRate, formatRupiah, monthOf, numOrNull, showUnconfirmedNote,
   type Bill, type DayRow, type MonthReport, type PlnFigures,
 } from '../energy/model'
 import { cardStyle } from '../energy/styles'
@@ -142,10 +142,10 @@ function BillCard({ title, bill, projected }: { title: string; bill: Bill | null
   const n = (v: number | null, d = 0) => formatNumber(v, lang, d)
   const rp = (v: number | null) => formatRupiah(v, lang)
   const rows: [string, string, string][] = [
-    [t('energy.lineLwbp'), `${n(bill.kwh_lwbp)} kWh × ${rp(bill.rate_lwbp)}`, rp(bill.cost_lwbp)],
-    [t('energy.lineWbp'), `${n(bill.kwh_wbp)} kWh × ${formatRupiah(bill.rate_wbp, lang)}${bill.k_factor != null ? ` (K ${n(bill.k_factor, 2)})` : ''}`, rp(bill.cost_wbp)],
+    [t('energy.lineLwbp'), `${n(bill.kwh_lwbp)} kWh × ${formatRate(bill.rate_lwbp, lang)}`, rp(bill.cost_lwbp)],
+    [t('energy.lineWbp'), `${n(bill.kwh_wbp)} kWh × ${formatRate(bill.rate_wbp, lang)}${bill.k_factor != null ? ` (K ${n(bill.k_factor, 2)})` : ''}`, rp(bill.cost_wbp)],
     [t('energy.lineKvarh'), bill.kvarh == null ? t('energy.noKvarh')
-      : `${n(bill.kvarh_excess)} kVArh × ${rp(bill.rate_kvarh)}`, rp(bill.cost_kvarh)],
+      : `${n(bill.kvarh_excess)} kVArh × ${formatRate(bill.rate_kvarh, lang)}`, rp(bill.cost_kvarh)],
   ]
   return (
     <div style={cardStyle}>

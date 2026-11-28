@@ -7,7 +7,7 @@ import {
   type MeterInput, type SiteInput,
 } from '../queries/energy'
 import {
-  DEFAULT_TARIFFS, TIMEZONES, deviceTags, excessFactor, formatNumber, formatRupiah, numOrNull,
+  DEFAULT_TARIFFS, TIMEZONES, deviceTags, excessFactor, formatNumber, formatRate, numOrNull,
   type AlertConfig, type Golongan, type Meter, type Site, type SiteDetail, type WbpWindow,
 } from '../energy/model'
 import { cardStyle } from '../energy/styles'
@@ -248,8 +248,8 @@ function TariffSection({ detail }: { detail: SiteDetail }) {
             <tr key={tr.id} style={{ borderBottom: '1px solid var(--border)' }}>
               <td style={{ padding: '6px 0' }}>{t('energy.fromMonth', { month: tr.valid_from })}{tr.id === current?.id ? ` (${t('energy.current')})` : ''}</td>
               <td>{tr.golongan}{tr.golongan === 'I-3' ? `, K ${formatNumber(tr.k_factor ?? 1.4, lang, 2)}` : ''}</td>
-              <td>LWBP {formatRupiah(tr.rate_lwbp, lang)}</td>
-              <td>kVArh {formatRupiah(tr.rate_kvarh, lang)}</td>
+              <td>LWBP {formatRate(tr.rate_lwbp, lang)}</td>
+              <td>kVArh {formatRate(tr.rate_kvarh, lang)}</td>
               <td>{t('energy.factorShort')} {tr.kvarh_factor != null ? formatNumber(tr.kvarh_factor, lang, 4) : `tan(acos ${tr.pf_limit})`}</td>
               <td style={{ textAlign: 'right' }}>
                 {detail.tariffs.length > 1 && (

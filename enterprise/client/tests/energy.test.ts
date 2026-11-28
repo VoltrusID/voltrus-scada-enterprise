@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
-  dailyScale, deviceTags, excessFactor, formatRupiah, metricName, numOrNull, showUnconfirmedNote,
+  dailyScale, deviceTags, excessFactor, formatRate, formatRupiah, metricName, numOrNull, showUnconfirmedNote,
 } from '../src/energy/model.ts'
 
 test('Rupiah uses the language thousands separator', () => {
@@ -9,6 +9,7 @@ test('Rupiah uses the language thousands separator', () => {
   assert.equal(formatRupiah(86_949_720.4, 'en'), 'Rp 86,949,720')
   assert.equal(formatRupiah(-1500, 'id-ID'), 'Rp -1.500')
   assert.equal(formatRupiah(null, 'id'), '-')
+  assert.equal(formatRate(1035.78, 'en'), 'Rp 1,035.78')
 })
 
 test('the default excess factor is tan(acos 0.85)', () => {

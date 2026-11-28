@@ -172,6 +172,12 @@ export function formatRupiah(v: number | null | undefined, lang: string): string
   return `Rp ${n < 0 ? '-' : ''}${out}`
 }
 
+/** A Rupiah rate with its two decimals: `Rp 1.035,78` (id) or `Rp 1,035.78` (en). */
+export function formatRate(v: number | null | undefined, lang: string): string {
+  if (v == null || !Number.isFinite(v)) return '-'
+  return `Rp ${v.toLocaleString(lang.startsWith('id') ? 'id-ID' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 /** A quantity with thousands separators and up to `decimals` decimals. */
 export function formatNumber(v: number | null | undefined, lang: string, decimals = 0): string {
   if (v == null || !Number.isFinite(v)) return '-'
