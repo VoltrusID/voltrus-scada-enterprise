@@ -2,7 +2,7 @@
 
 Proprietary UI that the public core client (`client/`, AGPL-3.0) loads through its edition seam
 (`client/src/edition/`). The module contributes: Hub, Cameras (RTSP), scheduled Reports, IEC 62443
-Security audit and 21 CFR Part 11 Compliance tabs, the License panel, SSO sign-in options, white-label
+Security audit and 21 CFR Part 11 Compliance tabs, the Voltrus Energy "PLN Bill" tab, the License panel, SSO sign-in options, white-label
 branding, the HA banner and the Telegram and WhatsApp notification channels. Each feature checks its licence flag and shows
 an upgrade notice when the flag is off.
 
@@ -61,11 +61,11 @@ npm test    # node --experimental-strip-types, pure logic only
 
 The locale strings that belonged to enterprise features (`license`, `reports`, `security`, `compliance`)
 moved to `src/locales/{en,id,zh,de}.json`. The module registers them at load under the `enterprise`
-namespace (`useTranslation('enterprise')`). The current panels use plain English text and do not read them yet.
+namespace (`useTranslation('enterprise')`). Most panels use plain English text and do not read them yet; the Energy panel (`energy.*`, English and Indonesian) does.
 
 ## Server endpoints used
 
 `/api/license/{status,activate,request,refresh}`, `/api/v1/settings/branding`, `/api/v1/auth/providers`,
 `/api/v1/auth/ldap/login` (the login panel's directory form), `/api/v1/auth/{oidc,saml}/login` (browser redirects
 that start OIDC/SAML sign-in; the server sets the session cookies on return, see `docs/enterprise/sso.md`), `/api/v1/hub/*`,
-`/api/v1/cameras/*`, `/api/v1/reports/*`, `/api/v1/security/*`, `/api/v1/compliance/*`, `/api/v1/ha/status`.
+`/api/v1/cameras/*`, `/api/v1/reports/*`, `/api/v1/energy/*`, `/api/v1/security/*`, `/api/v1/compliance/*`, `/api/v1/ha/status`.
